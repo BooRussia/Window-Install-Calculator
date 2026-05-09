@@ -186,6 +186,17 @@
     font-variant-numeric: tabular-nums;
   }
   .accent-glow { color: var(--gold-hi); }
+  .gold-glow {
+    background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+  }
+  /* gold gradient on input — needs both background and color: transparent to clip the gradient to text */
+  input.gold-glow { -webkit-text-fill-color: transparent; }
+  input.gold-glow::placeholder { -webkit-text-fill-color: rgba(148,163,184,0.35); color: rgba(148,163,184,0.35); }
   .card {
     background: linear-gradient(180deg, rgba(15,23,42,0.7) 0%, rgba(2,6,23,0.7) 100%);
     border: 1px solid rgba(30,41,59,0.9);
@@ -285,7 +296,7 @@
 <body class="bg-grid text-slate-100 min-h-screen">
 
 <header class="pt-10 sm:pt-14 pb-6 px-5">
-  <h1 class="text-center font-black tracking-tightest text-slate-50 text-4xl sm:text-6xl md:text-7xl leading-[0.95]">
+  <h1 class="text-center font-black tracking-tightest gold-glow text-4xl sm:text-6xl md:text-7xl leading-[0.95]">
     Window Cost<br class="sm:hidden"/> <span class="sm:inline">Calculator</span>
   </h1>
   <p class="text-center text-slate-500 text-[11px] sm:text-sm mt-4 tracking-[0.22em] uppercase font-semibold">Prime Window &amp; Door</p>
@@ -341,7 +352,7 @@
         step="0.1"
         min="0"
         placeholder="0"
-        class="num-input hero-input text-center text-7xl sm:text-8xl md:text-9xl font-black tracking-tightest text-white w-[min(80vw,520px)]"
+        class="num-input hero-input gold-glow text-center text-7xl sm:text-8xl md:text-9xl font-black tracking-tightest w-[min(80vw,520px)]"
         autocomplete="off"
       />
       <span class="text-slate-500 text-2xl sm:text-3xl font-bold">ft</span>
@@ -414,6 +425,22 @@
         <span id="materialsCount" class="text-[10px] sm:text-xs text-slate-400 tracking-[0.16em] uppercase font-semibold">0 items</span>
       </div>
       <div id="materialsList" class="divide-y divide-slate-800/60"></div>
+      <div id="materialsFooter" class="hidden border-t border-slate-800/80 px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="text-[10px] sm:text-xs tracking-[0.18em] uppercase text-slate-500 font-bold">Materials Total</div>
+          <div class="text-[11px] text-slate-500 mt-0.5 font-medium">Cost of full packs to buy</div>
+        </div>
+        <div id="materialsTotal" class="text-2xl sm:text-3xl font-extrabold accent-glow shrink-0" style="font-variant-numeric: tabular-nums;">$0.00</div>
+      </div>
+    </div>
+
+    <!-- Cost Basis -->
+    <div id="costBasisCard" class="mt-6 card rounded-2xl overflow-hidden">
+      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80">
+        <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Cost Basis</h2>
+        <p class="text-[11px] text-slate-500 mt-0.5 font-medium">What each pack costs and how it breaks down</p>
+      </div>
+      <div id="costBasisList" class="divide-y divide-slate-800/60"></div>
     </div>
 
     <!-- Buttons -->
@@ -484,39 +511,42 @@ const DEFAULT_DATA = {
   houseTypes: ["Block Framed", "Stick Framed"],
   constructionTypes: ["New Construction", "Remodel"],
   costItems: [
-    { id: "caulking", name: "Dowsil Urethane Caulking (20oz sausage)", unit: "oz", unitPrice: 0.75, rates: { default: 3.75 },
+    { id: "caulking", name: "Dow CPS (20oz sausage)", unit: "oz", unitPrice: 0.578125, rates: { default: 2.25 },
       procurement: { caseSize: 320, packName: "case", packPlural: "cases",
         intermediate: { label: "sausage", labelPlural: "sausages", perBase: 20, perPack: 16 } } },
     { id: "shims", name: "Plastic Shims (1/16\")", unit: "each", unitPrice: 0.07,
       rates: { default: 0.0, "Nail-fin": 1.333, "Equal Leg": 3.0, "Unequal Leg": 3.0 },
       calculationMethod: { "Nail-fin": "fixed_per_LF", "Equal Leg": "per_screw", "Unequal Leg": "per_screw" },
       procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } },
-    { id: "backer_rod", name: "5/8\" Open Cell Backer Rod", unit: "LF", unitPrice: 0.28, rates: { default: 1.0 },
+    { id: "backer_rod", name: "Backer Rod (5/8\")", unit: "LF", unitPrice: 0.28, rates: { default: 1.0 },
       procurement: { caseSize: 1400, packName: "roll", packPlural: "rolls" } },
     { id: "flashing_tape", name: "Zip Systems Flashing Tape (6\" wide)", unit: "LF", unitPrice: 2.23, rates: { default: 0, "Stick Framed": 1.0 },
       procurement: { caseSize: 75, packName: "roll", packPlural: "rolls" } },
     { id: "wood_bucking", name: "Wood Bucking (2x6 PT lumber)", unit: "LF", unitPrice: 0.95, rates: { default: 0, "Block Framed": 1.25 } },
     { id: "block_sealer", name: "Block Sealer", unit: "gallon", unitPrice: 40, rates: { default: 0, "Block Framed": 0 }, calculationType: "fixed_job" },
-    { id: "screws", name: "Screws", unit: "each", unitPrice: 0.028,
-      unitPriceByApplication: { "Nail-fin": 0.127 },
+    { id: "screws", name: "Daggerz (Nail-fin)", unit: "each", unitPrice: 0.127,
       rates: {
-        default: 0.75,
-        "Viwinco-Nail-fin": 2.0, "Weathershield-Nail-fin": 4.0, "Velocity-Nail-fin": 1.5, "ES Window & Door-Nail-fin": 3.0,
-        "Viwinco-Equal Leg": 2.0, "Viwinco-Unequal Leg": 2.0,
-        "Weathershield-Equal Leg": 2.0, "Weathershield-Unequal Leg": 2.0,
-        "Velocity-Equal Leg": 2.0, "Velocity-Unequal Leg": 2.0,
-        "ES Window & Door-Equal Leg": 2.0, "ES Window & Door-Unequal Leg": 2.0
+        default: 2.0,
+        "Viwinco-Nail-fin": 2.0, "Weathershield-Nail-fin": 4.0, "Velocity-Nail-fin": 1.5, "ES Window & Door-Nail-fin": 3.0
       },
       procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } },
-    { id: "labor", name: "Labor (install + cleanup)", unit: "hour", unitPrice: 65,
-      rates: { default: 0.25, "Block Framed": 0.50, "Remodel": 0.75 } }
+    { id: "concrete_anchors", name: "Dewalt Ultracons (2-3/4\")", unit: "each", unitPrice: 0.20,
+      rates: {
+        default: 0,
+        "Block Framed": 1.0,
+        "Equal Leg": 1.0,
+        "Unequal Leg": 1.0
+      },
+      procurement: { caseSize: 1000, packName: "case", packPlural: "cases" } },
+    { id: "labor", name: "Labor (install + cleanup)", unit: "hour", unitPrice: 75,
+      rates: { default: 0.1667, "Block Framed": 0.4167, "Remodel": 0.6667 } }
   ]
 };
 
 /* ============================================================
    STATE + STORAGE
    ============================================================ */
-const LS_KEYS = { data: "wcc.data.v2", state: "wcc.state.v1", jobs: "wcc.jobs.v1" };
+const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1" };
 
 function loadData() {
   try {
@@ -566,9 +596,21 @@ let STATE = {
    CALCULATION ENGINE
    ============================================================ */
 function getScrewsPerLF() {
+  if (STATE.application !== "Nail-fin") return 0;
   const item = DATA.costItems.find(c => c.id === "screws");
-  const key = `${STATE.manufacturer}-${STATE.application}`;
+  const key = `${STATE.manufacturer}-Nail-fin`;
   return item.rates[key] ?? item.rates.default ?? 0;
+}
+
+function getConcreteAnchorsPerLF() {
+  const item = DATA.costItems.find(c => c.id === "concrete_anchors");
+  if (!item) return 0;
+  let total = 0;
+  if (STATE.houseType === "Block Framed") total += item.rates["Block Framed"] ?? 0;
+  if (STATE.application === "Equal Leg" || STATE.application === "Unequal Leg") {
+    total += item.rates[STATE.application] ?? 0;
+  }
+  return total;
 }
 
 function getLaborPerLF() {
@@ -585,10 +627,13 @@ function getQuantityPerLF(item) {
   if (id === "shims") {
     if (STATE.application === "Nail-fin") return item.rates["Nail-fin"] ?? 0;
     if (STATE.application === "Equal Leg" || STATE.application === "Unequal Leg") {
-      return getScrewsPerLF() * 4;
+      const anchors = DATA.costItems.find(c => c.id === "concrete_anchors");
+      const windowAnchorsPerLF = anchors?.rates?.[STATE.application] ?? 0;
+      return windowAnchorsPerLF * 4;
     }
     return item.rates.default ?? 0;
   }
+  if (id === "concrete_anchors") return getConcreteAnchorsPerLF();
   if (id === "wood_bucking") {
     return STATE.houseType === "Block Framed" ? (item.rates["Block Framed"] ?? 0) : 0;
   }
@@ -598,6 +643,29 @@ function getQuantityPerLF(item) {
   if (id === "caulking") return item.rates.default ?? 0;
   if (id === "backer_rod") return item.rates.default ?? 0;
   return item.rates.default ?? 0;
+}
+
+function computeCostBasis(item) {
+  if (!item || !item.procurement) return null;
+  const p = item.procurement;
+  const perBase = getUnitPrice(item);
+  const out = {
+    perBase,
+    unit: item.unit,
+    packName: p.packName,
+    perPack: p.caseSize * perBase,
+    packContents: p.intermediate
+      ? { count: p.intermediate.perPack, label: p.intermediate.label, labelPlural: p.intermediate.labelPlural || p.intermediate.label }
+      : { count: p.caseSize, label: item.unit, labelPlural: item.unit }
+  };
+  if (p.intermediate) {
+    out.intermediateLabel = p.intermediate.label;
+    out.perIntermediate = p.intermediate.perBase * perBase;
+  }
+  if (item.unitPriceByApplication && item.unitPriceByApplication[STATE.application] != null) {
+    out.applicationSuffix = ` (${STATE.application})`;
+  }
+  return out;
 }
 
 function computeProcurement(totalQty, item) {
@@ -748,6 +816,7 @@ function fitAll() {
     fitText(document.getElementById("profit"), { minSize: 14, padding: 4 });
     fitText(document.getElementById("grandTotalFooter"), { minSize: 12, padding: 4 });
     fitText(document.getElementById("perLfFooter"), { minSize: 12, padding: 4 });
+    fitText(document.getElementById("materialsTotal"), { minSize: 14, padding: 4 });
   });
 }
 
@@ -853,7 +922,7 @@ function render() {
            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
              <circle cx="10" cy="10" r="8"/><line x1="10" y1="9" x2="10" y2="14"/><circle cx="10" cy="6.2" r="0.6" fill="currentColor" stroke="none"/>
            </svg>
-           <span class="info-pop">15 min/LF (Stick New) &nbsp;•&nbsp; 30 min/LF (Block) &nbsp;•&nbsp; 45 min/LF (Remodel)</span>
+           <span class="info-pop">10 min/LF (Stick New) &nbsp;•&nbsp; 25 min/LF (Block) &nbsp;•&nbsp; 40 min/LF (Remodel)</span>
          </span>`
       : "";
     return `
@@ -878,11 +947,22 @@ function render() {
     return { row, item, proc };
   }).filter(Boolean);
 
+  const matFooter = document.getElementById("materialsFooter");
+  const matTotalEl = document.getElementById("materialsTotal");
+
   if (!matItems.length) {
     matCard.classList.add("hidden");
+    if (matFooter) matFooter.classList.add("hidden");
   } else {
     matCard.classList.remove("hidden");
     matCountEl.textContent = `${matItems.length} item${matItems.length === 1 ? "" : "s"}`;
+    let materialsTotalCost = 0;
+    matItems.forEach(({ item, proc }) => {
+      const basis = computeCostBasis(item);
+      if (basis) materialsTotalCost += proc.packs * basis.perPack;
+    });
+    if (matFooter) matFooter.classList.remove("hidden");
+    if (matTotalEl) matTotalEl.textContent = formatMoney(materialsTotalCost);
     matWrap.innerHTML = matItems.map(({ row, item, proc }) => {
       const detail = proc.intCount != null
         ? `${formatQty(row.quantity)} ${item.unit} &middot; ${proc.intCount} ${proc.intLabel} &middot; ${proc.intPerPack} per ${proc.packName}`
@@ -896,6 +976,45 @@ function render() {
           <div class="text-right shrink-0 leading-none">
             <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${proc.packs}</div>
             <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${proc.packLabel}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // Cost Basis list (price per base, intermediate, and pack)
+  const cbCard = document.getElementById("costBasisCard");
+  const cbWrap = document.getElementById("costBasisList");
+  const cbItems = matItems.map(({ item }) => ({ item, basis: computeCostBasis(item) })).filter(x => x.basis);
+
+  if (!cbItems.length) {
+    cbCard.classList.add("hidden");
+  } else {
+    cbCard.classList.remove("hidden");
+    const fmt = n => moneyFmt.format(n);
+    const fmtPrecise = n => {
+      const s = (Math.round(n * 1000) / 1000).toFixed(3);
+      return `$${s.endsWith("0") ? s.slice(0, -1) : s}`;
+    };
+    cbWrap.innerHTML = cbItems.map(({ item, basis }) => {
+      const segs = [];
+      // Per base unit (smallest)
+      segs.push(`<span class="text-slate-300">${fmtPrecise(basis.perBase)}</span><span class="text-slate-600"> / </span><span class="text-slate-500">${basis.unit}</span>`);
+      // Per intermediate (e.g. sausage) if present
+      if (basis.perIntermediate != null) {
+        segs.push(`<span class="text-slate-300">${fmt(basis.perIntermediate)}</span><span class="text-slate-600"> / </span><span class="text-slate-500">${basis.intermediateLabel}</span>`);
+      }
+      // Per pack (highlighted) + how many come in the pack
+      const pc = basis.packContents;
+      const noun = pc.count === 1 ? pc.label : (pc.labelPlural || pc.label);
+      const packCountStr = `${pc.count.toLocaleString()} ${noun}`;
+      segs.push(`<span class="accent-glow font-extrabold">${fmt(basis.perPack)}</span><span class="text-slate-500"> / </span><span class="text-slate-400 font-bold">${basis.packName}</span><span class="text-slate-500 font-medium ml-1">(${packCountStr})</span>`);
+      const arrow = `<span class="text-slate-700 mx-1">→</span>`;
+      return `
+        <div class="px-5 sm:px-6 py-4 fade-in">
+          <div class="text-sm text-slate-100 font-bold">${item.name}${basis.applicationSuffix || ""}</div>
+          <div class="text-[12px] text-slate-400 mt-1.5 flex flex-wrap items-center gap-y-1" style="font-variant-numeric: tabular-nums;">
+            ${segs.join(arrow)}
           </div>
         </div>
       `;
