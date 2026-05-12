@@ -1104,6 +1104,12 @@ function bindControls() {
   lf.value = STATE.totalLF || "";
   if (!lf._wired) {
     lf.addEventListener("input", e => { STATE.totalLF = e.target.value; render(); });
+    // Prevent scroll wheel from changing number input values
+    document.addEventListener("wheel", () => {
+      if (document.activeElement && document.activeElement.type === "number") {
+        document.activeElement.blur();
+      }
+    }, { passive: true });
     lf._wired = true;
   }
 
