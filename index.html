@@ -456,6 +456,7 @@
               <th class="text-left font-medium py-3 px-5 sm:px-6">Item</th>
               <th class="text-right font-medium py-3 px-3 hidden sm:table-cell">Rate per LF</th>
               <th class="text-right font-medium py-3 px-3">Quantity</th>
+              <th class="text-right font-medium py-3 px-3 hidden sm:table-cell">Case Count</th>
               <th class="text-right font-medium py-3 px-5 sm:px-6">Total Cost</th>
             </tr>
           </thead>
@@ -465,12 +466,14 @@
               <td class="py-3 px-5 sm:px-6 text-xs uppercase tracking-[0.14em] text-slate-500">Per LF</td>
               <td class="hidden sm:table-cell"></td>
               <td></td>
+              <td class="hidden sm:table-cell"></td>
               <td id="perLfFooter" class="text-right py-3 px-5 sm:px-6 font-semibold">$0.00</td>
             </tr>
             <tr class="text-slate-100">
               <td class="py-4 px-5 sm:px-6 text-xs uppercase tracking-[0.14em] text-slate-400">Grand Total</td>
               <td class="hidden sm:table-cell"></td>
               <td></td>
+              <td class="hidden sm:table-cell"></td>
               <td id="grandTotalFooter" class="text-right py-4 px-5 sm:px-6 text-lg font-bold accent-glow">$0.00</td>
             </tr>
           </tfoot>
@@ -1131,9 +1134,29 @@ function render() {
 
   const body = document.getElementById("breakdownBody");
   body.innerHTML = r.rows.map(row => {
-    const qtyStr = row.asNeeded
-      ? `<span class="text-slate-500">as needed</span>`
-      : `${formatQty(row.quantity)} ${row.unit}`;
+    const item = DATA.costItems.find(c => c.id === row.id);
+    const proc = item && !row.asNeeded ? computeProcurement(row.quantity, item) : null;
+
+    // Quantity: procurement-aware
+    let qtyStr;
+    if (row.asNeeded) {
+      qtyStr = `<span class="text-slate-500">as needed</span>`;
+    } else if (proc && proc.intCount != null) {
+      // Has intermediate (e.g. caulking → sausages/tubes)
+      qtyStr = `${proc.intCount} <span class="text-slate-500">${proc.intLabel}</span>`;
+    } else if (row.unit === "each") {
+      // Discrete items (shims, screws, anchors) — count alone
+      qtyStr = `${formatQty(row.quantity)}`;
+    } else {
+      // Measured items (LF, gallons, hours, etc.)
+      qtyStr = `${formatQty(row.quantity)} <span class="text-slate-500">${row.unit}</span>`;
+    }
+
+    // Case Count: packs needed for procurement
+    const caseStr = proc
+      ? `${proc.packs} <span class="text-slate-500">${proc.packLabel}</span>`
+      : `<span class="text-slate-700">—</span>`;
+
     const rateStr = row.isFixed
       ? `<span class="text-slate-500">fixed job</span>`
       : `${formatMoney(row.ratePerLF)}`;
@@ -1150,6 +1173,7 @@ function render() {
         <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center">${row.name}${infoIcon}</span></td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${rateStr}</td>
         <td class="text-right py-3 px-3 text-slate-400">${qtyStr}</td>
+        <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${caseStr}</td>
         <td class="text-right py-3 px-5 sm:px-6 font-medium text-slate-100">${formatMoney(row.totalCost)}</td>
       </tr>
     `;
@@ -1712,24 +1736,35 @@ function exportPDF() {
   ];
   details.forEach((t, i) => doc.text(t, 40, 160 + i * 16));
 
-  const rows = r.rows.map(row => [
-    row.name,
-    row.isFixed ? "fixed job" : `$${formatMoneyRaw(row.ratePerLF)}`,
-    row.asNeeded ? "as needed" : `${formatQty(row.quantity)} ${row.unit}`,
-    formatMoney(row.totalCost)
-  ]);
+  const rows = r.rows.map(row => {
+    const item = DATA.costItems.find(c => c.id === row.id);
+    const proc = item && !row.asNeeded ? computeProcurement(row.quantity, item) : null;
+    let qty;
+    if (row.asNeeded) qty = "as needed";
+    else if (proc && proc.intCount != null) qty = `${proc.intCount} ${proc.intLabel}`;
+    else if (row.unit === "each") qty = `${formatQty(row.quantity)}`;
+    else qty = `${formatQty(row.quantity)} ${row.unit}`;
+    const caseStr = proc ? `${proc.packs} ${proc.packLabel}` : "—";
+    return [
+      row.name,
+      row.isFixed ? "fixed job" : `$${formatMoneyRaw(row.ratePerLF)}`,
+      qty,
+      caseStr,
+      formatMoney(row.totalCost)
+    ];
+  });
 
   doc.autoTable({
     startY: 250,
-    head: [["Item", "Rate per LF", "Quantity", "Total Cost"]],
+    head: [["Item", "Rate per LF", "Quantity", "Case Count", "Total Cost"]],
     body: rows,
     theme: "grid",
     headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
     styles: { fontSize: 9, cellPadding: 6 },
-    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
     foot: [
-      ["Per LF", "", "", formatMoney(r.perLfCost)],
-      ["Grand Total", "", "", formatMoney(r.totalCost)]
+      ["Per LF", "", "", "", formatMoney(r.perLfCost)],
+      ["Grand Total", "", "", "", formatMoney(r.totalCost)]
     ],
     footStyles: { fillColor: [241, 245, 249], textColor: 15, fontStyle: "bold" }
   });
