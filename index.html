@@ -421,6 +421,11 @@
     </div>
     <div class="mt-3 h-px max-w-[480px] mx-auto bg-gradient-to-r from-transparent via-slate-700 to-transparent"></div>
     <div id="lfPerWindowHint" class="hidden mt-2 text-center text-slate-600 text-[11px] tracking-[0.18em] uppercase font-semibold" style="font-variant-numeric: tabular-nums;"></div>
+    <div class="mt-5 flex justify-center">
+      <button id="readFromPlanBtn" class="btn rounded-full px-4 py-2 text-[11px] sm:text-xs font-bold bg-transparent text-slate-400 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] tracking-[0.14em] uppercase">
+        Read from Plan / Schedule
+      </button>
+    </div>
   </section>
 
   <!-- Results -->
@@ -546,6 +551,57 @@
 <footer class="text-center text-slate-600 text-[11px] tracking-[0.2em] uppercase pb-10 font-bold">
   <button id="openAdmin" class="hover:text-slate-300 transition">Admin Rates</button>
 </footer>
+
+<!-- Read from Plan / Schedule Modal -->
+<div id="readPlanModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+  <div class="absolute inset-0 modal-backdrop" data-close-read></div>
+  <div class="relative card rounded-3xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+    <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
+      <div>
+        <h3 class="text-base font-semibold text-slate-100">Read from Plan / Schedule</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Use Grok to extract window count and total LF</p>
+      </div>
+      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-read>×</button>
+    </div>
+    <div class="px-6 py-5 space-y-5 overflow-y-auto">
+      <ol class="space-y-5 text-sm text-slate-300">
+        <li class="flex gap-3">
+          <span class="flex-shrink-0 w-7 h-7 rounded-full bg-[#b58f4a] text-slate-950 text-xs font-bold flex items-center justify-center">1</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-slate-100">Open Grok with the prompt</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">We'll copy the parsing instructions to your clipboard and open Grok in a new tab.</div>
+            <button id="openGrokBtn" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Copy Prompt &amp; Open Grok →</button>
+            <details class="mt-3 text-[11px] text-slate-500">
+              <summary class="cursor-pointer hover:text-slate-300 select-none">Show / copy prompt manually</summary>
+              <pre id="grokPromptText" class="mt-2 p-3 bg-slate-900/80 rounded-lg text-[10px] text-slate-300 whitespace-pre-wrap leading-relaxed"></pre>
+            </details>
+          </div>
+        </li>
+        <li class="flex gap-3">
+          <span class="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">2</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-slate-100">Paste, then upload your schedule</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">In Grok, press Cmd/Ctrl+V to paste the prompt, attach your window schedule PDF or image, and send. Grok will reply with two lines.</div>
+          </div>
+        </li>
+        <li class="flex gap-3">
+          <span class="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">3</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-slate-100">Paste Grok's response below</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">Copy Grok's reply and paste it here — we'll pull out the window count and total LF.</div>
+            <textarea id="grokResponseInput" rows="3" placeholder="WINDOW_COUNT: 14&#10;TOTAL_LF: 196.7"
+              class="mt-3 control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700 resize-none" style="font-variant-numeric: tabular-nums;"></textarea>
+            <div id="grokParsedPreview" class="hidden mt-2 text-[11px] text-[#c9a558] font-semibold"></div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
+      <button data-close-read class="btn text-sm text-slate-400 hover:text-white px-4 py-2">Cancel</button>
+      <button id="applyGrokBtn" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Apply Values</button>
+    </div>
+  </div>
+</div>
 
 <!-- Save Job Modal -->
 <div id="saveJobModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
@@ -1996,6 +2052,90 @@ function restoreDefaults() {
 }
 
 /* ============================================================
+   READ FROM PLAN / SCHEDULE (via Grok)
+   ============================================================ */
+const GROK_PROMPT = `I'm uploading a window schedule for a window installation bid. Please:
+
+1. Identify every individual window opening in the schedule. If a row lists a quantity (QTY), multiply by that quantity so the totals reflect the actual number of windows installed.
+2. For each window, find its rough opening width and height. If given as feet/inches (e.g., 3'-0" x 4'-6"), convert to inches first. If given as fractional inches (e.g., 36 1/2"), use the decimal equivalent.
+3. Calculate the PERIMETER of each window in inches: (2 x width) + (2 x height).
+4. Sum all perimeters across every window, then convert to linear feet by dividing by 12.
+5. Count the total number of window units (sum of quantities across all rows).
+
+Reply with ONLY these two lines and nothing else — no preamble, no explanation, no markdown:
+
+WINDOW_COUNT: <integer>
+TOTAL_LF: <total linear feet, one decimal>
+
+Example correct reply:
+WINDOW_COUNT: 14
+TOTAL_LF: 196.7`;
+
+function openReadPlanModal() {
+  document.getElementById("grokResponseInput").value = "";
+  document.getElementById("grokParsedPreview").classList.add("hidden");
+  document.getElementById("grokPromptText").textContent = GROK_PROMPT;
+  const modal = document.getElementById("readPlanModal");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function closeReadPlanModal() {
+  const modal = document.getElementById("readPlanModal");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+async function openGrokWithPrompt() {
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(GROK_PROMPT);
+    copied = true;
+  } catch (_) {
+    // Fallback: select the prompt textarea so the user can copy manually
+    const details = document.querySelector("#readPlanModal details");
+    if (details) details.open = true;
+  }
+  window.open("https://grok.com/", "_blank", "noopener");
+  toast(copied ? "Prompt copied — paste in Grok" : "Open the prompt below to copy manually");
+}
+
+function parseGrokResponse(text) {
+  // Tolerant of slight format variations: WINDOW_COUNT, window count, Windows:, etc.
+  const countMatch = text.match(/window[_\s-]*count\s*[:=]?\s*([\d,]+)/i);
+  const lfMatch = text.match(/total[_\s-]*lf\s*[:=]?\s*([\d.,]+)/i)
+              || text.match(/linear\s*feet?\s*[:=]?\s*([\d.,]+)/i)
+              || text.match(/total\s*lf\s*[:=]?\s*([\d.,]+)/i);
+  const count = countMatch ? parseInt(countMatch[1].replace(/,/g, ""), 10) : null;
+  const lf = lfMatch ? parseFloat(lfMatch[1].replace(/,/g, "")) : null;
+  return { count, lf };
+}
+
+function applyGrokResponse() {
+  const text = document.getElementById("grokResponseInput").value.trim();
+  if (!text) { toast("Paste Grok's response first"); return; }
+  const { count, lf } = parseGrokResponse(text);
+  if (count == null && lf == null) {
+    toast("Couldn't find values — paste Grok's reply directly");
+    return;
+  }
+  const applied = [];
+  if (count != null) {
+    STATE.windowCount = String(count);
+    document.getElementById("windowCountInput").value = STATE.windowCount;
+    applied.push(`${count} windows`);
+  }
+  if (lf != null) {
+    STATE.totalLF = String(lf);
+    document.getElementById("totalLF").value = STATE.totalLF;
+    applied.push(`${lf} LF`);
+  }
+  closeReadPlanModal();
+  render();
+  toast(`Applied: ${applied.join(" · ")}`);
+}
+
+/* ============================================================
    JOB COMPARISON
    ============================================================ */
 function openComparison() {
@@ -2217,8 +2357,30 @@ function init() {
     if (e.target.dataset.closeCompare !== undefined) closeComparison();
   });
 
+  // Read from Plan / Schedule
+  document.getElementById("readFromPlanBtn").addEventListener("click", openReadPlanModal);
+  document.getElementById("openGrokBtn").addEventListener("click", openGrokWithPrompt);
+  document.getElementById("applyGrokBtn").addEventListener("click", applyGrokResponse);
+  document.getElementById("readPlanModal").addEventListener("click", e => {
+    if (e.target.dataset.closeRead !== undefined) closeReadPlanModal();
+  });
+  // Live-preview parsed values as user pastes
+  document.getElementById("grokResponseInput").addEventListener("input", e => {
+    const preview = document.getElementById("grokParsedPreview");
+    const { count, lf } = parseGrokResponse(e.target.value);
+    if (count != null || lf != null) {
+      const parts = [];
+      if (count != null) parts.push(`${count} windows`);
+      if (lf != null) parts.push(`${lf} LF`);
+      preview.textContent = `Found → ${parts.join(" · ")}`;
+      preview.classList.remove("hidden");
+    } else {
+      preview.classList.add("hidden");
+    }
+  });
+
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closeAdmin(); closeComparison(); closeSaveJobModal(); }
+    if (e.key === "Escape") { closeAdmin(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); }
   });
 
   purgeStaleSW();
