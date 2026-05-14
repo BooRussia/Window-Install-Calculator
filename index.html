@@ -1592,118 +1592,137 @@ function exportCustomerPDF() {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
+  const M = 56; // page margin
 
-  // Header bar
-  doc.setFillColor(2, 6, 23);
-  doc.rect(0, 0, pageW, 130, "F");
-
-  // Gold accent stripe
-  doc.setFillColor(181, 143, 74);
-  doc.rect(0, 128, pageW, 3, "F");
-
-  doc.setTextColor(255, 255, 255);
+  // ---------- Header ----------
+  let y = M + 12;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
-  doc.text("Prime Window & Door", 40, 58);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(201, 165, 88);
-  doc.text("INSTALLATION QUOTE", 40, 80);
-  doc.setTextColor(150, 170, 190);
-  doc.setFontSize(9);
-  doc.text(`Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, 40, 98);
-  doc.text(`Quote #: ${Date.now().toString().slice(-8)}`, 40, 113);
+  doc.setFontSize(20);
+  doc.setTextColor(20, 20, 20);
+  doc.text("PRIME WINDOW & DOOR", M, y);
+  // Thin gold accent — single low-ink mark
+  doc.setDrawColor(181, 143, 74);
+  doc.setLineWidth(1.5);
+  doc.line(M, y + 6, M + 96, y + 6);
+  y += 28;
 
-  // Prepared for
-  let y = 160;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(110, 110, 110);
+  doc.text("WINDOW INSTALLATION QUOTE", M, y);
+  y += 18;
+
+  doc.setFontSize(9);
+  doc.setTextColor(90, 90, 90);
+  doc.text(`Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, M, y);
+  doc.text(`Quote No. ${Date.now().toString().slice(-8)}`, pageW - M, y, { align: "right" });
+  y += 14;
+
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 28;
+
+  // ---------- Prepared for ----------
   const name = STATE.customerName || "";
   const address = STATE.customerAddress || "";
-  const notes = STATE.customerNotes || "";
-
   if (name || address) {
-    doc.setTextColor(100, 116, 139);
-    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text("PREPARED FOR", 40, y);
-    y += 14;
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("PREPARED FOR", M, y);
+    y += 16;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(20, 20, 20);
-    if (name) { doc.text(name, 40, y); y += 15; }
-    if (address) { doc.text(address, 40, y); y += 15; }
-    y += 10;
+    if (name) { doc.text(name, M, y); y += 15; }
+    if (address) { doc.text(address, M, y); y += 15; }
+    y += 14;
   }
 
-  // Scope of work
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(8);
+  // ---------- Scope of work (two-column key/value) ----------
   doc.setFont("helvetica", "bold");
-  doc.text("SCOPE OF WORK", 40, y);
-  y += 14;
+  doc.setFontSize(8);
+  doc.setTextColor(140, 140, 140);
+  doc.text("SCOPE OF WORK", M, y);
+  y += 16;
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.setTextColor(40, 40, 40);
   const scope = [
-    `Manufacturer: ${STATE.manufacturer}`,
-    `Application: ${STATE.application}`,
-    `House Type: ${STATE.houseType}`,
-    `Construction: ${STATE.constructionType}`,
-    `Stories: ${STATE.stories}`,
-    `Total Linear Footage: ${r.lf} ft`,
-    ...(r.wc > 0 ? [`Window Count: ${r.wc} windows`] : []),
-    ...(STATE.permitEnabled ? ["Permit: Included"] : []),
+    ["Manufacturer", STATE.manufacturer],
+    ["Application", STATE.application],
+    ["House Type", STATE.houseType],
+    ["Construction", STATE.constructionType],
+    ["Stories", STATE.stories],
+    ["Linear Footage", `${r.lf} ft`],
   ];
-  scope.forEach(line => { doc.text(line, 40, y); y += 14; });
-  if (notes) { y += 4; doc.setTextColor(100, 116, 139); doc.text(notes, 40, y); y += 14; }
+  if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
+  if (STATE.permitEnabled) scope.push(["Permit", "Included"]);
+  const labelX = M, valueX = M + 130;
+  scope.forEach(([label, value]) => {
+    doc.setTextColor(110, 110, 110);
+    doc.text(label, labelX, y);
+    doc.setTextColor(20, 20, 20);
+    doc.text(String(value), valueX, y);
+    y += 14;
+  });
 
-  // Divider
-  y += 16;
-  doc.setDrawColor(220, 220, 220);
+  if (STATE.customerNotes) {
+    y += 6;
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    const noteLines = doc.splitTextToSize(STATE.customerNotes, pageW - M * 2);
+    noteLines.forEach(line => { doc.text(line, M, y); y += 12; });
+    doc.setFont("helvetica", "normal");
+  }
+  y += 18;
+
+  doc.setDrawColor(210, 210, 210);
   doc.setLineWidth(0.5);
-  doc.line(40, y, pageW - 40, y);
-  y += 30;
+  doc.line(M, y, pageW - M, y);
+  y += 44;
 
-  // Big price
-  doc.setTextColor(2, 6, 23);
+  // ---------- Price hero ----------
+  const priceSize = 34;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(100, 116, 139);
+  doc.setFontSize(9);
+  doc.setTextColor(140, 140, 140);
   doc.text("TOTAL INSTALLATION PRICE", pageW / 2, y, { align: "center" });
-  y += 22;
+  // Advance by ~price font size so the big number doesn't crash into the label
+  y += priceSize + 4;
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(38);
+  doc.setFontSize(priceSize);
   doc.setTextColor(20, 20, 20);
   doc.text(formatMoney(r.sellingPrice), pageW / 2, y, { align: "center" });
-  y += 14;
+  y += 22;
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text("Labor and materials included", pageW / 2, y, { align: "center" });
+  y += 36;
+
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 22;
+
+  // ---------- Terms ----------
+  doc.setFontSize(9);
+  doc.setTextColor(110, 110, 110);
+  doc.text("This quote is valid for 30 days from the date above.", M, y);
+  y += 13;
+  doc.text("Final pricing subject to change if scope changes upon inspection.", M, y);
+
+  // ---------- Footer (text only, no fill) ----------
+  doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text("Labor & materials included", pageW / 2, y, { align: "center" });
-  y += 30;
+  doc.text("Prime Window & Door   ·   Ocala, Florida", pageW / 2, pageH - 36, { align: "center" });
 
-  // Divider
-  doc.setDrawColor(220, 220, 220);
-  doc.line(40, y, pageW - 40, y);
-  y += 24;
-
-  // Valid / terms
-  doc.setFontSize(9);
-  doc.setTextColor(130, 130, 130);
-  doc.text("This quote is valid for 30 days from the date above.", 40, y);
-  doc.text("Pricing subject to change if scope changes upon inspection.", 40, y + 13);
-
-  // Footer
-  doc.setFillColor(2, 6, 23);
-  doc.rect(0, pageH - 50, pageW, 50, "F");
-  doc.setTextColor(201, 165, 88);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text("Prime Window & Door", 40, pageH - 28);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(150, 170, 190);
-  doc.text("Ocala, Florida", 40, pageH - 15);
-
-  const safeName = (STATE.customerName || "Quote").replace(/[^a-z0-9]/gi, "-");
+  const safeName = (STATE.customerName || "Quote").replace(/[^a-z0-9]/gi, "-").substring(0, 30);
   doc.save(`CustomerQuote-${safeName}-${Date.now()}.pdf`);
   toast("Customer quote exported");
 }
@@ -1713,40 +1732,72 @@ function exportPDF() {
   if (r.lf <= 0) { toast("Enter footage first"); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
-
   const pageW = doc.internal.pageSize.getWidth();
-  doc.setFillColor(2, 6, 23);
-  doc.rect(0, 0, pageW, 110, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("Prime Window & Door", 40, 50);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(201, 165, 88);
-  doc.text("Window Cost Quote", 40, 70);
-  doc.setTextColor(180, 200, 220);
-  doc.text(new Date().toLocaleString(), 40, 88);
+  const pageH = doc.internal.pageSize.getHeight();
+  const M = 40;
 
+  // ---------- Header ----------
+  let y = M + 8;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
   doc.setTextColor(20, 20, 20);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Project Details", 40, 140);
+  doc.text("Prime Window & Door", M, y);
+  // Doc type + timestamp, right-aligned
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const details = [
-    `Manufacturer: ${STATE.manufacturer}`,
-    `Application: ${STATE.application}`,
-    `House Type: ${STATE.houseType}`,
-    `Construction: ${STATE.constructionType}`,
-    `Stories: ${STATE.stories}`,
-    `Total Linear Footage: ${r.lf} ft`,
-    ...(r.wc > 0 ? [`Window Count: ${r.wc}`] : []),
-    ...(STATE.permitEnabled ? [`Permit: Included`] : []),
-    ...(STATE.liftEnabled && STATE.stories !== "1 Story" ? [`Lift Rental: ${STATE.liftDays} day(s)`] : []),
-  ];
-  details.forEach((t, i) => doc.text(t, 40, 160 + i * 16));
+  doc.setFontSize(8);
+  doc.setTextColor(140, 140, 140);
+  doc.text("COST BREAKDOWN", pageW - M, y - 4, { align: "right" });
+  doc.text(new Date().toLocaleString(), pageW - M, y + 8, { align: "right" });
+  y += 18;
 
+  // Gold accent line under brand
+  doc.setDrawColor(181, 143, 74);
+  doc.setLineWidth(1.5);
+  doc.line(M, y - 12, M + 84, y - 12);
+
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 18;
+
+  // ---------- Project details (compact two-column) ----------
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(140, 140, 140);
+  doc.text("PROJECT DETAILS", M, y);
+  y += 14;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const details = [
+    ["Manufacturer", STATE.manufacturer],
+    ["Application", STATE.application],
+    ["House Type", STATE.houseType],
+    ["Construction", STATE.constructionType],
+    ["Stories", STATE.stories],
+    ["Linear Footage", `${r.lf} ft`],
+  ];
+  if (r.wc > 0) details.push(["Window Count", `${r.wc}`]);
+  if (STATE.permitEnabled) details.push(["Permit", "Included"]);
+  if (STATE.liftEnabled && STATE.stories !== "1 Story") details.push(["Lift Rental", `${STATE.liftDays} day(s)`]);
+
+  const half = Math.ceil(details.length / 2);
+  const col1X = M;
+  const col2X = pageW / 2 + 10;
+  const valOffset = 90;
+  details.forEach((d, i) => {
+    const inLeft = i < half;
+    const rowIdx = inLeft ? i : i - half;
+    const labelX = inLeft ? col1X : col2X;
+    const rowY = y + rowIdx * 13;
+    doc.setTextColor(110, 110, 110);
+    doc.text(d[0] + ":", labelX, rowY);
+    doc.setTextColor(20, 20, 20);
+    doc.text(String(d[1]), labelX + valOffset, rowY);
+  });
+  y += half * 13 + 18;
+
+  // ---------- Breakdown table ----------
   const rows = r.rows.map(row => {
     const item = DATA.costItems.find(c => c.id === row.id);
     const proc = item && !row.asNeeded ? computeProcurement(row.quantity, item) : null;
@@ -1758,7 +1809,7 @@ function exportPDF() {
     const caseStr = proc ? `${proc.packs} ${proc.packLabel}` : "—";
     return [
       row.name,
-      row.isFixed ? "fixed job" : `$${formatMoneyRaw(row.ratePerLF)}`,
+      row.isFixed ? "fixed" : `$${formatMoneyRaw(row.ratePerLF)}`,
       qty,
       caseStr,
       formatMoney(row.totalCost)
@@ -1766,40 +1817,93 @@ function exportPDF() {
   });
 
   doc.autoTable({
-    startY: 250,
-    head: [["Item", "Rate per LF", "Quantity", "Case Count", "Total Cost"]],
+    startY: y,
+    head: [["Item", "Rate / LF", "Quantity", "Case Count", "Total"]],
     body: rows,
-    theme: "grid",
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-    styles: { fontSize: 9, cellPadding: 6 },
-    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+    theme: "striped",
+    headStyles: {
+      fillColor: [240, 240, 240],
+      textColor: [60, 60, 60],
+      fontStyle: "bold",
+      fontSize: 8,
+      cellPadding: 5
+    },
+    bodyStyles: {
+      textColor: [40, 40, 40],
+      fontSize: 9,
+      cellPadding: 5
+    },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    columnStyles: {
+      1: { halign: "right" },
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right", fontStyle: "bold" }
+    },
+    styles: { lineWidth: 0 },
     foot: [
       ["Per LF", "", "", "", formatMoney(r.perLfCost)],
       ["Grand Total", "", "", "", formatMoney(r.totalCost)]
     ],
-    footStyles: { fillColor: [241, 245, 249], textColor: 15, fontStyle: "bold" }
+    footStyles: {
+      fillColor: [240, 240, 240],
+      textColor: [20, 20, 20],
+      fontStyle: "bold",
+      fontSize: 9,
+      cellPadding: 5
+    },
+    margin: { left: M, right: M }
   });
 
-  let y = doc.lastAutoTable.finalY + 30;
+  y = doc.lastAutoTable.finalY + 26;
+
+  // Avoid running off the page on long jobs — start a new page if cramped
+  if (y > pageH - 150) { doc.addPage(); y = M + 12; }
+
+  // ---------- Summary ----------
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Summary", 40, y);
-  y += 18;
+  doc.setFontSize(8);
+  doc.setTextColor(140, 140, 140);
+  doc.text("SUMMARY", M, y);
+  y += 16;
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text(`Total Job Cost: ${formatMoney(r.totalCost)}`, 40, y); y += 14;
-  doc.text(`Margin: ${r.margin}%`, 40, y); y += 14;
-  doc.text(`Projected Profit: ${formatMoney(r.profit)}`, 40, y); y += 18;
+  const summary = [
+    ["Total Job Cost", formatMoney(r.totalCost)],
+    ["Margin", `${r.margin}%`],
+    ["Projected Profit", formatMoney(r.profit)],
+  ];
+  summary.forEach(([label, value]) => {
+    doc.setTextColor(110, 110, 110);
+    doc.text(label, M, y);
+    doc.setTextColor(20, 20, 20);
+    doc.text(value, M + 130, y);
+    y += 14;
+  });
+  y += 10;
 
+  // Thin rule under summary numbers
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, M + 260, y);
+  y += 18;
+
+  // Selling price stands out
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text(`Selling Price: ${formatMoney(r.sellingPrice)}`, 40, y);
+  doc.setFontSize(13);
+  doc.setTextColor(20, 20, 20);
+  doc.text("Selling Price", M, y);
+  doc.text(formatMoney(r.sellingPrice), M + 130, y);
 
-  doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
-  doc.text("Prime Window & Door · Ocala, Florida", 40, doc.internal.pageSize.getHeight() - 30);
+  // ---------- Footer ----------
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(160, 160, 160);
+  doc.text("Prime Window & Door  ·  Ocala, FL  ·  Internal cost breakdown — not for customer distribution",
+    pageW / 2, pageH - 24, { align: "center" });
 
-  doc.save(`Window-Quote-${Date.now()}.pdf`);
+  doc.save(`CostBreakdown-${Date.now()}.pdf`);
   toast("PDF exported");
 }
 
