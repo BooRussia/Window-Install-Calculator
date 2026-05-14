@@ -589,7 +589,7 @@
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-slate-100">Paste Grok's response below</div>
             <div class="text-xs text-slate-500 mt-1 leading-relaxed">Copy Grok's reply and paste it here — we'll pull out the window count and total LF.</div>
-            <textarea id="grokResponseInput" rows="3" placeholder="WINDOW_COUNT: 14&#10;TOTAL_LF: 196.7"
+            <textarea id="grokResponseInput" rows="4" placeholder="WINDOW_COUNT: 14&#10;TOTAL_LF: 196.7&#10;MANUFACTURER: Viwinco"
               class="mt-3 control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700 resize-none" style="font-variant-numeric: tabular-nums;"></textarea>
             <div id="grokParsedPreview" class="hidden mt-2 text-[11px] text-[#c9a558] font-semibold"></div>
           </div>
@@ -2061,15 +2061,43 @@ const GROK_PROMPT = `I'm uploading a window schedule for a window installation b
 3. Calculate the PERIMETER of each window in inches: (2 x width) + (2 x height).
 4. Sum all perimeters across every window, then convert to linear feet by dividing by 12.
 5. Count the total number of window units (sum of quantities across all rows).
+6. Identify the window MANUFACTURER from the schedule. Look in the title block, header row, notes, or any "MFR" / "MANUFACTURER" column. Common manufacturers include Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows. If you cannot find one, write "Unknown".
 
-Reply with ONLY these two lines and nothing else — no preamble, no explanation, no markdown:
+Reply with ONLY these three lines and nothing else — no preamble, no explanation, no markdown:
 
 WINDOW_COUNT: <integer>
 TOTAL_LF: <total linear feet, one decimal>
+MANUFACTURER: <name or Unknown>
 
 Example correct reply:
 WINDOW_COUNT: 14
-TOTAL_LF: 196.7`;
+TOTAL_LF: 196.7
+MANUFACTURER: Viwinco`;
+
+// Match a free-text manufacturer name to the calculator's dropdown options.
+// Returns null if Grok said "Unknown", returns "Other" if the name is real but
+// not in our list, returns the matching option otherwise.
+function matchManufacturer(raw) {
+  if (!raw) return null;
+  const cleaned = raw.trim();
+  if (/^(unknown|n\/?a|none|not\s*(?:specified|listed|found))$/i.test(cleaned)) return null;
+  const normalize = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const inputNorm = normalize(cleaned);
+  if (inputNorm.length < 3) return "Other";
+  // Exact normalized match first
+  for (const m of DATA.manufacturers) {
+    if (m === "Other") continue;
+    if (normalize(m) === inputNorm) return m;
+  }
+  // Substring either direction (require 4+ char overlap to avoid false hits)
+  for (const m of DATA.manufacturers) {
+    if (m === "Other") continue;
+    const mNorm = normalize(m);
+    if (mNorm.length >= 4 && inputNorm.includes(mNorm)) return m;
+    if (inputNorm.length >= 4 && mNorm.includes(inputNorm)) return m;
+  }
+  return "Other";
+}
 
 function openReadPlanModal() {
   document.getElementById("grokResponseInput").value = "";
@@ -2106,16 +2134,20 @@ function parseGrokResponse(text) {
   const lfMatch = text.match(/total[_\s-]*lf\s*[:=]?\s*([\d.,]+)/i)
               || text.match(/linear\s*feet?\s*[:=]?\s*([\d.,]+)/i)
               || text.match(/total\s*lf\s*[:=]?\s*([\d.,]+)/i);
+  const mfgMatch = text.match(/manufacturer\s*[:=]?\s*(.+?)(?:\r?\n|$)/i)
+              || text.match(/\bmfr\s*[:=]?\s*(.+?)(?:\r?\n|$)/i);
   const count = countMatch ? parseInt(countMatch[1].replace(/,/g, ""), 10) : null;
   const lf = lfMatch ? parseFloat(lfMatch[1].replace(/,/g, "")) : null;
-  return { count, lf };
+  const manufacturerRaw = mfgMatch ? mfgMatch[1].trim() : null;
+  return { count, lf, manufacturerRaw };
 }
 
 function applyGrokResponse() {
   const text = document.getElementById("grokResponseInput").value.trim();
   if (!text) { toast("Paste Grok's response first"); return; }
-  const { count, lf } = parseGrokResponse(text);
-  if (count == null && lf == null) {
+  const { count, lf, manufacturerRaw } = parseGrokResponse(text);
+  const matchedMfg = matchManufacturer(manufacturerRaw);
+  if (count == null && lf == null && matchedMfg == null) {
     toast("Couldn't find values — paste Grok's reply directly");
     return;
   }
@@ -2129,6 +2161,11 @@ function applyGrokResponse() {
     STATE.totalLF = String(lf);
     document.getElementById("totalLF").value = STATE.totalLF;
     applied.push(`${lf} LF`);
+  }
+  if (matchedMfg != null) {
+    STATE.manufacturer = matchedMfg;
+    if (DROPDOWNS.ddManufacturer) DROPDOWNS.ddManufacturer.setValue(matchedMfg, false);
+    applied.push(matchedMfg);
   }
   closeReadPlanModal();
   render();
@@ -2367,11 +2404,16 @@ function init() {
   // Live-preview parsed values as user pastes
   document.getElementById("grokResponseInput").addEventListener("input", e => {
     const preview = document.getElementById("grokParsedPreview");
-    const { count, lf } = parseGrokResponse(e.target.value);
-    if (count != null || lf != null) {
+    const { count, lf, manufacturerRaw } = parseGrokResponse(e.target.value);
+    const matchedMfg = matchManufacturer(manufacturerRaw);
+    if (count != null || lf != null || matchedMfg != null) {
       const parts = [];
       if (count != null) parts.push(`${count} windows`);
       if (lf != null) parts.push(`${lf} LF`);
+      if (matchedMfg != null) {
+        const sameAsRaw = manufacturerRaw && matchedMfg.toLowerCase() === manufacturerRaw.toLowerCase();
+        parts.push(sameAsRaw ? matchedMfg : `${matchedMfg} (from "${manufacturerRaw}")`);
+      }
       preview.textContent = `Found → ${parts.join(" · ")}`;
       preview.classList.remove("hidden");
     } else {
