@@ -398,8 +398,13 @@
     </button>
   </section>
 
+  <!-- Remodel nudge: shown when Remodel selected but no window count -->
+  <div id="remodelNudge" class="hidden mt-3 text-center text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
+    ↑ Enter window count to include disposal cost
+  </div>
+
   <!-- Big LF input -->
-  <section class="mt-10 sm:mt-14">
+  <section class="mt-6 sm:mt-10">
     <label for="totalLF" class="block text-center text-slate-400 text-[11px] sm:text-sm tracking-[0.22em] uppercase mb-4 font-semibold">Total Linear Footage</label>
     <div class="flex items-baseline justify-center gap-3">
       <input
@@ -415,6 +420,7 @@
       <span class="text-slate-500 text-2xl sm:text-3xl font-bold">ft</span>
     </div>
     <div class="mt-3 h-px max-w-[480px] mx-auto bg-gradient-to-r from-transparent via-slate-700 to-transparent"></div>
+    <div id="lfPerWindowHint" class="hidden mt-2 text-center text-slate-600 text-[11px] tracking-[0.18em] uppercase font-semibold" style="font-variant-numeric: tabular-nums;"></div>
   </section>
 
   <!-- Results -->
@@ -502,14 +508,17 @@
 
     <!-- Buttons -->
     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-      <button id="exportPdf" class="btn rounded-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">
-        Export PDF Quote
+      <button id="exportCustomerPdf" class="btn rounded-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">
+        Customer Quote PDF
+      </button>
+      <button id="exportPdf" class="btn rounded-full px-5 py-3 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] tracking-tight">
+        Cost Breakdown PDF
       </button>
       <button id="saveJob" class="btn rounded-full px-5 py-3 text-sm font-bold bg-slate-100 text-slate-950 hover:bg-white tracking-tight">
         Save Job
       </button>
       <button id="resetAll" class="btn rounded-full px-5 py-3 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] tracking-tight">
-        Reset All
+        New Job
       </button>
     </div>
 
@@ -534,6 +543,38 @@
 <footer class="text-center text-slate-600 text-[11px] tracking-[0.2em] uppercase pb-10 font-bold">
   <button id="openAdmin" class="hover:text-slate-300 transition">Admin Rates</button>
 </footer>
+
+<!-- Save Job Modal -->
+<div id="saveJobModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+  <div class="absolute inset-0 modal-backdrop" data-close-save></div>
+  <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col">
+    <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
+      <h3 class="text-base font-semibold text-slate-100">Save Job</h3>
+      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-save>×</button>
+    </div>
+    <div class="px-6 py-5 space-y-4">
+      <div>
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Customer / Job Name</label>
+        <input id="saveJobName" type="text" placeholder="Smith Residence" autocomplete="off"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+      </div>
+      <div>
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job Address</label>
+        <input id="saveJobAddress" type="text" placeholder="123 Main St, Ocala, FL" autocomplete="off"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+      </div>
+      <div>
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Notes <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+        <textarea id="saveJobNotes" placeholder="Any additional details…" rows="2"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700 resize-none"></textarea>
+      </div>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
+      <button data-close-save class="btn text-sm text-slate-400 hover:text-white px-4 py-2">Cancel</button>
+      <button id="saveJobConfirm" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save Job</button>
+    </div>
+  </div>
+</div>
 
 <!-- Job Comparison Modal -->
 <div id="compareModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
@@ -686,6 +727,9 @@ let STATE = {
   liftEnabled: false,
   liftDays: "1",
   permitEnabled: false,
+  customerName: "",
+  customerAddress: "",
+  customerNotes: "",
   ...loadState()
 };
 
@@ -1210,6 +1254,22 @@ function render() {
   const sp = document.getElementById("sellingPrice");
   sp.classList.remove("pulse-once"); void sp.offsetWidth; sp.classList.add("pulse-once");
 
+  // LF / window sanity hint
+  const lf_ = parseFloat(STATE.totalLF) || 0;
+  const wc_ = parseInt(STATE.windowCount) || 0;
+  const hintEl = document.getElementById("lfPerWindowHint");
+  if (lf_ > 0 && wc_ > 0) {
+    hintEl.textContent = `≈ ${(lf_ / wc_).toFixed(1)} LF / window`;
+    hintEl.classList.remove("hidden");
+  } else {
+    hintEl.classList.add("hidden");
+  }
+
+  // Remodel nudge
+  const nudgeEl = document.getElementById("remodelNudge");
+  const showNudge = STATE.constructionType === "Remodel" && wc_ === 0;
+  nudgeEl.classList.toggle("hidden", !showNudge);
+
   saveState({
     manufacturer: STATE.manufacturer,
     application: STATE.application,
@@ -1221,6 +1281,9 @@ function render() {
     liftEnabled: STATE.liftEnabled,
     liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
+    customerName: STATE.customerName,
+    customerAddress: STATE.customerAddress,
+    customerNotes: STATE.customerNotes,
   });
 
   fitAll();
@@ -1242,7 +1305,8 @@ function renderSavedJobs() {
     return `
     <div class="card rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center sm:items-center justify-between gap-2 sm:gap-3 text-center sm:text-left">
       <div class="min-w-0 w-full sm:w-auto">
-        <div class="text-sm text-slate-100 font-bold truncate">${j.name || "Untitled Job"}</div>
+        <div class="text-sm text-slate-100 font-bold truncate">${j.customerName || j.name || "Untitled Job"}</div>
+        ${j.customerAddress ? `<div class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">${j.customerAddress}</div>` : ""}
         <div class="text-[11px] text-slate-500 mt-0.5 font-medium">${details}</div>
       </div>
       <div class="sm:text-right shrink-0">
@@ -1398,6 +1462,9 @@ function resetAll() {
     liftEnabled: false,
     liftDays: "1",
     permitEnabled: false,
+    customerName: "",
+    customerAddress: "",
+    customerNotes: "",
   };
   saveState(STATE);
   bindControls();
@@ -1405,13 +1472,36 @@ function resetAll() {
   toast("Reset");
 }
 
-function saveCurrentJob() {
+function openSaveJobModal() {
   const r = calculate();
   if (r.lf <= 0) { toast("Enter footage first"); return; }
-  const name = (prompt("Job name (optional)") || `Job ${new Date().toLocaleDateString()}`).trim();
+  document.getElementById("saveJobName").value = STATE.customerName || "";
+  document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
+  document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
+  const modal = document.getElementById("saveJobModal");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  setTimeout(() => { try { document.getElementById("saveJobName").focus(); } catch {} }, 60);
+}
+
+function closeSaveJobModal() {
+  const modal = document.getElementById("saveJobModal");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+function confirmSaveJob() {
+  const r = calculate();
+  const name = document.getElementById("saveJobName").value.trim();
+  const address = document.getElementById("saveJobAddress").value.trim();
+  const notes = document.getElementById("saveJobNotes").value.trim();
+  STATE.customerName = name;
+  STATE.customerAddress = address;
+  STATE.customerNotes = notes;
   const job = {
     id: String(Date.now()),
-    name,
+    name: name || `Job ${new Date().toLocaleDateString()}`,
+    customerName: name, customerAddress: address, customerNotes: notes,
     createdAt: new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -1424,9 +1514,12 @@ function saveCurrentJob() {
   const jobs = loadJobs();
   jobs.push(job);
   saveJobs(jobs);
+  closeSaveJobModal();
   renderSavedJobs();
   toast("Job saved");
 }
+
+function saveCurrentJob() { openSaveJobModal(); }
 
 function loadJob(id) {
   const j = loadJobs().find(x => x.id === id);
@@ -1441,6 +1534,9 @@ function loadJob(id) {
   STATE.liftEnabled = j.liftEnabled || false;
   STATE.liftDays = j.liftDays || "1";
   STATE.permitEnabled = j.permitEnabled || false;
+  STATE.customerName = j.customerName || "";
+  STATE.customerAddress = j.customerAddress || "";
+  STATE.customerNotes = j.customerNotes || "";
   bindControls();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1452,6 +1548,129 @@ function deleteJob(id) {
   saveJobs(jobs);
   renderSavedJobs();
   toast("Deleted");
+}
+
+function exportCustomerPDF() {
+  const r = calculate();
+  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  // Header bar
+  doc.setFillColor(2, 6, 23);
+  doc.rect(0, 0, pageW, 130, "F");
+
+  // Gold accent stripe
+  doc.setFillColor(181, 143, 74);
+  doc.rect(0, 128, pageW, 3, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.text("Prime Window & Door", 40, 58);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(201, 165, 88);
+  doc.text("INSTALLATION QUOTE", 40, 80);
+  doc.setTextColor(150, 170, 190);
+  doc.setFontSize(9);
+  doc.text(`Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, 40, 98);
+  doc.text(`Quote #: ${Date.now().toString().slice(-8)}`, 40, 113);
+
+  // Prepared for
+  let y = 160;
+  const name = STATE.customerName || "";
+  const address = STATE.customerAddress || "";
+  const notes = STATE.customerNotes || "";
+
+  if (name || address) {
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("PREPARED FOR", 40, y);
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(20, 20, 20);
+    if (name) { doc.text(name, 40, y); y += 15; }
+    if (address) { doc.text(address, 40, y); y += 15; }
+    y += 10;
+  }
+
+  // Scope of work
+  doc.setTextColor(100, 116, 139);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text("SCOPE OF WORK", 40, y);
+  y += 14;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(40, 40, 40);
+  const scope = [
+    `Manufacturer: ${STATE.manufacturer}`,
+    `Application: ${STATE.application}`,
+    `House Type: ${STATE.houseType}`,
+    `Construction: ${STATE.constructionType}`,
+    `Stories: ${STATE.stories}`,
+    `Total Linear Footage: ${r.lf} ft`,
+    ...(r.wc > 0 ? [`Window Count: ${r.wc} windows`] : []),
+    ...(STATE.permitEnabled ? ["Permit: Included"] : []),
+  ];
+  scope.forEach(line => { doc.text(line, 40, y); y += 14; });
+  if (notes) { y += 4; doc.setTextColor(100, 116, 139); doc.text(notes, 40, y); y += 14; }
+
+  // Divider
+  y += 16;
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.5);
+  doc.line(40, y, pageW - 40, y);
+  y += 30;
+
+  // Big price
+  doc.setTextColor(2, 6, 23);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(100, 116, 139);
+  doc.text("TOTAL INSTALLATION PRICE", pageW / 2, y, { align: "center" });
+  y += 22;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(38);
+  doc.setTextColor(20, 20, 20);
+  doc.text(formatMoney(r.sellingPrice), pageW / 2, y, { align: "center" });
+  y += 14;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(150, 150, 150);
+  doc.text("Labor & materials included", pageW / 2, y, { align: "center" });
+  y += 30;
+
+  // Divider
+  doc.setDrawColor(220, 220, 220);
+  doc.line(40, y, pageW - 40, y);
+  y += 24;
+
+  // Valid / terms
+  doc.setFontSize(9);
+  doc.setTextColor(130, 130, 130);
+  doc.text("This quote is valid for 30 days from the date above.", 40, y);
+  doc.text("Pricing subject to change if scope changes upon inspection.", 40, y + 13);
+
+  // Footer
+  doc.setFillColor(2, 6, 23);
+  doc.rect(0, pageH - 50, pageW, 50, "F");
+  doc.setTextColor(201, 165, 88);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("Prime Window & Door", 40, pageH - 28);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(150, 170, 190);
+  doc.text("Ocala, Florida", 40, pageH - 15);
+
+  const safeName = (STATE.customerName || "Quote").replace(/[^a-z0-9]/gi, "-");
+  doc.save(`CustomerQuote-${safeName}-${Date.now()}.pdf`);
+  toast("Customer quote exported");
 }
 
 function exportPDF() {
@@ -1826,9 +2045,16 @@ function init() {
   window.addEventListener("orientationchange", fitAll);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
 
+  document.getElementById("exportCustomerPdf").addEventListener("click", exportCustomerPDF);
   document.getElementById("exportPdf").addEventListener("click", exportPDF);
   document.getElementById("saveJob").addEventListener("click", saveCurrentJob);
   document.getElementById("resetAll").addEventListener("click", resetAll);
+
+  // Save Job modal
+  const saveModal = document.getElementById("saveJobModal");
+  saveModal.addEventListener("click", e => { if (e.target.dataset.closeSave !== undefined) closeSaveJobModal(); });
+  document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
+  document.getElementById("saveJobName").addEventListener("keydown", e => { if (e.key === "Enter") confirmSaveJob(); });
 
   document.getElementById("openAdmin").addEventListener("click", openAdmin);
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
@@ -1842,7 +2068,7 @@ function init() {
   });
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closeAdmin(); closeComparison(); }
+    if (e.key === "Escape") { closeAdmin(); closeComparison(); closeSaveJobModal(); }
   });
 
   purgeStaleSW();
