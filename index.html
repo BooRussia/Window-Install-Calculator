@@ -1244,9 +1244,20 @@ function render() {
     if (matFooter) matFooter.classList.remove("hidden");
     if (matTotalEl) matTotalEl.textContent = formatMoney(materialsTotalCost);
     matWrap.innerHTML = matItems.map(({ row, item, proc }) => {
-      const detail = proc.intCount != null
-        ? `${formatQty(row.quantity)} ${item.unit} &middot; ${proc.intCount} ${proc.intLabel} &middot; ${proc.intPerPack} per ${proc.packName}`
-        : `${formatQty(row.quantity)} ${item.unit} &middot; ${proc.caseSize} per ${proc.packName}`;
+      let detail;
+      if (proc.intCount != null) {
+        // Intermediate unit (e.g., caulking: oz → sausages → case)
+        detail = `${formatQty(row.quantity)} ${item.unit} &middot; ${proc.intCount} ${proc.intLabel} &middot; ${proc.intPerPack} per ${proc.packName}`;
+      } else if (item.unit === proc.packName) {
+        // Each pack IS one base unit (e.g., one gallon of block sealer)
+        detail = row.isFixed ? "Fixed job allowance" : `${formatQty(row.quantity)} ${proc.packLabel}`;
+      } else if (item.unit === "each") {
+        // Discrete counted items — drop the redundant "each"
+        detail = `${formatQty(row.quantity)} &middot; ${proc.caseSize} per ${proc.packName}`;
+      } else {
+        // Measured items where pack and base unit differ (LF cut into boards/rolls)
+        detail = `${formatQty(row.quantity)} ${item.unit} &middot; ${proc.caseSize} ${item.unit} per ${proc.packName}`;
+      }
       return `
         <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
           <div class="min-w-0">
