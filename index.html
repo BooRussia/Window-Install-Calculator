@@ -195,6 +195,47 @@
   .toggle-pill .val { font-variant-numeric: tabular-nums; color: #64748b; font-weight: 700; transition: color .2s; }
   .toggle-pill.active .val { color: var(--gold-hi); }
 
+  /* ------- Segmented Control (tabs) ------- */
+  .seg {
+    display: flex;
+    width: 100%;
+    max-width: 380px;
+    background: rgba(15,23,42,0.6);
+    border: 1px solid rgba(51,65,85,0.6);
+    border-radius: 14px;
+    padding: 4px;
+    gap: 2px;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .seg:hover { border-color: rgba(100,116,139,0.85); }
+  .seg-btn {
+    flex: 1 1 0;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 0;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .2s ease, color .2s ease, transform .12s ease;
+  }
+  .seg-btn:hover { color: #cbd5e1; }
+  .seg-btn:active { transform: scale(0.97); }
+  .seg-btn.active {
+    background: rgba(181,143,74,0.18);
+    color: var(--gold-hi);
+    box-shadow: 0 0 0 1px rgba(181,143,74,0.35) inset;
+  }
+
+  /* ------- Job Extras expander ------- */
+  #jobDetailsRow.extras-collapsed .extra-control { display: none; }
+  .extras-chev { transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1); }
+  #jobDetailsRow:not(.extras-collapsed) .extras-chev { transform: rotate(180deg); }
+
   /* ------- Collapsible Cost Basis card ------- */
   #costBasisCard.collapsed #costBasisList { display: none; }
   #costBasisCard:not(.collapsed) .cb-chev { transform: rotate(180deg); color: var(--gold-hi); }
@@ -335,72 +376,46 @@
 
 <main class="max-w-6xl mx-auto px-4 sm:px-6 pb-28">
 
-  <!-- Controls row -->
-  <section class="grid grid-cols-2 sm:flex sm:flex-nowrap sm:items-center sm:justify-center gap-2 sm:gap-3 max-w-md sm:max-w-none mx-auto">
-    <div id="ddManufacturer" class="dd sm:flex-1 sm:max-w-[200px]">
+  <!-- Job Spec stack: manufacturer + 4 segmented controls -->
+  <section class="flex flex-col items-center gap-2 sm:gap-3">
+    <div id="ddManufacturer" class="dd w-full max-w-xs">
       <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
         <span class="dd-label"></span>
         <svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
       </button>
       <div class="dd-panel" role="listbox"></div>
     </div>
-    <div id="ddApplication" class="dd sm:flex-1 sm:max-w-[200px]">
-      <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="dd-label"></span>
-        <svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
-      </button>
-      <div class="dd-panel" role="listbox"></div>
-    </div>
-    <div id="ddHouseType" class="dd sm:flex-1 sm:max-w-[200px]">
-      <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="dd-label"></span>
-        <svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
-      </button>
-      <div class="dd-panel" role="listbox"></div>
-    </div>
-    <div id="ddConstructionType" class="dd sm:flex-1 sm:max-w-[200px]">
-      <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="dd-label"></span>
-        <svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
-      </button>
-      <div class="dd-panel" role="listbox"></div>
-    </div>
-    <label class="margin-pill col-span-2 sm:col-span-1 sm:flex-none">
-      <span class="lbl">Margin</span>
-      <input id="marginInput" type="number" min="0" max="100" step="0.1" value="35" inputmode="decimal" autocomplete="off" />
-      <span class="pct">%</span>
-    </label>
+    <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div>
+    <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div>
+    <div id="segApplication" class="seg flex-wrap" role="tablist" aria-label="Application"></div>
+    <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div>
   </section>
 
-  <!-- Job Details Row: windows · stories · lift · permit -->
-  <section class="mt-2 sm:mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-3 max-w-md sm:max-w-none mx-auto">
+  <!-- Job Details Row: windows + Job Extras expander -->
+  <section id="jobDetailsRow" class="extras-collapsed mt-4 sm:mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3 max-w-md sm:max-w-none mx-auto">
     <label class="margin-pill" style="cursor:text">
       <span class="lbl">Windows</span>
       <input id="windowCountInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—"
         style="width:36px;text-align:right;-moz-appearance:textfield;" class="num-input" />
     </label>
-    <div id="ddStories" class="dd" style="min-width:120px">
-      <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="dd-label"></span>
-        <svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
-      </button>
-      <div class="dd-panel" role="listbox"></div>
-    </div>
-    <div id="liftWrap" class="hidden items-center gap-2">
-      <button id="liftToggleBtn" type="button" class="toggle-pill">
-        <span class="lbl">Lift</span>
-        <span class="val">Off</span>
-      </button>
-      <label id="liftDaysWrap" class="margin-pill hidden" style="cursor:text">
-        <span class="lbl">Days</span>
-        <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off"
-          style="width:28px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-      </label>
-    </div>
-    <button id="permitToggleBtn" type="button" class="toggle-pill">
+    <button id="jobExtrasToggle" type="button" class="toggle-pill" aria-expanded="false" aria-controls="permitToggleBtn liftToggleBtn">
+      <span class="lbl">Job Extras</span>
+      <span id="jobExtrasSummary" class="val">None</span>
+      <svg class="extras-chev" viewBox="0 0 20 20" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
+    </button>
+    <button id="permitToggleBtn" type="button" class="toggle-pill extra-control">
       <span class="lbl">Permit</span>
       <span class="val">Off</span>
     </button>
+    <button id="liftToggleBtn" type="button" class="toggle-pill extra-control hidden">
+      <span class="lbl">Lift</span>
+      <span class="val">Off</span>
+    </button>
+    <label id="liftDaysWrap" class="margin-pill extra-control hidden" style="cursor:text">
+      <span class="lbl">Days</span>
+      <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off"
+        style="width:28px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+    </label>
   </section>
 
   <!-- Remodel nudge: shown when Remodel selected but no window count -->
@@ -710,6 +725,34 @@
         </div>
       </div>
 
+      <!-- Job Defaults — the typical setup; New Job resets to these -->
+      <div class="mb-6">
+        <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-1">Job Defaults</h4>
+        <p class="text-[11px] text-slate-500 mb-3">Your typical setup. Clicking <span class="text-slate-300 font-semibold">New Job</span> returns to these values.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Manufacturer</label>
+            <select id="defaultMfg" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+          </div>
+          <div>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Application</label>
+            <select id="defaultApp" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+          </div>
+          <div>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">House Type</label>
+            <select id="defaultHouse" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+          </div>
+          <div>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Construction</label>
+            <select id="defaultConstruction" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+          </div>
+          <div>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Stories</label>
+            <select id="defaultStories" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+          </div>
+        </div>
+      </div>
+
       <!-- Pricing defaults -->
       <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Pricing Defaults</h4>
       <div class="mb-6 flex flex-wrap gap-4">
@@ -753,6 +796,14 @@ const DEFAULT_DATA = {
       phone: "",
       email: "",
       website: ""
+    },
+    // Smart defaults — the typical job. "New Job" returns to these values.
+    jobDefaults: {
+      manufacturer: "Viwinco",
+      application: "Nail-fin",
+      houseType: "Block Framed",
+      constructionType: "New Construction",
+      stories: "1 Story"
     }
   },
   manufacturers: ["Viwinco", "Weathershield", "Velocity", "ES Window & Door", "Other"],
@@ -824,9 +875,10 @@ function saveJobs(j) { localStorage.setItem(LS_KEYS.jobs, JSON.stringify(j)); }
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 function mergeData(base, override) {
   if (override?.config) {
-    const { brand: overrideBrand, ...otherConfig } = override.config;
+    const { brand: overrideBrand, jobDefaults: overrideDefaults, ...otherConfig } = override.config;
     Object.assign(base.config, otherConfig);
     if (overrideBrand) Object.assign(base.config.brand, overrideBrand);
+    if (overrideDefaults) Object.assign(base.config.jobDefaults, overrideDefaults);
   }
   if (Array.isArray(override?.costItems)) {
     override.costItems.forEach(o => {
@@ -842,12 +894,13 @@ function mergeData(base, override) {
 }
 
 let DATA = loadData();
+const _jd = DATA.config.jobDefaults || {};
 let STATE = {
-  manufacturer: DATA.manufacturers[0],
-  application: DATA.applicationTypes[0],
-  houseType: DATA.houseTypes[0],
-  constructionType: DATA.constructionTypes[0],
-  stories: "1 Story",
+  manufacturer: _jd.manufacturer || DATA.manufacturers[0],
+  application: _jd.application || DATA.applicationTypes[0],
+  houseType: _jd.houseType || DATA.houseTypes[0],
+  constructionType: _jd.constructionType || DATA.constructionTypes[0],
+  stories: _jd.stories || "1 Story",
   totalLF: "",
   windowCount: "",
   liftEnabled: false,
@@ -1162,6 +1215,34 @@ const DROPDOWNS = {};
 function closeAllDropdowns(except) {
   Object.values(DROPDOWNS).forEach(d => { if (d.root !== except) d.close(); });
 }
+/* ------- Segmented Control Component ------- */
+const SEGMENTS = {};
+function createSegmented(id, options, value, onChange) {
+  const root = document.getElementById(id);
+  if (!root) return null;
+  root.innerHTML = options.map(o => `
+    <button class="seg-btn ${o === value ? "active" : ""}" data-value="${o}" type="button" role="tab" aria-selected="${o === value}">${o}</button>
+  `).join("");
+  function setValue(v, fire) {
+    root.querySelectorAll(".seg-btn").forEach(b => {
+      const isMatch = b.dataset.value === v;
+      b.classList.toggle("active", isMatch);
+      b.setAttribute("aria-selected", String(isMatch));
+    });
+    if (fire) onChange(v);
+  }
+  if (!root._wired) {
+    root.addEventListener("click", e => {
+      const btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      setValue(btn.dataset.value, true);
+    });
+    root._wired = true;
+  }
+  SEGMENTS[id] = { root, setValue };
+  return SEGMENTS[id];
+}
+
 function createDropdown(id, options, value, onChange) {
   const root = document.getElementById(id);
   const trigger = root.querySelector(".dd-trigger");
@@ -1243,14 +1324,18 @@ function brandContactLine() {
    TOGGLE HELPERS
    ============================================================ */
 function updateLiftVisibility() {
-  const wrap = document.getElementById("liftWrap");
+  const liftBtn = document.getElementById("liftToggleBtn");
+  const liftDays = document.getElementById("liftDaysWrap");
   const show = STATE.stories !== "1 Story";
-  wrap.classList.toggle("hidden", !show);
-  wrap.classList.toggle("flex", show);
-  if (!show && STATE.liftEnabled) {
-    STATE.liftEnabled = false;
-    updateLiftToggleUI();
+  if (liftBtn) liftBtn.classList.toggle("hidden", !show);
+  if (!show) {
+    if (STATE.liftEnabled) {
+      STATE.liftEnabled = false;
+      updateLiftToggleUI();
+    }
+    if (liftDays) liftDays.classList.add("hidden");
   }
+  if (typeof updateJobExtrasSummary === "function") updateJobExtrasSummary();
 }
 
 function updateLiftToggleUI() {
@@ -1267,6 +1352,27 @@ function updatePermitToggleUI() {
   const valEl = btn.querySelector(".val");
   btn.classList.toggle("active", STATE.permitEnabled);
   valEl.textContent = STATE.permitEnabled ? "On" : "Off";
+}
+
+// Updates the collapsed-state label on the Job Extras pill so users can see at a
+// glance which extras are active without expanding ("Job Extras · Permit, Lift").
+function updateJobExtrasSummary() {
+  const trigger = document.getElementById("jobExtrasToggle");
+  const summary = document.getElementById("jobExtrasSummary");
+  if (!trigger || !summary) return;
+  const active = [];
+  if (STATE.permitEnabled) active.push("Permit");
+  if (STATE.liftEnabled && STATE.stories !== "1 Story") {
+    const days = parseInt(STATE.liftDays) || 1;
+    active.push(days > 1 ? `Lift (${days}d)` : "Lift");
+  }
+  if (active.length) {
+    summary.textContent = active.join(", ");
+    trigger.classList.add("active");
+  } else {
+    summary.textContent = "None";
+    trigger.classList.remove("active");
+  }
 }
 
 function render() {
@@ -1527,17 +1633,11 @@ function renderSavedJobs() {
    ACTIONS
    ============================================================ */
 function bindControls() {
+  // Manufacturer — the one remaining dropdown
   if (DROPDOWNS.ddManufacturer) {
     DROPDOWNS.ddManufacturer.setValue(STATE.manufacturer, false);
-    DROPDOWNS.ddApplication.setValue(STATE.application, false);
-    DROPDOWNS.ddHouseType.setValue(STATE.houseType, false);
-    DROPDOWNS.ddConstructionType.setValue(STATE.constructionType, false);
   } else {
     createDropdown("ddManufacturer", DATA.manufacturers, STATE.manufacturer, v => { STATE.manufacturer = v; render(); });
-    createDropdown("ddApplication", DATA.applicationTypes, STATE.application, v => { STATE.application = v; render(); });
-    createDropdown("ddHouseType", DATA.houseTypes, STATE.houseType, v => { STATE.houseType = v; render(); });
-    createDropdown("ddConstructionType", DATA.constructionTypes, STATE.constructionType, v => { STATE.constructionType = v; render(); });
-
     document.addEventListener("click", () => {
       closeAllDropdowns();
       document.querySelectorAll(".info-tip.show").forEach(t => t.classList.remove("show"));
@@ -1549,6 +1649,16 @@ function bindControls() {
       }
     });
   }
+
+  // Segmented controls
+  createSegmented("segConstructionType", DATA.constructionTypes, STATE.constructionType, v => { STATE.constructionType = v; render(); });
+  createSegmented("segHouseType", DATA.houseTypes, STATE.houseType, v => { STATE.houseType = v; render(); });
+  createSegmented("segApplication", DATA.applicationTypes, STATE.application, v => { STATE.application = v; render(); });
+  createSegmented("segStories", DATA.storiesOptions, STATE.stories, v => {
+    STATE.stories = v;
+    updateLiftVisibility();
+    render();
+  });
 
   const lf = document.getElementById("totalLF");
   lf.value = STATE.totalLF || "";
@@ -1571,15 +1681,15 @@ function bindControls() {
     wcInput._wired = true;
   }
 
-  // Stories dropdown
-  if (!DROPDOWNS.ddStories) {
-    createDropdown("ddStories", DATA.storiesOptions, STATE.stories, v => {
-      STATE.stories = v;
-      updateLiftVisibility();
-      render();
+  // Job Extras expander
+  const extrasBtn = document.getElementById("jobExtrasToggle");
+  if (!extrasBtn._wired) {
+    extrasBtn.addEventListener("click", () => {
+      const row = document.getElementById("jobDetailsRow");
+      const expanded = row.classList.toggle("extras-collapsed") === false;
+      extrasBtn.setAttribute("aria-expanded", String(expanded));
     });
-  } else {
-    DROPDOWNS.ddStories.setValue(STATE.stories, false);
+    extrasBtn._wired = true;
   }
   updateLiftVisibility();
 
@@ -1589,6 +1699,7 @@ function bindControls() {
     liftBtn.addEventListener("click", () => {
       STATE.liftEnabled = !STATE.liftEnabled;
       updateLiftToggleUI();
+      updateJobExtrasSummary();
       render();
     });
     liftBtn._wired = true;
@@ -1599,7 +1710,11 @@ function bindControls() {
   const liftDaysInput = document.getElementById("liftDaysInput");
   liftDaysInput.value = STATE.liftDays || "1";
   if (!liftDaysInput._wired) {
-    liftDaysInput.addEventListener("input", e => { STATE.liftDays = e.target.value; render(); });
+    liftDaysInput.addEventListener("input", e => {
+      STATE.liftDays = e.target.value;
+      updateJobExtrasSummary();
+      render();
+    });
     liftDaysInput._wired = true;
   }
 
@@ -1609,25 +1724,13 @@ function bindControls() {
     permitBtn.addEventListener("click", () => {
       STATE.permitEnabled = !STATE.permitEnabled;
       updatePermitToggleUI();
+      updateJobExtrasSummary();
       render();
     });
     permitBtn._wired = true;
   }
   updatePermitToggleUI();
-
-  const mg = document.getElementById("marginInput");
-  mg.value = DATA.config.defaultMargin ?? 35;
-  if (!mg._wired) {
-    mg.addEventListener("input", e => {
-      const v = parseFloat(e.target.value);
-      if (!isNaN(v) && v >= 0) {
-        DATA.config.defaultMargin = v;
-        saveData(DATA);
-        render();
-      }
-    });
-    mg._wired = true;
-  }
+  updateJobExtrasSummary();
 
   setTimeout(() => { try { lf.focus({ preventScroll: true }); } catch {} }, 60);
 }
@@ -1641,12 +1744,13 @@ function toast(msg) {
 }
 
 function resetAll() {
+  const jd = DATA.config.jobDefaults || {};
   STATE = {
-    manufacturer: DATA.manufacturers[0],
-    application: DATA.applicationTypes[0],
-    houseType: DATA.houseTypes[0],
-    constructionType: DATA.constructionTypes[0],
-    stories: "1 Story",
+    manufacturer: jd.manufacturer || DATA.manufacturers[0],
+    application: jd.application || DATA.applicationTypes[0],
+    houseType: jd.houseType || DATA.houseTypes[0],
+    constructionType: jd.constructionType || DATA.constructionTypes[0],
+    stories: jd.stories || "1 Story",
     totalLF: "",
     windowCount: "",
     liftEnabled: false,
@@ -2101,6 +2205,19 @@ function buildAdminUI() {
   document.getElementById("brandPhone").value = b.phone || "";
   document.getElementById("brandEmail").value = b.email || "";
   document.getElementById("brandWebsite").value = b.website || "";
+
+  // Job defaults
+  const jd = DATA.config.jobDefaults || {};
+  const fillSel = (id, opts, current) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = opts.map(o => `<option value="${o}" ${o === current ? "selected" : ""}>${o}</option>`).join("");
+  };
+  fillSel("defaultMfg", DATA.manufacturers, jd.manufacturer);
+  fillSel("defaultApp", DATA.applicationTypes, jd.application);
+  fillSel("defaultHouse", DATA.houseTypes, jd.houseType);
+  fillSel("defaultConstruction", DATA.constructionTypes, jd.constructionType);
+  fillSel("defaultStories", DATA.storiesOptions, jd.stories);
+
   document.getElementById("adminMargin").value = DATA.config.defaultMargin;
   document.getElementById("adminTax").value = DATA.config.materialsTaxRate ?? 0;
   const wrap = document.getElementById("adminRatesBody");
@@ -2147,6 +2264,13 @@ function saveAdmin() {
   DATA.config.brand.phone = document.getElementById("brandPhone").value.trim();
   DATA.config.brand.email = document.getElementById("brandEmail").value.trim();
   DATA.config.brand.website = document.getElementById("brandWebsite").value.trim();
+  // Job defaults
+  if (!DATA.config.jobDefaults) DATA.config.jobDefaults = {};
+  DATA.config.jobDefaults.manufacturer = document.getElementById("defaultMfg").value;
+  DATA.config.jobDefaults.application = document.getElementById("defaultApp").value;
+  DATA.config.jobDefaults.houseType = document.getElementById("defaultHouse").value;
+  DATA.config.jobDefaults.constructionType = document.getElementById("defaultConstruction").value;
+  DATA.config.jobDefaults.stories = document.getElementById("defaultStories").value;
   // Pricing
   const margin = parseFloat(document.getElementById("adminMargin").value);
   if (!isNaN(margin) && margin >= 0) DATA.config.defaultMargin = margin;
@@ -2172,8 +2296,8 @@ function saveAdmin() {
   });
   saveData(DATA);
   closeAdmin();
-  document.getElementById("marginInput").value = DATA.config.defaultMargin;
   applyBrandToUI();
+  bindControls();
   render();
   toast("Settings saved");
 }
@@ -2183,8 +2307,8 @@ function restoreDefaults() {
   DATA = clone(DEFAULT_DATA);
   saveData(DATA);
   buildAdminUI();
-  document.getElementById("marginInput").value = DATA.config.defaultMargin;
   applyBrandToUI();
+  bindControls();
   render();
   toast("Defaults restored");
 }
