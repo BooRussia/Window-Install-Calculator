@@ -736,7 +736,7 @@
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-slate-100">Paste the openings list &amp; generate</div>
             <div class="text-xs text-slate-500 mt-1 leading-relaxed">Paste Grok's <span class="text-slate-300 font-mono">OPENING</span> lines below. The calculator does the cut optimization itself.</div>
-            <textarea id="buckResponseInput" rows="5" placeholder="OPENING | Master Bedroom | 36 | 48 | 2&#10;OPENING | Kitchen | 48 | 60 | 1&#10;OPENING | Living Room | 72 | 60 | 1"
+            <textarea id="buckResponseInput" rows="5" placeholder="OPENING | Master Bedroom | 36 | 48 | 2 | window&#10;OPENING | Kitchen | 48 | 60 | 1 | window&#10;OPENING | Patio | 72 | 80 | 1 | sliding glass door"
               class="mt-3 control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700 resize-none" style="font-variant-numeric: tabular-nums;"></textarea>
             <div id="buckParsedPreview" class="hidden mt-2 text-[11px] text-[#c9a558] font-semibold"></div>
             <button id="generateCutListBtn" class="mt-3 btn rounded-full px-5 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Generate Cut List</button>
@@ -2652,36 +2652,42 @@ const BUCK_RULES = {
 // Grok's only job: read the schedule, list rough openings. No optimization.
 const BUCK_PROMPT = `Window Schedule — Rough Opening Extraction
 
-I'm doing a window buck takeoff. Read the attached window schedule and extract every window opening.
+I'm doing a window buck takeoff. Read the attached window/door schedule and extract every opening.
 
 For EACH opening:
 1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O). Ignore frame size, unit size, and glass size.
 2. Convert both to inches. Feet-and-inches like 3'-0" becomes 36. Fractions like 36 1/2" become 36.5.
 3. Find the quantity (QTY) — how many of that opening. If no quantity is shown, use 1.
 4. Find the room or location name.
+5. Determine the TYPE. If the opening is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door". Everything else is a "window".
 
 Reply with ONLY a list — one opening per line — in EXACTLY this format. No headers, no totals, no commentary:
 
-OPENING | room or location | width_inches | height_inches | qty
+OPENING | room or location | width_inches | height_inches | qty | type
 
 Example reply:
-OPENING | Master Bedroom | 36 | 48 | 2
-OPENING | Kitchen | 48 | 60 | 1
-OPENING | Living Room | 72 | 60 | 1
+OPENING | Master Bedroom | 36 | 48 | 2 | window
+OPENING | Kitchen | 48 | 60 | 1 | window
+OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
 
 If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the OPENING lines.`;
 
-// Parse Grok's "OPENING | room | w | h | qty" lines
+// Parse Grok's "OPENING | room | w | h | qty | type" lines.
+// The type field is optional (older 5-field lines still parse). A slider
+// is detected from the type text or, as a fallback, the room name.
 function parseOpenings(text) {
   const openings = [];
-  const re = /OPENING\s*\|\s*([^|]+?)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*(\d+)/gi;
+  const re = /OPENING\s*\|\s*([^|]+?)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*(\d+)\s*(?:\|\s*([^|\r\n]*))?/gi;
   let m;
   while ((m = re.exec(text)) !== null) {
+    const room = (m[1].trim() || "Opening");
     const width = parseFloat(m[2]);
     const height = parseFloat(m[3]);
     const qty = parseInt(m[4], 10) || 1;
+    const typeText = (m[5] || "").trim();
+    const isSlider = /slid|sgd|patio\s*door|glass\s*door/i.test(typeText + " " + room);
     if (width > 0 && height > 0) {
-      openings.push({ room: (m[1].trim() || "Opening"), width, height, qty });
+      openings.push({ room, width, height, qty, isSlider });
     }
   }
   return openings;
@@ -2709,13 +2715,16 @@ function optimizeCutList(openings) {
   const maxStock = stockIn[0];
   const stockAsc = stockIn.slice().sort((a, b) => a - b);
 
-  // 1. Every opening becomes 4 pieces per unit (head, sill, 2 jambs)
+  // 1. Each opening becomes 4 pieces per unit (head, sill, 2 jambs).
+  //    Sliding glass doors get NO sill — head + 2 jambs only (3 pieces).
   let pieces = [];
   openings.forEach((op, idx) => {
     const opId = "Op" + String(idx + 1).padStart(2, "0");
     for (let q = 0; q < op.qty; q++) {
       pieces.push({ opId, room: op.room, type: "Head",  length: op.width + headSillAdd });
-      pieces.push({ opId, room: op.room, type: "Sill",  length: op.width + headSillAdd });
+      if (!op.isSlider) {
+        pieces.push({ opId, room: op.room, type: "Sill", length: op.width + headSillAdd });
+      }
       pieces.push({ opId, room: op.room, type: "Jamb L", length: op.height });
       pieces.push({ opId, room: op.room, type: "Jamb R", length: op.height });
     }
@@ -3291,7 +3300,10 @@ function init() {
     const openings = parseOpenings(e.target.value);
     if (openings.length) {
       const units = openings.reduce((s, o) => s + o.qty, 0);
-      preview.textContent = `Found → ${openings.length} openings (${units} window${units === 1 ? "" : "s"})`;
+      const sliders = openings.filter(o => o.isSlider).reduce((s, o) => s + o.qty, 0);
+      let txt = `Found → ${openings.length} openings (${units} unit${units === 1 ? "" : "s"})`;
+      if (sliders > 0) txt += ` · ${sliders} sliding door${sliders === 1 ? "" : "s"} — no sill`;
+      preview.textContent = txt;
       preview.classList.remove("hidden");
     } else {
       preview.classList.add("hidden");
