@@ -610,14 +610,43 @@
       <div id="costBasisList" class="divide-y divide-slate-800/60 border-t border-slate-800/80"></div>
     </div>
 
-    <!-- Buttons -->
-    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-      <button id="exportCustomerPdf" class="btn rounded-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">
-        Customer Quote PDF
-      </button>
-      <button id="exportPdf" class="btn rounded-full px-5 py-3 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] tracking-tight">
-        Cost Breakdown PDF
-      </button>
+    <!-- Job Files -->
+    <div class="mt-8 card rounded-2xl overflow-hidden">
+      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80">
+        <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Job Files</h2>
+        <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Everything to download for this job</p>
+      </div>
+
+      <!-- For the customer -->
+      <div class="px-5 sm:px-6 pt-4 text-[10px] uppercase tracking-[0.18em] text-slate-500 font-bold">For the Customer</div>
+      <div class="px-5 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="text-sm text-slate-100 font-bold">Customer Quote</div>
+          <div class="text-[11px] text-slate-500 mt-0.5 font-medium">Clean one-page price quote — safe to hand or email</div>
+        </div>
+        <button id="fileCustomerQuote" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] flex-shrink-0">Download PDF</button>
+      </div>
+
+      <!-- For the crew / office -->
+      <div class="px-5 sm:px-6 pt-4 border-t border-slate-800/60 text-[10px] uppercase tracking-[0.18em] text-slate-500 font-bold">For the Crew / Office</div>
+      <div class="px-5 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="text-sm text-slate-100 font-bold">Cost Breakdown</div>
+          <div class="text-[11px] text-slate-500 mt-0.5 font-medium">Full internal cost sheet — not for the customer</div>
+        </div>
+        <button id="fileCostBreakdown" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] flex-shrink-0">Download PDF</button>
+      </div>
+      <div class="px-5 sm:px-6 py-3.5 flex items-center justify-between gap-4 border-t border-slate-800/40">
+        <div class="min-w-0">
+          <div class="text-sm text-slate-100 font-bold">Buck Cut List</div>
+          <div id="fileBuckDesc" class="text-[11px] text-slate-500 mt-0.5 font-medium">Board-by-board cut sheet for the crew</div>
+        </div>
+        <button id="fileBuckCutList" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] flex-shrink-0">Download PDF</button>
+      </div>
+    </div>
+
+    <!-- Job actions -->
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
       <button id="saveJob" class="btn rounded-full px-5 py-3 text-sm font-bold bg-slate-100 text-slate-950 hover:bg-white tracking-tight">
         Save Job
       </button>
@@ -1752,6 +1781,9 @@ function render() {
   // re-trigger pulse on selling price
   const sp = document.getElementById("sellingPrice");
   sp.classList.remove("pulse-once"); void sp.offsetWidth; sp.classList.add("pulse-once");
+
+  // Job Files card — keep the Buck Cut List row state current
+  updateJobFilesUI();
 
   // LF / window sanity hint
   const lf_ = parseFloat(STATE.totalLF) || 0;
@@ -2941,6 +2973,31 @@ function clearBuckList() {
   toast("Cut list cleared");
 }
 
+// Job Files "Buck Cut List" row: download the PDF if a list exists,
+// otherwise jump to the generator.
+function fileBuckAction() {
+  if (STATE.buckList && STATE.buckList.totalBoards > 0) exportCutListPDF();
+  else openBuckModal();
+}
+
+// Keeps the Buck Cut List row in the Job Files card in sync
+function updateJobFilesUI() {
+  const btn = document.getElementById("fileBuckCutList");
+  const desc = document.getElementById("fileBuckDesc");
+  if (!btn || !desc) return;
+  const ready = STATE.buckList && STATE.buckList.totalBoards > 0;
+  const base = "btn rounded-full px-4 py-2 text-xs font-bold flex-shrink-0 ";
+  if (ready) {
+    btn.textContent = "Download PDF";
+    btn.className = base + "bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]";
+    desc.textContent = `Board-by-board cut sheet · ${STATE.buckList.totalBoards} boards`;
+  } else {
+    btn.textContent = "Generate first →";
+    btn.className = base + "bg-transparent text-slate-400 border border-slate-700 hover:border-slate-500 hover:text-slate-200";
+    desc.textContent = "Run the Buck Cut List tool above to create one";
+  }
+}
+
 /* ---------- Printable PDF ---------- */
 function exportCutListPDF() {
   const bl = STATE.buckList;
@@ -3288,8 +3345,9 @@ function init() {
   window.addEventListener("orientationchange", fitAll);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
 
-  document.getElementById("exportCustomerPdf").addEventListener("click", exportCustomerPDF);
-  document.getElementById("exportPdf").addEventListener("click", exportPDF);
+  document.getElementById("fileCustomerQuote").addEventListener("click", exportCustomerPDF);
+  document.getElementById("fileCostBreakdown").addEventListener("click", exportPDF);
+  document.getElementById("fileBuckCutList").addEventListener("click", fileBuckAction);
   document.getElementById("saveJob").addEventListener("click", saveCurrentJob);
   document.getElementById("resetAll").addEventListener("click", resetAll);
 
