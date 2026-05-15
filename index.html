@@ -512,12 +512,20 @@
 
     <!-- Materials Needed -->
     <div id="materialsCard" class="mt-6 card rounded-2xl overflow-hidden">
-      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-        <div>
+      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center justify-between gap-3">
+        <div class="min-w-0">
           <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Materials Needed</h2>
           <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Round up to full packs</p>
         </div>
-        <span id="materialsCount" class="text-[10px] sm:text-xs text-slate-400 tracking-[0.16em] uppercase font-semibold">0 items</span>
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <button id="buckListBtn" class="hidden btn rounded-full pl-2.5 pr-3.5 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/40 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.1em] uppercase inline-flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" class="flex-shrink-0" aria-hidden="true">
+              <path d="M8 0.5l1.2 4.3L13.5 6l-4.3 1.2L8 11.5 6.8 7.2 2.5 6l4.3-1.2z"/>
+            </svg>
+            Buck Cut List
+          </button>
+          <span id="materialsCount" class="text-[10px] sm:text-xs text-slate-400 tracking-[0.16em] uppercase font-semibold">0 items</span>
+        </div>
       </div>
       <div id="materialsList" class="divide-y divide-slate-800/60"></div>
       <div id="materialsFooter" class="hidden border-t border-slate-800/80 px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
@@ -628,6 +636,59 @@
     <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
       <button data-close-read class="btn text-sm text-slate-400 hover:text-white px-4 py-2">Cancel</button>
       <button id="applyGrokBtn" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Apply Values</button>
+    </div>
+  </div>
+</div>
+
+<!-- Buck Cut List Modal -->
+<div id="buckModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+  <div class="absolute inset-0 modal-backdrop" data-close-buck></div>
+  <div class="relative card rounded-3xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+    <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
+      <div>
+        <h3 class="text-base font-semibold text-slate-100">Buck Cut List</h3>
+        <p class="text-xs text-slate-500 mt-0.5">AI builds an optimized board cut list for minimal waste</p>
+      </div>
+      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-buck>×</button>
+    </div>
+    <div class="px-6 py-5 space-y-5 overflow-y-auto">
+      <ol class="space-y-5 text-sm text-slate-300">
+        <li class="flex gap-3">
+          <span class="flex-shrink-0 w-7 h-7 rounded-full bg-[#b58f4a] text-slate-950 text-xs font-bold flex items-center justify-center">1</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-slate-100">Open Grok with the cut-list prompt</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">We'll copy a detailed buck-takeoff prompt to your clipboard and open Grok in a new tab.</div>
+            <button id="openGrokBuckBtn" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Copy Prompt &amp; Open Grok →</button>
+            <details class="mt-3 text-[11px] text-slate-500">
+              <summary class="cursor-pointer hover:text-slate-300 select-none">Show / copy prompt manually</summary>
+              <pre id="buckPromptText" class="mt-2 p-3 bg-slate-900/80 rounded-lg text-[10px] text-slate-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto"></pre>
+            </details>
+          </div>
+        </li>
+        <li class="flex gap-3">
+          <span class="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">2</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-slate-100">Paste, then upload your window schedule</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">In Grok, paste the prompt, attach the block-house window schedule, and send. Grok returns the full cut list plus a summary block.</div>
+          </div>
+        </li>
+        <li class="flex gap-3">
+          <span class="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">3</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-slate-100">Paste Grok's reply below</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">Paste the whole reply (or just the summary block) — we'll pull the board counts into Materials Needed.</div>
+            <textarea id="buckResponseInput" rows="5" placeholder="=== CALCULATOR SUMMARY ===&#10;BUCK_BOARDS_16FT: 12&#10;BUCK_BOARDS_12FT: 3&#10;BUCK_BOARDS_10FT: 0&#10;BUCK_BOARDS_8FT: 2&#10;BUCK_TOTAL_BOARDS: 17&#10;BUCK_WASTE_PERCENT: 2.4&#10;=== END SUMMARY ==="
+              class="mt-3 control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700 resize-none" style="font-variant-numeric: tabular-nums;"></textarea>
+            <div id="buckParsedPreview" class="hidden mt-2 text-[11px] text-[#c9a558] font-semibold"></div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-800 flex justify-between items-center gap-2">
+      <button id="buckClearBtn" class="hidden btn text-xs text-slate-500 hover:text-rose-300 px-2 py-2">Clear current cut list</button>
+      <div class="flex-1"></div>
+      <button data-close-buck class="btn text-sm text-slate-400 hover:text-white px-4 py-2">Cancel</button>
+      <button id="applyBuckBtn" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Apply Cut List</button>
     </div>
   </div>
 </div>
@@ -913,6 +974,7 @@ let STATE = {
   customerName: "",
   customerAddress: "",
   customerNotes: "",
+  buckList: null,
   ...loadState()
 };
 
@@ -1031,6 +1093,17 @@ function getBlockSealerJobQty(totalLF) {
   return totalLF > 400 ? 10 : 5;
 }
 
+// Total linear feet of lumber across all boards in an AI-generated buck cut list
+function buckListTotalLF(bl) {
+  if (!bl || !bl.boards) return 0;
+  return Object.entries(bl.boards).reduce((sum, [len, count]) => sum + (Number(len) * count), 0);
+}
+// Total board count in a buck cut list
+function buckListBoardCount(bl) {
+  if (!bl || !bl.boards) return 0;
+  return Object.values(bl.boards).reduce((a, b) => a + b, 0);
+}
+
 function calculate() {
   const lf = parseFloat(STATE.totalLF) || 0;
   const wc = parseInt(STATE.windowCount) || 0;
@@ -1084,6 +1157,25 @@ function calculate() {
       totalCost += cost;
       if (lf > 0) perLfCost += cost / lf;
       return;
+    }
+
+    // Wood bucking — use the AI cut list's exact board total when one exists
+    if (item.id === "wood_bucking") {
+      if (STATE.houseType !== "Block Framed") return; // bucking is block-framed only
+      if (STATE.buckList && buckListBoardCount(STATE.buckList) > 0) {
+        const boardLF = buckListTotalLF(STATE.buckList);
+        const cost = boardLF * getUnitPrice(item);
+        rows.push({
+          id: item.id, name: item.name, rateLabel: "AI cut list",
+          ratePerLF: lf > 0 ? cost / lf : 0,
+          quantity: boardLF, unit: "LF", totalCost: cost,
+          isFixed: false, fromBuckList: true
+        });
+        totalCost += cost;
+        if (lf > 0) perLfCost += cost / lf;
+        return;
+      }
+      // no cut list → fall through to the standard per-LF estimate
     }
 
     // Standard per-LF items
@@ -1451,6 +1543,10 @@ function render() {
   const matItems = r.rows.map(row => {
     const item = DATA.costItems.find(c => c.id === row.id);
     if (!item) return null;
+    // Wood bucking driven by an AI cut list — render the board-length breakdown
+    if (row.fromBuckList && STATE.buckList) {
+      return { row, item, buckList: STATE.buckList };
+    }
     const proc = computeProcurement(row.quantity, item);
     if (!proc) return null;
     return { row, item, proc };
@@ -1466,13 +1562,39 @@ function render() {
     matCard.classList.remove("hidden");
     matCountEl.textContent = `${matItems.length} item${matItems.length === 1 ? "" : "s"}`;
     let materialsTotalCost = 0;
-    matItems.forEach(({ item, proc }) => {
+    matItems.forEach(({ item, proc, buckList }) => {
+      if (buckList) {
+        materialsTotalCost += buckListTotalLF(buckList) * getUnitPrice(item);
+        return;
+      }
       const basis = computeCostBasis(item);
       if (basis) materialsTotalCost += proc.packs * basis.perPack;
     });
     if (matFooter) matFooter.classList.remove("hidden");
     if (matTotalEl) matTotalEl.textContent = formatMoney(materialsTotalCost);
-    matWrap.innerHTML = matItems.map(({ row, item, proc }) => {
+    matWrap.innerHTML = matItems.map(({ row, item, proc, buckList }) => {
+      // AI cut list — show board counts by length
+      if (buckList) {
+        const lengths = Object.keys(buckList.boards).map(Number).sort((a, b) => b - a);
+        const used = lengths.filter(l => buckList.boards[l] > 0);
+        const breakdown = used.map(l => `${buckList.boards[l]} &times; ${l}ft`).join(" &middot; ") || "—";
+        const waste = (buckList.wastePercent != null) ? ` &middot; ${buckList.wastePercent}% waste` : "";
+        const totalBoards = buckListBoardCount(buckList);
+        return `
+          <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
+            <div class="min-w-0">
+              <div class="text-sm text-slate-100 font-bold truncate">${item.name}
+                <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">AI Cut List</span>
+              </div>
+              <div class="text-[11px] text-slate-500 mt-1 font-medium" style="font-variant-numeric: tabular-nums;">${breakdown}${waste}</div>
+            </div>
+            <div class="text-right shrink-0 leading-none">
+              <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${totalBoards}</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${totalBoards === 1 ? "board" : "boards"}</div>
+            </div>
+          </div>
+        `;
+      }
       let detail;
       if (proc.intCount != null) {
         // Intermediate unit (e.g., caulking: oz → sausages → case)
@@ -1500,6 +1622,13 @@ function render() {
         </div>
       `;
     }).join("");
+  }
+
+  // Buck Cut List button — only relevant when wood bucking is in the job
+  const buckBtn = document.getElementById("buckListBtn");
+  if (buckBtn) {
+    const hasBucking = r.rows.some(row => row.id === "wood_bucking");
+    buckBtn.classList.toggle("hidden", !hasBucking);
   }
 
   // Cost Basis list (price per base, intermediate, and pack)
@@ -1584,6 +1713,7 @@ function render() {
     customerName: STATE.customerName,
     customerAddress: STATE.customerAddress,
     customerNotes: STATE.customerNotes,
+    buckList: STATE.buckList,
   });
 
   fitAll();
@@ -1763,6 +1893,7 @@ function resetAll() {
     customerName: "",
     customerAddress: "",
     customerNotes: "",
+    buckList: null,
   };
   saveState(STATE);
   bindControls();
@@ -1800,6 +1931,7 @@ function confirmSaveJob() {
     id: String(Date.now()),
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerNotes: notes,
+    buckList: STATE.buckList,
     createdAt: new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -1835,6 +1967,7 @@ function loadJob(id) {
   STATE.customerName = j.customerName || "";
   STATE.customerAddress = j.customerAddress || "";
   STATE.customerNotes = j.customerNotes || "";
+  STATE.buckList = j.buckList || null;
   bindControls();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2439,6 +2572,137 @@ function applyGrokResponse() {
 }
 
 /* ============================================================
+   BUCK CUT LIST GENERATOR (via Grok)
+   ============================================================ */
+const BUCK_PROMPT = `Window Buck Cut List Generator — Rough Opening Only
+
+You are a window buck takeoff and cut-list optimizer. Follow these rules exactly.
+
+OPTIMIZATION APPROACH: Prioritize 16' boards for dense packing (3-5 pieces per board where they fit). Aggressively mix pieces from different openings on the same board to minimize waste. Integrate splices into regular boards (no dedicated splice boards unless unavoidable). Target ~2-3% waste with high nesting efficiency.
+
+1) SOURCE DATA
+- Use ONLY the R.O. / Rough Opening / SIZING R/O dimensions from the schedule.
+- Ignore frame size, unit size, glass size, etc.
+- Treat R.O. = finished buck opening size.
+
+2) BUCK BUILD RULES — 4 pieces per opening:
+- Head (H): R.O. width + 3"
+- Sill (S): R.O. width + 3"
+- Jamb Left (JL): R.O. height
+- Jamb Right (JR): R.O. height
+- Keep fractions to the nearest 1/16".
+- Material: 2x6 PT (unless I tell you otherwise).
+- Stock lengths: 16' primary; use 12', 10', or 8' only for remnants or when a 16' would waste more than 20".
+
+3) OPTIMIZATION
+- Objective: minimum total waste (~2-3% target), then least headache.
+- Aggressively mix pieces from different openings on one board (3-5 cuts per board where they fit).
+- Best-fit nesting: place longest pieces first, fill the gaps with shorter ones.
+- For any piece longer than 16': split into 192" + remainder and integrate the remainder into a regular board.
+
+4) OUTPUT — provide BOTH parts:
+
+PART A — Board-by-board cut list, human-readable. For each board show its stock length and every cut on it, each labeled "Op## - Room - H/S/JL/JR - length". List every opening as Op01, Op02, etc.
+
+PART B — A machine-readable summary. This MUST be the LAST thing in your reply, formatted EXACTLY like this, one item per line, no extra characters or markdown:
+
+=== CALCULATOR SUMMARY ===
+BUCK_BOARDS_16FT: <count>
+BUCK_BOARDS_12FT: <count>
+BUCK_BOARDS_10FT: <count>
+BUCK_BOARDS_8FT: <count>
+BUCK_TOTAL_BOARDS: <count>
+BUCK_WASTE_PERCENT: <number>
+=== END SUMMARY ===
+
+If a stock length is not used, report it as 0 — do not omit any line.
+
+5) Only ask a question if the schedule does NOT clearly show R.O. dimensions. Otherwise make best assumptions and proceed.
+
+Process the attached window schedule now.`;
+
+function openBuckModal() {
+  document.getElementById("buckResponseInput").value = "";
+  document.getElementById("buckParsedPreview").classList.add("hidden");
+  document.getElementById("buckPromptText").textContent = BUCK_PROMPT;
+  document.getElementById("buckClearBtn").classList.toggle("hidden", !(STATE.buckList && buckListBoardCount(STATE.buckList) > 0));
+  const modal = document.getElementById("buckModal");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function closeBuckModal() {
+  const modal = document.getElementById("buckModal");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+async function openGrokBuckPrompt() {
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(BUCK_PROMPT);
+    copied = true;
+  } catch (_) {
+    const details = document.querySelector("#buckModal details");
+    if (details) details.open = true;
+  }
+  window.open("https://grok.com/", "_blank", "noopener");
+  toast(copied ? "Prompt copied — paste in Grok" : "Open the prompt below to copy manually");
+}
+
+function parseBuckList(text) {
+  const boards = {};
+  const re = /buck_boards_(\d+)\s*ft\s*[:=]\s*(\d+)/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const len = parseInt(m[1], 10);
+    const count = parseInt(m[2], 10);
+    if (len > 0 && count >= 0) boards[len] = count;
+  }
+  const wasteM = text.match(/buck_waste_percent\s*[:=]\s*([\d.]+)/i);
+  const wastePercent = wasteM ? parseFloat(wasteM[1]) : null;
+  const hasAny = Object.values(boards).some(c => c > 0);
+  return hasAny ? { boards, wastePercent } : null;
+}
+
+function buckSummaryString(bl) {
+  if (!bl) return "";
+  const lengths = Object.keys(bl.boards).map(Number).sort((a, b) => b - a);
+  const used = lengths.filter(l => bl.boards[l] > 0);
+  const parts = used.map(l => `${bl.boards[l]} × ${l}ft`);
+  const total = buckListBoardCount(bl);
+  let s = `${parts.join(" · ")} — ${total} board${total === 1 ? "" : "s"}`;
+  if (bl.wastePercent != null) s += `, ${bl.wastePercent}% waste`;
+  return s;
+}
+
+function applyBuckList() {
+  const text = document.getElementById("buckResponseInput").value.trim();
+  if (!text) { toast("Paste Grok's reply first"); return; }
+  const parsed = parseBuckList(text);
+  if (!parsed) {
+    toast("Couldn't find the board summary — paste Grok's reply");
+    return;
+  }
+  STATE.buckList = parsed;
+  // A buck list only makes sense on a block-framed job — switch automatically
+  if (STATE.houseType !== "Block Framed") {
+    STATE.houseType = "Block Framed";
+    if (SEGMENTS.segHouseType) SEGMENTS.segHouseType.setValue("Block Framed", false);
+  }
+  closeBuckModal();
+  render();
+  toast(`Cut list applied: ${buckListBoardCount(parsed)} boards`);
+}
+
+function clearBuckList() {
+  STATE.buckList = null;
+  closeBuckModal();
+  render();
+  toast("Cut list cleared");
+}
+
+/* ============================================================
    JOB COMPARISON
    ============================================================ */
 function openComparison() {
@@ -2697,6 +2961,25 @@ function init() {
   document.getElementById("readPlanModal").addEventListener("click", e => {
     if (e.target.dataset.closeRead !== undefined) closeReadPlanModal();
   });
+
+  // Buck Cut List
+  document.getElementById("buckListBtn").addEventListener("click", openBuckModal);
+  document.getElementById("openGrokBuckBtn").addEventListener("click", openGrokBuckPrompt);
+  document.getElementById("applyBuckBtn").addEventListener("click", applyBuckList);
+  document.getElementById("buckClearBtn").addEventListener("click", clearBuckList);
+  document.getElementById("buckModal").addEventListener("click", e => {
+    if (e.target.dataset.closeBuck !== undefined) closeBuckModal();
+  });
+  document.getElementById("buckResponseInput").addEventListener("input", e => {
+    const preview = document.getElementById("buckParsedPreview");
+    const parsed = parseBuckList(e.target.value);
+    if (parsed) {
+      preview.textContent = `Found → ${buckSummaryString(parsed)}`;
+      preview.classList.remove("hidden");
+    } else {
+      preview.classList.add("hidden");
+    }
+  });
   // Live-preview parsed values as user pastes
   document.getElementById("grokResponseInput").addEventListener("input", e => {
     const preview = document.getElementById("grokParsedPreview");
@@ -2718,7 +3001,7 @@ function init() {
   });
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closeAdmin(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); }
+    if (e.key === "Escape") { closeAdmin(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal(); }
   });
 
   purgeStaleSW();
