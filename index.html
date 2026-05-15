@@ -705,7 +705,7 @@
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
       <div>
         <h3 class="text-base font-semibold text-slate-100">Buck Cut List</h3>
-        <p class="text-xs text-slate-500 mt-0.5">AI builds an optimized board cut list for minimal waste</p>
+        <p class="text-xs text-slate-500 mt-0.5">AI reads the schedule — the calculator optimizes the board cuts</p>
       </div>
       <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-buck>×</button>
     </div>
@@ -714,8 +714,8 @@
         <li class="flex gap-3">
           <span class="flex-shrink-0 w-7 h-7 rounded-full bg-[#b58f4a] text-slate-950 text-xs font-bold flex items-center justify-center">1</span>
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-slate-100">Open Grok with the cut-list prompt</div>
-            <div class="text-xs text-slate-500 mt-1 leading-relaxed">We'll copy a detailed buck-takeoff prompt to your clipboard and open Grok in a new tab.</div>
+            <div class="font-semibold text-slate-100">Open Grok to read your schedule</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">We'll copy a short extraction prompt to your clipboard and open Grok in a new tab.</div>
             <button id="openGrokBuckBtn" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Copy Prompt &amp; Open Grok →</button>
             <details class="mt-3 text-[11px] text-slate-500">
               <summary class="cursor-pointer hover:text-slate-300 select-none">Show / copy prompt manually</summary>
@@ -727,26 +727,37 @@
           <span class="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">2</span>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-slate-100">Paste, then upload your window schedule</div>
-            <div class="text-xs text-slate-500 mt-1 leading-relaxed">In Grok, paste the prompt, attach the block-house window schedule, and send. Grok returns the full cut list plus a summary block.</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">In Grok, paste the prompt, attach the window schedule, and send. Grok returns a simple list of rough openings.</div>
           </div>
         </li>
         <li class="flex gap-3">
           <span class="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">3</span>
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-slate-100">Paste Grok's reply below</div>
-            <div class="text-xs text-slate-500 mt-1 leading-relaxed">Paste the whole reply (or just the summary block) — we'll pull the board counts into Materials Needed.</div>
-            <textarea id="buckResponseInput" rows="5" placeholder="=== CALCULATOR SUMMARY ===&#10;BUCK_BOARDS_16FT: 12&#10;BUCK_BOARDS_12FT: 3&#10;BUCK_BOARDS_10FT: 0&#10;BUCK_BOARDS_8FT: 2&#10;BUCK_TOTAL_BOARDS: 17&#10;BUCK_WASTE_PERCENT: 2.4&#10;=== END SUMMARY ==="
+            <div class="font-semibold text-slate-100">Paste the openings list &amp; generate</div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed">Paste Grok's <span class="text-slate-300 font-mono">OPENING</span> lines below. The calculator does the cut optimization itself.</div>
+            <textarea id="buckResponseInput" rows="5" placeholder="OPENING | Master Bedroom | 36 | 48 | 2&#10;OPENING | Kitchen | 48 | 60 | 1&#10;OPENING | Living Room | 72 | 60 | 1"
               class="mt-3 control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700 resize-none" style="font-variant-numeric: tabular-nums;"></textarea>
             <div id="buckParsedPreview" class="hidden mt-2 text-[11px] text-[#c9a558] font-semibold"></div>
+            <button id="generateCutListBtn" class="mt-3 btn rounded-full px-5 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Generate Cut List</button>
           </div>
         </li>
       </ol>
+
+      <!-- Result panel — appears once a cut list exists -->
+      <div id="buckResultPanel" class="hidden rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
+        <div class="text-[10px] uppercase tracking-[0.16em] text-[#c9a558] font-bold mb-2">Cut List Ready</div>
+        <div id="buckResultSummary" class="text-sm text-slate-100 font-bold" style="font-variant-numeric: tabular-nums;"></div>
+        <div id="buckResultMeta" class="text-[11px] text-slate-500 mt-0.5 font-medium" style="font-variant-numeric: tabular-nums;"></div>
+        <button id="downloadCutListBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M8 1v9M4 7l4 4 4-4M2 14h12"/></svg>
+          Download Cut List PDF
+        </button>
+      </div>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex justify-between items-center gap-2">
-      <button id="buckClearBtn" class="hidden btn text-xs text-slate-500 hover:text-rose-300 px-2 py-2">Clear current cut list</button>
+      <button id="buckClearBtn" class="btn text-xs text-slate-500 hover:text-rose-300 px-2 py-2">Clear cut list</button>
       <div class="flex-1"></div>
-      <button data-close-buck class="btn text-sm text-slate-400 hover:text-white px-4 py-2">Cancel</button>
-      <button id="applyBuckBtn" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Apply Cut List</button>
+      <button data-close-buck class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-slate-100 text-slate-950 hover:bg-white">Done</button>
     </div>
   </div>
 </div>
@@ -1151,15 +1162,13 @@ function getBlockSealerJobQty(totalLF) {
   return totalLF > 400 ? 10 : 5;
 }
 
-// Total linear feet of lumber across all boards in an AI-generated buck cut list
+// Total linear feet of lumber bought across all boards in a buck cut list
 function buckListTotalLF(bl) {
-  if (!bl || !bl.boards) return 0;
-  return Object.entries(bl.boards).reduce((sum, [len, count]) => sum + (Number(len) * count), 0);
+  return (bl && bl.totalStockLF) ? bl.totalStockLF : 0;
 }
 // Total board count in a buck cut list
 function buckListBoardCount(bl) {
-  if (!bl || !bl.boards) return 0;
-  return Object.values(bl.boards).reduce((a, b) => a + b, 0);
+  return (bl && bl.totalBoards) ? bl.totalBoards : 0;
 }
 
 function calculate() {
@@ -1642,9 +1651,9 @@ function render() {
     matWrap.innerHTML = matItems.map(({ row, item, proc, buckList }) => {
       // AI cut list — show board counts by length
       if (buckList) {
-        const lengths = Object.keys(buckList.boards).map(Number).sort((a, b) => b - a);
-        const used = lengths.filter(l => buckList.boards[l] > 0);
-        const breakdown = used.map(l => `${buckList.boards[l]} &times; ${l}ft`).join(" &middot; ") || "—";
+        const lengths = Object.keys(buckList.byLength || {}).map(Number).sort((a, b) => b - a);
+        const used = lengths.filter(l => buckList.byLength[l] > 0);
+        const breakdown = used.map(l => `${buckList.byLength[l]} &times; ${l}ft`).join(" &middot; ") || "—";
         const waste = (buckList.wastePercent != null) ? ` &middot; ${buckList.wastePercent}% waste` : "";
         const totalBoards = buckListBoardCount(buckList);
         return `
@@ -2632,60 +2641,200 @@ function applyGrokResponse() {
 }
 
 /* ============================================================
-   BUCK CUT LIST GENERATOR (via Grok)
+   BUCK CUT LIST — Grok extracts openings, we optimize + build the PDF
    ============================================================ */
-const BUCK_PROMPT = `Window Buck Cut List Generator — Rough Opening Only
+const BUCK_RULES = {
+  headSillAdd: 3,            // inches added to R.O. width for head & sill
+  kerf: 0.125,              // saw kerf consumed per cut
+  stockFeet: [16, 12, 10, 8] // available stock lengths
+};
 
-You are a window buck takeoff and cut-list optimizer. Follow these rules exactly.
+// Grok's only job: read the schedule, list rough openings. No optimization.
+const BUCK_PROMPT = `Window Schedule — Rough Opening Extraction
 
-OPTIMIZATION APPROACH: Prioritize 16' boards for dense packing (3-5 pieces per board where they fit). Aggressively mix pieces from different openings on the same board to minimize waste. Integrate splices into regular boards (no dedicated splice boards unless unavoidable). Target ~2-3% waste with high nesting efficiency.
+I'm doing a window buck takeoff. Read the attached window schedule and extract every window opening.
 
-1) SOURCE DATA
-- Use ONLY the R.O. / Rough Opening / SIZING R/O dimensions from the schedule.
-- Ignore frame size, unit size, glass size, etc.
-- Treat R.O. = finished buck opening size.
+For EACH opening:
+1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O). Ignore frame size, unit size, and glass size.
+2. Convert both to inches. Feet-and-inches like 3'-0" becomes 36. Fractions like 36 1/2" become 36.5.
+3. Find the quantity (QTY) — how many of that opening. If no quantity is shown, use 1.
+4. Find the room or location name.
 
-2) BUCK BUILD RULES — 4 pieces per opening:
-- Head (H): R.O. width + 3"
-- Sill (S): R.O. width + 3"
-- Jamb Left (JL): R.O. height
-- Jamb Right (JR): R.O. height
-- Keep fractions to the nearest 1/16".
-- Material: 2x6 PT (unless I tell you otherwise).
-- Stock lengths: 16' primary; use 12', 10', or 8' only for remnants or when a 16' would waste more than 20".
+Reply with ONLY a list — one opening per line — in EXACTLY this format. No headers, no totals, no commentary:
 
-3) OPTIMIZATION
-- Objective: minimum total waste (~2-3% target), then least headache.
-- Aggressively mix pieces from different openings on one board (3-5 cuts per board where they fit).
-- Best-fit nesting: place longest pieces first, fill the gaps with shorter ones.
-- For any piece longer than 16': split into 192" + remainder and integrate the remainder into a regular board.
+OPENING | room or location | width_inches | height_inches | qty
 
-4) OUTPUT — provide BOTH parts:
+Example reply:
+OPENING | Master Bedroom | 36 | 48 | 2
+OPENING | Kitchen | 48 | 60 | 1
+OPENING | Living Room | 72 | 60 | 1
 
-PART A — Board-by-board cut list, human-readable. For each board show its stock length and every cut on it, each labeled "Op## - Room - H/S/JL/JR - length". List every opening as Op01, Op02, etc.
+If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the OPENING lines.`;
 
-PART B — A machine-readable summary. This MUST be the LAST thing in your reply, formatted EXACTLY like this, one item per line, no extra characters or markdown:
+// Parse Grok's "OPENING | room | w | h | qty" lines
+function parseOpenings(text) {
+  const openings = [];
+  const re = /OPENING\s*\|\s*([^|]+?)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*(\d+)/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const width = parseFloat(m[2]);
+    const height = parseFloat(m[3]);
+    const qty = parseInt(m[4], 10) || 1;
+    if (width > 0 && height > 0) {
+      openings.push({ room: (m[1].trim() || "Opening"), width, height, qty });
+    }
+  }
+  return openings;
+}
 
-=== CALCULATOR SUMMARY ===
-BUCK_BOARDS_16FT: <count>
-BUCK_BOARDS_12FT: <count>
-BUCK_BOARDS_10FT: <count>
-BUCK_BOARDS_8FT: <count>
-BUCK_TOTAL_BOARDS: <count>
-BUCK_WASTE_PERCENT: <number>
-=== END SUMMARY ===
+// Format inches as a jobsite-friendly fraction string (nearest 1/16")
+function formatInches(n) {
+  if (!isFinite(n)) return "0\"";
+  const whole = Math.floor(n);
+  let sixteenths = Math.round((n - whole) * 16);
+  let w = whole;
+  if (sixteenths === 16) { w += 1; sixteenths = 0; }
+  if (sixteenths === 0) return `${w}"`;
+  let num = sixteenths, den = 16;
+  while (num % 2 === 0 && den % 2 === 0) { num /= 2; den /= 2; }
+  return `${w} ${num}/${den}"`;
+}
 
-If a stock length is not used, report it as 0 — do not omit any line.
+// Deterministic cut-list optimizer — Best Fit Decreasing bin packing.
+// Packs all buck pieces onto stock boards minimizing total lumber bought,
+// then downsizes each board to the smallest stock length that still fits.
+function optimizeCutList(openings) {
+  const { headSillAdd, kerf, stockFeet } = BUCK_RULES;
+  const stockIn = stockFeet.map(f => f * 12).sort((a, b) => b - a);
+  const maxStock = stockIn[0];
+  const stockAsc = stockIn.slice().sort((a, b) => a - b);
 
-5) Only ask a question if the schedule does NOT clearly show R.O. dimensions. Otherwise make best assumptions and proceed.
+  // 1. Every opening becomes 4 pieces per unit (head, sill, 2 jambs)
+  let pieces = [];
+  openings.forEach((op, idx) => {
+    const opId = "Op" + String(idx + 1).padStart(2, "0");
+    for (let q = 0; q < op.qty; q++) {
+      pieces.push({ opId, room: op.room, type: "Head",  length: op.width + headSillAdd });
+      pieces.push({ opId, room: op.room, type: "Sill",  length: op.width + headSillAdd });
+      pieces.push({ opId, room: op.room, type: "Jamb L", length: op.height });
+      pieces.push({ opId, room: op.room, type: "Jamb R", length: op.height });
+    }
+  });
 
-Process the attached window schedule now.`;
+  // 2. Split any piece longer than the longest stock into spliced parts
+  const finalPieces = [];
+  pieces.forEach(p => {
+    if (p.length > maxStock) {
+      let rem = p.length, part = 1;
+      while (rem > maxStock) { finalPieces.push({ ...p, length: maxStock, splice: part }); rem -= maxStock; part++; }
+      finalPieces.push({ ...p, length: rem, splice: part });
+    } else {
+      finalPieces.push(p);
+    }
+  });
 
+  // 3. Best Fit Decreasing — longest pieces first, into the tightest-fitting board
+  const sorted = finalPieces.slice().sort((a, b) => b.length - a.length);
+  const boards = [];
+  sorted.forEach(piece => {
+    const need = piece.length + kerf;
+    let best = -1, bestRemain = Infinity;
+    boards.forEach((b, i) => {
+      const remain = maxStock - b.fill - need;
+      if (remain >= 0 && remain < bestRemain) { bestRemain = remain; best = i; }
+    });
+    if (best === -1) {
+      boards.push({ cuts: [piece], fill: need, cutSum: piece.length });
+    } else {
+      boards[best].cuts.push(piece);
+      boards[best].fill += need;
+      boards[best].cutSum += piece.length;
+    }
+  });
+
+  // 3b. Consolidation — try to empty out a board by redistributing its cuts
+  //     into the slack of others, which drops total lumber bought.
+  function tryEliminate() {
+    if (boards.length < 2) return false;
+    const order = boards.map((b, i) => i).sort((a, b) => boards[a].cutSum - boards[b].cutSum);
+    for (const ci of order) {
+      const others = boards.filter((_, i) => i !== ci);
+      const fills = others.map(b => b.fill);
+      const candCuts = boards[ci].cuts.slice().sort((a, b) => b.length - a.length);
+      const assign = [];
+      let ok = true;
+      for (const piece of candCuts) {
+        const need = piece.length + kerf;
+        let best = -1, bestRemain = Infinity;
+        for (let i = 0; i < others.length; i++) {
+          const remain = maxStock - fills[i] - need;
+          if (remain >= 0 && remain < bestRemain) { bestRemain = remain; best = i; }
+        }
+        if (best === -1) { ok = false; break; }
+        fills[best] += need;
+        assign.push(best);
+      }
+      if (ok) {
+        candCuts.forEach((piece, k) => {
+          const tgt = others[assign[k]];
+          tgt.cuts.push(piece);
+          tgt.fill += piece.length + kerf;
+          tgt.cutSum += piece.length;
+        });
+        boards.splice(ci, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+  while (tryEliminate()) { /* keep consolidating */ }
+
+  // 4. Downsize each board to the smallest stock that still holds its cuts
+  boards.forEach((b, i) => {
+    const realNeed = b.cutSum + Math.max(0, b.cuts.length - 1) * kerf;
+    b.stock = stockAsc.find(s => s >= realNeed) || maxStock;
+    b.drop = Math.round((b.stock - realNeed) * 100) / 100;
+    b.n = i + 1;
+    // longest cuts first on each board reads cleaner on the floor
+    b.cuts.sort((a, c) => c.length - a.length);
+  });
+
+  // 5. Tally
+  const byLength = {};
+  let totalStockIn = 0;
+  boards.forEach(b => {
+    const ft = b.stock / 12;
+    byLength[ft] = (byLength[ft] || 0) + 1;
+    totalStockIn += b.stock;
+  });
+  const totalPieceIn = finalPieces.reduce((s, p) => s + p.length, 0);
+  const wastePercent = totalStockIn > 0
+    ? Math.round((totalStockIn - totalPieceIn) / totalStockIn * 1000) / 10 : 0;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    openings: openings.map((op, idx) => ({ id: "Op" + String(idx + 1).padStart(2, "0"), ...op })),
+    boards,
+    byLength,
+    totalBoards: boards.length,
+    totalStockLF: Math.round(totalStockIn / 12 * 10) / 10,
+    pieces: finalPieces.length,
+    wastePercent
+  };
+}
+
+function buckYardOrderString(bl) {
+  if (!bl || !bl.byLength) return "";
+  const lengths = Object.keys(bl.byLength).map(Number).sort((a, b) => b - a);
+  return lengths.filter(l => bl.byLength[l] > 0).map(l => `${bl.byLength[l]} × ${l}ft`).join(" · ");
+}
+
+/* ---------- Modal ---------- */
 function openBuckModal() {
   document.getElementById("buckResponseInput").value = "";
   document.getElementById("buckParsedPreview").classList.add("hidden");
   document.getElementById("buckPromptText").textContent = BUCK_PROMPT;
-  document.getElementById("buckClearBtn").classList.toggle("hidden", !(STATE.buckList && buckListBoardCount(STATE.buckList) > 0));
+  renderBuckResult();
   const modal = document.getElementById("buckModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -2695,6 +2844,20 @@ function closeBuckModal() {
   const modal = document.getElementById("buckModal");
   modal.classList.add("hidden");
   modal.classList.remove("flex");
+}
+
+// Shows the result panel (yard order + download) when a cut list exists
+function renderBuckResult() {
+  const panel = document.getElementById("buckResultPanel");
+  const bl = STATE.buckList;
+  const has = bl && bl.totalBoards > 0;
+  panel.classList.toggle("hidden", !has);
+  if (has) {
+    document.getElementById("buckResultSummary").textContent =
+      `${buckYardOrderString(bl)}  —  ${bl.totalBoards} boards, ${bl.wastePercent}% waste`;
+    document.getElementById("buckResultMeta").textContent =
+      `${bl.pieces} pieces from ${bl.openings.length} openings · ${bl.totalStockLF} LF of 2x6 PT`;
+  }
 }
 
 async function openGrokBuckPrompt() {
@@ -2710,56 +2873,144 @@ async function openGrokBuckPrompt() {
   toast(copied ? "Prompt copied — paste in Grok" : "Open the prompt below to copy manually");
 }
 
-function parseBuckList(text) {
-  const boards = {};
-  const re = /buck_boards_(\d+)\s*ft\s*[:=]\s*(\d+)/gi;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    const len = parseInt(m[1], 10);
-    const count = parseInt(m[2], 10);
-    if (len > 0 && count >= 0) boards[len] = count;
-  }
-  const wasteM = text.match(/buck_waste_percent\s*[:=]\s*([\d.]+)/i);
-  const wastePercent = wasteM ? parseFloat(wasteM[1]) : null;
-  const hasAny = Object.values(boards).some(c => c > 0);
-  return hasAny ? { boards, wastePercent } : null;
-}
-
-function buckSummaryString(bl) {
-  if (!bl) return "";
-  const lengths = Object.keys(bl.boards).map(Number).sort((a, b) => b - a);
-  const used = lengths.filter(l => bl.boards[l] > 0);
-  const parts = used.map(l => `${bl.boards[l]} × ${l}ft`);
-  const total = buckListBoardCount(bl);
-  let s = `${parts.join(" · ")} — ${total} board${total === 1 ? "" : "s"}`;
-  if (bl.wastePercent != null) s += `, ${bl.wastePercent}% waste`;
-  return s;
-}
-
-function applyBuckList() {
+function generateCutList() {
   const text = document.getElementById("buckResponseInput").value.trim();
-  if (!text) { toast("Paste Grok's reply first"); return; }
-  const parsed = parseBuckList(text);
-  if (!parsed) {
-    toast("Couldn't find the board summary — paste Grok's reply");
+  if (!text) { toast("Paste the openings list first"); return; }
+  const openings = parseOpenings(text);
+  if (!openings.length) {
+    toast("No openings found — paste Grok's OPENING lines");
     return;
   }
-  STATE.buckList = parsed;
+  STATE.buckList = optimizeCutList(openings);
   // A buck list only makes sense on a block-framed job — switch automatically
   if (STATE.houseType !== "Block Framed") {
     STATE.houseType = "Block Framed";
     if (SEGMENTS.segHouseType) SEGMENTS.segHouseType.setValue("Block Framed", false);
   }
-  closeBuckModal();
+  renderBuckResult();
   render();
-  toast(`Cut list applied: ${buckListBoardCount(parsed)} boards`);
+  toast(`Cut list ready: ${STATE.buckList.totalBoards} boards`);
 }
 
 function clearBuckList() {
   STATE.buckList = null;
-  closeBuckModal();
+  renderBuckResult();
   render();
   toast("Cut list cleared");
+}
+
+/* ---------- Printable PDF ---------- */
+function exportCutListPDF() {
+  const bl = STATE.buckList;
+  if (!bl || !bl.boards || !bl.boards.length) { toast("Generate a cut list first"); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const brand = DATA.config.brand || {};
+  const M = 40;
+  const colorFor = (type) =>
+    type.startsWith("Head") ? [200, 50, 50] :
+    type.startsWith("Sill") ? [40, 90, 200] : [40, 140, 60];
+
+  // ---- Header ----
+  let y = M + 8;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(20, 20, 20);
+  doc.text(brand.companyName || "", M, y);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.text("WINDOW BUCK CUT LIST", pageW - M, y - 4, { align: "right" });
+  doc.text(new Date().toLocaleString(), pageW - M, y + 8, { align: "right" });
+  y += 16;
+  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.line(M, y - 12, M + 84, y - 12);
+  doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 16;
+
+  // Job info
+  if (STATE.customerName || STATE.customerAddress) {
+    doc.setFontSize(9); doc.setTextColor(60, 60, 60);
+    if (STATE.customerName) { doc.text(STATE.customerName, M, y); y += 12; }
+    if (STATE.customerAddress) { doc.text(STATE.customerAddress, M, y); y += 12; }
+    y += 6;
+  }
+
+  // ---- Yard order ----
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.text("YARD ORDER", M, y);
+  y += 15;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(20, 20, 20);
+  doc.text(buckYardOrderString(bl).replace(/×/g, "x"), M, y);
+  y += 15;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(110, 110, 110);
+  doc.text(`${bl.totalBoards} boards of 2x6 PT  ·  ${bl.wastePercent}% waste  ·  ${bl.pieces} pieces from ${bl.openings.length} openings`, M, y);
+  y += 18;
+
+  // ---- Color key ----
+  doc.setFontSize(8);
+  [["Head", [200, 50, 50]], ["Sill", [40, 90, 200]], ["Jamb", [40, 140, 60]]].forEach((k, i) => {
+    const kx = M + i * 64;
+    doc.setFillColor(k[1][0], k[1][1], k[1][2]);
+    doc.rect(kx, y - 7, 8, 8, "F");
+    doc.setTextColor(80, 80, 80);
+    doc.text(k[0], kx + 12, y);
+  });
+  y += 14;
+  doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 18;
+
+  // ---- Board by board ----
+  bl.boards.forEach(board => {
+    const blockH = 24 + board.cuts.length * 17 + 14;
+    if (y + blockH > pageH - 44) { doc.addPage(); y = M + 14; }
+
+    // Board title bar
+    doc.setFillColor(243, 243, 243);
+    doc.rect(M, y - 12, pageW - 2 * M, 20, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20, 20, 20);
+    doc.text(`BOARD ${board.n}`, M + 8, y + 2);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(90, 90, 90);
+    doc.text(`${board.stock / 12} ft stock`, M + 90, y + 2);
+    doc.text(`Drop: ${formatInches(board.drop)}`, pageW - M - 8, y + 2, { align: "right" });
+    y += 22;
+
+    board.cuts.forEach(cut => {
+      // checkbox
+      doc.setDrawColor(110, 110, 110); doc.setLineWidth(0.8);
+      doc.rect(M + 10, y - 8, 10, 10);
+      // cut length
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
+      doc.text(formatInches(cut.length), M + 32, y);
+      // opening + room
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 80, 80);
+      doc.text(`${cut.opId}  ${cut.room}`, M + 116, y);
+      // piece type, color-coded with a dot
+      const c = colorFor(cut.type);
+      doc.setFillColor(c[0], c[1], c[2]);
+      doc.circle(pageW - M - 104, y - 3, 3, "F");
+      doc.setTextColor(c[0], c[1], c[2]);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.text(cut.type + (cut.splice ? ` (splice ${cut.splice})` : ""), pageW - M - 94, y);
+      y += 17;
+    });
+    y += 6;
+    doc.setDrawColor(225, 225, 225); doc.setLineWidth(0.5);
+    doc.line(M, y - 2, pageW - M, y - 2);
+    y += 12;
+  });
+
+  // ---- Page footers ----
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+    doc.text(`${brand.companyName || ""}  ·  Window Buck Cut List  ·  Page ${p} of ${pages}`,
+      pageW / 2, pageH - 20, { align: "center" });
+  }
+
+  doc.save(`BuckCutList-${Date.now()}.pdf`);
+  toast("Cut list PDF downloaded");
 }
 
 /* ============================================================
@@ -3030,16 +3281,18 @@ function init() {
   // Buck Cut List
   document.getElementById("buckListBtn").addEventListener("click", openBuckModal);
   document.getElementById("openGrokBuckBtn").addEventListener("click", openGrokBuckPrompt);
-  document.getElementById("applyBuckBtn").addEventListener("click", applyBuckList);
+  document.getElementById("generateCutListBtn").addEventListener("click", generateCutList);
+  document.getElementById("downloadCutListBtn").addEventListener("click", exportCutListPDF);
   document.getElementById("buckClearBtn").addEventListener("click", clearBuckList);
   document.getElementById("buckModal").addEventListener("click", e => {
     if (e.target.dataset.closeBuck !== undefined) closeBuckModal();
   });
   document.getElementById("buckResponseInput").addEventListener("input", e => {
     const preview = document.getElementById("buckParsedPreview");
-    const parsed = parseBuckList(e.target.value);
-    if (parsed) {
-      preview.textContent = `Found → ${buckSummaryString(parsed)}`;
+    const openings = parseOpenings(e.target.value);
+    if (openings.length) {
+      const units = openings.reduce((s, o) => s + o.qty, 0);
+      preview.textContent = `Found → ${openings.length} openings (${units} window${units === 1 ? "" : "s"})`;
       preview.classList.remove("hidden");
     } else {
       preview.classList.add("hidden");
