@@ -638,6 +638,13 @@
       </div>
       <div class="px-5 sm:px-6 py-3.5 flex items-center justify-between gap-4 border-t border-slate-800/40">
         <div class="min-w-0">
+          <div class="text-sm text-slate-100 font-bold">Materials List</div>
+          <div class="text-[11px] text-slate-500 mt-0.5 font-medium">Shopping list — packs to buy, check off at the supplier</div>
+        </div>
+        <button id="fileMaterialsList" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] flex-shrink-0">Download PDF</button>
+      </div>
+      <div class="px-5 sm:px-6 py-3.5 flex items-center justify-between gap-4 border-t border-slate-800/40">
+        <div class="min-w-0">
           <div class="text-sm text-slate-100 font-bold">Buck Cut List</div>
           <div id="fileBuckDesc" class="text-[11px] text-slate-500 mt-0.5 font-medium">Board-by-board cut sheet for the crew</div>
         </div>
@@ -2424,6 +2431,102 @@ function exportPDF() {
   toast("PDF exported");
 }
 
+// Clean, cost-free shopping list for whoever does the supply run.
+function exportMaterialsPDF() {
+  const r = calculate();
+  if (r.lf <= 0) { toast("Enter footage first"); return; }
+
+  // Build the materials list (same logic as the Materials Needed card)
+  const mats = [];
+  let total = 0;
+  r.rows.forEach(row => {
+    const item = DATA.costItems.find(c => c.id === row.id);
+    if (!item) return;
+    if (row.fromBuckList && STATE.buckList) {
+      const bl = STATE.buckList;
+      const lengths = Object.keys(bl.byLength || {}).map(Number).sort((a, b) => b - a);
+      const detail = lengths.filter(l => bl.byLength[l] > 0).map(l => `${bl.byLength[l]} x ${l}ft`).join("   ") || "";
+      total += buckListTotalLF(bl) * getUnitPrice(item);
+      const n = buckListBoardCount(bl);
+      mats.push({ name: item.name, qty: `${n} ${n === 1 ? "board" : "boards"}`, detail });
+      return;
+    }
+    const proc = computeProcurement(row.quantity, item);
+    if (!proc) return;
+    let detail;
+    if (proc.intCount != null) detail = `${formatQty(row.quantity)} ${item.unit} · ${proc.intCount} ${proc.intLabel} · ${proc.intPerPack} per ${proc.packName}`;
+    else if (item.unit === proc.packName) detail = row.isFixed ? "Fixed job allowance" : `${formatQty(row.quantity)} ${proc.packLabel}`;
+    else if (item.unit === "each") detail = `${formatQty(row.quantity)} · ${proc.caseSize} per ${proc.packName}`;
+    else detail = `${formatQty(row.quantity)} ${item.unit} · ${proc.caseSize} ${item.unit} per ${proc.packName}`;
+    const basis = computeCostBasis(item);
+    if (basis) total += proc.packs * basis.perPack;
+    mats.push({ name: item.name, qty: `${proc.packs} ${proc.packLabel}`, detail });
+  });
+  if (!mats.length) { toast("No materials for this job"); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const brand = DATA.config.brand || {};
+  const M = 40;
+
+  // Header
+  let y = M + 8;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(20, 20, 20);
+  doc.text(brand.companyName || "", M, y);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.text("MATERIALS LIST", pageW - M, y - 4, { align: "right" });
+  doc.text(new Date().toLocaleDateString(), pageW - M, y + 8, { align: "right" });
+  y += 16;
+  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.line(M, y - 12, M + 84, y - 12);
+  doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 16;
+
+  // Job info
+  if (STATE.customerName || STATE.customerAddress) {
+    doc.setFontSize(9); doc.setTextColor(60, 60, 60);
+    if (STATE.customerName) { doc.text(STATE.customerName, M, y); y += 12; }
+    if (STATE.customerAddress) { doc.text(STATE.customerAddress, M, y); y += 12; }
+    y += 6;
+  }
+
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.text("SHOPPING LIST — CHECK OFF AT THE SUPPLIER", M, y);
+  y += 20;
+
+  // Material rows with checkboxes
+  mats.forEach(mat => {
+    if (y > pageH - 90) { doc.addPage(); y = M + 20; }
+    doc.setDrawColor(110, 110, 110); doc.setLineWidth(0.9);
+    doc.rect(M, y - 9, 12, 12);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
+    doc.text(mat.qty, M + 24, y);
+    doc.text(mat.name, M + 132, y);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+    doc.text(mat.detail, M + 132, y + 12);
+    doc.setDrawColor(228, 228, 228); doc.setLineWidth(0.5);
+    doc.line(M, y + 20, pageW - M, y + 20);
+    y += 34;
+  });
+
+  // Estimated total (rough spend — no labor, no margin)
+  y += 10;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
+  doc.text("Estimated Materials Total", M, y);
+  doc.text(formatMoney(total), pageW - M, y, { align: "right" });
+
+  // Footer
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+  doc.text(`${brand.companyName || ""}  ·  Materials list — packs to buy for this job`,
+    pageW / 2, pageH - 24, { align: "center" });
+
+  doc.save(`MaterialsList-${Date.now()}.pdf`);
+  toast("Materials list downloaded");
+}
+
 /* ============================================================
    ADMIN MODAL
    ============================================================ */
@@ -3347,6 +3450,7 @@ function init() {
 
   document.getElementById("fileCustomerQuote").addEventListener("click", exportCustomerPDF);
   document.getElementById("fileCostBreakdown").addEventListener("click", exportPDF);
+  document.getElementById("fileMaterialsList").addEventListener("click", exportMaterialsPDF);
   document.getElementById("fileBuckCutList").addEventListener("click", fileBuckAction);
   document.getElementById("saveJob").addEventListener("click", saveCurrentJob);
   document.getElementById("resetAll").addEventListener("click", resetAll);
