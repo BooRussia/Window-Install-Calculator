@@ -749,6 +749,7 @@
         <div class="text-[10px] uppercase tracking-[0.16em] text-[#c9a558] font-bold mb-2">Cut List Ready</div>
         <div id="buckResultSummary" class="text-sm text-slate-100 font-bold" style="font-variant-numeric: tabular-nums;"></div>
         <div id="buckResultMeta" class="text-[11px] text-slate-500 mt-0.5 font-medium" style="font-variant-numeric: tabular-nums;"></div>
+        <div id="buckResultNote" class="hidden text-[11px] text-[#c9a558] mt-1.5 font-medium"></div>
         <button id="downloadCutListBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M8 1v9M4 7l4 4 4-4M2 14h12"/></svg>
           Download Cut List PDF
@@ -2644,9 +2645,12 @@ function applyGrokResponse() {
    BUCK CUT LIST — Grok extracts openings, we optimize + build the PDF
    ============================================================ */
 const BUCK_RULES = {
-  headSillAdd: 3,            // inches added to R.O. width for head & sill
-  kerf: 0.125,              // saw kerf consumed per cut
-  stockFeet: [16, 12, 10, 8] // available stock lengths
+  headSillAdd: 3,             // inches added to R.O. width for head & sill
+  kerf: 0.125,               // saw kerf consumed per cut
+  stockFeet: [16, 12, 10, 8], // available stock lengths
+  consolidateThreshold: 2     // straggler runs of this many short boards or
+                              // fewer get bumped up to full 16ft stock so the
+                              // yard order stays one clean length
 };
 
 // Grok's only job: read the schedule, list rough openings. No optimization.
@@ -2800,12 +2804,33 @@ function optimizeCutList(openings) {
 
   // 4. Downsize each board to the smallest stock that still holds its cuts
   boards.forEach((b, i) => {
-    const realNeed = b.cutSum + Math.max(0, b.cuts.length - 1) * kerf;
-    b.stock = stockAsc.find(s => s >= realNeed) || maxStock;
-    b.drop = Math.round((b.stock - realNeed) * 100) / 100;
+    b.realNeed = b.cutSum + Math.max(0, b.cuts.length - 1) * kerf;
+    b.stock = stockAsc.find(s => s >= b.realNeed) || maxStock;
     b.n = i + 1;
     // longest cuts first on each board reads cleaner on the floor
     b.cuts.sort((a, c) => c.length - a.length);
+  });
+
+  // 4b. Yard-order consolidation — a short stock length used by only a tiny
+  //     straggler run gets bumped up to full 16ft so the order stays one
+  //     clean length. A real run of short boards is left alone.
+  const threshold = BUCK_RULES.consolidateThreshold;
+  const countByStock = {};
+  boards.forEach(b => { countByStock[b.stock] = (countByStock[b.stock] || 0) + 1; });
+  let consolidated = 0;
+  if ((countByStock[maxStock] || 0) > 0) {
+    boards.forEach(b => {
+      if (b.stock < maxStock && countByStock[b.stock] <= threshold) {
+        b.bumped = true;
+        b.stock = maxStock;
+        consolidated++;
+      }
+    });
+  }
+
+  // 4c. Final drop per board (after any consolidation bumps)
+  boards.forEach(b => {
+    b.drop = Math.round((b.stock - b.realNeed) * 100) / 100;
   });
 
   // 5. Tally
@@ -2828,6 +2853,7 @@ function optimizeCutList(openings) {
     totalBoards: boards.length,
     totalStockLF: Math.round(totalStockIn / 12 * 10) / 10,
     pieces: finalPieces.length,
+    consolidated,
     wastePercent
   };
 }
@@ -2866,6 +2892,13 @@ function renderBuckResult() {
       `${buckYardOrderString(bl)}  —  ${bl.totalBoards} boards, ${bl.wastePercent}% waste`;
     document.getElementById("buckResultMeta").textContent =
       `${bl.pieces} pieces from ${bl.openings.length} openings · ${bl.totalStockLF} LF of 2x6 PT`;
+    const noteEl = document.getElementById("buckResultNote");
+    if (bl.consolidated > 0) {
+      noteEl.textContent = `${bl.consolidated} short board${bl.consolidated === 1 ? "" : "s"} rounded up to 16ft to keep the order to one length.`;
+      noteEl.classList.remove("hidden");
+    } else {
+      noteEl.classList.add("hidden");
+    }
   }
 }
 
@@ -2953,7 +2986,13 @@ function exportCutListPDF() {
   y += 15;
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(110, 110, 110);
   doc.text(`${bl.totalBoards} boards of 2x6 PT  ·  ${bl.wastePercent}% waste  ·  ${bl.pieces} pieces from ${bl.openings.length} openings`, M, y);
-  y += 18;
+  y += 13;
+  if (bl.consolidated > 0) {
+    doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+    doc.text(`${bl.consolidated} short board${bl.consolidated === 1 ? "" : "s"} rounded up to 16ft to keep the order to one length.`, M, y);
+    y += 13;
+  }
+  y += 5;
 
   // ---- Color key ----
   doc.setFontSize(8);
@@ -2981,7 +3020,7 @@ function exportCutListPDF() {
     doc.text(`BOARD ${board.n}`, M + 8, y + 2);
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(90, 90, 90);
     doc.text(`${board.stock / 12} ft stock`, M + 90, y + 2);
-    doc.text(`Drop: ${formatInches(board.drop)}`, pageW - M - 8, y + 2, { align: "right" });
+    doc.text(`Drop: ${formatInches(board.drop)}${board.bumped ? "  (rounded up)" : ""}`, pageW - M - 8, y + 2, { align: "right" });
     y += 22;
 
     board.cuts.forEach(cut => {
