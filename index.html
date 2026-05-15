@@ -236,8 +236,24 @@
   .extras-chev { transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1); }
   #jobDetailsRow:not(.extras-collapsed) .extras-chev { transform: rotate(180deg); }
 
-  /* ------- AI button hover tooltip ------- */
-  .ai-btn-wrap { position: relative; display: inline-flex; }
+  /* ------- AI button hover tooltip + collapse animation ------- */
+  .ai-btn-wrap { position: relative; display: inline-flex; max-width: 400px; }
+  .ai-btn-wrap.tr {
+    transition: max-width .4s cubic-bezier(0.16,1,0.3,1),
+                opacity .3s ease,
+                margin .35s cubic-bezier(0.16,1,0.3,1),
+                transform .35s cubic-bezier(0.16,1,0.3,1);
+  }
+  .ai-btn-wrap > button { flex-shrink: 0; white-space: nowrap; }
+  .ai-btn-wrap.collapsed {
+    max-width: 0;
+    opacity: 0;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    transform: scale(0.85);
+    overflow: hidden;
+    pointer-events: none;
+  }
   .ai-tip {
     position: absolute;
     bottom: calc(100% + 9px);
@@ -462,8 +478,8 @@
 
   <!-- Big LF input -->
   <section class="mt-6 sm:mt-10">
-    <div class="flex flex-wrap justify-center gap-2 mb-5">
-      <div class="ai-btn-wrap">
+    <div class="flex flex-wrap justify-center mb-5">
+      <div class="ai-btn-wrap mx-1">
         <button id="readFromPlanBtn" class="btn rounded-full pl-3 pr-5 py-2 text-[11px] sm:text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/40 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.14em] uppercase inline-flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="flex-shrink-0" aria-hidden="true">
             <path d="M8 0.5l1.2 4.3L13.5 6l-4.3 1.2L8 11.5 6.8 7.2 2.5 6l4.3-1.2z"/>
@@ -473,7 +489,7 @@
         </button>
         <span class="ai-tip">Upload a window schedule or plan — AI reads it and fills in your total linear footage, window count, and manufacturer.</span>
       </div>
-      <div class="ai-btn-wrap">
+      <div id="buckBtnWrap" class="ai-btn-wrap mx-1">
         <button id="buckListBtn" class="btn rounded-full pl-3 pr-5 py-2 text-[11px] sm:text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/40 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.14em] uppercase inline-flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="flex-shrink-0" aria-hidden="true">
             <path d="M8 0.5l1.2 4.3L13.5 6l-4.3 1.2L8 11.5 6.8 7.2 2.5 6l4.3-1.2z"/>
@@ -1494,6 +1510,14 @@ function updatePermitToggleUI() {
 
 // Updates the collapsed-state label on the Job Extras pill so users can see at a
 // glance which extras are active without expanding ("Job Extras · Permit, Lift").
+// Buck Cut List only applies to block-framed jobs — collapse the button
+// (and let Scan Plan re-center) when Stick Framed is selected.
+function updateBuckButtonVisibility() {
+  const wrap = document.getElementById("buckBtnWrap");
+  if (!wrap) return;
+  wrap.classList.toggle("collapsed", STATE.houseType !== "Block Framed");
+}
+
 function updateJobExtrasSummary() {
   const trigger = document.getElementById("jobExtrasToggle");
   const summary = document.getElementById("jobExtrasSummary");
@@ -1516,6 +1540,7 @@ function updateJobExtrasSummary() {
 function render() {
   const r = calculate();
   document.getElementById("marginLabel").textContent = String(r.margin);
+  updateBuckButtonVisibility();
 
   const hasInput = (parseFloat(STATE.totalLF) || 0) > 0;
   const results = document.getElementById("results");
@@ -2956,6 +2981,11 @@ function init() {
   bindControls();
   render();
   renderSavedJobs();
+  // Enable AI-button collapse transitions only after the initial paint,
+  // so a Stick-Framed saved job doesn't animate the button away on load.
+  requestAnimationFrame(() => {
+    document.querySelectorAll(".ai-btn-wrap").forEach(w => w.classList.add("tr"));
+  });
   window.addEventListener("resize", fitAll);
   window.addEventListener("orientationchange", fitAll);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
