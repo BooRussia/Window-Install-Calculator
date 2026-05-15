@@ -646,6 +646,7 @@
         <div class="min-w-0">
           <div class="text-sm text-slate-100 font-bold">Materials List</div>
           <div class="text-[11px] text-slate-500 mt-0.5 font-medium">Shopping list — packs to buy, check off at the supplier</div>
+          <div id="materialsBuckNote" class="hidden text-[11px] text-[#c9a558] mt-1 font-medium">Wood bucking is estimated — generate a Buck Cut List for exact boards</div>
         </div>
         <div class="flex items-center gap-1.5 flex-shrink-0">
           <button id="viewMaterialsList" class="btn rounded-full px-3 py-2 text-xs font-bold text-slate-400 hover:text-[#c9a558]">View</button>
@@ -2459,10 +2460,29 @@ function exportPDF(mode) {
   outputPDF(doc, `CostBreakdown-${Date.now()}.pdf`, mode);
 }
 
+// True when the job has wood bucking but no optimized cut list — the
+// bucking quantity is then just the rough LF x 1.25 estimate.
+function hasEstimatedBucking(rows) {
+  return rows.some(row => row.id === "wood_bucking" && !row.fromBuckList);
+}
+
 // Clean, cost-free shopping list for whoever does the supply run.
 function exportMaterialsPDF(mode) {
   const r = calculate();
   if (r.lf <= 0) { toast("Enter footage first"); return; }
+
+  // Warn if wood bucking is only a rough estimate (no Buck Cut List yet)
+  const estimatedBucking = hasEstimatedBucking(r.rows);
+  if (estimatedBucking) {
+    const proceed = confirm(
+      "This job includes wood bucking, but no Buck Cut List has been generated.\n\n" +
+      "The boards on this list are a rough estimate — generic lengths, not sized or " +
+      "counted for minimal waste. Generate a Buck Cut List first for the exact board " +
+      "lengths and quantities to buy.\n\n" +
+      "Continue with the rough estimate anyway?"
+    );
+    if (!proceed) return;
+  }
 
   // Build the materials list (same logic as the Materials Needed card)
   const mats = [];
@@ -2523,7 +2543,18 @@ function exportMaterialsPDF(mode) {
 
   doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
   doc.text("SHOPPING LIST — CHECK OFF AT THE SUPPLIER", M, y);
-  y += 20;
+  y += 18;
+
+  // Estimate warning for wood bucking — low-ink: a gold rule + two text lines
+  if (estimatedBucking) {
+    doc.setDrawColor(181, 143, 74); doc.setLineWidth(2);
+    doc.line(M, y - 8, M, y + 12);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(70, 70, 70);
+    doc.text("Wood bucking below is a rough estimate — not sized for minimal waste.", M + 8, y);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(110, 110, 110);
+    doc.text("Generate a Buck Cut List for exact board lengths and quantities.", M + 8, y + 11);
+    y += 32;
+  }
 
   // Material rows with checkboxes
   mats.forEach(mat => {
@@ -3110,8 +3141,14 @@ function fileBuckAction(mode) {
   else openBuckModal();
 }
 
-// Keeps the Buck Cut List row in the Job Files card in sync
+// Keeps the Job Files card rows in sync
 function updateJobFilesUI() {
+  // Materials List — flag estimated wood bucking
+  const matNote = document.getElementById("materialsBuckNote");
+  if (matNote) {
+    matNote.classList.toggle("hidden", !hasEstimatedBucking(calculate().rows));
+  }
+
   const btn = document.getElementById("fileBuckCutList");
   const viewBtn = document.getElementById("viewBuckCutList");
   const desc = document.getElementById("fileBuckDesc");
