@@ -686,20 +686,6 @@
       </div>
     </div>
 
-    <!-- Cost Basis (collapsed by default) -->
-    <div id="costBasisCard" class="mt-6 card rounded-2xl overflow-hidden collapsed">
-      <button id="costBasisToggle" type="button" class="w-full px-5 sm:px-6 py-4 flex items-center justify-between gap-3 text-left hover:bg-slate-900/30 transition-colors" aria-expanded="false" aria-controls="costBasisList">
-        <div class="min-w-0">
-          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Cost Basis</h2>
-          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">What each pack costs and how it breaks down</p>
-        </div>
-        <svg class="cb-chev flex-shrink-0 text-slate-500" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1);">
-          <polyline points="5 8 10 13 15 8"/>
-        </svg>
-      </button>
-      <div id="costBasisList" class="divide-y divide-slate-800/60 border-t border-slate-800/80"></div>
-    </div>
-
     <!-- Job Files -->
     <div class="mt-8 card rounded-2xl overflow-hidden">
       <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80">
@@ -753,6 +739,20 @@
           <button id="fileBuckCutList" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]">Download</button>
         </div>
       </div>
+    </div>
+
+    <!-- Cost Basis (collapsed by default) -->
+    <div id="costBasisCard" class="mt-6 card rounded-2xl overflow-hidden collapsed">
+      <button id="costBasisToggle" type="button" class="w-full px-5 sm:px-6 py-4 flex items-center justify-between gap-3 text-left hover:bg-slate-900/30 transition-colors" aria-expanded="false" aria-controls="costBasisList">
+        <div class="min-w-0">
+          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Cost Basis</h2>
+          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">What each pack costs and how it breaks down</p>
+        </div>
+        <svg class="cb-chev flex-shrink-0 text-slate-500" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1);">
+          <polyline points="5 8 10 13 15 8"/>
+        </svg>
+      </button>
+      <div id="costBasisList" class="divide-y divide-slate-800/60 border-t border-slate-800/80"></div>
     </div>
 
     <!-- Job actions -->
@@ -2258,11 +2258,18 @@ function exportCustomerPDF(mode) {
       const scale = Math.min(maxW / props.width, maxH / props.height, 1);
       const w = props.width * scale, h = props.height * scale;
       doc.addImage(brand.logo, "PNG", M, M - 6, w, h);
-      y = M - 6 + h + 14;
+      y = M - 6 + h + 16;
       logoDrawn = true;
     } catch (e) { /* fall through to text */ }
   }
-  if (!logoDrawn) {
+  if (logoDrawn) {
+    // Company name printed under the logo
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(20, 20, 20);
+    doc.text(brand.companyName || "", M, y);
+    y += 10;
+  } else {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
     doc.setTextColor(20, 20, 20);
