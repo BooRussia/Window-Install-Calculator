@@ -518,7 +518,10 @@
         <div class="mt-4 rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
           <div class="text-sm text-slate-100 font-bold">Take a checklist to your supplier</div>
           <div class="text-[11px] text-slate-500 mt-0.5">A printable list of every material to get current pricing on.</div>
-          <button id="setupChecklistBtn" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">Download Pricing Checklist</button>
+          <div class="mt-3 flex gap-2">
+            <button id="viewChecklistBtn" class="btn rounded-full px-3 py-2 text-xs font-bold text-slate-400 hover:text-[#c9a558]">View</button>
+            <button id="setupChecklistBtn" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">Download Checklist</button>
+          </div>
         </div>
       </div>
 
@@ -1183,7 +1186,10 @@
       <!-- Material rates -->
       <div class="flex items-center justify-between mb-3 gap-3">
         <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Material Rates</h4>
-        <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em] flex-shrink-0">Pricing Checklist</button>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <button type="button" id="adminChecklistView" class="btn rounded-full px-2.5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-[#c9a558] uppercase tracking-[0.1em]">View</button>
+          <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
+        </div>
       </div>
       <div id="adminRatesBody" class="space-y-6"></div>
     </div>
@@ -4284,17 +4290,47 @@ function renderDemoBanner() {
   banner.classList.toggle("hidden", DATA.config.ratesCustomized || demoBannerDismissed);
 }
 
-// Describe how a material is bought, from its procurement config
-function packDescription(item) {
-  const p = item.procurement;
-  if (!p) return "";
-  if (p.intermediate) return `${p.packName} of ${p.intermediate.perPack} ${p.intermediate.labelPlural}`;
-  if (p.caseSize === 1) return p.packName;
-  if (item.unit === "LF") return `${p.packName} of ${p.caseSize} LF`;
-  return `${p.packName} of ${p.caseSize.toLocaleString()}`;
-}
+// Materials on the pricing checklist — generic item names, with the exact
+// blank fields needed to feed an accurate quote. Each row is drawn as a line.
+const CHECKLIST_ITEMS = [
+  { name: "Caulking", rows: [
+    [ { label: "Product / brand", w: 330 } ],
+    [ { kind: "price", per: "per case" } ],
+    [ { label: "Oz per sausage / tube", w: 55 }, { label: "Sausages / tubes per case", w: 55 } ],
+  ]},
+  { name: "Plastic Shims", rows: [
+    [ { label: "Product / brand", w: 330 } ],
+    [ { kind: "price", per: "per case" }, { label: "Amount per case", w: 60 } ],
+  ]},
+  { name: "Backer Rod", rows: [
+    [ { label: "Product / brand", w: 330 } ],
+    [ { kind: "price", per: "per roll" } ],
+    [ { label: "Girth", w: 70 }, { label: "Length of roll", w: 70 } ],
+  ]},
+  { name: "Flashing Tape", rows: [
+    [ { label: "Product / brand", w: 330 } ],
+    [ { kind: "price", per: "per roll" } ],
+    [ { label: "Width", w: 70 }, { label: "Length of roll", w: 70 } ],
+  ]},
+  { name: "Wood Bucking", note: "Cut list and standard lumber pricing handle the rest automatically.", rows: [
+    [ { kind: "choice", label: "Lumber preference", options: ["2x6", "2x8"] } ],
+  ]},
+  { name: "Block Sealer", rows: [
+    [ { label: "Product / brand", w: 330 } ],
+    [ { kind: "price", per: "per container" } ],
+    [ { kind: "choice", label: "Container size", options: ["1 gallon", "5 gallon"] } ],
+  ]},
+  { name: "Nail-Fin Screws", rows: [
+    [ { label: "Product / brand", w: 330 } ],
+    [ { kind: "price", per: "per case" }, { label: "Screws per case", w: 60 } ],
+  ]},
+  { name: "Concrete Screws", rows: [
+    [ { label: "Product / brand", w: 330 } ],
+    [ { kind: "price", per: "per case" }, { label: "Screws per case", w: 60 } ],
+  ]},
+];
 
-// Printable blank checklist of every material to go price-shop
+// Printable blank checklist — fill in supplier pricing, then enter in Settings
 function exportPricingChecklistPDF(mode) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -4317,31 +4353,68 @@ function exportPricingChecklistPDF(mode) {
   y += 16;
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(90, 90, 90);
   doc.text("Get current pricing on each material below, then enter it in Settings for accurate quotes.", M, y);
-  y += 22;
+  y += 24;
 
-  const materials = DATA.costItems.filter(c => c.procurement);
-  materials.forEach(item => {
-    if (y > pageH - 80) { doc.addPage(); y = M + 20; }
-    // checkbox
+  // ---- field draw helpers ----
+  function drawBlank(label, x, lineY, lineLen) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(70, 70, 70);
+    doc.text(label, x, lineY);
+    const lx = x + doc.getTextWidth(label) + 6;
+    doc.setDrawColor(170, 170, 170); doc.setLineWidth(0.5);
+    doc.line(lx, lineY + 2, lx + lineLen, lineY + 2);
+    return lx + lineLen + 24;
+  }
+  function drawPrice(x, lineY, per) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(70, 70, 70);
+    doc.text("Price  $", x, lineY);
+    const lx = x + doc.getTextWidth("Price  $") + 4;
+    doc.setDrawColor(170, 170, 170); doc.setLineWidth(0.5);
+    doc.line(lx, lineY + 2, lx + 72, lineY + 2);
+    let endX = lx + 72 + 6;
+    if (per) { doc.setTextColor(120, 120, 120); doc.text(per, endX, lineY); endX += doc.getTextWidth(per) + 6; }
+    return endX + 22;
+  }
+  function drawChoice(label, opts, x, lineY) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(70, 70, 70);
+    doc.text(label, x, lineY);
+    let cx = x + doc.getTextWidth(label) + 12;
+    opts.forEach(opt => {
+      doc.setDrawColor(110, 110, 110); doc.setLineWidth(0.8);
+      doc.rect(cx, lineY - 7, 9, 9);
+      doc.setTextColor(40, 40, 40);
+      doc.text(opt, cx + 13, lineY);
+      cx += 13 + doc.getTextWidth(opt) + 18;
+    });
+    return cx + 6;
+  }
+
+  CHECKLIST_ITEMS.forEach(item => {
+    const blockH = 16 + (item.note ? 13 : 0) + item.rows.length * 20 + 16;
+    if (y + blockH > pageH - 46) { doc.addPage(); y = M + 20; }
+    // checkbox + name
     doc.setDrawColor(110, 110, 110); doc.setLineWidth(0.9);
     doc.rect(M, y - 9, 12, 12);
-    // material name
     doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
     doc.text(item.name, M + 22, y);
-    // bought as
-    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
-    doc.text(`Bought as: ${packDescription(item)}`, M + 22, y + 12);
-    // blanks to fill in
-    doc.setFontSize(9); doc.setTextColor(70, 70, 70);
-    doc.text("Your product / brand:", M + 22, y + 28);
-    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.5);
-    doc.line(M + 130, y + 29, M + 300, y + 29);
-    doc.text(`Your price:  $`, M + 320, y + 28);
-    doc.line(M + 378, y + 29, pageW - M, y + 29);
-    y += 30;
-    doc.setDrawColor(228, 228, 228);
-    doc.line(M, y + 8, pageW - M, y + 8);
-    y += 22;
+    y += 16;
+    if (item.note) {
+      doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(130, 130, 130);
+      doc.text(item.note, M + 22, y);
+      y += 13;
+    }
+    item.rows.forEach(row => {
+      let x = M + 22;
+      row.forEach(f => {
+        if (f.kind === "price") x = drawPrice(x, y, f.per);
+        else if (f.kind === "choice") x = drawChoice(f.label, f.options, x, y);
+        else x = drawBlank(f.label, x, y, f.w || 200);
+      });
+      y += 20;
+    });
+    y += 4;
+    doc.setDrawColor(228, 228, 228); doc.setLineWidth(0.5);
+    doc.line(M, y - 8, pageW - M, y - 8);
+    y += 12;
   });
 
   doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
@@ -4405,12 +4478,14 @@ function init() {
   wireMfrEditor("mfrAddBtn", "mfrEditorBody");
   wireMfrEditor("setupMfrAdd", "setupMfrBody");
   document.getElementById("adminChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("download"));
+  document.getElementById("adminChecklistView").addEventListener("click", () => exportPricingChecklistPDF("view"));
 
   // Setup wizard
   document.getElementById("setupNext").addEventListener("click", setupNext);
   document.getElementById("setupBack").addEventListener("click", setupBack);
   document.getElementById("setupSkip").addEventListener("click", () => completeSetup(true));
   document.getElementById("setupChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("download"));
+  document.getElementById("viewChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("view"));
 
   // Demo-data banner
   document.getElementById("demoBannerSettings").addEventListener("click", openAdmin);
