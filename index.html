@@ -291,6 +291,10 @@
     transform: translateX(-50%) translateY(0);
   }
 
+  /* ------- Manufacturer card — impact-spec greying ------- */
+  .mfr-card.always .mfr-ni,
+  .mfr-card.always .mfr-ni-head { opacity: 0.3; pointer-events: none; }
+
   /* ------- Collapsible Cost Basis card ------- */
   #costBasisCard.collapsed #costBasisList { display: none; }
   #costBasisCard:not(.collapsed) .cb-chev { transform: rotate(180deg); color: var(--gold-hi); }
@@ -546,13 +550,7 @@
         <h2 class="text-lg font-black text-slate-100 tracking-tight">Your window manufacturers</h2>
         <p class="text-xs text-slate-500 mt-1">Add the brands you install. Keep, edit, or remove the pre-loaded ones, and add your own.</p>
         <p class="text-[11px] text-amber-400/80 mt-2">Each brand has two screw patterns per LF — nail-fin and through-frame. Don't have exact counts yet? Leave the defaults and fine-tune later.</p>
-        <div class="flex items-center gap-2 mt-3 mb-1 px-1">
-          <span class="flex-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">Manufacturer</span>
-          <span class="w-20 text-[10px] uppercase tracking-[0.12em] text-slate-600 text-center">Nail-fin /LF</span>
-          <span class="w-20 text-[10px] uppercase tracking-[0.12em] text-slate-600 text-center">Thru-frame /LF</span>
-          <span class="w-7"></span>
-        </div>
-        <div id="setupMfrBody"></div>
+        <div id="setupMfrBody" class="mt-3"></div>
         <button type="button" id="setupMfrAdd" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
       </div>
 
@@ -636,6 +634,7 @@
     <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div>
     <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div>
     <div id="segApplication" class="seg flex-wrap" role="tablist" aria-label="Application"></div>
+    <div id="segImpact" class="seg" role="tablist" aria-label="Impact glass"></div>
     <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div>
   </section>
 
@@ -1145,6 +1144,10 @@
             <select id="defaultConstruction" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
           </div>
           <div>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Glass Type</label>
+            <select id="defaultImpact" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+          </div>
+          <div>
             <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Stories</label>
             <select id="defaultStories" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
           </div>
@@ -1156,12 +1159,6 @@
         <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-1">Window Manufacturers</h4>
         <p class="text-[11px] text-slate-500 mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</p>
         <p class="text-[11px] text-amber-400/80 mb-3">Through-frame values are placeholder estimates — verify per brand.</p>
-        <div class="flex items-center gap-2 mb-1 px-1">
-          <span class="flex-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">Manufacturer</span>
-          <span class="w-20 text-[10px] uppercase tracking-[0.12em] text-slate-600 text-center">Nail-fin /LF</span>
-          <span class="w-20 text-[10px] uppercase tracking-[0.12em] text-slate-600 text-center">Thru-frame /LF</span>
-          <span class="w-7"></span>
-        </div>
         <div id="mfrEditorBody"></div>
         <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
       </div>
@@ -1176,6 +1173,10 @@
         <div class="flex items-center gap-3">
           <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Materials Tax %</label>
           <input id="adminTax" type="number" step="0.1" min="0" max="100" placeholder="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="text-xs uppercase tracking-[0.14em] text-slate-500" title="Labor multiplier applied to impact-glass jobs">Impact Labor ×</label>
+          <input id="adminImpactLabor" type="number" step="0.05" min="1" placeholder="1.15" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
         </div>
       </div>
 
@@ -1204,6 +1205,7 @@ const DEFAULT_DATA = {
     defaultMargin: 35,
     defaultCurrency: "USD",
     materialsTaxRate: 0,
+    impactLaborMultiplier: 1.15,
     onboarded: false,
     setupComplete: false,
     ratesCustomized: false,
@@ -1223,23 +1225,26 @@ const DEFAULT_DATA = {
       application: "Nail-fin",
       houseType: "Block Framed",
       constructionType: "New Construction",
+      impact: "Impact",
       stories: "1 Story"
     }
   },
   manufacturers: ["Viwinco", "Weathershield", "Velocity", "ES Window & Door", "Other"],
-  // Per-manufacturer screw patterns — objective facts about each brand's window:
-  //  nailfin      = nail-fin screws per LF (Nail-fin installs)
-  //  throughFrame = through-frame Ultracon anchors per LF (Equal/Unequal Leg installs)
+  // Per-manufacturer screw patterns — objective facts about each brand's window.
+  //  nailfin / throughFrame each carry an impact and a non-impact count per LF.
+  //  alwaysImpactSpec: brand builds non-impact windows to impact spec (Viwinco-style)
+  //  so the impact pattern is used regardless of the job's glass type.
   manufacturerRates: {
-    "Viwinco":          { nailfin: 2.0, throughFrame: 1.0 },
-    "Weathershield":    { nailfin: 4.0, throughFrame: 1.0 },
-    "Velocity":         { nailfin: 1.5, throughFrame: 1.0 },
-    "ES Window & Door": { nailfin: 3.0, throughFrame: 1.0 },
-    "Other":            { nailfin: 2.0, throughFrame: 1.0 }
+    "Viwinco":          { nailfin: { impact: 2.0, nonImpact: 2.0 }, throughFrame: { impact: 1.0, nonImpact: 1.0 }, alwaysImpactSpec: true },
+    "Weathershield":    { nailfin: { impact: 4.0, nonImpact: 4.0 }, throughFrame: { impact: 1.0, nonImpact: 1.0 }, alwaysImpactSpec: false },
+    "Velocity":         { nailfin: { impact: 1.5, nonImpact: 1.5 }, throughFrame: { impact: 1.0, nonImpact: 1.0 }, alwaysImpactSpec: false },
+    "ES Window & Door": { nailfin: { impact: 3.0, nonImpact: 3.0 }, throughFrame: { impact: 1.0, nonImpact: 1.0 }, alwaysImpactSpec: false },
+    "Other":            { nailfin: { impact: 2.0, nonImpact: 2.0 }, throughFrame: { impact: 1.0, nonImpact: 1.0 }, alwaysImpactSpec: false }
   },
   applicationTypes: ["Nail-fin", "Unequal Leg", "Equal Leg"],
   houseTypes: ["Block Framed", "Stick Framed"],
   constructionTypes: ["New Construction", "Remodel"],
+  impactOptions: ["Impact", "Non-Impact"],
   storiesOptions: ["1 Story", "2 Story", "3 Story"],
   costItems: [
     { id: "caulking", name: "Dow CPS (20oz sausage)", unit: "oz", unitPrice: 0.578125, rates: { default: 2.25 },
@@ -1284,6 +1289,11 @@ function loadData() {
     if (!raw) return clone(DEFAULT_DATA);
     const parsed = JSON.parse(raw);
     const merged = mergeData(clone(DEFAULT_DATA), parsed);
+    // Normalize manufacturer rates (upgrades the legacy single-number shape)
+    merged.manufacturerRates = merged.manufacturerRates || {};
+    Object.keys(merged.manufacturerRates).forEach(k => {
+      merged.manufacturerRates[k] = normalizeMfrRate(merged.manufacturerRates[k]);
+    });
     // Drop obsolete per-manufacturer rate keys (they moved to manufacturerRates)
     const sc = merged.costItems.find(c => c.id === "screws");
     if (sc) sc.rates = { default: sc.rates.default ?? 2.0 };
@@ -1306,6 +1316,26 @@ function loadJobs() {
 function saveJobs(j) { localStorage.setItem(LS_KEYS.jobs, JSON.stringify(j)); }
 
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+// Normalize a screw count into { impact, nonImpact }. Accepts a bare number
+// (legacy format) or a partial object, falling back to `dflt`.
+function normPair(v, dflt) {
+  if (typeof v === "number") return { impact: v, nonImpact: v };
+  if (v && typeof v === "object") {
+    return { impact: v.impact != null ? v.impact : dflt, nonImpact: v.nonImpact != null ? v.nonImpact : dflt };
+  }
+  return { impact: dflt, nonImpact: dflt };
+}
+// Normalize a manufacturer rate record to the current shape
+function normalizeMfrRate(r) {
+  r = r || {};
+  return {
+    nailfin: normPair(r.nailfin, 2),
+    throughFrame: normPair(r.throughFrame, 1),
+    alwaysImpactSpec: !!r.alwaysImpactSpec
+  };
+}
+
 function mergeData(base, override) {
   if (override?.config) {
     const { brand: overrideBrand, jobDefaults: overrideDefaults, ...otherConfig } = override.config;
@@ -1345,6 +1375,7 @@ function buildState() {
     application: jd.application || DATA.applicationTypes[0],
     houseType: jd.houseType || DATA.houseTypes[0],
     constructionType: jd.constructionType || DATA.constructionTypes[0],
+    impact: jd.impact || "Impact",
     stories: jd.stories || "1 Story",
     totalLF: "",
     windowCount: "",
@@ -1363,16 +1394,24 @@ let STATE = buildState();
 /* ============================================================
    CALCULATION ENGINE
    ============================================================ */
-// Manufacturer-specific screw patterns
+// Manufacturer-specific screw patterns — impact-aware.
+// A brand flagged alwaysImpactSpec uses its impact pattern regardless of job.
+function useImpactPattern(mr) {
+  return (mr && mr.alwaysImpactSpec) || STATE.impact === "Impact";
+}
 function getNailfinRate() {
   const mr = (DATA.manufacturerRates || {})[STATE.manufacturer];
-  if (mr && typeof mr.nailfin === "number") return mr.nailfin;
+  if (mr && mr.nailfin) {
+    return useImpactPattern(mr) ? mr.nailfin.impact : mr.nailfin.nonImpact;
+  }
   const item = DATA.costItems.find(c => c.id === "screws");
   return item?.rates?.default ?? 2.0;
 }
 function getThroughFrameRate() {
   const mr = (DATA.manufacturerRates || {})[STATE.manufacturer];
-  if (mr && typeof mr.throughFrame === "number") return mr.throughFrame;
+  if (mr && mr.throughFrame) {
+    return useImpactPattern(mr) ? mr.throughFrame.impact : mr.throughFrame.nonImpact;
+  }
   return 1.0;
 }
 
@@ -1401,13 +1440,17 @@ function getStoriesMultiplier() {
   return 1.0;
 }
 
+function getImpactLaborMultiplier() {
+  return STATE.impact === "Impact" ? (DATA.config.impactLaborMultiplier ?? 1.15) : 1.0;
+}
+
 function getLaborPerLF() {
   const item = DATA.costItems.find(c => c.id === "labor");
   let base;
   if (STATE.constructionType === "Remodel" && item.rates["Remodel"] != null) base = item.rates["Remodel"];
   else if (STATE.houseType === "Block Framed" && item.rates["Block Framed"] != null) base = item.rates["Block Framed"];
   else base = item.rates.default ?? 0;
-  return base * getStoriesMultiplier();
+  return base * getStoriesMultiplier() * getImpactLaborMultiplier();
 }
 
 function getQuantityPerLF(item) {
@@ -1923,7 +1966,7 @@ function render() {
            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
              <circle cx="10" cy="10" r="8"/><line x1="10" y1="9" x2="10" y2="14"/><circle cx="10" cy="6.2" r="0.6" fill="currentColor" stroke="none"/>
            </svg>
-           <span class="info-pop">10 min/LF (Stick New) &nbsp;•&nbsp; 25 min/LF (Block) &nbsp;•&nbsp; 40 min/LF (Remodel) &nbsp;•&nbsp; ×1.3 (2 Story) &nbsp;•&nbsp; ×1.65 (3 Story)</span>
+           <span class="info-pop">10 min/LF (Stick New) &nbsp;•&nbsp; 25 min/LF (Block) &nbsp;•&nbsp; 40 min/LF (Remodel) &nbsp;•&nbsp; ×1.3 (2 Story) &nbsp;•&nbsp; ×1.65 (3 Story) &nbsp;•&nbsp; ×${DATA.config.impactLaborMultiplier ?? 1.15} (Impact)</span>
          </span>`
       : "";
     // "Unverified" tag for cost items still on placeholder/estimated numbers
@@ -2105,6 +2148,7 @@ function render() {
     application: STATE.application,
     houseType: STATE.houseType,
     constructionType: STATE.constructionType,
+    impact: STATE.impact,
     stories: STATE.stories,
     totalLF: STATE.totalLF,
     windowCount: STATE.windowCount,
@@ -2189,6 +2233,7 @@ function bindControls() {
   createSegmented("segConstructionType", DATA.constructionTypes, STATE.constructionType, v => { STATE.constructionType = v; render(); });
   createSegmented("segHouseType", DATA.houseTypes, STATE.houseType, v => { STATE.houseType = v; render(); });
   createSegmented("segApplication", DATA.applicationTypes, STATE.application, v => { STATE.application = v; render(); });
+  createSegmented("segImpact", DATA.impactOptions, STATE.impact, v => { STATE.impact = v; render(); });
   createSegmented("segStories", DATA.storiesOptions, STATE.stories, v => {
     STATE.stories = v;
     updateLiftVisibility();
@@ -2285,6 +2330,7 @@ function resetAll() {
     application: jd.application || DATA.applicationTypes[0],
     houseType: jd.houseType || DATA.houseTypes[0],
     constructionType: jd.constructionType || DATA.constructionTypes[0],
+    impact: jd.impact || "Impact",
     stories: jd.stories || "1 Story",
     totalLF: "",
     windowCount: "",
@@ -2336,7 +2382,7 @@ function confirmSaveJob() {
     createdAt: new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
-    stories: STATE.stories, windowCount: r.wc,
+    impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
@@ -2360,6 +2406,7 @@ function loadJob(id) {
   STATE.application = j.application;
   STATE.houseType = j.houseType;
   STATE.constructionType = j.constructionType;
+  STATE.impact = j.impact || "Impact";
   STATE.stories = j.stories || "1 Story";
   STATE.totalLF = String(j.totalLF);
   STATE.windowCount = j.windowCount ? String(j.windowCount) : "";
@@ -2498,6 +2545,7 @@ function exportCustomerPDF(mode) {
     ["Application", STATE.application],
     ["House Type", STATE.houseType],
     ["Construction", STATE.constructionType],
+    ["Glass Type", STATE.impact],
     ["Stories", STATE.stories],
     ["Linear Footage", `${r.lf} ft`],
   ];
@@ -2626,6 +2674,7 @@ function exportPDF(mode) {
     ["Application", STATE.application],
     ["House Type", STATE.houseType],
     ["Construction", STATE.constructionType],
+    ["Glass Type", STATE.impact],
     ["Stories", STATE.stories],
     ["Linear Footage", `${r.lf} ft`],
   ];
@@ -2895,15 +2944,33 @@ function openAdmin() {
 }
 function closeAdmin() { adminModal.classList.add("hidden"); adminModal.classList.remove("flex"); }
 
-// One editable row in the Settings manufacturer editor
-function mfrRowHTML(name, nailfin, throughFrame) {
+// One editable manufacturer card — name, impact-spec flag, and the
+// nail-fin / through-frame screw patterns for impact + non-impact glass.
+function mfrCardHTML(name, rate) {
+  const r = normalizeMfrRate(rate);
   const safe = String(name || "").replace(/"/g, "&quot;");
+  const numCls = "num-input control rounded px-2 py-1.5 text-xs text-slate-100 w-16 text-center";
   return `
-    <div class="mfr-row flex items-center gap-2 mb-2">
-      <input class="mfr-name control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1 min-w-0" placeholder="Manufacturer" value="${safe}" />
-      <input class="mfr-nailfin num-input control rounded-lg px-2 py-2 text-sm text-slate-100 w-20 text-center" type="number" step="0.1" min="0" value="${nailfin}" />
-      <input class="mfr-tframe num-input control rounded-lg px-2 py-2 text-sm text-slate-100 w-20 text-center" type="number" step="0.1" min="0" value="${throughFrame}" />
-      <button type="button" class="mfr-del btn text-slate-500 hover:text-rose-300 text-lg leading-none px-2 flex-shrink-0" aria-label="Remove">×</button>
+    <div class="mfr-card rounded-xl border border-slate-800 p-3 mb-2 ${r.alwaysImpactSpec ? "always" : ""}">
+      <div class="flex items-center gap-2 mb-2">
+        <input class="mfr-name control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1 min-w-0" placeholder="Manufacturer" value="${safe}" />
+        <button type="button" class="mfr-del btn text-slate-500 hover:text-rose-300 text-lg leading-none px-2 flex-shrink-0" aria-label="Remove">×</button>
+      </div>
+      <label class="flex items-center gap-2 mb-2.5 text-[11px] text-slate-400 cursor-pointer select-none">
+        <input type="checkbox" class="mfr-always" ${r.alwaysImpactSpec ? "checked" : ""} />
+        Builds non-impact windows to impact spec
+      </label>
+      <div class="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1.5 items-center">
+        <span></span>
+        <span class="text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Impact</span>
+        <span class="mfr-ni-head text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Non-Impact</span>
+        <span class="text-[11px] text-slate-500">Nail-fin / LF</span>
+        <input class="mfr-nf-i ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.impact}" />
+        <input class="mfr-nf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.nonImpact}" />
+        <span class="text-[11px] text-slate-500">Thru-frame / LF</span>
+        <input class="mfr-tf-i ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.impact}" />
+        <input class="mfr-tf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.nonImpact}" />
+      </div>
     </div>`;
 }
 
@@ -2929,18 +2996,18 @@ function buildAdminUI() {
   fillSel("defaultApp", DATA.applicationTypes, jd.application);
   fillSel("defaultHouse", DATA.houseTypes, jd.houseType);
   fillSel("defaultConstruction", DATA.constructionTypes, jd.constructionType);
+  fillSel("defaultImpact", DATA.impactOptions, jd.impact);
   fillSel("defaultStories", DATA.storiesOptions, jd.stories);
 
   // Manufacturer editor rows
   const mfrBody = document.getElementById("mfrEditorBody");
   const mRates = DATA.manufacturerRates || {};
-  mfrBody.innerHTML = (DATA.manufacturers || []).map(name => {
-    const r = mRates[name] || {};
-    return mfrRowHTML(name, r.nailfin != null ? r.nailfin : 2, r.throughFrame != null ? r.throughFrame : 1);
-  }).join("");
+  mfrBody.innerHTML = (DATA.manufacturers || []).map(name =>
+    mfrCardHTML(name, mRates[name])).join("");
 
   document.getElementById("adminMargin").value = DATA.config.defaultMargin;
   document.getElementById("adminTax").value = DATA.config.materialsTaxRate ?? 0;
+  document.getElementById("adminImpactLabor").value = DATA.config.impactLaborMultiplier ?? 1.15;
   const wrap = document.getElementById("adminRatesBody");
   wrap.innerHTML = DATA.costItems.map(item => {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
@@ -2988,7 +3055,7 @@ function saveAdmin() {
   DATA.config.brand.logo = adminLogoData || "";
 
   // Window manufacturers
-  const mfr = readMfrRows("mfrEditorBody");
+  const mfr = readMfrCards("mfrEditorBody");
   if (mfr.names.length) {
     DATA.manufacturers = mfr.names;
     DATA.manufacturerRates = mfr.rates;
@@ -3004,10 +3071,13 @@ function saveAdmin() {
   DATA.config.jobDefaults.application = document.getElementById("defaultApp").value;
   DATA.config.jobDefaults.houseType = document.getElementById("defaultHouse").value;
   DATA.config.jobDefaults.constructionType = document.getElementById("defaultConstruction").value;
+  DATA.config.jobDefaults.impact = document.getElementById("defaultImpact").value;
   DATA.config.jobDefaults.stories = document.getElementById("defaultStories").value;
   // Pricing
   const margin = parseFloat(document.getElementById("adminMargin").value);
   if (!isNaN(margin) && margin >= 0) DATA.config.defaultMargin = margin;
+  const impLabor = parseFloat(document.getElementById("adminImpactLabor").value);
+  if (!isNaN(impLabor) && impLabor >= 1) DATA.config.impactLaborMultiplier = impLabor;
   const tax = parseFloat(document.getElementById("adminTax").value);
   if (!isNaN(tax) && tax >= 0) DATA.config.materialsTaxRate = tax;
   document.querySelectorAll("[data-unitprice]").forEach(inp => {
@@ -4112,18 +4182,23 @@ let setupStep = 1;
 const SETUP_STEPS = 5;
 let demoBannerDismissed = false;
 
-// Read manufacturer-editor rows from a container into { names, rates }
-function readMfrRows(containerId) {
+// Read manufacturer-editor cards from a container into { names, rates }
+function readMfrCards(containerId) {
   const names = [], rates = {};
-  document.querySelectorAll(`#${containerId} .mfr-row`).forEach(row => {
-    const name = row.querySelector(".mfr-name").value.trim();
+  document.querySelectorAll(`#${containerId} .mfr-card`).forEach(card => {
+    const name = card.querySelector(".mfr-name").value.trim();
     if (!name || rates[name]) return;   // skip blanks + duplicates
-    const nf = parseFloat(row.querySelector(".mfr-nailfin").value);
-    const tf = parseFloat(row.querySelector(".mfr-tframe").value);
+    const always = card.querySelector(".mfr-always").checked;
+    const num = (sel, dflt) => {
+      const v = parseFloat(card.querySelector(sel).value);
+      return (isNaN(v) || v < 0) ? dflt : v;
+    };
+    const nfI = num(".mfr-nf-i", 2), tfI = num(".mfr-tf-i", 1);
     names.push(name);
     rates[name] = {
-      nailfin: (isNaN(nf) || nf < 0) ? 2 : nf,
-      throughFrame: (isNaN(tf) || tf < 0) ? 1 : tf
+      nailfin: { impact: nfI, nonImpact: always ? nfI : num(".mfr-nf-n", 2) },
+      throughFrame: { impact: tfI, nonImpact: always ? tfI : num(".mfr-tf-n", 1) },
+      alwaysImpactSpec: always
     };
   });
   return { names, rates };
@@ -4145,10 +4220,8 @@ function showSetupStep(n) {
     const body = document.getElementById("setupMfrBody");
     if (!body.dataset.filled) {
       const mr = DATA.manufacturerRates || {};
-      body.innerHTML = (DATA.manufacturers || []).map(name => {
-        const r = mr[name] || {};
-        return mfrRowHTML(name, r.nailfin != null ? r.nailfin : 2, r.throughFrame != null ? r.throughFrame : 1);
-      }).join("");
+      body.innerHTML = (DATA.manufacturers || []).map(name =>
+        mfrCardHTML(name, mr[name])).join("");
       body.dataset.filled = "1";
     }
   }
@@ -4190,7 +4263,7 @@ function completeSetup(viaSkip) {
   // Manufacturers — only if the step was opened/populated
   const body = document.getElementById("setupMfrBody");
   if (body.dataset.filled) {
-    const { names, rates } = readMfrRows("setupMfrBody");
+    const { names, rates } = readMfrCards("setupMfrBody");
     if (names.length) { DATA.manufacturers = names; DATA.manufacturerRates = rates; }
     if (!DATA.manufacturers.includes(STATE.manufacturer)) STATE.manufacturer = DATA.manufacturers[0];
   }
@@ -4313,14 +4386,24 @@ function init() {
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
   document.getElementById("adminReset").addEventListener("click", restoreDefaults);
 
-  // Manufacturer editor — add / remove rows
-  document.getElementById("mfrAddBtn").addEventListener("click", () => {
-    document.getElementById("mfrEditorBody").insertAdjacentHTML("beforeend", mfrRowHTML("", 2, 1));
-  });
-  document.getElementById("mfrEditorBody").addEventListener("click", e => {
-    const del = e.target.closest(".mfr-del");
-    if (del) del.closest(".mfr-row").remove();
-  });
+  // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
+  function wireMfrEditor(addId, bodyId) {
+    document.getElementById(addId).addEventListener("click", () => {
+      document.getElementById(bodyId).insertAdjacentHTML("beforeend", mfrCardHTML("", {}));
+    });
+    document.getElementById(bodyId).addEventListener("click", e => {
+      const del = e.target.closest(".mfr-del");
+      if (del) del.closest(".mfr-card").remove();
+    });
+    // "Builds to impact spec" checkbox greys out the non-impact column
+    document.getElementById(bodyId).addEventListener("change", e => {
+      if (e.target.classList.contains("mfr-always")) {
+        e.target.closest(".mfr-card").classList.toggle("always", e.target.checked);
+      }
+    });
+  }
+  wireMfrEditor("mfrAddBtn", "mfrEditorBody");
+  wireMfrEditor("setupMfrAdd", "setupMfrBody");
   document.getElementById("adminChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("download"));
 
   // Setup wizard
@@ -4328,13 +4411,6 @@ function init() {
   document.getElementById("setupBack").addEventListener("click", setupBack);
   document.getElementById("setupSkip").addEventListener("click", () => completeSetup(true));
   document.getElementById("setupChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("download"));
-  document.getElementById("setupMfrAdd").addEventListener("click", () => {
-    document.getElementById("setupMfrBody").insertAdjacentHTML("beforeend", mfrRowHTML("", 2, 1));
-  });
-  document.getElementById("setupMfrBody").addEventListener("click", e => {
-    const del = e.target.closest(".mfr-del");
-    if (del) del.closest(".mfr-row").remove();
-  });
 
   // Demo-data banner
   document.getElementById("demoBannerSettings").addEventListener("click", openAdmin);
