@@ -1050,7 +1050,8 @@
       <!-- Window Manufacturers -->
       <div class="mb-6">
         <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-1">Window Manufacturers</h4>
-        <p class="text-[11px] text-slate-500 mb-3">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</p>
+        <p class="text-[11px] text-slate-500 mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</p>
+        <p class="text-[11px] text-amber-400/80 mb-3">Through-frame values are placeholder estimates — verify per brand.</p>
         <div class="flex items-center gap-2 mb-1 px-1">
           <span class="flex-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">Manufacturer</span>
           <span class="w-20 text-[10px] uppercase tracking-[0.12em] text-slate-600 text-center">Nail-fin /LF</span>
@@ -1133,6 +1134,7 @@ const DEFAULT_DATA = {
   storiesOptions: ["1 Story", "2 Story", "3 Story"],
   costItems: [
     { id: "caulking", name: "Dow CPS (20oz sausage)", unit: "oz", unitPrice: 0.578125, rates: { default: 2.25 },
+      unverified: true,
       procurement: { caseSize: 320, packName: "case", packPlural: "cases",
         intermediate: { label: "sausage", labelPlural: "sausages", perBase: 20, perPack: 16 } } },
     { id: "shims", name: "Plastic Shims (1/16\")", unit: "each", unitPrice: 0.07,
@@ -1146,12 +1148,13 @@ const DEFAULT_DATA = {
     { id: "wood_bucking", name: "Wood Bucking (2x6 PT lumber)", unit: "LF", unitPrice: 0.95, rates: { default: 0, "Block Framed": 1.25 },
       procurement: { caseSize: 8, packName: "board", packPlural: "boards" } },
     { id: "block_sealer", name: "Block Sealer", unit: "gallon", unitPrice: 40, rates: { default: 0, "Block Framed": 0 }, calculationType: "fixed_job",
+      unverified: true,
       procurement: { caseSize: 1, packName: "gallon", packPlural: "gallons" } },
     { id: "screws", name: "Daggerz (Nail-fin)", unit: "each", unitPrice: 0.127,
       rates: { default: 2.0 },
       procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } },
     { id: "concrete_anchors", name: "Dewalt Ultracons (2-3/4\")", unit: "each", unitPrice: 0.20,
-      rates: { default: 0, "Block Framed": 1.0 },
+      rates: { default: 0, "Block Framed": 1.0 }, unverified: true,
       procurement: { caseSize: 1000, packName: "case", packPlural: "cases" } },
     { id: "disposal", name: "Old Window Disposal", unit: "window", unitPrice: 45, rates: { default: 0 } },
     { id: "permit", name: "Permit Fee", unit: "job", unitPrice: 250, rates: { default: 0 } },
@@ -1814,9 +1817,13 @@ function render() {
            <span class="info-pop">10 min/LF (Stick New) &nbsp;•&nbsp; 25 min/LF (Block) &nbsp;•&nbsp; 40 min/LF (Remodel) &nbsp;•&nbsp; ×1.3 (2 Story) &nbsp;•&nbsp; ×1.65 (3 Story)</span>
          </span>`
       : "";
+    // "Unverified" tag for cost items still on placeholder/estimated numbers
+    const verifyBadge = (item && item.unverified)
+      ? ` <span class="ml-1.5 text-[8px] align-middle text-amber-400 border border-amber-500/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold whitespace-nowrap">Unverified</span>`
+      : "";
     return `
       <tr class="row-alt fade-in">
-        <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center">${row.name}${infoIcon}</span></td>
+        <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center flex-wrap gap-y-1">${row.name}${infoIcon}${verifyBadge}</span></td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${rateStr}</td>
         <td class="text-right py-3 px-3 text-slate-400">${qtyStr}</td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${caseStr}</td>
