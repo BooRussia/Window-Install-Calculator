@@ -16,6 +16,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -421,6 +422,38 @@
 </head>
 <body class="bg-grid text-slate-100 min-h-screen">
 
+<!-- Auth gate -->
+<div id="authScreen" class="fixed inset-0 z-[80] flex items-center justify-center p-5" style="background:#020617;">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-7">
+      <svg width="52" height="52" viewBox="0 0 180 180" class="mx-auto mb-3" aria-hidden="true">
+        <rect width="180" height="180" rx="40" fill="#020617"/>
+        <g stroke="#c9a558" stroke-width="6" fill="none">
+          <rect x="38" y="38" width="104" height="104" rx="6"/>
+          <line x1="90" y1="38" x2="90" y2="142"/>
+          <line x1="38" y1="90" x2="142" y2="90"/>
+        </g>
+      </svg>
+      <h1 class="font-black tracking-tightest gold-glow text-2xl">Install Cost Calculator</h1>
+    </div>
+    <div class="card rounded-3xl p-6">
+      <div id="authLoading" class="text-center text-slate-400 text-sm py-6">Loading…</div>
+      <form id="authForm" class="hidden space-y-3">
+        <div id="authTitle" class="text-base font-bold text-slate-100 mb-1">Log In</div>
+        <input id="authEmail" type="email" autocomplete="email" placeholder="Email"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <button id="authSubmit" type="submit"
+          class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Log In</button>
+        <div id="authMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
+        <button id="authToggle" type="button"
+          class="btn w-full text-xs text-slate-400 hover:text-[#c9a558] font-semibold pt-1">Need an account? Sign up</button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <header class="pt-10 sm:pt-14 pb-6 px-5">
   <h1 class="text-center font-black tracking-tightest gold-glow text-4xl sm:text-6xl md:text-7xl leading-[0.95]">
     Install Cost<br class="sm:hidden"/> <span class="sm:inline">Calculator</span>
@@ -694,7 +727,11 @@
 </main>
 
 <footer class="text-center text-slate-600 text-[11px] tracking-[0.2em] uppercase pb-10 font-bold">
+  <span id="acctEmail" class="text-slate-700 normal-case tracking-normal"></span>
+  <span class="mx-2 text-slate-700">·</span>
   <button id="openAdmin" class="hover:text-slate-300 transition">Settings</button>
+  <span class="mx-2 text-slate-700">·</span>
+  <button id="signOutBtn" class="hover:text-slate-300 transition">Sign Out</button>
 </footer>
 
 <!-- Read from Plan / Schedule Modal -->
@@ -1051,7 +1088,10 @@ function loadData() {
     return mergeData(clone(DEFAULT_DATA), parsed);
   } catch { return clone(DEFAULT_DATA); }
 }
-function saveData(d) { localStorage.setItem(LS_KEYS.data, JSON.stringify(d)); }
+function saveData(d) {
+  localStorage.setItem(LS_KEYS.data, JSON.stringify(d));
+  pushProfileToCloud(d);   // best-effort cloud sync
+}
 function loadState() {
   try { return JSON.parse(localStorage.getItem(LS_KEYS.state)) || {}; } catch { return {}; }
 }
@@ -1083,24 +1123,29 @@ function mergeData(base, override) {
 }
 
 let DATA = loadData();
-const _jd = DATA.config.jobDefaults || {};
-let STATE = {
-  manufacturer: _jd.manufacturer || DATA.manufacturers[0],
-  application: _jd.application || DATA.applicationTypes[0],
-  houseType: _jd.houseType || DATA.houseTypes[0],
-  constructionType: _jd.constructionType || DATA.constructionTypes[0],
-  stories: _jd.stories || "1 Story",
-  totalLF: "",
-  windowCount: "",
-  liftEnabled: false,
-  liftDays: "1",
-  permitEnabled: false,
-  customerName: "",
-  customerAddress: "",
-  customerNotes: "",
-  buckList: null,
-  ...loadState()
-};
+// Build a fresh STATE from DATA's job defaults + any persisted working state.
+// A function so it can be rebuilt after a cloud sync re-populates DATA.
+function buildState() {
+  const jd = DATA.config.jobDefaults || {};
+  return {
+    manufacturer: jd.manufacturer || DATA.manufacturers[0],
+    application: jd.application || DATA.applicationTypes[0],
+    houseType: jd.houseType || DATA.houseTypes[0],
+    constructionType: jd.constructionType || DATA.constructionTypes[0],
+    stories: jd.stories || "1 Story",
+    totalLF: "",
+    windowCount: "",
+    liftEnabled: false,
+    liftDays: "1",
+    permitEnabled: false,
+    customerName: "",
+    customerAddress: "",
+    customerNotes: "",
+    buckList: null,
+    ...loadState()
+  };
+}
+let STATE = buildState();
 
 /* ============================================================
    CALCULATION ENGINE
@@ -2054,7 +2099,7 @@ function confirmSaveJob() {
   STATE.customerAddress = address;
   STATE.customerNotes = notes;
   const job = {
-    id: String(Date.now()),
+    id: crypto.randomUUID(),
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerNotes: notes,
     buckList: STATE.buckList,
@@ -2070,6 +2115,7 @@ function confirmSaveJob() {
   const jobs = loadJobs();
   jobs.push(job);
   saveJobs(jobs);
+  pushJobToCloud(job);   // best-effort cloud sync
   closeSaveJobModal();
   renderSavedJobs();
   toast("Job saved");
@@ -2103,6 +2149,7 @@ function loadJob(id) {
 function deleteJob(id) {
   const jobs = loadJobs().filter(x => x.id !== id);
   saveJobs(jobs);
+  deleteJobFromCloud(id);   // best-effort cloud sync
   renderSavedJobs();
   toast("Deleted");
 }
@@ -3498,8 +3545,183 @@ function injectManifest() {
 /* ============================================================
    INIT
    ============================================================ */
-function init() {
+/* ============================================================
+   AUTH + CLOUD SYNC (Supabase)
+   ============================================================ */
+const SUPABASE_URL = "https://fzitkcvmbvyeilwzclme.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6aXRrY3ZtYnZ5ZWlsd3pjbG1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4OTAzMzgsImV4cCI6MjA5NDQ2NjMzOH0.tUZtZH1bZ80C0KTBldve961u0OsEY0_m5ZenJQX7imk";
+let sb = null;            // supabase client
+let currentUser = null;   // logged-in user
+let authMode = "login";   // or "signup"
+
+function setAuthMsg(text, kind) {
+  const el = document.getElementById("authMsg");
+  if (!text) { el.classList.add("hidden"); return; }
+  el.textContent = text;
+  el.className = "text-[12px] text-center font-medium px-2 " +
+    (kind === "error" ? "text-rose-300" : kind === "ok" ? "text-[#c9a558]" : "text-slate-400");
+  el.classList.remove("hidden");
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.getElementById("authTitle").textContent = mode === "signup" ? "Create Account" : "Log In";
+  document.getElementById("authSubmit").textContent = mode === "signup" ? "Sign Up" : "Log In";
+  document.getElementById("authToggle").textContent = mode === "signup"
+    ? "Have an account? Log in" : "Need an account? Sign up";
+  document.getElementById("authPassword").setAttribute("autocomplete",
+    mode === "signup" ? "new-password" : "current-password");
+  setAuthMsg("");
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const submitBtn = document.getElementById("authSubmit");
+  if (!email || !password) { setAuthMsg("Enter your email and password.", "error"); return; }
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Please wait…";
+  try {
+    if (authMode === "signup") {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.session) { await enterApp(); return; }   // confirmation disabled
+      setAuthMode("login");
+      setAuthMsg("Account created. Check your email to confirm, then log in.", "ok");
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      await enterApp();
+      return;
+    }
+  } catch (err) {
+    setAuthMsg(err.message || "Something went wrong.", "error");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = authMode === "signup" ? "Sign Up" : "Log In";
+  }
+}
+
+async function handleSignOut() {
+  try { if (sb) await sb.auth.signOut(); } catch (_) {}
+  // Clear the local cache so the next account starts clean
+  localStorage.removeItem(LS_KEYS.data);
+  localStorage.removeItem(LS_KEYS.state);
+  localStorage.removeItem(LS_KEYS.jobs);
+  location.reload();
+}
+
+function isUuid(s) {
+  return typeof s === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
+// Pull this user's profile + jobs from Supabase into localStorage (the
+// app reads localStorage synchronously, so the cloud is just the backing store).
+async function syncFromCloud() {
+  const { data: { user } } = await sb.auth.getUser();
+  currentUser = user;
+  if (!user) throw new Error("Not signed in");
+
+  const { data: prof, error: pErr } = await sb.from("profiles")
+    .select("data").eq("id", user.id).maybeSingle();
+  if (pErr) throw pErr;
+
+  if (prof && prof.data && Object.keys(prof.data).length) {
+    localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
+    const { data: jobRows, error: jErr } = await sb.from("jobs")
+      .select("id,data").eq("user_id", user.id);
+    if (jErr) throw jErr;
+    const jobs = (jobRows || []).map(row => ({ ...row.data, id: row.id }));
+    localStorage.setItem(LS_KEYS.jobs, JSON.stringify(jobs));
+  } else {
+    // First login ever — seed the cloud from whatever is already local
+    await firstLoginMigration(user.id);
+  }
+}
+
+async function firstLoginMigration(userId) {
+  const localData = loadData();
+  await sb.from("profiles").upsert({ id: userId, data: localData });
+  const localJobs = loadJobs();
+  if (localJobs.length) {
+    const rows = localJobs.map(j => {
+      const id = isUuid(j.id) ? j.id : crypto.randomUUID();
+      return { id, user_id: userId, data: { ...j, id } };
+    });
+    await sb.from("jobs").insert(rows);
+    localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
+  }
+}
+
+async function pushProfileToCloud(d) {
+  if (!sb || !currentUser) return;
+  try {
+    await sb.from("profiles").upsert({
+      id: currentUser.id, data: d, updated_at: new Date().toISOString()
+    });
+  } catch (e) { console.warn("Profile sync failed", e); }
+}
+
+async function pushJobToCloud(job) {
+  if (!sb || !currentUser) return;
+  try {
+    await sb.from("jobs").insert({ id: job.id, user_id: currentUser.id, data: job });
+  } catch (e) {
+    console.warn("Job sync failed", e);
+    toast("Saved locally — cloud sync failed");
+  }
+}
+
+async function deleteJobFromCloud(id) {
+  if (!sb || !currentUser) return;
+  try { await sb.from("jobs").delete().eq("id", id); }
+  catch (e) { console.warn("Job delete sync failed", e); }
+}
+
+async function boot() {
   injectManifest();
+  try {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    // Supabase SDK unavailable — run in offline localStorage-only mode
+    console.warn("Supabase unavailable — offline mode", e);
+    document.getElementById("authScreen").classList.add("hidden");
+    init();
+    return;
+  }
+  document.getElementById("authForm").addEventListener("submit", handleAuthSubmit);
+  document.getElementById("authToggle").addEventListener("click",
+    () => setAuthMode(authMode === "login" ? "signup" : "login"));
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    await enterApp();
+  } else {
+    setAuthMode("login");
+    document.getElementById("authLoading").classList.add("hidden");
+    document.getElementById("authForm").classList.remove("hidden");
+  }
+}
+
+async function enterApp() {
+  try {
+    await syncFromCloud();
+  } catch (e) {
+    console.warn("Cloud sync failed — using local cache", e);
+    toast("Offline — using local data");
+  }
+  // Re-read now that localStorage reflects the cloud
+  DATA = loadData();
+  STATE = buildState();
+  const acct = document.getElementById("acctEmail");
+  if (acct && currentUser) acct.textContent = currentUser.email;
+  init();
+  document.getElementById("authScreen").classList.add("hidden");
+}
+
+function init() {
   applyBrandToUI();
   bindControls();
   render();
@@ -3531,6 +3753,7 @@ function init() {
   document.getElementById("saveJobName").addEventListener("keydown", e => { if (e.key === "Enter") confirmSaveJob(); });
 
   document.getElementById("openAdmin").addEventListener("click", openAdmin);
+  document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
   document.getElementById("adminReset").addEventListener("click", restoreDefaults);
   adminModal.addEventListener("click", e => { if (e.target.dataset.close !== undefined) closeAdmin(); });
@@ -3607,7 +3830,7 @@ function init() {
 
   purgeStaleSW();
 }
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", boot);
 </script>
 </body>
 </html>
