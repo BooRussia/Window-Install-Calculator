@@ -1047,6 +1047,20 @@
         </div>
       </div>
 
+      <!-- Window Manufacturers -->
+      <div class="mb-6">
+        <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-1">Window Manufacturers</h4>
+        <p class="text-[11px] text-slate-500 mb-3">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</p>
+        <div class="flex items-center gap-2 mb-1 px-1">
+          <span class="flex-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">Manufacturer</span>
+          <span class="w-20 text-[10px] uppercase tracking-[0.12em] text-slate-600 text-center">Nail-fin /LF</span>
+          <span class="w-20 text-[10px] uppercase tracking-[0.12em] text-slate-600 text-center">Thru-frame /LF</span>
+          <span class="w-7"></span>
+        </div>
+        <div id="mfrEditorBody"></div>
+        <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
+      </div>
+
       <!-- Pricing defaults -->
       <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Pricing Defaults</h4>
       <div class="mb-6 flex flex-wrap gap-4">
@@ -1103,6 +1117,16 @@ const DEFAULT_DATA = {
     }
   },
   manufacturers: ["Viwinco", "Weathershield", "Velocity", "ES Window & Door", "Other"],
+  // Per-manufacturer screw patterns — objective facts about each brand's window:
+  //  nailfin      = nail-fin screws per LF (Nail-fin installs)
+  //  throughFrame = through-frame Ultracon anchors per LF (Equal/Unequal Leg installs)
+  manufacturerRates: {
+    "Viwinco":          { nailfin: 2.0, throughFrame: 1.0 },
+    "Weathershield":    { nailfin: 4.0, throughFrame: 1.0 },
+    "Velocity":         { nailfin: 1.5, throughFrame: 1.0 },
+    "ES Window & Door": { nailfin: 3.0, throughFrame: 1.0 },
+    "Other":            { nailfin: 2.0, throughFrame: 1.0 }
+  },
   applicationTypes: ["Nail-fin", "Unequal Leg", "Equal Leg"],
   houseTypes: ["Block Framed", "Stick Framed"],
   constructionTypes: ["New Construction", "Remodel"],
@@ -1124,18 +1148,10 @@ const DEFAULT_DATA = {
     { id: "block_sealer", name: "Block Sealer", unit: "gallon", unitPrice: 40, rates: { default: 0, "Block Framed": 0 }, calculationType: "fixed_job",
       procurement: { caseSize: 1, packName: "gallon", packPlural: "gallons" } },
     { id: "screws", name: "Daggerz (Nail-fin)", unit: "each", unitPrice: 0.127,
-      rates: {
-        default: 2.0,
-        "Viwinco-Nail-fin": 2.0, "Weathershield-Nail-fin": 4.0, "Velocity-Nail-fin": 1.5, "ES Window & Door-Nail-fin": 3.0
-      },
+      rates: { default: 2.0 },
       procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } },
     { id: "concrete_anchors", name: "Dewalt Ultracons (2-3/4\")", unit: "each", unitPrice: 0.20,
-      rates: {
-        default: 0,
-        "Block Framed": 1.0,
-        "Equal Leg": 1.0,
-        "Unequal Leg": 1.0
-      },
+      rates: { default: 0, "Block Framed": 1.0 },
       procurement: { caseSize: 1000, packName: "case", packPlural: "cases" } },
     { id: "disposal", name: "Old Window Disposal", unit: "window", unitPrice: 45, rates: { default: 0 } },
     { id: "permit", name: "Permit Fee", unit: "job", unitPrice: 250, rates: { default: 0 } },
@@ -1155,7 +1171,13 @@ function loadData() {
     const raw = localStorage.getItem(LS_KEYS.data);
     if (!raw) return clone(DEFAULT_DATA);
     const parsed = JSON.parse(raw);
-    return mergeData(clone(DEFAULT_DATA), parsed);
+    const merged = mergeData(clone(DEFAULT_DATA), parsed);
+    // Drop obsolete per-manufacturer rate keys (they moved to manufacturerRates)
+    const sc = merged.costItems.find(c => c.id === "screws");
+    if (sc) sc.rates = { default: sc.rates.default ?? 2.0 };
+    const an = merged.costItems.find(c => c.id === "concrete_anchors");
+    if (an) an.rates = { default: 0, "Block Framed": an.rates["Block Framed"] ?? 1.0 };
+    return merged;
   } catch { return clone(DEFAULT_DATA); }
 }
 function saveData(d) {
@@ -1178,6 +1200,15 @@ function mergeData(base, override) {
     Object.assign(base.config, otherConfig);
     if (overrideBrand) Object.assign(base.config.brand, overrideBrand);
     if (overrideDefaults) Object.assign(base.config.jobDefaults, overrideDefaults);
+  }
+  if (Array.isArray(override?.manufacturers) && override.manufacturers.length) {
+    base.manufacturers = override.manufacturers.slice();
+  }
+  if (override?.manufacturerRates) {
+    base.manufacturerRates = base.manufacturerRates || {};
+    Object.entries(override.manufacturerRates).forEach(([k, v]) => {
+      base.manufacturerRates[k] = { ...(base.manufacturerRates[k] || {}), ...v };
+    });
   }
   if (Array.isArray(override?.costItems)) {
     override.costItems.forEach(o => {
@@ -1220,20 +1251,34 @@ let STATE = buildState();
 /* ============================================================
    CALCULATION ENGINE
    ============================================================ */
-function getScrewsPerLF() {
-  if (STATE.application !== "Nail-fin") return 0;
+// Manufacturer-specific screw patterns
+function getNailfinRate() {
+  const mr = (DATA.manufacturerRates || {})[STATE.manufacturer];
+  if (mr && typeof mr.nailfin === "number") return mr.nailfin;
   const item = DATA.costItems.find(c => c.id === "screws");
-  const key = `${STATE.manufacturer}-Nail-fin`;
-  return item.rates[key] ?? item.rates.default ?? 0;
+  return item?.rates?.default ?? 2.0;
+}
+function getThroughFrameRate() {
+  const mr = (DATA.manufacturerRates || {})[STATE.manufacturer];
+  if (mr && typeof mr.throughFrame === "number") return mr.throughFrame;
+  return 1.0;
+}
+
+function getScrewsPerLF() {
+  // Nail-fin screws apply only on a nail-fin install
+  if (STATE.application !== "Nail-fin") return 0;
+  return getNailfinRate();
 }
 
 function getConcreteAnchorsPerLF() {
   const item = DATA.costItems.find(c => c.id === "concrete_anchors");
   if (!item) return 0;
   let total = 0;
+  // Block-framed buck-to-block anchoring — flat, brand-independent (it's about the block)
   if (STATE.houseType === "Block Framed") total += item.rates["Block Framed"] ?? 0;
+  // Through-frame window anchoring — manufacturer-specific, for non-nail-fin installs
   if (STATE.application === "Equal Leg" || STATE.application === "Unequal Leg") {
-    total += item.rates[STATE.application] ?? 0;
+    total += getThroughFrameRate();
   }
   return total;
 }
@@ -1260,9 +1305,8 @@ function getQuantityPerLF(item) {
   if (id === "shims") {
     if (STATE.application === "Nail-fin") return item.rates["Nail-fin"] ?? 0;
     if (STATE.application === "Equal Leg" || STATE.application === "Unequal Leg") {
-      const anchors = DATA.costItems.find(c => c.id === "concrete_anchors");
-      const windowAnchorsPerLF = anchors?.rates?.[STATE.application] ?? 0;
-      return windowAnchorsPerLF * 4;
+      // 4 shims per through-frame anchor
+      return getThroughFrameRate() * 4;
     }
     return item.rates.default ?? 0;
   }
@@ -2735,6 +2779,18 @@ function openAdmin() {
 }
 function closeAdmin() { adminModal.classList.add("hidden"); adminModal.classList.remove("flex"); }
 
+// One editable row in the Settings manufacturer editor
+function mfrRowHTML(name, nailfin, throughFrame) {
+  const safe = String(name || "").replace(/"/g, "&quot;");
+  return `
+    <div class="mfr-row flex items-center gap-2 mb-2">
+      <input class="mfr-name control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1 min-w-0" placeholder="Manufacturer" value="${safe}" />
+      <input class="mfr-nailfin num-input control rounded-lg px-2 py-2 text-sm text-slate-100 w-20 text-center" type="number" step="0.1" min="0" value="${nailfin}" />
+      <input class="mfr-tframe num-input control rounded-lg px-2 py-2 text-sm text-slate-100 w-20 text-center" type="number" step="0.1" min="0" value="${throughFrame}" />
+      <button type="button" class="mfr-del btn text-slate-500 hover:text-rose-300 text-lg leading-none px-2 flex-shrink-0" aria-label="Remove">×</button>
+    </div>`;
+}
+
 function buildAdminUI() {
   const b = DATA.config.brand || {};
   document.getElementById("brandCompanyName").value = b.companyName || "";
@@ -2758,6 +2814,14 @@ function buildAdminUI() {
   fillSel("defaultHouse", DATA.houseTypes, jd.houseType);
   fillSel("defaultConstruction", DATA.constructionTypes, jd.constructionType);
   fillSel("defaultStories", DATA.storiesOptions, jd.stories);
+
+  // Manufacturer editor rows
+  const mfrBody = document.getElementById("mfrEditorBody");
+  const mRates = DATA.manufacturerRates || {};
+  mfrBody.innerHTML = (DATA.manufacturers || []).map(name => {
+    const r = mRates[name] || {};
+    return mfrRowHTML(name, r.nailfin != null ? r.nailfin : 2, r.throughFrame != null ? r.throughFrame : 1);
+  }).join("");
 
   document.getElementById("adminMargin").value = DATA.config.defaultMargin;
   document.getElementById("adminTax").value = DATA.config.materialsTaxRate ?? 0;
@@ -2806,6 +2870,30 @@ function saveAdmin() {
   DATA.config.brand.email = document.getElementById("brandEmail").value.trim();
   DATA.config.brand.website = document.getElementById("brandWebsite").value.trim();
   DATA.config.brand.logo = adminLogoData || "";
+
+  // Window manufacturers
+  const newManufacturers = [];
+  const newRates = {};
+  document.querySelectorAll("#mfrEditorBody .mfr-row").forEach(row => {
+    const name = row.querySelector(".mfr-name").value.trim();
+    if (!name || newRates[name]) return;   // skip blanks and duplicates
+    const nf = parseFloat(row.querySelector(".mfr-nailfin").value);
+    const tf = parseFloat(row.querySelector(".mfr-tframe").value);
+    newManufacturers.push(name);
+    newRates[name] = {
+      nailfin: (isNaN(nf) || nf < 0) ? 2 : nf,
+      throughFrame: (isNaN(tf) || tf < 0) ? 1 : tf
+    };
+  });
+  if (newManufacturers.length) {
+    DATA.manufacturers = newManufacturers;
+    DATA.manufacturerRates = newRates;
+    // Keep the current selection / job default valid
+    if (!DATA.manufacturers.includes(STATE.manufacturer)) STATE.manufacturer = DATA.manufacturers[0];
+    if (DATA.config.jobDefaults && !DATA.manufacturers.includes(DATA.config.jobDefaults.manufacturer)) {
+      DATA.config.jobDefaults.manufacturer = DATA.manufacturers[0];
+    }
+  }
   // Job defaults
   if (!DATA.config.jobDefaults) DATA.config.jobDefaults = {};
   DATA.config.jobDefaults.manufacturer = document.getElementById("defaultMfg").value;
@@ -3940,6 +4028,15 @@ function init() {
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
   document.getElementById("adminReset").addEventListener("click", restoreDefaults);
+
+  // Manufacturer editor — add / remove rows
+  document.getElementById("mfrAddBtn").addEventListener("click", () => {
+    document.getElementById("mfrEditorBody").insertAdjacentHTML("beforeend", mfrRowHTML("", 2, 1));
+  });
+  document.getElementById("mfrEditorBody").addEventListener("click", e => {
+    const del = e.target.closest(".mfr-del");
+    if (del) del.closest(".mfr-row").remove();
+  });
 
   // Onboarding wizard
   document.getElementById("obSubmit").addEventListener("click", submitOnboarding);
