@@ -1193,9 +1193,12 @@
       </div>
       <div id="adminRatesBody" class="space-y-6"></div>
     </div>
-    <div class="px-6 py-4 border-t border-slate-800 flex items-center justify-end gap-2">
-      <button id="adminReset" class="btn text-sm text-slate-400 hover:text-rose-300 px-3 py-2">Restore Defaults</button>
-      <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
+    <div class="px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-2">
+      <button id="adminResetSetup" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2" title="Re-run the profile + setup wizard (testing)">↻ Reset Setup (Testing)</button>
+      <div class="flex items-center gap-2">
+        <button id="adminReset" class="btn text-sm text-slate-400 hover:text-rose-300 px-3 py-2">Restore Defaults</button>
+        <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3136,6 +3139,19 @@ function restoreDefaults() {
   toast("Defaults restored");
 }
 
+// Testing helper — clears the onboarded/setupComplete flags and re-runs the
+// first-run flow so the profile + setup wizard can be walked through again.
+// Brand info, rates and saved jobs are left untouched.
+function resetSetup() {
+  if (!confirm("Re-run the setup process?\n\nThis clears only the \"completed\" flags so the profile + setup wizard appear again. Your brand info, rates and saved jobs are kept.")) return;
+  DATA.config.onboarded = false;
+  DATA.config.setupComplete = false;
+  saveData(DATA);
+  closeAdmin();
+  showOnboarding();
+  toast("Setup reset — walk through the wizard");
+}
+
 /* ============================================================
    READ FROM PLAN / SCHEDULE (via Grok)
    ============================================================ */
@@ -4467,6 +4483,7 @@ function init() {
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
   document.getElementById("adminReset").addEventListener("click", restoreDefaults);
+  document.getElementById("adminResetSetup").addEventListener("click", resetSetup);
 
   // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
   function wireMfrEditor(addId, bodyId) {
