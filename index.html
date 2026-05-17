@@ -1120,6 +1120,9 @@
     ↑ Enter window count to include disposal cost
   </div>
 
+  <!-- Per-job material variant toggles — shown only when a category has 2+ variants -->
+  <section id="materialsRow" class="hidden mt-3 max-w-md sm:max-w-xl mx-auto"></section>
+
   <!-- Big LF input -->
   <section class="mt-6 sm:mt-10">
     <div class="flex flex-wrap justify-center mb-5">
@@ -2116,6 +2119,7 @@ function buildState() {
     customerAddress: "",
     customerNotes: "",
     buckList: null,
+    variants: {},
     ...loadState()
   };
 }
@@ -2919,6 +2923,9 @@ function render() {
   const showNudge = STATE.constructionType === "Remodel" && wc_ === 0;
   nudgeEl.classList.toggle("hidden", !showNudge);
 
+  // Per-job material variant toggles
+  renderMaterialsToggle();
+
   saveState({
     manufacturer: STATE.manufacturer,
     application: STATE.application,
@@ -2935,9 +2942,36 @@ function render() {
     customerAddress: STATE.customerAddress,
     customerNotes: STATE.customerNotes,
     buckList: STATE.buckList,
+    variants: STATE.variants || {},
   });
 
   fitAll();
+}
+
+// Per-job material variant toggles — one segmented control per category
+// with 2+ variants. Hidden entirely when there's nothing to choose.
+function renderMaterialsToggle() {
+  const wrap = document.getElementById("materialsRow");
+  if (!wrap) return;
+  const multi = (DATA.costItems || []).filter(c =>
+    Array.isArray(c.variants) && c.variants.length > 1);
+  if (!multi.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
+  STATE.variants = STATE.variants || {};
+  const rows = multi.map(item => {
+    const active = activeVariant(item);
+    const btns = item.variants.map(v => `
+      <button type="button" class="seg-btn ${active && v.id === active.id ? "active" : ""}"
+        data-var-cat="${item.id}" data-var-id="${escHtml(v.id)}">${escHtml(v.brand)}</button>`).join("");
+    return `<div class="flex items-center justify-between gap-3">
+      <span class="text-xs font-semibold text-slate-300 flex-shrink-0">${escHtml(item.name)}</span>
+      <div class="seg" style="width:auto;max-width:none">${btns}</div>
+    </div>`;
+  }).join("");
+  wrap.innerHTML = `<div class="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+    <div class="text-[10px] uppercase tracking-[0.18em] text-slate-500 font-bold mb-2">Materials — this job</div>
+    <div class="space-y-2">${rows}</div>
+  </div>`;
+  wrap.classList.remove("hidden");
 }
 
 let compareSet = new Set();
@@ -3117,6 +3151,7 @@ function resetAll() {
     customerAddress: "",
     customerNotes: "",
     buckList: null,
+    variants: {},
   };
   saveState(STATE);
   bindControls();
@@ -3155,6 +3190,7 @@ function confirmSaveJob() {
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerNotes: notes,
     buckList: STATE.buckList,
+    variants: clone(STATE.variants || {}),
     createdAt: new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -3194,6 +3230,7 @@ function loadJob(id) {
   STATE.customerAddress = j.customerAddress || "";
   STATE.customerNotes = j.customerNotes || "";
   STATE.buckList = j.buckList || null;
+  STATE.variants = j.variants ? clone(j.variants) : {};
   bindControls();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -3768,7 +3805,8 @@ function jobFingerprint() {
   const s = STATE || {};
   return [s.manufacturer, s.application, s.houseType, s.constructionType,
     s.impact, s.stories, s.totalLF, s.windowCount,
-    s.liftEnabled, s.liftDays, s.permitEnabled].join("|");
+    s.liftEnabled, s.liftDays, s.permitEnabled,
+    JSON.stringify(s.variants || {})].join("|");
 }
 function currentQuoteId() {
   const fp = jobFingerprint();
@@ -5875,6 +5913,14 @@ function init() {
   document.getElementById("settingsSignOut").addEventListener("click", handleSignOut);
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
     t.addEventListener("click", () => showSettingsTab(t.dataset.tab)));
+  // Per-job material variant toggle (delegated)
+  document.getElementById("materialsRow").addEventListener("click", e => {
+    const btn = e.target.closest("[data-var-cat]");
+    if (!btn) return;
+    STATE.variants = STATE.variants || {};
+    STATE.variants[btn.dataset.varCat] = btn.dataset.varId;
+    render();
+  });
   // Material brand variants — add / remove rows (delegated)
   document.getElementById("adminRatesBody").addEventListener("click", e => {
     const add = e.target.closest(".var-add");
