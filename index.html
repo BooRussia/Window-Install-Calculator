@@ -1912,30 +1912,63 @@ const DEFAULT_DATA = {
   constructionTypes: ["New Construction", "Remodel"],
   impactOptions: ["Impact", "Non-Impact"],
   storiesOptions: ["1 Story", "2 Story", "3 Story"],
+  // Material categories carry the consumption rate; each holds one or more
+  // brand variants (editable name + price + pack size). Labor and job fees
+  // stay single-line. See MATERIAL_IDS / itemUnitPrice() etc.
   costItems: [
-    { id: "caulking", name: "Dow CPS (20oz sausage)", unit: "oz", unitPrice: 0.578125, rates: { default: 2.25 },
-      unverified: true,
-      procurement: { caseSize: 320, packName: "case", packPlural: "cases",
-        intermediate: { label: "sausage", labelPlural: "sausages", perBase: 20, perPack: 16 } } },
-    { id: "shims", name: "Plastic Shims (1/16\")", unit: "each", unitPrice: 0.07,
+    { id: "caulking", name: "Caulking", unit: "oz", rates: { default: 2.25 }, unverified: true,
+      defaultVariant: "caulking__1",
+      variants: [
+        { id: "caulking__1", brand: "Dow CPS (20oz sausage)", unitPrice: 0.578125,
+          procurement: { caseSize: 320, packName: "case", packPlural: "cases",
+            intermediate: { label: "sausage", labelPlural: "sausages", perBase: 20, perPack: 16 } } }
+      ] },
+    { id: "shims", name: "Shims", unit: "each",
       rates: { default: 0.0, "Nail-fin": 1.333, "Equal Leg": 3.0, "Unequal Leg": 3.0 },
       calculationMethod: { "Nail-fin": "fixed_per_LF", "Equal Leg": "per_screw", "Unequal Leg": "per_screw" },
-      procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } },
-    { id: "backer_rod", name: "Backer Rod (5/8\")", unit: "LF", unitPrice: 0.28, rates: { default: 1.0 },
-      procurement: { caseSize: 1400, packName: "roll", packPlural: "rolls" } },
-    { id: "flashing_tape", name: "Zip Systems Flashing Tape (6\" wide)", unit: "LF", unitPrice: 2.23, rates: { default: 0, "Stick Framed": 1.0 },
-      procurement: { caseSize: 75, packName: "roll", packPlural: "rolls" } },
-    { id: "wood_bucking", name: "Wood Bucking (2x6 PT lumber)", unit: "LF", unitPrice: 0.95, rates: { default: 0, "Block Framed": 1.25 },
-      procurement: { caseSize: 8, packName: "board", packPlural: "boards" } },
-    { id: "block_sealer", name: "Block Sealer", unit: "gallon", unitPrice: 40, rates: { default: 0, "Block Framed": 0 }, calculationType: "fixed_job",
-      unverified: true,
-      procurement: { caseSize: 1, packName: "gallon", packPlural: "gallons" } },
-    { id: "screws", name: "Daggerz (Nail-fin)", unit: "each", unitPrice: 0.127,
-      rates: { default: 2.0 },
-      procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } },
-    { id: "concrete_anchors", name: "Dewalt Ultracons (2-3/4\")", unit: "each", unitPrice: 0.20,
+      defaultVariant: "shims__1",
+      variants: [
+        { id: "shims__1", brand: "Plastic Shims (1/16\")", unitPrice: 0.07,
+          procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } }
+      ] },
+    { id: "backer_rod", name: "Backer Rod", unit: "LF", rates: { default: 1.0 },
+      defaultVariant: "backer_rod__1",
+      variants: [
+        { id: "backer_rod__1", brand: "Backer Rod (5/8\")", unitPrice: 0.28,
+          procurement: { caseSize: 1400, packName: "roll", packPlural: "rolls" } }
+      ] },
+    { id: "flashing_tape", name: "Flashing Tape", unit: "LF", rates: { default: 0, "Stick Framed": 1.0 },
+      defaultVariant: "flashing_tape__1",
+      variants: [
+        { id: "flashing_tape__1", brand: "Zip System Flashing Tape (6\")", unitPrice: 2.23,
+          procurement: { caseSize: 75, packName: "roll", packPlural: "rolls" } }
+      ] },
+    { id: "wood_bucking", name: "Wood Bucking", unit: "LF", rates: { default: 0, "Block Framed": 1.25 },
+      defaultVariant: "wood_bucking__1",
+      variants: [
+        { id: "wood_bucking__1", brand: "2x6 PT Lumber", unitPrice: 0.95,
+          procurement: { caseSize: 8, packName: "board", packPlural: "boards" } }
+      ] },
+    { id: "block_sealer", name: "Block Sealer", unit: "gallon", rates: { default: 0, "Block Framed": 0 },
+      calculationType: "fixed_job", unverified: true,
+      defaultVariant: "block_sealer__1",
+      variants: [
+        { id: "block_sealer__1", brand: "Block Sealer", unitPrice: 40,
+          procurement: { caseSize: 1, packName: "gallon", packPlural: "gallons" } }
+      ] },
+    { id: "screws", name: "Nail-Fin Screws", unit: "each", rates: { default: 2.0 },
+      defaultVariant: "screws__1",
+      variants: [
+        { id: "screws__1", brand: "Daggerz (Nail-fin)", unitPrice: 0.127,
+          procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } }
+      ] },
+    { id: "concrete_anchors", name: "Concrete Anchors", unit: "each",
       rates: { default: 0, "Block Framed": 1.0 }, unverified: true,
-      procurement: { caseSize: 1000, packName: "case", packPlural: "cases" } },
+      defaultVariant: "concrete_anchors__1",
+      variants: [
+        { id: "concrete_anchors__1", brand: "Dewalt Ultracons (2-3/4\")", unitPrice: 0.20,
+          procurement: { caseSize: 1000, packName: "case", packPlural: "cases" } }
+      ] },
     { id: "disposal", name: "Old Window Disposal", unit: "window", unitPrice: 45, rates: { default: 0 } },
     { id: "permit", name: "Permit Fee", unit: "job", unitPrice: 250, rates: { default: 0 } },
     { id: "lift_rental", name: "Lift Rental", unit: "day", unitPrice: 450, rates: { default: 0 } },
@@ -1943,6 +1976,10 @@ const DEFAULT_DATA = {
       rates: { default: 0.1667, "Block Framed": 0.4167, "Remodel": 0.6667 } }
   ]
 };
+
+// Cost items that are brand-variant materials (vs. labor / job fees)
+const MATERIAL_IDS = ["caulking", "shims", "backer_rod", "flashing_tape",
+  "wood_bucking", "block_sealer", "screws", "concrete_anchors"];
 
 /* ============================================================
    STATE + STORAGE
@@ -2035,10 +2072,23 @@ function mergeData(base, override) {
   if (Array.isArray(override?.costItems)) {
     override.costItems.forEach(o => {
       const i = base.costItems.findIndex(c => c.id === o.id);
-      if (i >= 0) {
-        if (typeof o.unitPrice === "number") base.costItems[i].unitPrice = o.unitPrice;
-        if (o.rates) base.costItems[i].rates = { ...base.costItems[i].rates, ...o.rates };
-        if (o.unitPriceByApplication) base.costItems[i].unitPriceByApplication = { ...(base.costItems[i].unitPriceByApplication || {}), ...o.unitPriceByApplication };
+      if (i < 0) return;
+      const bi = base.costItems[i];
+      if (o.rates) bi.rates = { ...bi.rates, ...o.rates };
+      if (o.unitPriceByApplication) bi.unitPriceByApplication = { ...(bi.unitPriceByApplication || {}), ...o.unitPriceByApplication };
+      if (Array.isArray(o.variants) && o.variants.length) {
+        // New variant-model data — adopt the user's saved variants
+        bi.variants = o.variants;
+        if (o.defaultVariant) bi.defaultVariant = o.defaultVariant;
+      } else if (typeof o.unitPrice === "number") {
+        if (Array.isArray(bi.variants) && bi.variants.length) {
+          // Legacy flat data for a material — fold the saved price/pack into the default variant
+          const dv = bi.variants.find(v => v.id === bi.defaultVariant) || bi.variants[0];
+          dv.unitPrice = o.unitPrice;
+          if (o.procurement) dv.procurement = o.procurement;
+        } else {
+          bi.unitPrice = o.unitPrice;   // labor / job fees
+        }
       }
     });
   }
@@ -2157,9 +2207,28 @@ function getQuantityPerLF(item) {
   return item.rates.default ?? 0;
 }
 
+// ---- Brand-variant resolution ----
+// The active variant for a material category: the job's selection, else the
+// category default, else the first variant.
+function activeVariant(item) {
+  if (!item || !Array.isArray(item.variants) || !item.variants.length) return null;
+  const sel = (typeof STATE !== "undefined" && STATE.variants) ? STATE.variants[item.id] : null;
+  return item.variants.find(v => v.id === sel)
+      || item.variants.find(v => v.id === item.defaultVariant)
+      || item.variants[0];
+}
+function itemProcurement(item) {
+  const v = activeVariant(item);
+  return v ? v.procurement : item.procurement;
+}
+function itemDisplayName(item) {
+  const v = activeVariant(item);
+  return v ? v.brand : item.name;
+}
+
 function computeCostBasis(item) {
-  if (!item || !item.procurement) return null;
-  const p = item.procurement;
+  const p = itemProcurement(item);
+  if (!item || !p) return null;
   const perBase = getUnitPrice(item);
   const out = {
     perBase,
@@ -2181,8 +2250,8 @@ function computeCostBasis(item) {
 }
 
 function computeProcurement(totalQty, item) {
-  if (!item || !item.procurement || !(totalQty > 0)) return null;
-  const p = item.procurement;
+  const p = itemProcurement(item);
+  if (!item || !p || !(totalQty > 0)) return null;
   const out = { totalQty, unit: item.unit };
   if (p.intermediate) {
     out.intCount = Math.ceil(totalQty / p.intermediate.perBase);
@@ -2202,7 +2271,8 @@ function getUnitPrice(item) {
   if (item.unitPriceByApplication && item.unitPriceByApplication[STATE.application] != null) {
     return item.unitPriceByApplication[STATE.application];
   }
-  return item.unitPrice;
+  const v = activeVariant(item);
+  return v ? v.unitPrice : item.unitPrice;
 }
 
 function getBlockSealerJobQty(totalLF) {
@@ -2233,7 +2303,7 @@ function calculate() {
       const qty = getBlockSealerJobQty(lf);
       const cost = qty * getUnitPrice(item);
       if (cost > 0) {
-        rows.push({ id: item.id, name: item.name, rateLabel: `${qty} ${item.unit} fixed`,
+        rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${qty} ${item.unit} fixed`,
           ratePerLF: lf > 0 ? cost / lf : 0, quantity: qty, unit: item.unit, totalCost: cost, isFixed: true });
         totalCost += cost;
         if (lf > 0) perLfCost += cost / lf;
@@ -2245,7 +2315,7 @@ function calculate() {
     if (item.id === "disposal") {
       if (STATE.constructionType !== "Remodel" || wc <= 0) return;
       const cost = wc * getUnitPrice(item);
-      rows.push({ id: item.id, name: item.name, rateLabel: `${wc} window${wc !== 1 ? "s" : ""} fixed`,
+      rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${wc} window${wc !== 1 ? "s" : ""} fixed`,
         ratePerLF: lf > 0 ? cost / lf : 0, quantity: wc, unit: item.unit, totalCost: cost, isFixed: true });
       totalCost += cost;
       if (lf > 0) perLfCost += cost / lf;
@@ -2256,7 +2326,7 @@ function calculate() {
     if (item.id === "permit") {
       if (!STATE.permitEnabled) return;
       const cost = getUnitPrice(item);
-      rows.push({ id: item.id, name: item.name, rateLabel: "fixed job",
+      rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: "fixed job",
         ratePerLF: lf > 0 ? cost / lf : 0, quantity: 1, unit: item.unit, totalCost: cost, isFixed: true });
       totalCost += cost;
       if (lf > 0) perLfCost += cost / lf;
@@ -2268,7 +2338,7 @@ function calculate() {
       if (!STATE.liftEnabled || STATE.stories === "1 Story") return;
       const days = Math.max(1, parseInt(STATE.liftDays) || 1);
       const cost = days * getUnitPrice(item);
-      rows.push({ id: item.id, name: item.name, rateLabel: `${days} day${days !== 1 ? "s" : ""} fixed`,
+      rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${days} day${days !== 1 ? "s" : ""} fixed`,
         ratePerLF: lf > 0 ? cost / lf : 0, quantity: days, unit: item.unit, totalCost: cost, isFixed: true });
       totalCost += cost;
       if (lf > 0) perLfCost += cost / lf;
@@ -2282,7 +2352,7 @@ function calculate() {
         const boardLF = buckListTotalLF(STATE.buckList);
         const cost = boardLF * getUnitPrice(item);
         rows.push({
-          id: item.id, name: item.name, rateLabel: "AI cut list",
+          id: item.id, name: itemDisplayName(item), rateLabel: "AI cut list",
           ratePerLF: lf > 0 ? cost / lf : 0,
           quantity: boardLF, unit: "LF", totalCost: cost,
           isFixed: false, fromBuckList: true
@@ -2303,7 +2373,7 @@ function calculate() {
 
     if (cost > 0 || item.id === "backer_rod") {
       rows.push({
-        id: item.id, name: item.name,
+        id: item.id, name: itemDisplayName(item),
         rateLabel: `${formatQty(qtyPerLF)} ${item.unit}/LF · $${formatMoneyRaw(ratePerLF)}`,
         ratePerLF, quantity: totalQty, unit: item.unit, totalCost: cost,
         isFixed: false, isLabor,
@@ -2737,7 +2807,7 @@ function render() {
         return `
           <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
             <div class="min-w-0">
-              <div class="text-sm text-slate-100 font-bold truncate">${item.name}
+              <div class="text-sm text-slate-100 font-bold truncate">${row.name}
                 <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">AI Cut List</span>
               </div>
               <div class="text-[11px] text-slate-500 mt-1 font-medium" style="font-variant-numeric: tabular-nums;">${breakdown}${waste}</div>
@@ -2766,7 +2836,7 @@ function render() {
       return `
         <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
           <div class="min-w-0">
-            <div class="text-sm text-slate-100 font-bold truncate">${item.name}</div>
+            <div class="text-sm text-slate-100 font-bold truncate">${row.name}</div>
             <div class="text-[11px] text-slate-500 mt-0.5 font-medium" style="font-variant-numeric: tabular-nums;">${detail}</div>
           </div>
           <div class="text-right shrink-0 leading-none">
@@ -2808,7 +2878,7 @@ function render() {
       const arrow = `<span class="text-slate-700 mx-1">→</span>`;
       return `
         <div class="px-5 sm:px-6 py-4 fade-in">
-          <div class="text-sm text-slate-100 font-bold">${item.name}${basis.applicationSuffix || ""}</div>
+          <div class="text-sm text-slate-100 font-bold">${itemDisplayName(item)}${basis.applicationSuffix || ""}</div>
           <div class="text-[12px] text-slate-400 mt-1.5 flex flex-wrap items-center gap-y-1" style="font-variant-numeric: tabular-nums;">
             ${segs.join(arrow)}
           </div>
@@ -3554,7 +3624,7 @@ function exportMaterialsPDF(mode) {
       const detail = lengths.filter(l => bl.byLength[l] > 0).map(l => `${bl.byLength[l]} x ${l}ft`).join("   ") || "";
       total += buckListTotalLF(bl) * getUnitPrice(item);
       const n = buckListBoardCount(bl);
-      mats.push({ name: item.name, qty: `${n} ${n === 1 ? "board" : "boards"}`, detail });
+      mats.push({ name: itemDisplayName(item), qty: `${n} ${n === 1 ? "board" : "boards"}`, detail });
       return;
     }
     const proc = computeProcurement(row.quantity, item);
@@ -3566,7 +3636,7 @@ function exportMaterialsPDF(mode) {
     else detail = `${formatQty(row.quantity)} ${item.unit} · ${proc.caseSize} ${item.unit} per ${proc.packName}`;
     const basis = computeCostBasis(item);
     if (basis) total += proc.packs * basis.perPack;
-    mats.push({ name: item.name, qty: `${proc.packs} ${proc.packLabel}`, detail });
+    mats.push({ name: itemDisplayName(item), qty: `${proc.packs} ${proc.packLabel}`, detail });
   });
   if (!mats.length) { toast("No materials for this job"); return; }
 
@@ -4210,6 +4280,24 @@ function buildAdminUI() {
         <span class="text-[11px] text-slate-500">${item.unit}/LF</span>
       </div>
     `).join("");
+
+    // Material category — consumption rate + editable brand variants
+    if (MATERIAL_IDS.includes(item.id)) {
+      const variantRows = (item.variants || []).map(v =>
+        variantRowHTML(item.id, item.unit, v, v.id === item.defaultVariant)).join("");
+      return `
+        <div class="rounded-xl border border-slate-800 p-4" data-cat="${item.id}">
+          <div class="text-sm font-semibold text-slate-100 mb-2.5">${item.name}</div>
+          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Consumption</div>
+          <div class="grid sm:grid-cols-2 gap-2 mb-4">${rateRows}</div>
+          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Brand variants <span class="text-slate-600 normal-case tracking-normal">· name them however you buy them</span></div>
+          <div class="space-y-1.5" data-variant-list>${variantRows}</div>
+          <button type="button" class="var-add mt-2 btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10" data-add-cat="${item.id}">+ Add variant</button>
+        </div>
+      `;
+    }
+
+    // Labor / job fee — single unit price
     const appPriceRows = item.unitPriceByApplication
       ? Object.entries(item.unitPriceByApplication).map(([app, p]) => `
           <div class="flex items-center gap-2">
@@ -4233,6 +4321,19 @@ function buildAdminUI() {
       </div>
     `;
   }).join("");
+}
+
+// One editable brand-variant row inside a material category card
+function variantRowHTML(catId, unit, v, isDefault) {
+  v = v || {};
+  return `<div class="flex items-center gap-2" data-variant-row${v.id ? ` data-variant-id="${v.id}"` : ""}>
+    <input type="radio" name="vardefault_${catId}" class="var-default w-3.5 h-3.5 accent-[#c9a558] cursor-pointer flex-shrink-0" ${isDefault ? "checked" : ""} title="Use by default on new jobs" />
+    <input type="text" class="var-brand control rounded-lg px-3 py-2 flex-1 min-w-0 text-sm text-slate-100 placeholder:text-slate-600" value="${escHtml(v.brand || "")}" placeholder="Brand name" />
+    <span class="text-[11px] text-slate-500 flex-shrink-0">$</span>
+    <input type="number" step="0.001" min="0" class="var-price control rounded-lg px-2 py-2 w-20 text-sm text-slate-100 placeholder:text-slate-600" value="${v.unitPrice != null ? v.unitPrice : ""}" placeholder="0.00" />
+    <span class="text-[11px] text-slate-500 flex-shrink-0">/${unit}</span>
+    <button type="button" class="var-remove btn text-slate-600 hover:text-rose-300 px-1 text-base leading-none flex-shrink-0" title="Remove variant">×</button>
+  </div>`;
 }
 
 function saveAdmin() {
@@ -4289,6 +4390,33 @@ function saveAdmin() {
     if (it && !isNaN(v)) {
       it.unitPriceByApplication = it.unitPriceByApplication || {};
       it.unitPriceByApplication[inp.dataset.app] = v;
+    }
+  });
+  // Material brand variants — read each category's variant rows
+  document.querySelectorAll("#adminRatesBody [data-cat]").forEach(card => {
+    const item = DATA.costItems.find(c => c.id === card.dataset.cat);
+    if (!item) return;
+    const variants = [];
+    let defId = null;
+    card.querySelectorAll("[data-variant-row]").forEach(row => {
+      const brand = row.querySelector(".var-brand").value.trim();
+      if (!brand) return;
+      const price = parseFloat(row.querySelector(".var-price").value);
+      const vid = row.dataset.variantId || (item.id + "__" + crypto.randomUUID().slice(0, 8));
+      const existing = (item.variants || []).find(v => v.id === row.dataset.variantId);
+      const proc = existing ? existing.procurement
+        : clone(((item.variants || [])[0] || {}).procurement || null);
+      variants.push({ id: vid, brand, unitPrice: isNaN(price) ? 0 : price, procurement: proc });
+      if (row.querySelector(".var-default").checked) defId = vid;
+    });
+    if (variants.length) {
+      item.variants = variants;
+      item.defaultVariant = defId || variants[0].id;
+      // Drop a per-job variant selection that no longer exists
+      if (STATE.variants && STATE.variants[item.id] &&
+          !variants.some(v => v.id === STATE.variants[item.id])) {
+        delete STATE.variants[item.id];
+      }
     }
   });
   // Saving real rates counts as customizing — clears the demo banner
@@ -5747,6 +5875,31 @@ function init() {
   document.getElementById("settingsSignOut").addEventListener("click", handleSignOut);
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
     t.addEventListener("click", () => showSettingsTab(t.dataset.tab)));
+  // Material brand variants — add / remove rows (delegated)
+  document.getElementById("adminRatesBody").addEventListener("click", e => {
+    const add = e.target.closest(".var-add");
+    if (add) {
+      const item = DATA.costItems.find(c => c.id === add.dataset.addCat);
+      const list = add.closest("[data-cat]").querySelector("[data-variant-list]");
+      list.insertAdjacentHTML("beforeend", variantRowHTML(add.dataset.addCat, item ? item.unit : "", {}, false));
+      list.lastElementChild.querySelector(".var-brand").focus();
+      return;
+    }
+    const rm = e.target.closest(".var-remove");
+    if (rm) {
+      const list = rm.closest("[data-variant-list]");
+      if (list.querySelectorAll("[data-variant-row]").length <= 1) {
+        toast("A material needs at least one variant"); return;
+      }
+      const row = rm.closest("[data-variant-row]");
+      const wasDefault = row.querySelector(".var-default").checked;
+      row.remove();
+      if (wasDefault) {
+        const first = list.querySelector("[data-variant-row] .var-default");
+        if (first) first.checked = true;
+      }
+    }
+  });
 
   // FL product-approval lookup
   document.getElementById("openFL").addEventListener("click", openFL);
