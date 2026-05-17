@@ -486,6 +486,16 @@
   .set-panel.active { display: block; animation: fadeIn .25s ease both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
   .set-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+  /* ------- App header + profile menu ------- */
+  .pfp-item {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; text-align: left;
+    padding: 8px 12px; font-size: 13px; font-weight: 600;
+    color: #cbd5e1; background: transparent; border: 0; cursor: pointer;
+    transition: background .12s ease, color .12s ease;
+  }
+  .pfp-item:hover { background: rgba(30,41,59,0.7); color: #ffffff; }
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen">
@@ -814,6 +824,45 @@
   </div>
 </div>
 
+<!-- Sticky app header — Anchor brand + profile menu -->
+<div id="appHeader" class="lp-nav sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-[#c9a558]">
+        <svg viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
+          <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
+        </svg>
+      </span>
+      <span class="text-base font-black tracking-tightest text-slate-100">Anchor</span>
+    </div>
+    <div class="relative">
+      <button id="pfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800" aria-label="Account menu" aria-haspopup="true">
+        <span id="pfpInner" class="w-full h-full flex items-center justify-center"></span>
+      </button>
+      <div id="pfpMenu" class="hidden absolute right-0 top-full mt-2 w-56 card rounded-xl py-1.5 z-[45]" style="box-shadow:0 24px 48px -12px rgba(0,0,0,0.7);">
+        <div class="px-3 py-2 border-b border-slate-800">
+          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Signed in as</div>
+          <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
+        </div>
+        <button id="openFL" type="button" class="pfp-item">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+          FL Lookup
+        </button>
+        <button id="openAdmin" type="button" class="pfp-item">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1.5v3M10 15.5v3M3.5 10h-2M18.5 10h-2M5 5l-1.4-1.4M16.4 16.4 15 15M5 15l-1.4 1.4M16.4 3.6 15 5"/></svg>
+          Settings
+        </button>
+        <div class="border-t border-slate-800 my-1"></div>
+        <button id="signOutBtn" type="button" class="pfp-item text-rose-300/80 hover:text-rose-300">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M13 14l4-4-4-4M17 10H8"/></svg>
+          Sign Out
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Demo-data reminder banner -->
 <div id="demoBanner" class="hidden bg-amber-500/10 border-b border-amber-500/30 px-5 py-2.5 text-center">
   <span class="text-[11px] sm:text-xs text-amber-300/90 font-semibold">
@@ -823,7 +872,7 @@
   <button id="demoBannerDismiss" class="ml-3 text-amber-400/60 hover:text-amber-300 text-sm leading-none align-middle" aria-label="Dismiss">×</button>
 </div>
 
-<header class="pt-10 sm:pt-14 pb-6 px-5">
+<header class="pt-8 sm:pt-10 pb-6 px-5">
   <h1 class="text-center font-black tracking-tightest gold-glow text-4xl sm:text-6xl md:text-7xl leading-[0.95]">
     Install Cost<br class="sm:hidden"/> <span class="sm:inline">Calculator</span>
   </h1>
@@ -1096,14 +1145,16 @@
   </section>
 </main>
 
-<footer class="text-center text-slate-600 text-[11px] tracking-[0.2em] uppercase pb-10 font-bold">
-  <span id="acctEmail" class="text-slate-700 normal-case tracking-normal"></span>
-  <span class="mx-2 text-slate-700">·</span>
-  <button id="openFL" class="hover:text-slate-300 transition">FL Lookup</button>
-  <span class="mx-2 text-slate-700">·</span>
-  <button id="openAdmin" class="hover:text-slate-300 transition">Settings</button>
-  <span class="mx-2 text-slate-700">·</span>
-  <button id="signOutBtn" class="hover:text-slate-300 transition">Sign Out</button>
+<footer class="text-center text-[11px] pb-10 flex items-center justify-center gap-1.5">
+  <span class="text-[#c9a558]/70">
+    <svg viewBox="0 0 100 100" width="13" height="13" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
+      <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
+    </svg>
+  </span>
+  <span class="font-bold tracking-wide text-slate-600">Anchor</span>
+  <span class="text-slate-800">·</span>
+  <span class="text-slate-700">Anchor your profit. Reel in your time.</span>
 </footer>
 
 <!-- Read from Plan / Schedule Modal -->
@@ -2265,8 +2316,34 @@ function applyBrandToUI() {
   const b = DATA.config.brand || {};
   const sub = document.getElementById("brandSubtitle");
   if (sub) sub.textContent = b.companyName || "";
-  // Browser tab shows what the app is, not the business name
-  document.title = "Install Cost Calculator";
+  // Browser tab shows the product, not the business name
+  document.title = "Anchor — Window Install Pricing";
+  renderPfp();
+}
+
+// Profile avatar — the company logo, or initials / anchor fallback.
+function renderPfp() {
+  const inner = document.getElementById("pfpInner");
+  if (!inner) return;
+  const b = (DATA && DATA.config && DATA.config.brand) || {};
+  if (b.logo) {
+    inner.innerHTML = `<img src="${b.logo}" alt="" class="w-full h-full object-cover">`;
+  } else {
+    const name = (b.companyName || "").trim();
+    const initials = name
+      ? name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()
+      : "";
+    inner.innerHTML = `<span class="text-[11px] font-black text-[#c9a558]">${initials ? escHtml(initials) : "&#9875;"}</span>`;
+  }
+}
+
+function togglePfpMenu(e) {
+  if (e) e.stopPropagation();
+  document.getElementById("pfpMenu").classList.toggle("hidden");
+}
+function closePfpMenu() {
+  const m = document.getElementById("pfpMenu");
+  if (m) m.classList.add("hidden");
 }
 
 // Build a human-readable brand line for PDFs ("Acme Windows  ·  Phoenix, AZ  ·  555-1234")
@@ -4740,8 +4817,8 @@ function purgeStaleSW() {
 
 function injectManifest() {
   const manifest = {
-    name: "Install Cost Calculator",
-    short_name: "Install Cost",
+    name: "Anchor — Window Install Pricing",
+    short_name: "Anchor",
     start_url: ".",
     display: "standalone",
     background_color: "#020617",
@@ -5260,7 +5337,7 @@ function exportPricingChecklistPDF(mode) {
   let y = M + 8;
 
   doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(20, 20, 20);
-  doc.text(brand.companyName || "Install Cost Calculator", M, y);
+  doc.text(brand.companyName || "Anchor", M, y);
   doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
   doc.text("MATERIALS PRICING CHECKLIST", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleDateString(), pageW - M, y + 8, { align: "right" });
@@ -5375,6 +5452,14 @@ function init() {
 
   document.getElementById("openAdmin").addEventListener("click", openAdmin);
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
+  // Profile (PFP) menu
+  document.getElementById("pfpBtn").addEventListener("click", togglePfpMenu);
+  document.getElementById("pfpMenu").addEventListener("click", closePfpMenu);
+  document.addEventListener("click", e => {
+    const m = document.getElementById("pfpMenu");
+    if (m && !m.classList.contains("hidden") &&
+        !e.target.closest("#pfpMenu") && !e.target.closest("#pfpBtn")) closePfpMenu();
+  });
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
   document.getElementById("adminReset").addEventListener("click", restoreDefaults);
   document.getElementById("adminResetSetup").addEventListener("click", resetSetup);
@@ -5531,7 +5616,7 @@ function init() {
   });
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closeAuth(); closeAdmin(); closeFL(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal(); }
+    if (e.key === "Escape") { closePfpMenu(); closeAuth(); closeAdmin(); closeFL(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal(); }
   });
 
   purgeStaleSW();
