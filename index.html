@@ -468,6 +468,24 @@
   @media (prefers-reduced-motion: reduce) {
     .lp-reveal { opacity: 1; transform: none; transition: none; }
   }
+
+  /* ------- Full-page tabbed Settings ------- */
+  .set-tab {
+    display: block; width: 100%; text-align: left;
+    padding: 9px 13px; border-radius: 9px;
+    font-size: 13px; font-weight: 600; color: #94a3b8;
+    cursor: pointer; border: 0; background: transparent;
+    transition: background .15s ease, color .15s ease;
+  }
+  .set-tab:hover { background: rgba(30,41,59,0.6); color: #e2e8f0; }
+  .set-tab.active {
+    background: var(--gold-soft); color: var(--gold-hi);
+    box-shadow: 0 0 0 1px rgba(181,143,74,0.3) inset;
+  }
+  .set-panel { display: none; }
+  .set-panel.active { display: block; animation: fadeIn .25s ease both; }
+  .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
+  .set-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen">
@@ -1259,137 +1277,184 @@
 </div>
 
 <!-- Admin Rates Modal -->
-<div id="adminModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
-  <div class="absolute inset-0 modal-backdrop" data-close></div>
-  <div class="relative card rounded-3xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-    <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
-      <div>
-        <h3 class="text-base font-semibold text-slate-100">Settings</h3>
-        <p class="text-xs text-slate-500 mt-0.5">Brand, rates, and pricing — saved to this device.</p>
+<div id="adminModal" class="fixed inset-0 hidden z-50" style="background:#020617;">
+  <div class="h-full max-w-6xl mx-auto flex flex-col">
+
+    <!-- Header -->
+    <div class="px-5 sm:px-8 py-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-2.5">
+        <span class="text-[#c9a558]">
+          <svg viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
+            <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
+          </svg>
+        </span>
+        <h3 class="text-base font-bold text-slate-100 tracking-tight">Settings</h3>
       </div>
-      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close>×</button>
+      <button class="btn rounded-full px-4 py-2 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]" data-close>Done</button>
     </div>
-    <div class="overflow-y-auto px-6 py-5">
-      <!-- Brand & Company -->
-      <div class="mb-6">
-        <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Brand &amp; Company</h4>
-        <div class="mb-3 flex items-center gap-3">
-          <div id="adminLogoPreview" class="w-14 h-14 rounded-lg border border-slate-700 bg-slate-900/60 flex items-center justify-center overflow-hidden flex-shrink-0">
-            <span class="text-[8px] text-slate-600 uppercase tracking-wide">No logo</span>
-          </div>
-          <div>
-            <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Company Logo</div>
-            <input id="adminLogoInput" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
-            <button type="button" id="adminLogoBtn" class="btn rounded-lg px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">Upload Logo</button>
-            <button type="button" id="adminLogoRemove" class="hidden btn text-xs text-slate-500 hover:text-rose-300 ml-1 px-2 py-1.5">Remove</button>
-          </div>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Company Name</label>
-            <input id="brandCompanyName" type="text" autocomplete="organization" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Tagline <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
-            <input id="brandTagline" type="text" placeholder="e.g., Hurricane-rated windows since 1998" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">City</label>
-            <input id="brandCity" type="text" autocomplete="address-level2" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">State</label>
-            <input id="brandState" type="text" autocomplete="address-level1" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Phone <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
-            <input id="brandPhone" type="tel" autocomplete="tel" placeholder="(555) 123-4567" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Email <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
-            <input id="brandEmail" type="email" autocomplete="email" placeholder="quotes@yourcompany.com" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
-          </div>
-          <div class="sm:col-span-2">
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Website <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
-            <input id="brandWebsite" type="text" autocomplete="url" placeholder="yourcompany.com" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
-          </div>
-        </div>
-      </div>
 
-      <!-- Job Defaults — the typical setup; New Job resets to these -->
-      <div class="mb-6">
-        <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-1">Job Defaults</h4>
-        <p class="text-[11px] text-slate-500 mb-3">Your typical setup. Clicking <span class="text-slate-300 font-semibold">New Job</span> returns to these values.</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Manufacturer</label>
-            <select id="defaultMfg" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Application</label>
-            <select id="defaultApp" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">House Type</label>
-            <select id="defaultHouse" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Construction</label>
-            <select id="defaultConstruction" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Glass Type</label>
-            <select id="defaultImpact" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
-          </div>
-          <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Stories</label>
-            <select id="defaultStories" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
-          </div>
-        </div>
-      </div>
+    <!-- Body: rail + content -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- Tab rail -->
+      <nav class="w-36 sm:w-52 flex-shrink-0 border-r border-slate-800 p-2.5 sm:p-3 overflow-y-auto space-y-1">
+        <button type="button" class="set-tab active" data-tab="brand">Brand</button>
+        <button type="button" class="set-tab" data-tab="defaults">Job Defaults</button>
+        <button type="button" class="set-tab" data-tab="manufacturers">Manufacturers</button>
+        <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
+        <button type="button" class="set-tab" data-tab="account">Account</button>
+        <button type="button" class="set-tab hidden" data-tab="admin" id="adminTabBtn">Admin</button>
+      </nav>
 
-      <!-- Window Manufacturers -->
-      <div class="mb-6">
-        <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-1">Window Manufacturers</h4>
-        <p class="text-[11px] text-slate-500 mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</p>
-        <p class="text-[11px] text-amber-400/80 mb-3">Through-frame values are placeholder estimates — verify per brand.</p>
-        <div id="mfrEditorBody"></div>
-        <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
-      </div>
+      <!-- Content -->
+      <div class="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
 
-      <!-- Pricing defaults -->
-      <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Pricing Defaults</h4>
-      <div class="mb-6 flex flex-wrap gap-4">
-        <div class="flex items-center gap-3">
-          <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Margin %</label>
-          <input id="adminMargin" type="number" step="0.1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+        <!-- Brand -->
+        <div class="set-panel active" data-panel="brand">
+          <div class="set-h">Brand &amp; Company</div>
+          <div class="set-sub mb-5">Appears on customer quotes and the materials list.</div>
+          <div class="mb-4 flex items-center gap-3">
+            <div id="adminLogoPreview" class="w-14 h-14 rounded-lg border border-slate-700 bg-slate-900/60 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <span class="text-[8px] text-slate-600 uppercase tracking-wide">No logo</span>
+            </div>
+            <div>
+              <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Company Logo</div>
+              <input id="adminLogoInput" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+              <button type="button" id="adminLogoBtn" class="btn rounded-lg px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">Upload Logo</button>
+              <button type="button" id="adminLogoRemove" class="hidden btn text-xs text-slate-500 hover:text-rose-300 ml-1 px-2 py-1.5">Remove</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Company Name</label>
+              <input id="brandCompanyName" type="text" autocomplete="organization" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Tagline <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+              <input id="brandTagline" type="text" placeholder="e.g., Hurricane-rated windows since 1998" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">City</label>
+              <input id="brandCity" type="text" autocomplete="address-level2" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">State</label>
+              <input id="brandState" type="text" autocomplete="address-level1" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Phone <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+              <input id="brandPhone" type="tel" autocomplete="tel" placeholder="(555) 123-4567" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Email <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+              <input id="brandEmail" type="email" autocomplete="email" placeholder="quotes@yourcompany.com" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Website <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+              <input id="brandWebsite" type="text" autocomplete="url" placeholder="yourcompany.com" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+            </div>
+          </div>
         </div>
-        <div class="flex items-center gap-3">
-          <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Materials Tax %</label>
-          <input id="adminTax" type="number" step="0.1" min="0" max="100" placeholder="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-        </div>
-        <div class="flex items-center gap-3">
-          <label class="text-xs uppercase tracking-[0.14em] text-slate-500" title="Labor multiplier applied to impact-glass jobs">Impact Labor ×</label>
-          <input id="adminImpactLabor" type="number" step="0.05" min="1" placeholder="1.15" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-        </div>
-      </div>
 
-      <!-- Material rates -->
-      <div class="flex items-center justify-between mb-3 gap-3">
-        <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Material Rates</h4>
-        <div class="flex items-center gap-1.5 flex-shrink-0">
-          <button type="button" id="adminChecklistView" class="btn rounded-full px-2.5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-[#c9a558] uppercase tracking-[0.1em]">View</button>
-          <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
+        <!-- Job Defaults -->
+        <div class="set-panel" data-panel="defaults">
+          <div class="set-h">Job Defaults</div>
+          <div class="set-sub mb-5">Your typical setup. Clicking <span class="text-slate-300 font-semibold">New Job</span> returns to these values.</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Manufacturer</label>
+              <select id="defaultMfg" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Application</label>
+              <select id="defaultApp" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">House Type</label>
+              <select id="defaultHouse" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Construction</label>
+              <select id="defaultConstruction" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Glass Type</label>
+              <select id="defaultImpact" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Stories</label>
+              <select id="defaultStories" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+            </div>
+          </div>
         </div>
+
+        <!-- Manufacturers -->
+        <div class="set-panel" data-panel="manufacturers">
+          <div class="set-h">Window Manufacturers</div>
+          <div class="set-sub mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</div>
+          <p class="text-[11px] text-amber-400/80 mb-4">Through-frame values are placeholder estimates — verify per brand.</p>
+          <div id="mfrEditorBody"></div>
+          <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
+        </div>
+
+        <!-- Rates & Pricing -->
+        <div class="set-panel" data-panel="rates">
+          <div class="set-h">Rates &amp; Pricing</div>
+          <div class="set-sub mb-5">Margins, taxes, and what every material costs.</div>
+          <div class="mb-7 flex flex-wrap gap-4">
+            <div class="flex items-center gap-3">
+              <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Margin %</label>
+              <input id="adminMargin" type="number" step="0.1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+            </div>
+            <div class="flex items-center gap-3">
+              <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Materials Tax %</label>
+              <input id="adminTax" type="number" step="0.1" min="0" max="100" placeholder="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+            </div>
+            <div class="flex items-center gap-3">
+              <label class="text-xs uppercase tracking-[0.14em] text-slate-500" title="Labor multiplier applied to impact-glass jobs">Impact Labor ×</label>
+              <input id="adminImpactLabor" type="number" step="0.05" min="1" placeholder="1.15" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between mb-3 gap-3">
+            <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Material Rates</h4>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <button type="button" id="adminChecklistView" class="btn rounded-full px-2.5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-[#c9a558] uppercase tracking-[0.1em]">View</button>
+              <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
+            </div>
+          </div>
+          <div id="adminRatesBody" class="space-y-6"></div>
+        </div>
+
+        <!-- Account -->
+        <div class="set-panel" data-panel="account">
+          <div class="set-h">Account</div>
+          <div class="set-sub mb-5">Your sign-in and workspace tools.</div>
+          <div class="card rounded-xl p-4 max-w-md">
+            <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Signed in as</div>
+            <div id="acctEmailSettings" class="text-sm text-slate-200 font-semibold break-all">—</div>
+            <button id="settingsSignOut" type="button" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-rose-500/50 hover:text-rose-300">Sign Out</button>
+          </div>
+          <div class="mt-7 pt-5 border-t border-slate-800 max-w-md">
+            <div class="text-[11px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-1">Testing tools</div>
+            <p class="text-[11px] text-slate-600 mb-3">Re-run the profile + setup wizard. Brand info, rates, and saved jobs are kept.</p>
+            <button id="adminResetSetup" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2" title="Re-run the profile + setup wizard (testing)">↻ Reset Setup</button>
+          </div>
+        </div>
+
+        <!-- Admin (owner only) -->
+        <div class="set-panel" data-panel="admin">
+          <div class="set-h">Admin</div>
+          <div class="set-sub mb-5">Owner-only — usage analytics and the missing-FL# queue.</div>
+          <div id="adminPanelBody"></div>
+        </div>
+
       </div>
-      <div id="adminRatesBody" class="space-y-6"></div>
     </div>
-    <div class="px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-2">
-      <button id="adminResetSetup" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2" title="Re-run the profile + setup wizard (testing)">↻ Reset Setup (Testing)</button>
-      <div class="flex items-center gap-2">
-        <button id="adminReset" class="btn text-sm text-slate-400 hover:text-rose-300 px-3 py-2">Restore Defaults</button>
-        <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
-      </div>
+
+    <!-- Footer -->
+    <div id="settingsFooter" class="px-5 sm:px-8 py-4 border-t border-slate-800 flex items-center justify-end gap-2 flex-shrink-0">
+      <button id="adminReset" class="btn text-sm text-slate-400 hover:text-rose-300 px-3 py-2">Restore Defaults</button>
+      <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
     </div>
   </div>
 </div>
@@ -3312,10 +3377,32 @@ function exportMaterialsPDF(mode) {
 const adminModal = document.getElementById("adminModal");
 function openAdmin() {
   buildAdminUI();
+  const acct = document.getElementById("acctEmailSettings");
+  if (acct) acct.textContent = (currentUser && currentUser.email) || "Offline mode";
+  document.getElementById("adminTabBtn").classList.toggle("hidden", !isAdmin());
+  showSettingsTab("brand");
   adminModal.classList.remove("hidden");
-  adminModal.classList.add("flex");
 }
-function closeAdmin() { adminModal.classList.add("hidden"); adminModal.classList.remove("flex"); }
+function closeAdmin() { adminModal.classList.add("hidden"); }
+
+// Switch the active Settings tab + panel; the Save/Restore footer only
+// shows on the editable data tabs.
+function showSettingsTab(name) {
+  document.querySelectorAll("#adminModal .set-tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll("#adminModal .set-panel").forEach(p =>
+    p.classList.toggle("active", p.dataset.panel === name));
+  const dataTab = ["brand", "defaults", "manufacturers", "rates"].includes(name);
+  document.getElementById("settingsFooter").style.display = dataTab ? "" : "none";
+  if (name === "admin") renderAdminPanel();
+}
+
+/* ---- Admin gate (Stage B wires the dashboard + FL queue) ---- */
+// The owner's Supabase auth UUID. The real access boundary is the RLS
+// policies in Supabase keyed to this same id — client-side hiding is cosmetic.
+const ADMIN_UID = "";
+function isAdmin() { return !!ADMIN_UID && !!currentUser && currentUser.id === ADMIN_UID; }
+function renderAdminPanel() { /* Stage B */ }
 
 /* ============================================================
    FL PRODUCT APPROVAL LOOKUP
@@ -5059,6 +5146,9 @@ function init() {
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
   document.getElementById("adminReset").addEventListener("click", restoreDefaults);
   document.getElementById("adminResetSetup").addEventListener("click", resetSetup);
+  document.getElementById("settingsSignOut").addEventListener("click", handleSignOut);
+  document.querySelectorAll("#adminModal .set-tab").forEach(t =>
+    t.addEventListener("click", () => showSettingsTab(t.dataset.tab)));
 
   // FL product-approval lookup
   document.getElementById("openFL").addEventListener("click", openFL);
