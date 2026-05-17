@@ -470,6 +470,10 @@
   @media (prefers-reduced-motion: reduce) {
     .lp-reveal { opacity: 1; transform: none; transition: none; }
   }
+  /* Landing viewed while signed in — swap auth CTAs for "Open App" */
+  #lpOpenApp { display: none; }
+  .lp-authed #lpLogin, .lp-authed #lpSignup { display: none; }
+  .lp-authed #lpOpenApp { display: inline-block; }
 
   /* ------- Full-page tabbed Settings ------- */
   .set-tab {
@@ -536,6 +540,7 @@
         <button class="lp-scroll btn text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpFL">FL Lookup</button>
         <button id="lpLogin" class="btn text-sm font-semibold text-slate-300 hover:text-[#c9a558] px-3 py-2">Log In</button>
         <button id="lpSignup" class="lp-btn-gold btn rounded-full text-sm font-bold px-4 py-2 ml-1">Get Started</button>
+        <button id="lpOpenApp" class="lp-btn-gold btn rounded-full text-sm font-bold px-4 py-2 ml-1">Open App →</button>
       </div>
     </div>
   </nav>
@@ -1036,6 +1041,10 @@
           <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Signed in as</div>
           <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
         </div>
+        <button id="pfpHome" type="button" class="pfp-item">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 10 3l7 6.5"/><path d="M5 8.5V17h10V8.5"/></svg>
+          Home
+        </button>
         <button id="openFL" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
           FL Lookup
@@ -5449,9 +5458,21 @@ function closeAuth() {
 
 function showLanding() {
   document.getElementById("bootSplash").classList.add("hidden");
-  document.getElementById("landingScreen").classList.remove("hidden");
+  const ls = document.getElementById("landingScreen");
+  ls.classList.toggle("lp-authed", !!currentUser);   // signed in → "Open App" CTAs
+  ls.classList.remove("hidden");
+  ls.scrollTop = 0;
   if (!landingWired) { wireLanding(); landingWired = true; }
   renderPublicFL("");
+}
+// Leave the landing and return to the app (signed-in users only)
+function closeLanding() {
+  document.getElementById("landingScreen").classList.add("hidden");
+}
+// PFP menu → Home: show the landing page while signed in
+function goHome() {
+  closePfpMenu();
+  showLanding();
 }
 
 function wireLanding() {
@@ -5463,10 +5484,13 @@ function wireLanding() {
       if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
-  // Auth CTAs
-  document.getElementById("lpLogin").addEventListener("click", () => openAuth("login"));
+  // Auth CTAs — when already signed in, every CTA just opens the app
+  document.getElementById("lpLogin").addEventListener("click", () =>
+    currentUser ? closeLanding() : openAuth("login"));
   ["lpSignup", "lpHeroSignup", "lpCtaSignup"].forEach(id =>
-    document.getElementById(id).addEventListener("click", () => openAuth("signup")));
+    document.getElementById(id).addEventListener("click", () =>
+      currentUser ? closeLanding() : openAuth("signup")));
+  document.getElementById("lpOpenApp").addEventListener("click", closeLanding);
   // Public FL search
   document.getElementById("flPublicSearch").addEventListener("input", e => {
     renderPublicFL(e.target.value);
@@ -5948,6 +5972,7 @@ function init() {
   });
 
   // FL product-approval lookup
+  document.getElementById("pfpHome").addEventListener("click", goHome);
   document.getElementById("openFL").addEventListener("click", openFL);
   document.getElementById("flAddBtn").addEventListener("click", toggleFLAddForm);
   document.getElementById("flfCancel").addEventListener("click", hideFLAddForm);
