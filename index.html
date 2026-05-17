@@ -995,11 +995,16 @@
     </div>
     <div class="card rounded-3xl p-6">
       <form id="authForm" class="space-y-3">
-        <div id="authTitle" class="text-base font-bold text-slate-100 mb-1">Log In</div>
+        <div class="mb-1">
+          <div id="authTitle" class="text-base font-bold text-slate-100">Log In</div>
+          <div id="authSubtitle" class="text-xs text-slate-500 mt-0.5">Welcome back — sign in to your workspace.</div>
+        </div>
         <input id="authEmail" type="email" autocomplete="email" placeholder="Email"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
         <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <input id="authConfirm" type="password" autocomplete="new-password" placeholder="Confirm password"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600 hidden" />
         <button id="authSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Log In</button>
         <div id="authMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
@@ -5083,12 +5088,21 @@ function setAuthMsg(text, kind) {
 
 function setAuthMode(mode) {
   authMode = mode;
-  document.getElementById("authTitle").textContent = mode === "signup" ? "Create Account" : "Log In";
-  document.getElementById("authSubmit").textContent = mode === "signup" ? "Sign Up" : "Log In";
-  document.getElementById("authToggle").textContent = mode === "signup"
+  const signup = mode === "signup";
+  document.getElementById("authTitle").textContent = signup ? "Create Account" : "Log In";
+  document.getElementById("authSubtitle").textContent = signup
+    ? "Create your account — free, takes a minute."
+    : "Welcome back — sign in to your workspace.";
+  document.getElementById("authSubmit").textContent = signup ? "Sign Up" : "Log In";
+  document.getElementById("authToggle").textContent = signup
     ? "Have an account? Log in" : "Need an account? Sign up";
   document.getElementById("authPassword").setAttribute("autocomplete",
-    mode === "signup" ? "new-password" : "current-password");
+    signup ? "new-password" : "current-password");
+  document.getElementById("authPassword").setAttribute("placeholder",
+    signup ? "Create a password" : "Password");
+  const confirm = document.getElementById("authConfirm");
+  confirm.classList.toggle("hidden", !signup);
+  confirm.value = "";
   setAuthMsg("");
 }
 
@@ -5098,6 +5112,12 @@ async function handleAuthSubmit(e) {
   const password = document.getElementById("authPassword").value;
   const submitBtn = document.getElementById("authSubmit");
   if (!email || !password) { setAuthMsg("Enter your email and password.", "error"); return; }
+  if (authMode === "signup") {
+    if (password.length < 6) { setAuthMsg("Password must be at least 6 characters.", "error"); return; }
+    if (password !== document.getElementById("authConfirm").value) {
+      setAuthMsg("Passwords don't match.", "error"); return;
+    }
+  }
   submitBtn.disabled = true;
   submitBtn.textContent = "Please wait…";
   try {
