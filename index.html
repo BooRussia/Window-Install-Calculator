@@ -875,6 +875,11 @@
         </div>
       </div>
       <div>
+        <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">County <span class="text-slate-600 normal-case tracking-normal">· sets your sales-tax rate</span></label>
+        <select id="obCounty" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100"></select>
+        <p id="obCountyTax" class="hidden text-[11px] text-[#c9a558] mt-1 font-semibold"></p>
+      </div>
+      <div>
         <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Phone <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
         <input id="obPhone" type="tel" autocomplete="tel" placeholder="(555) 123-4567" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
@@ -1595,6 +1600,10 @@
               <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">State</label>
               <input id="brandState" type="text" autocomplete="address-level1" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
             </div>
+            <div class="sm:col-span-2">
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">County <span class="text-slate-600 normal-case tracking-normal">· sets the Materials Tax rate</span></label>
+              <select id="brandCounty" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+            </div>
             <div>
               <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Phone <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
               <input id="brandPhone" type="tel" autocomplete="tel" placeholder="(555) 123-4567" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
@@ -1992,6 +2001,36 @@ const DEFAULT_DATA = {
 // Cost items that are brand-variant materials (vs. labor / job fees)
 const MATERIAL_IDS = ["caulking", "shims", "backer_rod", "flashing_tape",
   "wood_bucking", "block_sealer", "screws", "concrete_anchors"];
+
+// Florida discretionary sales surtax by county (% added to the 6% state rate).
+// Seeded as of 2025 — surtax changes by county referendum, so treat as a
+// starting estimate; the Materials Tax field stays editable.
+const FL_STATE_TAX = 6;
+const FL_COUNTY_SURTAX = {
+  "Alachua": 1.5, "Baker": 1, "Bay": 1, "Bradford": 1, "Brevard": 1,
+  "Broward": 1, "Calhoun": 1.5, "Charlotte": 1, "Citrus": 0, "Clay": 1.5,
+  "Collier": 1, "Columbia": 1.5, "DeSoto": 1.5, "Dixie": 1, "Duval": 1.5,
+  "Escambia": 1.5, "Flagler": 1, "Franklin": 1, "Gadsden": 1.5, "Gilchrist": 1,
+  "Glades": 1, "Gulf": 1, "Hamilton": 1.5, "Hardee": 1, "Hendry": 1.5,
+  "Hernando": 0.5, "Highlands": 1.5, "Hillsborough": 1.5, "Holmes": 1.5,
+  "Indian River": 1, "Jackson": 1.5, "Jefferson": 1, "Lafayette": 1, "Lake": 1,
+  "Lee": 0.5, "Leon": 1.5, "Levy": 1, "Liberty": 1.5, "Madison": 1.5,
+  "Manatee": 1, "Marion": 1, "Martin": 0.5, "Miami-Dade": 1, "Monroe": 1.5,
+  "Nassau": 1, "Okaloosa": 1, "Okeechobee": 1, "Orange": 0.5, "Osceola": 1.5,
+  "Palm Beach": 1, "Pasco": 1, "Pinellas": 1, "Polk": 1, "Putnam": 1,
+  "St. Johns": 0.5, "St. Lucie": 1, "Santa Rosa": 1, "Sarasota": 1,
+  "Seminole": 1, "Sumter": 1, "Suwannee": 1, "Taylor": 1, "Union": 1,
+  "Volusia": 0.5, "Wakulla": 1.5, "Walton": 1, "Washington": 1.5
+};
+function materialsTaxForCounty(county) {
+  const s = FL_COUNTY_SURTAX[county];
+  return s == null ? null : FL_STATE_TAX + s;
+}
+function countyOptionsHTML(selected) {
+  return `<option value="">Select county…</option>` +
+    Object.keys(FL_COUNTY_SURTAX).map(c =>
+      `<option value="${c}"${c === selected ? " selected" : ""}>${c}</option>`).join("");
+}
 
 /* ============================================================
    STATE + STORAGE
@@ -4290,6 +4329,7 @@ function buildAdminUI() {
   document.getElementById("brandTagline").value = b.tagline || "";
   document.getElementById("brandCity").value = b.city || "";
   document.getElementById("brandState").value = b.state || "";
+  document.getElementById("brandCounty").innerHTML = countyOptionsHTML(b.county || "");
   document.getElementById("brandPhone").value = b.phone || "";
   document.getElementById("brandEmail").value = b.email || "";
   document.getElementById("brandWebsite").value = b.website || "";
@@ -4390,6 +4430,7 @@ function saveAdmin() {
   DATA.config.brand.tagline = document.getElementById("brandTagline").value.trim();
   DATA.config.brand.city = document.getElementById("brandCity").value.trim();
   DATA.config.brand.state = document.getElementById("brandState").value.trim();
+  DATA.config.brand.county = document.getElementById("brandCounty").value;
   DATA.config.brand.phone = document.getElementById("brandPhone").value.trim();
   DATA.config.brand.email = document.getElementById("brandEmail").value.trim();
   DATA.config.brand.website = document.getElementById("brandWebsite").value.trim();
@@ -5609,6 +5650,8 @@ function showOnboarding() {
   document.getElementById("obTagline").value = b.tagline || "";
   document.getElementById("obCity").value = b.city || "";
   document.getElementById("obState").value = b.state || "";
+  document.getElementById("obCounty").innerHTML = countyOptionsHTML(b.county || "");
+  updateObCountyTax();
   document.getElementById("obPhone").value = b.phone || "";
   document.getElementById("obEmail").value = b.email || "";
   document.getElementById("obWebsite").value = b.website || "";
@@ -5633,6 +5676,10 @@ function submitOnboarding() {
   b.tagline = document.getElementById("obTagline").value.trim();
   b.city = document.getElementById("obCity").value.trim();
   b.state = document.getElementById("obState").value.trim();
+  b.county = document.getElementById("obCounty").value;
+  // County drives the sales-tax estimate (editable later in Settings)
+  const obTax = materialsTaxForCounty(b.county);
+  if (obTax != null) DATA.config.materialsTaxRate = obTax;
   b.phone = document.getElementById("obPhone").value.trim();
   b.email = document.getElementById("obEmail").value.trim();
   b.website = document.getElementById("obWebsite").value.trim();
@@ -5646,6 +5693,20 @@ function submitOnboarding() {
   toast("Profile saved");
   // First run continues into the multi-step setup wizard
   if (!DATA.config.setupComplete) showSetupWizard();
+}
+
+// Onboarding — show the tax rate the chosen county implies
+function updateObCountyTax() {
+  const sel = document.getElementById("obCounty");
+  const hint = document.getElementById("obCountyTax");
+  if (!sel || !hint) return;
+  const tax = materialsTaxForCounty(sel.value);
+  if (tax != null) {
+    hint.textContent = `${sel.value} County → ${tax.toFixed(1)}% sales tax (${FL_STATE_TAX}% state + ${FL_COUNTY_SURTAX[sel.value]}% county surtax)`;
+    hint.classList.remove("hidden");
+  } else {
+    hint.classList.add("hidden");
+  }
 }
 
 /* ============================================================
@@ -5974,6 +6035,12 @@ function init() {
   // FL product-approval lookup
   document.getElementById("pfpHome").addEventListener("click", goHome);
   document.getElementById("openFL").addEventListener("click", openFL);
+  // County → sales-tax estimate
+  document.getElementById("obCounty").addEventListener("change", updateObCountyTax);
+  document.getElementById("brandCounty").addEventListener("change", e => {
+    const tax = materialsTaxForCounty(e.target.value);
+    if (tax != null) document.getElementById("adminTax").value = tax;
+  });
   document.getElementById("flAddBtn").addEventListener("click", toggleFLAddForm);
   document.getElementById("flfCancel").addEventListener("click", hideFLAddForm);
   document.getElementById("flfSave").addEventListener("click", saveFLEntry);
