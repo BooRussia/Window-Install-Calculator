@@ -425,9 +425,11 @@
   }
   /* FL Lookup accordion — hide the native disclosure triangle */
   #flList details > summary,
-  #flPublicList details > summary { list-style: none; }
+  #flPublicList details > summary,
+  #adminViewBody details > summary { list-style: none; }
   #flList details > summary::-webkit-details-marker,
-  #flPublicList details > summary::-webkit-details-marker { display: none; }
+  #flPublicList details > summary::-webkit-details-marker,
+  #adminViewBody details > summary::-webkit-details-marker { display: none; }
 
   /* ------- Landing page ------- */
   #landingScreen {
@@ -3501,6 +3503,23 @@ function quoteSnapshot() {
   };
 }
 
+// A quote's identity = its job-spec variables. Two actions on the same
+// configuration share an ID; changing any variable starts a new quote.
+function jobFingerprint() {
+  const s = STATE || {};
+  return [s.manufacturer, s.application, s.houseType, s.constructionType,
+    s.impact, s.stories, s.totalLF, s.windowCount,
+    s.liftEnabled, s.liftDays, s.permitEnabled].join("|");
+}
+function currentQuoteId() {
+  const fp = jobFingerprint();
+  if (!STATE._quoteId || STATE._quoteFp !== fp) {
+    STATE._quoteFp = fp;
+    STATE._quoteId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  }
+  return STATE._quoteId;
+}
+
 // Log a quote action (PDF export or saved job). Best-effort, never blocks.
 async function logQuoteEvent(kind) {
   if (!sb || !currentUser) return;
@@ -3508,7 +3527,7 @@ async function logQuoteEvent(kind) {
     const snap = quoteSnapshot();
     await sb.from("quote_events").insert({
       user_id: currentUser.id, user_email: currentUser.email,
-      kind, total: snap.total, snapshot: snap
+      kind, total: snap.total, snapshot: snap, quote_id: currentQuoteId()
     });
   } catch (e) { console.warn("quote event log failed", e); }
 }
@@ -3589,64 +3608,78 @@ async function renderAdminDashboard() {
       <div class="text-2xl font-black tracking-tight text-slate-100 mt-1">${value}</div>
       ${sub ? `<div class="text-[11px] text-slate-500 mt-0.5">${sub}</div>` : ""}</div>`;
 
-  const total = events.length;
-  const people = new Set(events.map(e => e.user_email || e.user_id)).size;
-  const vals = events.filter(e => e.kind !== "materials_list")
-    .map(e => Number(e.total) || 0).filter(v => v > 0);
-  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-  const weekAgo = Date.now() - 7 * 864e5;
-  const thisWeek = events.filter(e => new Date(e.created_at).getTime() >= weekAgo).length;
+  const kindLabel = { customer_quote: "Customer quote", cost_basis: "Cost basis", materials_list: "Materials list", saved_job: "Saved job" };
 
-  // 14-day activity bar chart
+  // Group actions into quotes by quote_id. Events arrive newest-first, so the
+  // first event seen for a group is its most recent action.
+  const groups = {};
+  events.forEach(e => {
+    const k = e.quote_id || ("_legacy_" + e.id);
+    if (!groups[k]) groups[k] = { id: k, actions: [], snapshot: e.snapshot || {}, total: e.total, user: e.user_email || e.user_id, last: e.created_at };
+    groups[k].actions.push(e);
+  });
+  const quotes = Object.values(groups);
+
+  const people = new Set(events.map(e => e.user_email || e.user_id)).size;
+  const vals = quotes.map(g => Number(g.total) || 0).filter(v => v > 0);
+  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+
+  // 14-day activity bar chart — distinct quotes touched per day
   const days = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
-    days.push({ d, n: 0 });
+    days.push({ d, set: new Set() });
   }
   events.forEach(e => {
     const t = new Date(e.created_at); t.setHours(0, 0, 0, 0);
     const slot = days.find(x => x.d.getTime() === t.getTime());
-    if (slot) slot.n++;
+    if (slot) slot.set.add(e.quote_id || e.id);
   });
-  const maxN = Math.max(1, ...days.map(x => x.n));
+  const maxN = Math.max(1, ...days.map(x => x.set.size));
   const bars = days.map(x => `
-    <div class="flex-1 flex flex-col items-center" title="${x.d.toLocaleDateString()}: ${x.n}">
-      <div class="w-full rounded-t" style="height:${6 + (x.n / maxN) * 90}px;background:${x.n ? "linear-gradient(180deg,#c9a558,#8a6a2e)" : "rgba(51,65,85,0.5)"}"></div>
+    <div class="flex-1 flex flex-col items-center" title="${x.d.toLocaleDateString()}: ${x.set.size} quote(s)">
+      <div class="w-full rounded-t" style="height:${6 + (x.set.size / maxN) * 90}px;background:${x.set.size ? "linear-gradient(180deg,#c9a558,#8a6a2e)" : "rgba(51,65,85,0.5)"}"></div>
     </div>`).join("");
 
-  const kindLabel = { customer_quote: "Customer quote", cost_basis: "Cost basis", materials_list: "Materials list", saved_job: "Saved job" };
-  const recent = events.slice(0, 25).map(e => {
-    const s = e.snapshot || {};
-    return `<tr class="row-alt border-t border-slate-800/70">
-      <td class="py-2 px-2 text-slate-400 whitespace-nowrap">${new Date(e.created_at).toLocaleDateString()}</td>
-      <td class="py-2 px-2 text-slate-300">${escHtml(e.user_email || "—")}</td>
-      <td class="py-2 px-2 text-slate-400">${kindLabel[e.kind] || escHtml(e.kind)}</td>
-      <td class="py-2 px-2 text-slate-400">${escHtml(s.manufacturer || "—")}</td>
-      <td class="py-2 px-2 text-slate-400 text-right">${s.lf != null ? s.lf : "—"}</td>
-      <td class="py-2 px-2 text-[#c9a558] font-semibold text-right">${e.total != null ? formatMoney(Number(e.total)) : "—"}</td>
-    </tr>`;
+  // Recent quotes — one expandable row per quote, its actions in the dropdown
+  const recent = quotes.slice(0, 40).map(g => {
+    const s = g.snapshot || {};
+    const acts = g.actions.slice()
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .map(a => `<div class="flex items-center justify-between text-[11px] py-1 px-2">
+        <span class="text-slate-400">${kindLabel[a.kind] || escHtml(a.kind)}</span>
+        <span class="text-slate-600">${new Date(a.created_at).toLocaleString()}</span></div>`).join("");
+    const title = [s.manufacturer, s.lf != null ? s.lf + " LF" : null, s.customer]
+      .filter(Boolean).map(escHtml).join(" · ") || "Quote";
+    return `<details class="group border-t border-slate-800/70">
+      <summary class="flex items-center gap-2.5 py-2.5 px-2 cursor-pointer select-none">
+        <svg class="text-slate-600 group-open:rotate-180 transition-transform flex-shrink-0" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs font-semibold text-slate-200 truncate">${title}</div>
+          <div class="text-[10px] text-slate-500">${new Date(g.last).toLocaleDateString()} · ${escHtml(g.user || "—")}</div>
+        </div>
+        <div class="text-xs text-[#c9a558] font-bold flex-shrink-0">${g.total != null ? formatMoney(Number(g.total)) : "—"}</div>
+        <div class="text-[10px] font-bold text-slate-500 bg-slate-800 rounded-full px-2 py-0.5 flex-shrink-0">${g.actions.length} action${g.actions.length === 1 ? "" : "s"}</div>
+      </summary>
+      <div class="bg-slate-950/50 pb-1.5 pl-7">${acts}</div>
+    </details>`;
   }).join("");
 
   el.innerHTML = `
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      ${kpiCard("Quote actions", total, "all-time")}
+      ${kpiCard("Quotes generated", quotes.length, "distinct quotes")}
+      ${kpiCard("Actions completed", events.length, "saves + PDF exports")}
       ${kpiCard("People quoting", people, "distinct users")}
-      ${kpiCard("Avg quote", avg ? formatMoney(avg) : "—", "priced quotes")}
-      ${kpiCard("Last 7 days", thisWeek, "quote actions")}
+      ${kpiCard("Avg quote", avg ? formatMoney(avg) : "—", "per quote")}
     </div>
     <div class="card rounded-xl p-4 mt-4">
-      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-3">Activity — last 14 days</div>
+      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-3">Quotes — last 14 days</div>
       <div class="flex items-end gap-1.5" style="height:100px">${bars}</div>
     </div>
     <div class="card rounded-xl p-4 mt-4">
-      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-2">Recent quotes</div>
-      ${recent ? `<div class="overflow-x-auto"><table class="w-full text-xs">
-        <thead><tr class="text-[10px] uppercase tracking-wide text-slate-600">
-          <th class="text-left py-1 px-2 font-bold">Date</th><th class="text-left py-1 px-2 font-bold">User</th>
-          <th class="text-left py-1 px-2 font-bold">Type</th><th class="text-left py-1 px-2 font-bold">Mfr</th>
-          <th class="text-right py-1 px-2 font-bold">LF</th><th class="text-right py-1 px-2 font-bold">Total</th>
-        </tr></thead><tbody>${recent}</tbody></table></div>`
-      : `<div class="text-slate-600 text-sm py-6 text-center">No quotes logged yet.</div>`}
+      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-1">Recent quotes</div>
+      <div class="text-[11px] text-slate-600 mb-2">Each quote groups every action taken on the same job configuration.</div>
+      ${recent || `<div class="text-slate-600 text-sm py-6 text-center">No quotes logged yet.</div>`}
     </div>`;
 }
 
