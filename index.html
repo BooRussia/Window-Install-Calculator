@@ -2830,6 +2830,7 @@ function confirmSaveJob() {
   jobs.push(job);
   saveJobs(jobs);
   pushJobToCloud(job);   // best-effort cloud sync
+  logQuoteEvent("saved_job");
   closeSaveJobModal();
   renderSavedJobs();
   toast("Job saved");
@@ -2886,6 +2887,7 @@ function outputPDF(doc, filename, mode) {
 function exportCustomerPDF(mode) {
   const r = calculate();
   if (r.lf <= 0) { toast("Enter footage first"); return; }
+  logQuoteEvent("customer_quote");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -3067,6 +3069,7 @@ function exportCustomerPDF(mode) {
 function exportPDF(mode) {
   const r = calculate();
   if (r.lf <= 0) { toast("Enter footage first"); return; }
+  logQuoteEvent("cost_basis");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -3256,6 +3259,7 @@ function hasEstimatedBucking(rows) {
 function exportMaterialsPDF(mode) {
   const r = calculate();
   if (r.lf <= 0) { toast("Enter footage first"); return; }
+  logQuoteEvent("materials_list");
 
   // Warn if wood bucking is only a rough estimate (no Buck Cut List yet)
   const estimatedBucking = hasEstimatedBucking(r.rows);
@@ -3402,7 +3406,233 @@ function showSettingsTab(name) {
 // policies in Supabase keyed to this same id — client-side hiding is cosmetic.
 const ADMIN_UID = "";
 function isAdmin() { return !!ADMIN_UID && !!currentUser && currentUser.id === ADMIN_UID; }
-function renderAdminPanel() { /* Stage B */ }
+
+/* ============================================================
+   ADMIN ANALYTICS — quote-event logging + missing-FL# capture
+   ============================================================ */
+
+// Compact snapshot of the current job for the analytics log
+function quoteSnapshot() {
+  const r = calculate();
+  return {
+    total: r.sellingPrice, cost: r.totalCost, profit: r.profit, margin: r.margin,
+    lf: r.lf, windows: r.wc,
+    manufacturer: STATE.manufacturer, application: STATE.application,
+    houseType: STATE.houseType, constructionType: STATE.constructionType,
+    impact: STATE.impact, stories: STATE.stories,
+    customer: STATE.customerName || ""
+  };
+}
+
+// Log a quote action (PDF export or saved job). Best-effort, never blocks.
+async function logQuoteEvent(kind) {
+  if (!sb || !currentUser) return;
+  try {
+    const snap = quoteSnapshot();
+    await sb.from("quote_events").insert({
+      user_id: currentUser.id, user_email: currentUser.email,
+      kind, total: snap.total, snapshot: snap
+    });
+  } catch (e) { console.warn("quote event log failed", e); }
+}
+
+// Report an FL# that was searched but not found — session-deduped.
+const _flReported = new Set();
+async function reportMissingFL(query, source) {
+  const q = (query || "").trim();
+  if (!/^fl\s?\d{4,}/i.test(q)) return;
+  const key = q.toLowerCase().replace(/\s+/g, "");
+  if (_flReported.has(key)) return;
+  _flReported.add(key);
+  if (!sb) return;
+  try {
+    await sb.from("fl_missing").insert({
+      fl: q, source: source || "app",
+      user_email: (currentUser && currentUser.email) || null
+    });
+  } catch (e) { console.warn("fl_missing report failed", e); }
+}
+
+// Debounced — after typing stops, if an FL-looking query still has zero
+// matches, push it to the missing-FL# queue.
+let _flMissTimer = null;
+function scheduleFLMissingCheck(query, source) {
+  clearTimeout(_flMissTimer);
+  const q = (query || "").trim();
+  if (!/^fl\s?\d{4,}/i.test(q)) return;
+  _flMissTimer = setTimeout(() => {
+    const src = (source === "landing" ? DEFAULT_DATA.flApprovals : DATA.flApprovals) || {};
+    const lc = q.toLowerCase();
+    let found = false;
+    Object.keys(src).forEach(mfr =>
+      (src[mfr] || []).forEach(e => { if (flEntryMatches(mfr, e, lc)) found = true; }));
+    if (!found) reportMissingFL(q, source);
+  }, 1200);
+}
+
+/* ---- Admin panel UI ---- */
+let adminView = "dashboard";
+
+function renderAdminPanel() {
+  const body = document.getElementById("adminPanelBody");
+  if (!body) return;
+  if (!isAdmin()) {
+    body.innerHTML = `<div class="text-slate-600 text-sm py-8">Admin access isn't configured for this account.</div>`;
+    return;
+  }
+  const tab = v => `<button type="button" data-adminview="${v}" class="set-tab ${adminView === v ? "active" : ""}" style="width:auto;display:inline-block">${v === "dashboard" ? "Dashboard" : "FL# Queue"}</button>`;
+  body.innerHTML = `
+    <div class="flex gap-1.5 mb-5">${tab("dashboard")}${tab("queue")}</div>
+    <div id="adminViewBody"><div class="text-slate-600 text-sm py-10 text-center">Loading…</div></div>`;
+  body.querySelectorAll("[data-adminview]").forEach(b =>
+    b.addEventListener("click", () => { adminView = b.dataset.adminview; renderAdminPanel(); }));
+  if (adminView === "dashboard") renderAdminDashboard();
+  else renderAdminQueue();
+}
+
+function adminErr(el, msg) {
+  el.innerHTML = `<div class="card rounded-xl p-5 text-sm text-amber-300/90">
+    Couldn't load this data — make sure the Supabase admin tables have been set up.
+    <div class="text-[11px] text-slate-500 mt-2 font-mono break-all">${escHtml(msg)}</div></div>`;
+}
+
+async function renderAdminDashboard() {
+  const el = document.getElementById("adminViewBody");
+  let events;
+  try {
+    const { data, error } = await sb.from("quote_events")
+      .select("*").order("created_at", { ascending: false }).limit(1000);
+    if (error) throw error;
+    events = data || [];
+  } catch (e) { adminErr(el, e.message || String(e)); return; }
+
+  const kpiCard = (label, value, sub) => `
+    <div class="card rounded-xl px-4 py-3.5">
+      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">${label}</div>
+      <div class="text-2xl font-black tracking-tight text-slate-100 mt-1">${value}</div>
+      ${sub ? `<div class="text-[11px] text-slate-500 mt-0.5">${sub}</div>` : ""}</div>`;
+
+  const total = events.length;
+  const people = new Set(events.map(e => e.user_email || e.user_id)).size;
+  const vals = events.filter(e => e.kind !== "materials_list")
+    .map(e => Number(e.total) || 0).filter(v => v > 0);
+  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  const weekAgo = Date.now() - 7 * 864e5;
+  const thisWeek = events.filter(e => new Date(e.created_at).getTime() >= weekAgo).length;
+
+  // 14-day activity bar chart
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
+    days.push({ d, n: 0 });
+  }
+  events.forEach(e => {
+    const t = new Date(e.created_at); t.setHours(0, 0, 0, 0);
+    const slot = days.find(x => x.d.getTime() === t.getTime());
+    if (slot) slot.n++;
+  });
+  const maxN = Math.max(1, ...days.map(x => x.n));
+  const bars = days.map(x => `
+    <div class="flex-1 flex flex-col items-center" title="${x.d.toLocaleDateString()}: ${x.n}">
+      <div class="w-full rounded-t" style="height:${6 + (x.n / maxN) * 90}px;background:${x.n ? "linear-gradient(180deg,#c9a558,#8a6a2e)" : "rgba(51,65,85,0.5)"}"></div>
+    </div>`).join("");
+
+  const kindLabel = { customer_quote: "Customer quote", cost_basis: "Cost basis", materials_list: "Materials list", saved_job: "Saved job" };
+  const recent = events.slice(0, 25).map(e => {
+    const s = e.snapshot || {};
+    return `<tr class="row-alt border-t border-slate-800/70">
+      <td class="py-2 px-2 text-slate-400 whitespace-nowrap">${new Date(e.created_at).toLocaleDateString()}</td>
+      <td class="py-2 px-2 text-slate-300">${escHtml(e.user_email || "—")}</td>
+      <td class="py-2 px-2 text-slate-400">${kindLabel[e.kind] || escHtml(e.kind)}</td>
+      <td class="py-2 px-2 text-slate-400">${escHtml(s.manufacturer || "—")}</td>
+      <td class="py-2 px-2 text-slate-400 text-right">${s.lf != null ? s.lf : "—"}</td>
+      <td class="py-2 px-2 text-[#c9a558] font-semibold text-right">${e.total != null ? formatMoney(Number(e.total)) : "—"}</td>
+    </tr>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      ${kpiCard("Quote actions", total, "all-time")}
+      ${kpiCard("People quoting", people, "distinct users")}
+      ${kpiCard("Avg quote", avg ? formatMoney(avg) : "—", "priced quotes")}
+      ${kpiCard("Last 7 days", thisWeek, "quote actions")}
+    </div>
+    <div class="card rounded-xl p-4 mt-4">
+      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-3">Activity — last 14 days</div>
+      <div class="flex items-end gap-1.5" style="height:100px">${bars}</div>
+    </div>
+    <div class="card rounded-xl p-4 mt-4">
+      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-2">Recent quotes</div>
+      ${recent ? `<div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead><tr class="text-[10px] uppercase tracking-wide text-slate-600">
+          <th class="text-left py-1 px-2 font-bold">Date</th><th class="text-left py-1 px-2 font-bold">User</th>
+          <th class="text-left py-1 px-2 font-bold">Type</th><th class="text-left py-1 px-2 font-bold">Mfr</th>
+          <th class="text-right py-1 px-2 font-bold">LF</th><th class="text-right py-1 px-2 font-bold">Total</th>
+        </tr></thead><tbody>${recent}</tbody></table></div>`
+      : `<div class="text-slate-600 text-sm py-6 text-center">No quotes logged yet.</div>`}
+    </div>`;
+}
+
+async function renderAdminQueue() {
+  const el = document.getElementById("adminViewBody");
+  let rows;
+  try {
+    const { data, error } = await sb.from("fl_missing")
+      .select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    rows = data || [];
+  } catch (e) { adminErr(el, e.message || String(e)); return; }
+
+  // group repeated searches by normalized FL#
+  const groups = {};
+  rows.forEach(r => {
+    const k = String(r.fl).toUpperCase().replace(/\s+/g, "");
+    if (!groups[k]) groups[k] = { fl: r.fl, ids: [], count: 0, last: r.created_at, sources: new Set() };
+    const g = groups[k];
+    g.ids.push(r.id); g.count++;
+    if (r.created_at > g.last) g.last = r.created_at;
+    if (r.source) g.sources.add(r.source);
+  });
+  const list = Object.values(groups).sort((a, b) => String(b.last).localeCompare(String(a.last)));
+
+  if (!list.length) {
+    el.innerHTML = `<div class="card rounded-xl p-8 text-center text-slate-500 text-sm">
+      No missing FL#s. When someone searches an FL number that isn't in the registry, it lands here.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="space-y-2">${list.map(g => `
+    <div class="card rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="text-sm font-bold text-[#c9a558]">${escHtml(g.fl)}</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">Searched ${g.count}× · last ${new Date(g.last).toLocaleDateString()} · ${escHtml([...g.sources].join(", ") || "app")}</div>
+      </div>
+      <div class="flex items-center gap-1.5 flex-shrink-0">
+        <button type="button" class="btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10"
+          data-flq-add="${escHtml(g.fl)}" data-flq-ids="${g.ids.join(",")}">Add to registry</button>
+        <button type="button" class="btn text-slate-600 hover:text-rose-300 text-base leading-none px-1.5"
+          data-flq-dismiss="${g.ids.join(",")}" title="Dismiss">×</button>
+      </div>
+    </div>`).join("")}</div>`;
+
+  el.querySelectorAll("[data-flq-add]").forEach(b => b.addEventListener("click", async () => {
+    const fl = b.dataset.flqAdd, ids = b.dataset.flqIds.split(",").filter(Boolean);
+    await flQueueResolve(ids);
+    closeAdmin();
+    openFL(); showFLAddForm();
+    document.getElementById("flfFls").value = fl;
+    document.getElementById("flfSeries").focus();
+  }));
+  el.querySelectorAll("[data-flq-dismiss]").forEach(b => b.addEventListener("click", async () => {
+    await flQueueResolve(b.dataset.flqDismiss.split(",").filter(Boolean));
+    renderAdminQueue();
+  }));
+}
+
+async function flQueueResolve(ids) {
+  if (!sb || !ids || !ids.length) return;
+  try { await sb.from("fl_missing").delete().in("id", ids); }
+  catch (e) { console.warn("fl queue resolve failed", e); }
+}
 
 /* ============================================================
    FL PRODUCT APPROVAL LOOKUP
@@ -4714,8 +4944,10 @@ function wireLanding() {
   ["lpSignup", "lpHeroSignup", "lpCtaSignup"].forEach(id =>
     document.getElementById(id).addEventListener("click", () => openAuth("signup")));
   // Public FL search
-  document.getElementById("flPublicSearch")
-    .addEventListener("input", e => renderPublicFL(e.target.value));
+  document.getElementById("flPublicSearch").addEventListener("input", e => {
+    renderPublicFL(e.target.value);
+    scheduleFLMissingCheck(e.target.value, "landing");
+  });
   // Scroll-reveal animations
   if ("IntersectionObserver" in window) {
     const io = new IntersectionObserver(entries => {
@@ -5155,7 +5387,10 @@ function init() {
   document.getElementById("flAddBtn").addEventListener("click", toggleFLAddForm);
   document.getElementById("flfCancel").addEventListener("click", hideFLAddForm);
   document.getElementById("flfSave").addEventListener("click", saveFLEntry);
-  document.getElementById("flSearch").addEventListener("input", e => renderFLList(e.target.value));
+  document.getElementById("flSearch").addEventListener("input", e => {
+    renderFLList(e.target.value);
+    scheduleFLMissingCheck(e.target.value, "app");
+  });
   flModal.addEventListener("click", e => {
     if (e.target.dataset.close !== undefined) { closeFL(); return; }
     const del = e.target.closest("[data-fl-del]");
