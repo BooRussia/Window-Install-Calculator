@@ -234,15 +234,15 @@
     box-shadow: 0 0 0 1px rgba(181,143,74,0.35) inset;
   }
 
-  /* ------- Job Extras expander ------- */
-  /* Collapsible Job Spec summary */
-  #jobSpec.spec-collapsed #jobSpecControls { display: none; }
-  .spec-chev { transition: transform .25s cubic-bezier(0.16,1,0.3,1), color .2s ease; }
-  #jobSpec:not(.spec-collapsed) .spec-chev { transform: rotate(180deg); color: var(--gold-hi); }
-
-  #jobDetailsRow.extras-collapsed .extra-control { display: none; }
-  .extras-chev { transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1); }
-  #jobDetailsRow:not(.extras-collapsed) .extras-chev { transform: rotate(180deg); }
+  /* ------- Job Details slide-up sheet ------- */
+  #jobSheetPanel {
+    transform: translateY(100%);
+    transition: transform .32s cubic-bezier(0.16,1,0.3,1);
+  }
+  #jobSheet.show #jobSheetPanel { transform: translateY(0); }
+  #jobSheet .modal-backdrop { opacity: 0; transition: opacity .26s ease; }
+  #jobSheet.show .modal-backdrop { opacity: 1; }
+  #jobSummaryLine { -webkit-tap-highlight-color: transparent; }
 
   /* ------- AI button hover tooltip + collapse animation ------- */
   .ai-btn-wrap { position: relative; display: inline-flex; max-width: 400px; }
@@ -1084,66 +1084,13 @@
 
 <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-9 sm:pt-12 pb-28">
 
-  <!-- Job Spec — collapsed to a quiet summary line; expands to the controls -->
-  <section id="jobSpec" class="spec-collapsed flex flex-col items-center">
-    <button id="jobSpecToggle" type="button" aria-expanded="false" aria-controls="jobSpecControls"
-      class="w-full max-w-md flex items-center justify-between gap-3 control rounded-2xl px-4 py-3 text-left">
-      <span class="min-w-0">
-        <span class="block text-[10px] uppercase tracking-[0.18em] text-slate-500 font-bold">Job Spec</span>
-        <span id="jobSpecSummary" class="block text-sm text-slate-200 font-semibold mt-0.5 leading-snug">—</span>
-      </span>
-      <svg class="spec-chev flex-shrink-0 text-slate-500" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
+  <!-- Quiet job-spec summary — tap to open the Job Details sheet -->
+  <div class="flex justify-center">
+    <button id="jobSummaryLine" type="button" class="btn flex items-center gap-2 text-slate-500 hover:text-slate-300 px-3 py-1.5 max-w-full">
+      <span id="jobSpecSummary" class="text-xs sm:text-sm font-medium tracking-tight text-center">—</span>
+      <svg class="flex-shrink-0 text-slate-600" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 3.5l4 4L7 17H3v-4z"/></svg>
     </button>
-    <div id="jobSpecControls" class="flex flex-col items-center gap-2 sm:gap-3 mt-3 w-full">
-      <div id="ddManufacturer" class="dd w-full max-w-xs">
-        <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
-          <span class="dd-label"></span>
-          <svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
-        </button>
-        <div class="dd-panel" role="listbox"></div>
-      </div>
-      <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div>
-      <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div>
-      <div id="segApplication" class="seg flex-wrap" role="tablist" aria-label="Application"></div>
-      <div id="segImpact" class="seg" role="tablist" aria-label="Impact glass"></div>
-      <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div>
-    </div>
-  </section>
-
-  <!-- Job Details Row: windows + Job Extras expander -->
-  <section id="jobDetailsRow" class="extras-collapsed mt-4 sm:mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3 max-w-md sm:max-w-none mx-auto">
-    <label class="margin-pill" style="cursor:text">
-      <span class="lbl">Windows</span>
-      <input id="windowCountInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—"
-        style="width:36px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-    </label>
-    <button id="jobExtrasToggle" type="button" class="toggle-pill" aria-expanded="false" aria-controls="permitToggleBtn liftToggleBtn">
-      <span class="lbl">Job Extras</span>
-      <span id="jobExtrasSummary" class="val">None</span>
-      <svg class="extras-chev" viewBox="0 0 20 20" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
-    </button>
-    <button id="permitToggleBtn" type="button" class="toggle-pill extra-control">
-      <span class="lbl">Permit</span>
-      <span class="val">Off</span>
-    </button>
-    <button id="liftToggleBtn" type="button" class="toggle-pill extra-control hidden">
-      <span class="lbl">Lift</span>
-      <span class="val">Off</span>
-    </button>
-    <label id="liftDaysWrap" class="margin-pill extra-control hidden" style="cursor:text">
-      <span class="lbl">Days</span>
-      <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off"
-        style="width:28px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-    </label>
-  </section>
-
-  <!-- Remodel nudge: shown when Remodel selected but no window count -->
-  <div id="remodelNudge" class="hidden mt-3 text-center text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
-    ↑ Enter window count to include disposal cost
   </div>
-
-  <!-- Per-job material variant toggles — shown only when a category has 2+ variants -->
-  <section id="materialsRow" class="hidden mt-3 max-w-md sm:max-w-xl mx-auto"></section>
 
   <!-- Big LF input -->
   <section class="mt-6 sm:mt-10">
@@ -1813,6 +1760,59 @@
       Reference only — always verify the exact FL# on the unit's NFRC label and download the latest installation PDF from
       <a href="https://www.floridabuilding.org/pr/pr_default.aspx" target="_blank" rel="noopener" class="text-[#b58f4a] hover:text-[#c9a558] underline">floridabuilding.org</a>
       before use. Patterns must match the installed product's size, DP rating, and substrate.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     JOB DETAILS — slide-up sheet (the per-job spec)
+     ============================================================ -->
+<div id="jobSheet" class="fixed inset-0 hidden z-[55]">
+  <div class="absolute inset-0 modal-backdrop" data-jobsheet-close></div>
+  <div id="jobSheetPanel" class="absolute left-0 right-0 bottom-0 card rounded-t-3xl max-h-[88vh] flex flex-col">
+    <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
+      <div>
+        <h3 class="text-base font-bold text-slate-100 tracking-tight">Job Details</h3>
+        <p class="text-[11px] text-slate-500 mt-0.5">The spec for this quote.</p>
+      </div>
+      <button class="btn rounded-full px-5 py-2 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]" data-jobsheet-close>Done</button>
+    </div>
+    <div class="overflow-y-auto px-5 sm:px-6 py-5 flex flex-col items-center gap-2.5">
+      <div id="ddManufacturer" class="dd w-full max-w-sm">
+        <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <span class="dd-label"></span>
+          <svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 8 10 13 15 8"/></svg>
+        </button>
+        <div class="dd-panel" role="listbox"></div>
+      </div>
+      <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div>
+      <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div>
+      <div id="segApplication" class="seg flex-wrap" role="tablist" aria-label="Application"></div>
+      <div id="segImpact" class="seg" role="tablist" aria-label="Impact glass"></div>
+      <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div>
+
+      <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-2">
+        <label class="margin-pill" style="cursor:text">
+          <span class="lbl">Windows</span>
+          <input id="windowCountInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—"
+            style="width:36px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+        </label>
+        <button id="permitToggleBtn" type="button" class="toggle-pill">
+          <span class="lbl">Permit</span><span class="val">Off</span>
+        </button>
+        <button id="liftToggleBtn" type="button" class="toggle-pill hidden">
+          <span class="lbl">Lift</span><span class="val">Off</span>
+        </button>
+        <label id="liftDaysWrap" class="margin-pill hidden" style="cursor:text">
+          <span class="lbl">Days</span>
+          <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off"
+            style="width:28px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+        </label>
+      </div>
+      <div id="remodelNudge" class="hidden text-center text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
+        ↑ Enter window count to include disposal cost
+      </div>
+      <div id="materialsRow" class="hidden w-full max-w-md mt-1"></div>
     </div>
   </div>
 </div>
@@ -3136,24 +3136,10 @@ function bindControls() {
     wcInput._wired = true;
   }
 
-  // Job Extras expander
-  const extrasBtn = document.getElementById("jobExtrasToggle");
-  if (!extrasBtn._wired) {
-    extrasBtn.addEventListener("click", () => {
-      const row = document.getElementById("jobDetailsRow");
-      const expanded = row.classList.toggle("extras-collapsed") === false;
-      extrasBtn.setAttribute("aria-expanded", String(expanded));
-    });
-    extrasBtn._wired = true;
-  }
-
-  // Job Spec expander
-  const specBtn = document.getElementById("jobSpecToggle");
+  // Job Details sheet — opened from the quiet summary line
+  const specBtn = document.getElementById("jobSummaryLine");
   if (!specBtn._wired) {
-    specBtn.addEventListener("click", () => {
-      const expanded = document.getElementById("jobSpec").classList.toggle("spec-collapsed") === false;
-      specBtn.setAttribute("aria-expanded", String(expanded));
-    });
+    specBtn.addEventListener("click", openJobSheet);
     specBtn._wired = true;
   }
   updateLiftVisibility();
@@ -4177,6 +4163,19 @@ function openFL() {
   setTimeout(() => document.getElementById("flSearch").focus(), 50);
 }
 function closeFL() { flModal.classList.add("hidden"); flModal.classList.remove("flex"); }
+
+/* ---- Job Details slide-up sheet ---- */
+function openJobSheet() {
+  const s = document.getElementById("jobSheet");
+  s.classList.remove("hidden");
+  requestAnimationFrame(() => s.classList.add("show"));
+}
+function closeJobSheet() {
+  const s = document.getElementById("jobSheet");
+  if (s.classList.contains("hidden")) return;
+  s.classList.remove("show");
+  setTimeout(() => s.classList.add("hidden"), 320);
+}
 
 function hideFLAddForm() {
   document.getElementById("flAddForm").classList.add("hidden");
@@ -6147,6 +6146,9 @@ function init() {
     renderLogoPreview("adminLogoPreview", "adminLogoRemove", "");
   });
   adminModal.addEventListener("click", e => { if (e.target.dataset.close !== undefined) closeAdmin(); });
+  document.getElementById("jobSheet").addEventListener("click", e => {
+    if (e.target.dataset.jobsheetClose !== undefined) closeJobSheet();
+  });
 
   document.getElementById("viewCompareBtn").addEventListener("click", openComparison);
   document.getElementById("exportComparisonPdf").addEventListener("click", () => exportComparisonPDF("download"));
@@ -6215,7 +6217,7 @@ function init() {
   });
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closePfpMenu(); closeAuth(); closeAdmin(); closeFL(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal(); }
+    if (e.key === "Escape") { closePfpMenu(); closeAuth(); closeAdmin(); closeFL(); closeJobSheet(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal(); }
   });
 
   purgeStaleSW();
