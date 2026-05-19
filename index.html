@@ -542,34 +542,24 @@
 
   /* ------- Scroll-driven anchor dive ------- */
   #anchorDive {
-    position: fixed; left: 20px; top: 0; bottom: 0; width: 84px;
+    position: fixed; left: 16px; top: 0; bottom: 0; width: 110px;
     pointer-events: none; z-index: 1; overflow: visible;
   }
-  #anchorRope {
-    position: absolute; top: 0; left: 50%;
-    width: 13px; margin-left: -6.5px; height: 0;
-    border-radius: 0 0 3px 3px;
-    background:
-      repeating-linear-gradient(115deg,
-        #6b5527 0 5px, #b58f4a 5px 9px, #dfc07a 9px 11px, #b58f4a 11px 15px, #6b5527 15px 20px),
-      linear-gradient(90deg, #4a3a1c, #c9a558 45%, #f0d99a 52%, #c9a558 60%, #4a3a1c);
-    box-shadow: 0 0 14px -2px rgba(201,165,88,0.45), inset 0 0 6px rgba(0,0,0,0.45);
+  #anchorRopeSvg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 0 7px rgba(201,165,88,0.4));
   }
   #anchorEl {
     position: absolute; left: 50%; top: 0;
-    width: 62px; height: 62px; margin-left: -31px;
+    width: 92px; height: 92px; margin-left: -46px;
+    transform-origin: 50% 20%;
     will-change: transform;
   }
   #anchorEl svg {
     display: block; width: 100%; height: 100%;
     color: #dfc07a;
-    filter: drop-shadow(0 0 9px rgba(201,165,88,0.55)) drop-shadow(0 6px 10px rgba(0,0,0,0.6));
-  }
-  #anchorEl svg.landed { animation: anchorSettle .7s cubic-bezier(0.34,1.56,0.64,1) 1; }
-  @keyframes anchorSettle {
-    0% { transform: translateY(-14px) rotate(-3deg); }
-    55% { transform: translateY(4px) rotate(2deg); }
-    100% { transform: translateY(0) rotate(0deg); }
+    filter: drop-shadow(0 0 11px rgba(201,165,88,0.55)) drop-shadow(0 7px 12px rgba(0,0,0,0.6));
   }
   #anchorSand {
     position: absolute; left: 50%; bottom: 0;
@@ -594,10 +584,9 @@
     70% { opacity: 0.55; }
     100% { opacity: 0; transform: translate(var(--sway,8px), calc(-1 * var(--rise,200px))) scale(1.05); }
   }
-  @media (max-width: 1280px) { #anchorDive { display: none; } }
+  @media (max-width: 1340px) { #anchorDive { display: none; } }
   @media (prefers-reduced-motion: reduce) {
     .dive-bubble { display: none; }
-    #anchorEl.landed { animation: none; }
   }
   .lp-btn-gold {
     background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 100%);
@@ -687,7 +676,11 @@
 
   <!-- Scroll-driven anchor dive -->
   <div id="anchorDive" aria-hidden="true">
-    <div id="anchorRope"></div>
+    <svg id="anchorRopeSvg">
+      <path id="anchorRopeBody" fill="none" stroke="#a9863f" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="anchorRopeTwist" fill="none" stroke="rgba(58,46,22,0.6)" stroke-width="13" stroke-linecap="butt" stroke-dasharray="3 8"/>
+      <path id="anchorRopeSheen" fill="none" stroke="rgba(243,222,163,0.55)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="50" cy="20" r="9"/>
@@ -6470,62 +6463,126 @@ function init() {
 
   purgeStaleSW();
 }
-// ----- Scroll-driven anchor dive -----
+// ----- Scroll-driven anchor dive (verlet rope + pendulum anchor) -----
 (function () {
   const scene = document.getElementById("anchorDive");
   const ls = document.getElementById("landingScreen");
   if (!scene || !ls) return;
-  const rope = document.getElementById("anchorRope");
+  const ropeBody = document.getElementById("anchorRopeBody");
+  const ropeTwist = document.getElementById("anchorRopeTwist");
+  const ropeSheen = document.getElementById("anchorRopeSheen");
   const anchor = document.getElementById("anchorEl");
-  const svg = document.getElementById("anchorSvg");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  const CX = 55;          // horizontal centre of the scene
+  const RING_Y = 18.4;    // anchor-ring offset from the element top (20% of 92px)
+  const N = 16;           // rope segment count
+  const GRAVITY = 0.34;
+
   let targetP = 0, p = 0, lastP = 0, lastSpawn = 0, landed = false;
+  let pts = null, anchorAngle = 0;
+
+  function initPts() {
+    pts = [];
+    for (let i = 0; i < N; i++) {
+      const y = 90 * (i / (N - 1));
+      pts.push({ x: CX, y: y, px: CX, py: y });
+    }
+  }
 
   function readScroll() {
     const max = ls.scrollHeight - ls.clientHeight;
     targetP = max > 0 ? Math.min(1, Math.max(0, ls.scrollTop / max)) : 0;
   }
 
-  function spawnBubble(y) {
+  function spawnBubble(x, y) {
     const b = document.createElement("div");
     b.className = "dive-bubble";
-    const size = 4 + Math.random() * 9;
+    const size = 4 + Math.random() * 10;
     b.style.width = size + "px";
     b.style.height = size + "px";
-    b.style.left = (42 + (Math.random() * 30 - 15)) + "px";
-    b.style.top = (y + 8 + Math.random() * 24) + "px";
-    b.style.setProperty("--rise", (120 + Math.random() * 150) + "px");
-    b.style.setProperty("--sway", (Math.random() * 26 - 13) + "px");
-    b.style.setProperty("--dur", (2.2 + Math.random() * 2.2) + "s");
+    b.style.left = (x + (Math.random() * 34 - 17)) + "px";
+    b.style.top = (y + 10 + Math.random() * 26) + "px";
+    b.style.setProperty("--rise", (130 + Math.random() * 160) + "px");
+    b.style.setProperty("--sway", (Math.random() * 30 - 15) + "px");
+    b.style.setProperty("--dur", (2.2 + Math.random() * 2.4) + "s");
     scene.appendChild(b);
     b.addEventListener("animationend", () => b.remove());
   }
 
+  function ropeD() {
+    let d = "M" + pts[0].x.toFixed(1) + " " + pts[0].y.toFixed(1);
+    for (let i = 1; i < N - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2;
+      const my = (pts[i].y + pts[i + 1].y) / 2;
+      d += " Q" + pts[i].x.toFixed(1) + " " + pts[i].y.toFixed(1) +
+           " " + mx.toFixed(1) + " " + my.toFixed(1);
+    }
+    d += " L" + pts[N - 1].x.toFixed(1) + " " + pts[N - 1].y.toFixed(1);
+    return d;
+  }
+
   function frame(ts) {
     if (!ls.classList.contains("hidden")) {
+      if (!pts) initPts();
+
       p += (targetP - p) * 0.12;
-      const startY = 70;
-      const endY = Math.max(startY, ls.clientHeight - 128);
-      const y = startY + (endY - startY) * p;
-      anchor.style.transform = "translateY(" + y + "px)";
-      rope.style.height = (y + 16) + "px";
+      const startY = 86;
+      const endY = Math.max(startY, ls.clientHeight - 112);
+      const ringY = startY + (endY - startY) * p;
 
       const nowLanded = p > 0.985;
       if (nowLanded !== landed) {
         landed = nowLanded;
         scene.classList.toggle("landed", landed);
-        if (landed && !reduce) {
-          svg.classList.remove("landed");
-          void svg.offsetWidth;
-          svg.classList.add("landed");
-        }
       }
+
+      // rope length carries a little slack so it never looks tight
+      const seg = (ringY * 1.05 + 16) / (N - 1);
+      const last = pts[N - 1];
+      const flow = (reduce || landed) ? 0 : 1;
+
+      // verlet integration
+      for (let i = 1; i < N; i++) {
+        const pt = pts[i];
+        const vx = (pt.x - pt.px) * 0.985;
+        const vy = (pt.y - pt.py) * 0.985;
+        pt.px = pt.x; pt.py = pt.y;
+        pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * 0.09 * flow;
+        pt.y += vy + GRAVITY;
+      }
+      // distance constraints — pin the top fully and the anchor end in Y only
+      for (let it = 0; it < 6; it++) {
+        for (let i = 0; i < N - 1; i++) {
+          const a = pts[i], b = pts[i + 1];
+          let dx = b.x - a.x, dy = b.y - a.y;
+          const dist = Math.hypot(dx, dy) || 0.0001;
+          const diff = (seg - dist) / dist * 0.5;
+          dx *= diff; dy *= diff;
+          a.x -= dx; a.y -= dy;
+          b.x += dx; b.y += dy;
+        }
+        pts[0].x = CX; pts[0].y = 0;
+        last.y = ringY;
+      }
+
+      // place the anchor: ring follows the rope end, body swings like a pendulum
+      const tx = last.x - CX;
+      const ty = last.y - RING_Y;
+      const tgtAngle = Math.atan2(last.x - pts[N - 2].x, last.y - pts[N - 2].y) * 180 / Math.PI;
+      anchorAngle += (tgtAngle - anchorAngle) * 0.16;
+      anchor.style.transform =
+        "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
+
+      const d = ropeD();
+      ropeBody.setAttribute("d", d);
+      ropeTwist.setAttribute("d", d);
+      ropeSheen.setAttribute("d", d);
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
         if (ts - lastSpawn > (moving ? 105 : 640)) {
-          spawnBubble(y);
+          spawnBubble(last.x, last.y);
           lastSpawn = ts;
         }
       }
