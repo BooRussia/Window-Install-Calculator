@@ -679,9 +679,12 @@
   <!-- Scroll-driven anchor dive -->
   <div id="anchorDive" aria-hidden="true">
     <svg id="anchorRopeSvg">
-      <path class="ropePath" fill="none" stroke="#564b34" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
-      <path class="ropePath" fill="none" stroke="#e9e2cd" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeGold" fill="none" stroke="#c9a558" stroke-width="5.5" stroke-linecap="round"/>
+      <path class="ropePath" fill="none" stroke="#564b34" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+      <path class="ropePath" fill="none" stroke="#e9e2cd" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeGold" fill="none" stroke="#c9a558" stroke-width="4.5" stroke-linecap="round"/>
+      <circle id="ropeKnotCasing" r="13" fill="#564b34"/>
+      <circle id="ropeKnotBody" r="10.5" fill="#e9e2cd"/>
+      <path id="ropeKnotBand" fill="none" stroke="#c9a558" stroke-width="3.5" stroke-linecap="round"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
@@ -6551,8 +6554,8 @@ function init() {
       const len = Math.hypot(dx, dy) || 1;
       return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
     }
-    const pitch = 16, hw = 9.5, endTrim = 22;
-    const stop = total - pitch - endTrim;
+    const pitch = 14, hw = 8;
+    const stop = total - pitch * 0.5;
     let d = "";
     for (let s = 0; s < stop; s += pitch) {
       const p0 = at(s), p1 = at(s + pitch);
@@ -6648,6 +6651,14 @@ function init() {
       ropePaths[0].setAttribute("d", d);
       ropePaths[1].setAttribute("d", d);
       document.getElementById("ropeGold").setAttribute("d", goldLines());
+      // knot where the rope ties to the anchor ring
+      const kx = last.x.toFixed(1), ky = last.y.toFixed(1);
+      const knotCasing = document.getElementById("ropeKnotCasing");
+      const knotBody = document.getElementById("ropeKnotBody");
+      const knotBand = document.getElementById("ropeKnotBand");
+      knotCasing.setAttribute("cx", kx); knotCasing.setAttribute("cy", ky);
+      knotBody.setAttribute("cx", kx); knotBody.setAttribute("cy", ky);
+      knotBand.setAttribute("d", "M" + (last.x - 9) + " " + (last.y - 2) + "L" + (last.x + 9) + " " + (last.y + 2));
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
