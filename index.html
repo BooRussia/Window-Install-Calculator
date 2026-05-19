@@ -6524,26 +6524,37 @@ function init() {
     return d;
   }
 
-  // diagonal gold stripes marching down the rope
+  // diagonal gold stripes marching down the rope. The centreline is smoothed
+  // before sampling and the stripes stop short of the anchor so a kink in the
+  // last rope segment can't make the diagonals glitch.
   function goldLines() {
+    const sm = [{ x: pts[0].x, y: pts[0].y }];
+    for (let i = 1; i < N - 1; i++) {
+      sm.push({
+        x: (pts[i - 1].x + 2 * pts[i].x + pts[i + 1].x) * 0.25,
+        y: (pts[i - 1].y + 2 * pts[i].y + pts[i + 1].y) * 0.25
+      });
+    }
+    sm.push({ x: pts[N - 1].x, y: pts[N - 1].y });
     const seg = [];
     let total = 0;
     for (let i = 0; i < N - 1; i++) {
-      const l = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+      const l = Math.hypot(sm[i + 1].x - sm[i].x, sm[i + 1].y - sm[i].y);
       seg.push(l); total += l;
     }
     function at(d) {
       let acc = 0, i = 0;
       while (i < N - 2 && acc + seg[i] < d) { acc += seg[i]; i++; }
       const t = seg[i] > 0 ? (d - acc) / seg[i] : 0;
-      const a = pts[i], b = pts[i + 1];
+      const a = sm[i], b = sm[i + 1];
       const dx = b.x - a.x, dy = b.y - a.y;
       const len = Math.hypot(dx, dy) || 1;
       return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
     }
-    const pitch = 16, hw = 9.5;
+    const pitch = 16, hw = 9.5, endTrim = 22;
+    const stop = total - pitch - endTrim;
     let d = "";
-    for (let s = 0; s < total - pitch; s += pitch) {
+    for (let s = 0; s < stop; s += pitch) {
       const p0 = at(s), p1 = at(s + pitch);
       d += "M" + (p0.x - hw * p0.nx).toFixed(1) + " " + (p0.y - hw * p0.ny).toFixed(1) +
            "L" + (p1.x + hw * p1.nx).toFixed(1) + " " + (p1.y + hw * p1.ny).toFixed(1);
@@ -6585,16 +6596,28 @@ function init() {
       const flow = (reduce || landed) ? 0 : (1 - tension);
       const damp = 0.985 - 0.06 * tension;
 
-      // verlet integration
+      // verlet integration with real falling-in-water physics on the anchor:
+      // gravity pulls it down, quadratic water drag (F_drag = k * v^2) opposes
+      // motion so it has a terminal velocity, and the chain's length is the
+      // only thing that ever stops it — exactly like an anchor on a rope.
       for (let i = 1; i < N; i++) {
         const pt = pts[i];
-        const vx = (pt.x - pt.px) * damp;
-        const vy = (pt.y - pt.py) * damp;
+        let vx = (pt.x - pt.px) * damp;
+        let vy = (pt.y - pt.py) * damp;
+        if (i === N - 1) {
+          const speed = Math.hypot(vx, vy);
+          if (speed > 0.01) {
+            const drag = Math.min(0.55, 0.018 * speed);
+            vx -= vx * drag;
+            vy -= vy * drag;
+          }
+        }
         pt.px = pt.x; pt.py = pt.y;
         pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * 0.05 * flow;
         pt.y += vy + GRAVITY;
       }
-      // distance constraints — pin the top fully and the anchor end in Y only
+      // distance constraints — pin only the top. The chain's total length
+      // limits how far the anchor can fall; nothing else holds it up.
       for (let it = 0; it < 6; it++) {
         for (let i = 0; i < N - 1; i++) {
           const a = pts[i], b = pts[i + 1];
@@ -6606,11 +6629,7 @@ function init() {
           b.x += dx; b.y += dy;
         }
         pts[0].x = CX; pts[0].y = 0;
-        last.y = ringY;
       }
-      // no forced straightening here — the slack in `seg` slowly shrinks as
-      // tension rises and the rope's residual swing damps out naturally,
-      // settling like a pendulum after the rope has been caught.
 
       // place the anchor: ring follows the rope end. The anchor is bottom-heavy,
       // so it stays upright and only leans gently into its sideways drift —
