@@ -677,9 +677,12 @@
   <!-- Scroll-driven anchor dive -->
   <div id="anchorDive" aria-hidden="true">
     <svg id="anchorRopeSvg">
-      <path id="anchorRopeBody" fill="none" stroke="#a9863f" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="anchorRopeTwist" fill="none" stroke="rgba(58,46,22,0.6)" stroke-width="13" stroke-linecap="butt" stroke-dasharray="3 8"/>
-      <path id="anchorRopeSheen" fill="none" stroke="rgba(243,222,163,0.55)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="anchorRopeCasing" fill="none" stroke="#1f1709" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="anchorRopeBody" fill="none" stroke="#7e6230" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="anchorRopeLay1" fill="none" stroke="#dcbd71" stroke-width="17" stroke-linecap="butt" stroke-dasharray="10 10"/>
+      <path id="anchorRopeLay2" fill="none" stroke="#6a5024" stroke-width="17" stroke-linecap="butt" stroke-dasharray="10 10" stroke-dashoffset="10"/>
+      <path id="anchorRopeGroove" fill="none" stroke="rgba(20,15,6,0.55)" stroke-width="17" stroke-linecap="butt" stroke-dasharray="1.6 18.4"/>
+      <path id="anchorRopeSheen" fill="none" stroke="rgba(247,231,183,0.6)" stroke-width="5" stroke-linecap="round" stroke-dasharray="5 15"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
@@ -6468,9 +6471,7 @@ function init() {
   const scene = document.getElementById("anchorDive");
   const ls = document.getElementById("landingScreen");
   if (!scene || !ls) return;
-  const ropeBody = document.getElementById("anchorRopeBody");
-  const ropeTwist = document.getElementById("anchorRopeTwist");
-  const ropeSheen = document.getElementById("anchorRopeSheen");
+  const ropePaths = document.querySelectorAll("#anchorRopeSvg path");
   const anchor = document.getElementById("anchorEl");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -6538,7 +6539,7 @@ function init() {
       }
 
       // rope length carries a little slack so it never looks tight
-      const seg = (ringY * 1.05 + 16) / (N - 1);
+      const seg = (ringY * 1.035 + 6) / (N - 1);
       const last = pts[N - 1];
       const flow = (reduce || landed) ? 0 : 1;
 
@@ -6548,7 +6549,7 @@ function init() {
         const vx = (pt.x - pt.px) * 0.985;
         const vy = (pt.y - pt.py) * 0.985;
         pt.px = pt.x; pt.py = pt.y;
-        pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * 0.09 * flow;
+        pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * 0.05 * flow;
         pt.y += vy + GRAVITY;
       }
       // distance constraints — pin the top fully and the anchor end in Y only
@@ -6566,18 +6567,20 @@ function init() {
         last.y = ringY;
       }
 
-      // place the anchor: ring follows the rope end, body swings like a pendulum
+      // place the anchor: ring follows the rope end. The anchor is bottom-heavy,
+      // so it stays upright and only leans gently into its sideways drift —
+      // never spins or flips.
       const tx = last.x - CX;
       const ty = last.y - RING_Y;
-      const tgtAngle = Math.atan2(last.x - pts[N - 2].x, last.y - pts[N - 2].y) * 180 / Math.PI;
-      anchorAngle += (tgtAngle - anchorAngle) * 0.16;
+      let tgtAngle = (last.x - last.px) * 2.6;
+      if (tgtAngle > 15) tgtAngle = 15;
+      else if (tgtAngle < -15) tgtAngle = -15;
+      anchorAngle += (tgtAngle - anchorAngle) * 0.1;
       anchor.style.transform =
         "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
 
       const d = ropeD();
-      ropeBody.setAttribute("d", d);
-      ropeTwist.setAttribute("d", d);
-      ropeSheen.setAttribute("d", d);
+      for (let i = 0; i < ropePaths.length; i++) ropePaths[i].setAttribute("d", d);
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
