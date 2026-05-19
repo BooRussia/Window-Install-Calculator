@@ -677,12 +677,10 @@
   <!-- Scroll-driven anchor dive -->
   <div id="anchorDive" aria-hidden="true">
     <svg id="anchorRopeSvg">
-      <path id="anchorRopeCasing" fill="none" stroke="#1f1709" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="anchorRopeBody" fill="none" stroke="#7e6230" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="anchorRopeLay1" fill="none" stroke="#dcbd71" stroke-width="17" stroke-linecap="butt" stroke-dasharray="10 10"/>
-      <path id="anchorRopeLay2" fill="none" stroke="#6a5024" stroke-width="17" stroke-linecap="butt" stroke-dasharray="10 10" stroke-dashoffset="10"/>
-      <path id="anchorRopeGroove" fill="none" stroke="rgba(20,15,6,0.55)" stroke-width="17" stroke-linecap="butt" stroke-dasharray="1.6 18.4"/>
-      <path id="anchorRopeSheen" fill="none" stroke="rgba(247,231,183,0.6)" stroke-width="5" stroke-linecap="round" stroke-dasharray="5 15"/>
+      <path id="ropeCasing" fill="none" stroke="#241a0c" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeCore" fill="none" stroke="#5f4a24" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeStrandA" fill="none" stroke="#b29a5d" stroke-width="9.5" stroke-linecap="round"/>
+      <path id="ropeStrandB" fill="none" stroke="#ecdaa6" stroke-width="9.5" stroke-linecap="round"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
@@ -6471,7 +6469,10 @@ function init() {
   const scene = document.getElementById("anchorDive");
   const ls = document.getElementById("landingScreen");
   if (!scene || !ls) return;
-  const ropePaths = document.querySelectorAll("#anchorRopeSvg path");
+  const ropeCasing = document.getElementById("ropeCasing");
+  const ropeCore = document.getElementById("ropeCore");
+  const ropeStrandA = document.getElementById("ropeStrandA");
+  const ropeStrandB = document.getElementById("ropeStrandB");
   const anchor = document.getElementById("anchorEl");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -6482,6 +6483,7 @@ function init() {
 
   let targetP = 0, p = 0, lastP = 0, lastSpawn = 0, landed = false;
   let pts = null, anchorAngle = 0;
+  let dig = 0, digTarget = 0;   // 0 = upright, 1 = tipped over digging into the sand
 
   function initPts() {
     pts = [];
@@ -6523,6 +6525,38 @@ function init() {
     return d;
   }
 
+  // Builds the two interlocking strand sets of an 8-strand plaited rope.
+  // Each "row" lays one strand each way across the rope, so stacked rows
+  // weave into the herringbone X-pattern of a real plaited anchor rope.
+  function buildBraid() {
+    const seglen = [];
+    let total = 0;
+    for (let i = 0; i < N - 1; i++) {
+      const l = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+      seglen.push(l); total += l;
+    }
+    function at(d) {
+      if (d < 0) d = 0; else if (d > total) d = total;
+      let acc = 0, i = 0;
+      while (i < N - 2 && acc + seglen[i] < d) { acc += seglen[i]; i++; }
+      const t = seglen[i] > 0 ? (d - acc) / seglen[i] : 0;
+      const a = pts[i], b = pts[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
+    }
+    const pitch = 14, hw = 8.6;
+    let dA = "", dB = "";
+    for (let d = 0; d < total - pitch * 0.4; d += pitch) {
+      const p0 = at(d), p1 = at(d + pitch);
+      dA += "M" + (p0.x - hw * p0.nx).toFixed(1) + " " + (p0.y - hw * p0.ny).toFixed(1) +
+            "L" + (p1.x + hw * p1.nx).toFixed(1) + " " + (p1.y + hw * p1.ny).toFixed(1);
+      dB += "M" + (p0.x + hw * p0.nx).toFixed(1) + " " + (p0.y + hw * p0.ny).toFixed(1) +
+            "L" + (p1.x - hw * p1.nx).toFixed(1) + " " + (p1.y - hw * p1.ny).toFixed(1);
+    }
+    return { dA, dB };
+  }
+
   function frame(ts) {
     if (!ls.classList.contains("hidden")) {
       if (!pts) initPts();
@@ -6530,7 +6564,15 @@ function init() {
       p += (targetP - p) * 0.12;
       const startY = 86;
       const endY = Math.max(startY, ls.clientHeight - 112);
-      const ringY = startY + (endY - startY) * p;
+
+      // once at the bottom, extra downward scrolling makes the anchor
+      // tip over and dig into the sand; scrolling back up releases it
+      const max = ls.scrollHeight - ls.clientHeight;
+      const atBottom = max > 0 && (max - ls.scrollTop) < 4;
+      if (!atBottom) digTarget = Math.max(0, digTarget - 0.05);
+      dig += (digTarget - dig) * 0.14;
+
+      const ringY = startY + (endY - startY) * p + dig * 44;
 
       const nowLanded = p > 0.985;
       if (nowLanded !== landed) {
@@ -6569,18 +6611,23 @@ function init() {
 
       // place the anchor: ring follows the rope end. The anchor is bottom-heavy,
       // so it stays upright and only leans gently into its sideways drift —
-      // never spins or flips.
+      // never spins or flips. Once digging in, it tips over onto its side.
       const tx = last.x - CX;
       const ty = last.y - RING_Y;
       let tgtAngle = (last.x - last.px) * 2.6;
       if (tgtAngle > 15) tgtAngle = 15;
       else if (tgtAngle < -15) tgtAngle = -15;
       anchorAngle += (tgtAngle - anchorAngle) * 0.1;
+      const dispAngle = anchorAngle * (1 - dig) + 74 * dig;
       anchor.style.transform =
-        "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
+        "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
 
       const d = ropeD();
-      for (let i = 0; i < ropePaths.length; i++) ropePaths[i].setAttribute("d", d);
+      ropeCasing.setAttribute("d", d);
+      ropeCore.setAttribute("d", d);
+      const braid = buildBraid();
+      ropeStrandA.setAttribute("d", braid.dA);
+      ropeStrandB.setAttribute("d", braid.dB);
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
@@ -6596,6 +6643,15 @@ function init() {
 
   ls.addEventListener("scroll", readScroll, { passive: true });
   window.addEventListener("resize", readScroll);
+  ls.addEventListener("wheel", e => {
+    const max = ls.scrollHeight - ls.clientHeight;
+    const atBottom = max > 0 && (max - ls.scrollTop) < 4;
+    if (atBottom && e.deltaY > 0) {
+      digTarget = Math.min(1, digTarget + e.deltaY * 0.0022);
+    } else if (e.deltaY < 0) {
+      digTarget = Math.max(0, digTarget + e.deltaY * 0.0022);
+    }
+  }, { passive: true });
   readScroll();
   requestAnimationFrame(frame);
 })();
