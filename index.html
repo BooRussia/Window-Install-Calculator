@@ -6484,6 +6484,7 @@ function init() {
   let targetP = 0, p = 0, lastP = 0, lastSpawn = 0, landed = false;
   let pts = null, anchorAngle = 0;
   let dig = 0, digTarget = 0;   // 0 = upright, 1 = tipped over digging into the sand
+  let tension = 0, idleFrames = 0;   // tension: 0 = loose & lively, 1 = pulled taut & straight
 
   function initPts() {
     pts = [];
@@ -6493,7 +6494,7 @@ function init() {
     }
   }
 
-  function readScroll() {
+  function recalcTarget() {
     const max = ls.scrollHeight - ls.clientHeight;
     targetP = max > 0 ? Math.min(1, Math.max(0, ls.scrollTop / max)) : 0;
   }
@@ -6580,16 +6581,22 @@ function init() {
         scene.classList.toggle("landed", landed);
       }
 
-      // rope length carries a little slack so it never looks tight
-      const seg = (ringY * 1.035 + 6) / (N - 1);
+      // while scrolling the rope keeps slack and sway; once scrolling stops
+      // it slowly pulls taut, straightening out any kink near the anchor
+      idleFrames++;
+      const idle = idleFrames > 16 && Math.abs(targetP - p) < 0.0018;
+      tension += ((idle ? 1 : 0) - tension) * (idle ? 0.035 : 0.3);
+
+      const seg = (ringY * (1.035 - 0.035 * tension) + 6 * (1 - tension)) / (N - 1);
       const last = pts[N - 1];
-      const flow = (reduce || landed) ? 0 : 1;
+      const flow = (reduce || landed) ? 0 : (1 - tension);
+      const damp = 0.985 - 0.08 * tension;
 
       // verlet integration
       for (let i = 1; i < N; i++) {
         const pt = pts[i];
-        const vx = (pt.x - pt.px) * 0.985;
-        const vy = (pt.y - pt.py) * 0.985;
+        const vx = (pt.x - pt.px) * damp;
+        const vy = (pt.y - pt.py) * damp;
         pt.px = pt.x; pt.py = pt.y;
         pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * 0.05 * flow;
         pt.y += vy + GRAVITY;
@@ -6641,8 +6648,8 @@ function init() {
     requestAnimationFrame(frame);
   }
 
-  ls.addEventListener("scroll", readScroll, { passive: true });
-  window.addEventListener("resize", readScroll);
+  ls.addEventListener("scroll", () => { recalcTarget(); idleFrames = 0; }, { passive: true });
+  window.addEventListener("resize", recalcTarget);
   ls.addEventListener("wheel", e => {
     const max = ls.scrollHeight - ls.clientHeight;
     const atBottom = max > 0 && (max - ls.scrollTop) < 4;
@@ -6652,7 +6659,7 @@ function init() {
       digTarget = Math.max(0, digTarget + e.deltaY * 0.0022);
     }
   }, { passive: true });
-  readScroll();
+  recalcTarget();
   requestAnimationFrame(frame);
 })();
 
