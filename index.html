@@ -991,10 +991,10 @@
     </div>
     <div class="lp-reveal mt-8">
       <div class="relative">
-        <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <svg class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
           <circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/>
         </svg>
-        <input id="flPublicSearch" type="search" placeholder="Search FL#, series, or manufacturer…" class="control rounded-xl pl-10 pr-3 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <input id="flPublicSearch" type="search" placeholder="Search FL#, series, or manufacturer…" class="control rounded-2xl pl-14 pr-4 py-5 w-full text-lg font-semibold text-slate-100 placeholder:text-slate-600 placeholder:font-medium" />
       </div>
       <div id="flPublicList" class="mt-3 space-y-2"></div>
       <p class="text-[11px] text-slate-600 mt-3 text-center">Reference catalog — verify the exact FL# on the unit's label before use. Logged-in users can add their own FL#s.</p>
@@ -4502,7 +4502,11 @@ function renderFLInto(containerId, source, query, readOnly) {
 }
 function renderFLList(query) { renderFLInto("flList", DATA.flApprovals, query, false); }
 // Public landing catalog — read-only, always shows the seeded approvals
-function renderPublicFL(query) { renderFLInto("flPublicList", DEFAULT_DATA.flApprovals, query, true); }
+function renderPublicFL(query) {
+  const list = document.getElementById("flPublicList");
+  if (!query || !query.trim()) { list.innerHTML = ""; return; }
+  renderFLInto("flPublicList", DEFAULT_DATA.flApprovals, query, true);
+}
 function saveFLEntry() {
   const msg = document.getElementById("flfMsg");
   const fail = t => { msg.textContent = t; msg.classList.remove("hidden"); };
@@ -5829,7 +5833,10 @@ async function boot() {
 
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
+    // signed-in users on a refresh stay on the home page — the app
+    // is initialised behind them and they can click "Open App" to enter
     await enterApp();
+    showLanding();
   } else {
     setAuthMode("login");
     showLanding();
