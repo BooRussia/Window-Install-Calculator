@@ -679,10 +679,12 @@
   <!-- Scroll-driven anchor dive -->
   <div id="anchorDive" aria-hidden="true">
     <svg id="anchorRopeSvg">
-      <path id="ropeCasing" fill="none" stroke="#241a0c" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeCore" fill="none" stroke="#5f4a24" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeStrandA" fill="none" stroke="#c9ac66" stroke-width="8.5" stroke-linecap="round"/>
-      <path id="ropeStrandB" fill="none" stroke="#ecdaa6" stroke-width="8.5" stroke-linecap="round"/>
+      <path id="ropeCasing" fill="none" stroke="#34270e" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeCore" fill="none" stroke="#a98c4c" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeWL" fill="none" stroke="#ece5d2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeGL" fill="none" stroke="#c9a558" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeGU" fill="none" stroke="#c9a558" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="ropeWU" fill="none" stroke="#ece5d2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
@@ -6473,8 +6475,10 @@ function init() {
   if (!scene || !ls) return;
   const ropeCasing = document.getElementById("ropeCasing");
   const ropeCore = document.getElementById("ropeCore");
-  const ropeStrandA = document.getElementById("ropeStrandA");
-  const ropeStrandB = document.getElementById("ropeStrandB");
+  const ropeWL = document.getElementById("ropeWL");
+  const ropeGL = document.getElementById("ropeGL");
+  const ropeGU = document.getElementById("ropeGU");
+  const ropeWU = document.getElementById("ropeWU");
   const anchor = document.getElementById("anchorEl");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -6528,36 +6532,49 @@ function init() {
     return d;
   }
 
-  // Builds the two interlocking strand sets of an 8-strand plaited rope.
-  // Each "row" lays one strand each way across the rope, so stacked rows
-  // weave into the herringbone X-pattern of a real plaited anchor rope.
-  function buildBraid() {
-    const seglen = [];
+  // Builds a two-tone braided rope: a gold strand and a white strand that
+  // each spiral as a continuous helix and cross repeatedly. The z-order flips
+  // at every crossing (split into "upper"/"lower" paths per colour) so the two
+  // strands genuinely weave over and under each other.
+  function buildWeave() {
+    const seglen = [], cum = [0];
     let total = 0;
     for (let i = 0; i < N - 1; i++) {
       const l = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
-      seglen.push(l); total += l;
+      seglen.push(l); total += l; cum.push(total);
     }
     function at(d) {
       if (d < 0) d = 0; else if (d > total) d = total;
-      let acc = 0, i = 0;
-      while (i < N - 2 && acc + seglen[i] < d) { acc += seglen[i]; i++; }
-      const t = seglen[i] > 0 ? (d - acc) / seglen[i] : 0;
+      let i = 0;
+      while (i < N - 2 && cum[i + 1] < d) i++;
+      const t = seglen[i] > 0 ? (d - cum[i]) / seglen[i] : 0;
       const a = pts[i], b = pts[i + 1];
       const dx = b.x - a.x, dy = b.y - a.y;
       const len = Math.hypot(dx, dy) || 1;
       return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
     }
-    const pitch = 19, hw = 8.6;
-    let dA = "", dB = "";
-    for (let d = 0; d < total - pitch * 0.4; d += pitch) {
-      const p0 = at(d), p1 = at(d + pitch);
-      dA += "M" + (p0.x - hw * p0.nx).toFixed(1) + " " + (p0.y - hw * p0.ny).toFixed(1) +
-            "L" + (p1.x + hw * p1.nx).toFixed(1) + " " + (p1.y + hw * p1.ny).toFixed(1);
-      dB += "M" + (p0.x + hw * p0.nx).toFixed(1) + " " + (p0.y + hw * p0.ny).toFixed(1) +
-            "L" + (p1.x - hw * p1.nx).toFixed(1) + " " + (p1.y - hw * p1.ny).toFixed(1);
+    const amp = 6, period = 26, half = period / 2, step = 4.5;
+    const TWO_PI = Math.PI * 2;
+    let gU = "", gL = "", wU = "", wL = "", segIdx = 0;
+    for (let s0 = 0; s0 < total - 1; s0 += half) {
+      const s1 = Math.min(total, s0 + half);
+      let g = "", w = "", first = true;
+      for (let s = s0; ; s += step) {
+        const ss = s > s1 ? s1 : s;
+        const pt = at(ss);
+        const off = amp * Math.sin(ss / period * TWO_PI);
+        const cmd = first ? "M" : "L";
+        g += cmd + (pt.x + pt.nx * off).toFixed(1) + " " + (pt.y + pt.ny * off).toFixed(1);
+        w += cmd + (pt.x - pt.nx * off).toFixed(1) + " " + (pt.y - pt.ny * off).toFixed(1);
+        first = false;
+        if (ss >= s1) break;
+      }
+      // alternate which colour weaves over at each crossing-to-crossing segment
+      if (segIdx % 2 === 0) { gU += g; wL += w; }
+      else { gL += g; wU += w; }
+      segIdx++;
     }
-    return { dA, dB };
+    return { gU, gL, wU, wL };
   }
 
   function frame(ts) {
@@ -6634,9 +6651,11 @@ function init() {
       const d = ropeD();
       ropeCasing.setAttribute("d", d);
       ropeCore.setAttribute("d", d);
-      const braid = buildBraid();
-      ropeStrandA.setAttribute("d", braid.dA);
-      ropeStrandB.setAttribute("d", braid.dB);
+      const wv = buildWeave();
+      ropeWL.setAttribute("d", wv.wL);
+      ropeGL.setAttribute("d", wv.gL);
+      ropeGU.setAttribute("d", wv.gU);
+      ropeWU.setAttribute("d", wv.wU);
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
