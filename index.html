@@ -6577,13 +6577,13 @@ function init() {
       // while scrolling the rope keeps slack and sway; once scrolling stops
       // it slowly pulls taut, straightening out any kink near the anchor
       idleFrames++;
-      const idle = idleFrames > 16 && Math.abs(targetP - p) < 0.0018;
-      tension += ((idle ? 1 : 0) - tension) * (idle ? 0.035 : 0.3);
+      const idle = idleFrames > 12 && Math.abs(targetP - p) < 0.005;
+      tension += ((idle ? 1 : 0) - tension) * (idle ? 0.08 : 0.3);
 
-      const seg = (ringY * (1.035 - 0.035 * tension) + 6 * (1 - tension)) / (N - 1);
+      const seg = (ringY * (1.04 - 0.04 * tension) + 6 * (1 - tension)) / (N - 1);
       const last = pts[N - 1];
       const flow = (reduce || landed) ? 0 : (1 - tension);
-      const damp = 0.985 - 0.08 * tension;
+      const damp = 0.985 - 0.2 * tension;
 
       // verlet integration
       for (let i = 1; i < N; i++) {
@@ -6607,6 +6607,19 @@ function init() {
         }
         pts[0].x = CX; pts[0].y = 0;
         last.y = ringY;
+      }
+      // tension blends every joint toward an ideal straight rope and
+      // damps its momentum, so the rope visibly reels itself taut at rest
+      if (tension > 0.01) {
+        const blend = tension * 0.22;
+        const velKill = tension * 0.6;
+        for (let i = 1; i < N; i++) {
+          const t = i / (N - 1);
+          pts[i].x += (CX - pts[i].x) * blend;
+          pts[i].y += (t * ringY - pts[i].y) * blend;
+          pts[i].px = pts[i].px * (1 - velKill) + pts[i].x * velKill;
+          pts[i].py = pts[i].py * (1 - velKill) + pts[i].y * velKill;
+        }
       }
 
       // place the anchor: ring follows the rope end. The anchor is bottom-heavy,
