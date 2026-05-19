@@ -679,12 +679,10 @@
   <!-- Scroll-driven anchor dive -->
   <div id="anchorDive" aria-hidden="true">
     <svg id="anchorRopeSvg">
-      <path id="ropeCasing" fill="none" stroke="#34270e" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeCore" fill="none" stroke="#a98c4c" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeWL" fill="none" stroke="#ece5d2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeGL" fill="none" stroke="#c9a558" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeGU" fill="none" stroke="#c9a558" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeWU" fill="none" stroke="#ece5d2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <path class="ropePath" fill="none" stroke="#2a2010" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+      <path class="ropePath" fill="none" stroke="#bf9d4f" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+      <path class="ropePath" fill="none" stroke="#ede7d4" stroke-width="21" stroke-linecap="butt" stroke-dasharray="8 9"/>
+      <path class="ropePath" fill="none" stroke="#574420" stroke-width="21" stroke-linecap="butt" stroke-dasharray="2.5 14.5" stroke-dashoffset="4"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
@@ -6473,12 +6471,7 @@ function init() {
   const scene = document.getElementById("anchorDive");
   const ls = document.getElementById("landingScreen");
   if (!scene || !ls) return;
-  const ropeCasing = document.getElementById("ropeCasing");
-  const ropeCore = document.getElementById("ropeCore");
-  const ropeWL = document.getElementById("ropeWL");
-  const ropeGL = document.getElementById("ropeGL");
-  const ropeGU = document.getElementById("ropeGU");
-  const ropeWU = document.getElementById("ropeWU");
+  const ropePaths = document.querySelectorAll(".ropePath");
   const anchor = document.getElementById("anchorEl");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -6530,51 +6523,6 @@ function init() {
     }
     d += " L" + pts[N - 1].x.toFixed(1) + " " + pts[N - 1].y.toFixed(1);
     return d;
-  }
-
-  // Builds a two-tone braided rope: a gold strand and a white strand that
-  // each spiral as a continuous helix and cross repeatedly. The z-order flips
-  // at every crossing (split into "upper"/"lower" paths per colour) so the two
-  // strands genuinely weave over and under each other.
-  function buildWeave() {
-    const seglen = [], cum = [0];
-    let total = 0;
-    for (let i = 0; i < N - 1; i++) {
-      const l = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
-      seglen.push(l); total += l; cum.push(total);
-    }
-    function at(d) {
-      if (d < 0) d = 0; else if (d > total) d = total;
-      let i = 0;
-      while (i < N - 2 && cum[i + 1] < d) i++;
-      const t = seglen[i] > 0 ? (d - cum[i]) / seglen[i] : 0;
-      const a = pts[i], b = pts[i + 1];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const len = Math.hypot(dx, dy) || 1;
-      return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
-    }
-    const amp = 6, period = 26, half = period / 2, step = 4.5;
-    const TWO_PI = Math.PI * 2;
-    let gU = "", gL = "", wU = "", wL = "", segIdx = 0;
-    for (let s0 = 0; s0 < total - 1; s0 += half) {
-      const s1 = Math.min(total, s0 + half);
-      let g = "", w = "", first = true;
-      for (let s = s0; ; s += step) {
-        const ss = s > s1 ? s1 : s;
-        const pt = at(ss);
-        const off = amp * Math.sin(ss / period * TWO_PI);
-        const cmd = first ? "M" : "L";
-        g += cmd + (pt.x + pt.nx * off).toFixed(1) + " " + (pt.y + pt.ny * off).toFixed(1);
-        w += cmd + (pt.x - pt.nx * off).toFixed(1) + " " + (pt.y - pt.ny * off).toFixed(1);
-        first = false;
-        if (ss >= s1) break;
-      }
-      // alternate which colour weaves over at each crossing-to-crossing segment
-      if (segIdx % 2 === 0) { gU += g; wL += w; }
-      else { gL += g; wU += w; }
-      segIdx++;
-    }
-    return { gU, gL, wU, wL };
   }
 
   function frame(ts) {
@@ -6649,13 +6597,7 @@ function init() {
         "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
 
       const d = ropeD();
-      ropeCasing.setAttribute("d", d);
-      ropeCore.setAttribute("d", d);
-      const wv = buildWeave();
-      ropeWL.setAttribute("d", wv.wL);
-      ropeGL.setAttribute("d", wv.gL);
-      ropeGU.setAttribute("d", wv.gU);
-      ropeWU.setAttribute("d", wv.wU);
+      for (let i = 0; i < ropePaths.length; i++) ropePaths[i].setAttribute("d", d);
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
