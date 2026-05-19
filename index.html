@@ -681,7 +681,7 @@
     <svg id="anchorRopeSvg">
       <path class="ropePath" fill="none" stroke="#564b34" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
       <path class="ropePath" fill="none" stroke="#e9e2cd" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
-      <path class="ropePath" fill="none" stroke="#c9a558" stroke-width="21" stroke-linecap="butt" stroke-dasharray="5 13"/>
+      <path id="ropeGold" fill="none" stroke="#c9a558" stroke-width="5.5" stroke-linecap="round"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
@@ -6524,6 +6524,33 @@ function init() {
     return d;
   }
 
+  // diagonal gold stripes marching down the rope
+  function goldLines() {
+    const seg = [];
+    let total = 0;
+    for (let i = 0; i < N - 1; i++) {
+      const l = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+      seg.push(l); total += l;
+    }
+    function at(d) {
+      let acc = 0, i = 0;
+      while (i < N - 2 && acc + seg[i] < d) { acc += seg[i]; i++; }
+      const t = seg[i] > 0 ? (d - acc) / seg[i] : 0;
+      const a = pts[i], b = pts[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
+    }
+    const pitch = 16, hw = 9.5;
+    let d = "";
+    for (let s = 0; s < total - pitch; s += pitch) {
+      const p0 = at(s), p1 = at(s + pitch);
+      d += "M" + (p0.x - hw * p0.nx).toFixed(1) + " " + (p0.y - hw * p0.ny).toFixed(1) +
+           "L" + (p1.x + hw * p1.nx).toFixed(1) + " " + (p1.y + hw * p1.ny).toFixed(1);
+    }
+    return d;
+  }
+
   function frame(ts) {
     if (!ls.classList.contains("hidden")) {
       if (!pts) initPts();
@@ -6596,7 +6623,9 @@ function init() {
         "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
 
       const d = ropeD();
-      for (let i = 0; i < ropePaths.length; i++) ropePaths[i].setAttribute("d", d);
+      ropePaths[0].setAttribute("d", d);
+      ropePaths[1].setAttribute("d", d);
+      document.getElementById("ropeGold").setAttribute("d", goldLines());
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
