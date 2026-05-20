@@ -679,18 +679,31 @@
       <path class="ropePath" fill="none" stroke="#564b34" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
       <path class="ropePath" fill="none" stroke="#e9e2cd" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
       <path id="ropeGold" fill="none" stroke="#c9a558" stroke-width="4.5" stroke-linecap="round"/>
-      <circle id="ropeKnotCasing" r="13" fill="#564b34"/>
-      <circle id="ropeKnotBody" r="10.5" fill="#e9e2cd"/>
-      <path id="ropeKnotBand" fill="none" stroke="#c9a558" stroke-width="3.5" stroke-linecap="round"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-        <!-- ring removed — the rope's knot sits in its place -->
-        <line x1="50" y1="20" x2="50" y2="82"/>
+        <!-- shank (extends up into the knot) -->
+        <line x1="50" y1="22" x2="50" y2="82"/>
         <line x1="33" y1="40" x2="67" y2="40"/>
         <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/>
         <path d="M22 60 L 13 52"/>
         <path d="M78 60 L 87 52"/>
+        <!-- rope knot: three stacked coils wrapped around the top of the shank
+             — rotates with the anchor so the knot stays tied to the head -->
+        <g stroke="#2a1a08" stroke-width="1.8" stroke-linejoin="round">
+          <ellipse cx="50" cy="12" rx="9.5"  ry="3.2" fill="#ece4cd"/>
+          <ellipse cx="50" cy="20" rx="11.5" ry="4"   fill="#f0e8d2"/>
+          <ellipse cx="50" cy="28" rx="9.5"  ry="3.2" fill="#ece4cd"/>
+        </g>
+        <!-- gold accent on each coil (the same gold the rope's stripes use) -->
+        <g stroke="#c9a558" stroke-width="1.6" stroke-linecap="round" fill="none">
+          <line x1="42" y1="12" x2="58" y2="12"/>
+          <line x1="40" y1="20" x2="60" y2="20"/>
+          <line x1="42" y1="28" x2="58" y2="28"/>
+        </g>
+        <!-- short rope tail tucked off to the side, like the end of the lashing -->
+        <path d="M60 23 Q 66 22 67 27" stroke="#2a1a08" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <path d="M60 23 Q 66 22 67 27" stroke="#ece4cd" stroke-width="1.4" fill="none" stroke-linecap="round"/>
       </svg>
     </div>
   </div>
@@ -6669,14 +6682,7 @@ function init() {
       ropePaths[0].setAttribute("d", d);
       ropePaths[1].setAttribute("d", d);
       document.getElementById("ropeGold").setAttribute("d", goldLines());
-      // knot where the rope ties to the anchor ring
-      const kx = last.x.toFixed(1), ky = last.y.toFixed(1);
-      const knotCasing = document.getElementById("ropeKnotCasing");
-      const knotBody = document.getElementById("ropeKnotBody");
-      const knotBand = document.getElementById("ropeKnotBand");
-      knotCasing.setAttribute("cx", kx); knotCasing.setAttribute("cy", ky);
-      knotBody.setAttribute("cx", kx); knotBody.setAttribute("cy", ky);
-      knotBand.setAttribute("d", "M" + (last.x - 9) + " " + (last.y - 2) + "L" + (last.x + 9) + " " + (last.y + 2));
+      // (knot now lives inside the anchor SVG so it rotates with the anchor)
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
