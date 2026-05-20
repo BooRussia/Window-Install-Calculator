@@ -6530,29 +6530,41 @@ function init() {
     return d;
   }
 
-  // diagonal gold stripes marching down the rope. The centreline is smoothed
-  // before sampling and the stripes stop short of the anchor so a kink in the
-  // last rope segment can't make the diagonals glitch.
+  // diagonal gold stripes marching down the rope. We sample positions along
+  // the EXACT same quadratic-Bezier curve that ropeD draws for the body, so
+  // the stripes are mathematically locked to the white rope and can never
+  // drift off it even when scrolling fast.
   function goldLines() {
-    const sm = [{ x: pts[0].x, y: pts[0].y }];
+    // dense polyline approximation of the body's Q-curve
+    const cl = [{ x: pts[0].x, y: pts[0].y }];
+    const SUB = 6;
     for (let i = 1; i < N - 1; i++) {
-      sm.push({
-        x: (pts[i - 1].x + 2 * pts[i].x + pts[i + 1].x) * 0.25,
-        y: (pts[i - 1].y + 2 * pts[i].y + pts[i + 1].y) * 0.25
-      });
+      const sx = (i === 1) ? pts[0].x : (pts[i - 1].x + pts[i].x) * 0.5;
+      const sy = (i === 1) ? pts[0].y : (pts[i - 1].y + pts[i].y) * 0.5;
+      const cx2 = pts[i].x, cy2 = pts[i].y;
+      const ex = (pts[i].x + pts[i + 1].x) * 0.5;
+      const ey = (pts[i].y + pts[i + 1].y) * 0.5;
+      for (let s = 1; s <= SUB; s++) {
+        const t = s / SUB, u = 1 - t;
+        cl.push({
+          x: u * u * sx + 2 * u * t * cx2 + t * t * ex,
+          y: u * u * sy + 2 * u * t * cy2 + t * t * ey
+        });
+      }
     }
-    sm.push({ x: pts[N - 1].x, y: pts[N - 1].y });
-    const seg = [];
+    cl.push({ x: pts[N - 1].x, y: pts[N - 1].y });
+    const L = cl.length;
+    const seg = new Array(L - 1);
     let total = 0;
-    for (let i = 0; i < N - 1; i++) {
-      const l = Math.hypot(sm[i + 1].x - sm[i].x, sm[i + 1].y - sm[i].y);
-      seg.push(l); total += l;
+    for (let i = 0; i < L - 1; i++) {
+      const l = Math.hypot(cl[i + 1].x - cl[i].x, cl[i + 1].y - cl[i].y);
+      seg[i] = l; total += l;
     }
     function at(d) {
       let acc = 0, i = 0;
-      while (i < N - 2 && acc + seg[i] < d) { acc += seg[i]; i++; }
+      while (i < L - 2 && acc + seg[i] < d) { acc += seg[i]; i++; }
       const t = seg[i] > 0 ? (d - acc) / seg[i] : 0;
-      const a = sm[i], b = sm[i + 1];
+      const a = cl[i], b = cl[i + 1];
       const dx = b.x - a.x, dy = b.y - a.y;
       const len = Math.hypot(dx, dy) || 1;
       return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
