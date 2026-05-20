@@ -564,19 +564,10 @@
     filter: drop-shadow(0 0 7px rgba(201,165,88,0.35)) drop-shadow(0 5px 9px rgba(0,0,0,0.5));
   }
   /* coarse, gritty sand footer — layered fractal-noise specks on solid sand */
+  /* base only — the grain texture itself is generated procedurally in JS
+     so each grain has its own shape, colour, size, rotation and opacity */
   .lp-sand-footer {
     background-color: #c8b083;
-    background-image:
-      /* softer dark overlay so the grain still reads */
-      linear-gradient(rgba(8,4,0,0.55), rgba(8,4,0,0.55)),
-      /* sparse black grains — the dark crystals you see in beach sand */
-      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='s'><feTurbulence type='fractalNoise' baseFrequency='3.2' numOctaves='1' seed='13'/><feComponentTransfer><feFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0 0.9'/></feComponentTransfer><feColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.03  0 0 0 0 0.02  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23s)'/></svg>"),
-      /* sparse bright white grains */
-      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><filter id='s'><feTurbulence type='fractalNoise' baseFrequency='3.6' numOctaves='1' seed='9'/><feComponentTransfer><feFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0.85'/></feComponentTransfer><feColorMatrix values='0 0 0 0 1  0 0 0 0 0.97  0 0 0 0 0.85  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23s)'/></svg>"),
-      /* rust / warm orange grains */
-      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='170' height='170'><filter id='s'><feTurbulence type='fractalNoise' baseFrequency='3' numOctaves='1' seed='17'/><feComponentTransfer><feFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0.7'/></feComponentTransfer><feColorMatrix values='0 0 0 0 0.66  0 0 0 0 0.42  0 0 0 0 0.18  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23s)'/></svg>"),
-      /* primary multi-tone sandy grain mapped via colour matrix — bright & dark in one pass */
-      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='s'><feTurbulence type='fractalNoise' baseFrequency='2.4' numOctaves='4' seed='5'/><feColorMatrix values='1.5 0 0 0 0.02  1.15 0 0 0 0.02  0.72 0 0 0 0.01  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23s)'/></svg>");
     border-top: 1px solid rgba(60,42,18,0.6);
   }
   .dive-bubble {
@@ -6697,6 +6688,80 @@ function init() {
   }, { passive: true });
   recalcTarget();
   requestAnimationFrame(frame);
+})();
+
+// ----- Procedural sand grain texture for the footer -----
+// Real beach sand isn't smooth noise — it's thousands of distinct grains
+// of varied shape, colour, size and rotation. We bake a 320x320 tile of
+// hand-drawn grains once at load and tile it across the footer.
+(function () {
+  const footer = document.querySelector(".lp-sand-footer");
+  if (!footer) return;
+  const SIZE = 320;
+  const cvs = document.createElement("canvas");
+  cvs.width = cvs.height = SIZE;
+  const ctx = cvs.getContext("2d");
+  ctx.fillStyle = "#c8b083";
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  // beach-sand palette: pale shells, warm tans, browns, rust, the odd dark mineral grain
+  const palette = ["#f4e8c8","#ebdcb8","#d8bd8a","#c4a474","#b89460","#9c7a48","#7a5028","#6e4422","#a06030","#cc9c5e","#e0c885","#1e1208","#3a2412","#f6efd9"];
+  const weights = [2.2,3,4,4,3.5,2.5,1.6,1.4,1.5,2.2,3,0.5,1,2];
+  const total = weights.reduce((a, b) => a + b, 0);
+  function pick() {
+    let r = Math.random() * total;
+    for (let i = 0; i < palette.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return palette[i];
+    }
+    return palette[0];
+  }
+  function draw(x, y, r, color, shape, angle, alpha, aspect) {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    if (shape < 0.55) {
+      // round-ish grain
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r, r * aspect, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (shape < 0.86) {
+      // elongated grain
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 1.4, r * 0.55 * aspect, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // chunky rectangular grain
+      const w = r * 1.6, h = r * 1.1 * aspect;
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+    }
+    ctx.restore();
+  }
+
+  const N = 2000; // dense grain count for that gritty beach feel
+  for (let i = 0; i < N; i++) {
+    const x = Math.random() * SIZE;
+    const y = Math.random() * SIZE;
+    const r = 0.6 + Math.random() * Math.random() * 3.4;   // most grains tiny, occasional big
+    const color = pick();
+    const shape = Math.random();
+    const angle = Math.random() * Math.PI;
+    const alpha = 0.72 + Math.random() * 0.28;
+    const aspect = 0.7 + Math.random() * 0.6;
+    draw(x, y, r, color, shape, angle, alpha, aspect);
+    // mirror grains crossing the tile edge so the texture seams cleanly
+    if (x < r + 1)         draw(x + SIZE, y, r, color, shape, angle, alpha, aspect);
+    if (x > SIZE - r - 1)  draw(x - SIZE, y, r, color, shape, angle, alpha, aspect);
+    if (y < r + 1)         draw(x, y + SIZE, r, color, shape, angle, alpha, aspect);
+    if (y > SIZE - r - 1)  draw(x, y - SIZE, r, color, shape, angle, alpha, aspect);
+  }
+  ctx.globalAlpha = 1;
+
+  const url = cvs.toDataURL("image/png");
+  footer.style.backgroundImage =
+    "linear-gradient(rgba(8,4,0,0.55), rgba(8,4,0,0.55)), url(" + url + ")";
 })();
 
 document.addEventListener("DOMContentLoaded", boot);
