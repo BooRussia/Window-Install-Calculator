@@ -6494,7 +6494,7 @@ function init() {
   let pts = null, anchorAngle = 0;
   let dig = 0, digTarget = 0;   // 0 = upright, 1 = rolled flat on its side
   let tension = 0, idleFrames = 0;   // tension: 0 = loose & lively, 1 = pulled taut & straight
-  let displayRingY = 0;   // smoothed rope-end target so the system has weight
+  let displayRingY = 0, prevDisplayRingY = 0;   // smoothed rope-end target + previous frame for velocity
 
   function initPts() {
     pts = [];
@@ -6604,8 +6604,10 @@ function init() {
       // smoothed rope-end target: the system has weight, so it trails the
       // scroll slightly and catches up like a damped spring (no perfect snap)
       const targetRingY = startY + (endY - startY) * p + dig * 44;
+      prevDisplayRingY = displayRingY;
       displayRingY += (targetRingY - displayRingY) * 0.16;
       const ringY = displayRingY;
+      const ropeVelY = displayRingY - prevDisplayRingY;
 
       const nowLanded = p > 0.985;
       if (nowLanded !== landed) {
@@ -6619,10 +6621,11 @@ function init() {
       const idle = idleFrames > 14 && Math.abs(targetP - p) < 0.004;
       tension += ((idle ? 1 : 0) - tension) * (idle ? 0.022 : 0.3);
 
-      // chain length carries a hint of slack (~1%) so the middle of the rope
-      // can whip a touch during fast motion — the anchor itself is still
-      // pinned to ringY so it never separates from the rope's end
-      const seg = (ringY * 1.01) / (N - 1);
+      // chain length carries 5% slack so the rope can really whip + curve
+      // during fast motion. The anchor itself is still pinned to ringY so
+      // it never separates from the rope's end; the slack creates pendulum
+      // sling when the rope catches up tight after a fast scroll
+      const seg = (ringY * 1.05) / (N - 1);
       const last = pts[N - 1];
       const flow = (reduce || landed) ? 0 : (1 - tension);
       const damp = 0.985 - 0.06 * tension;
@@ -6644,7 +6647,10 @@ function init() {
           }
         }
         pt.px = pt.x; pt.py = pt.y;
-        pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * 0.05 * flow;
+        // flow undulation gets boosted during fast rope motion — gives the
+        // chain a real sideways whip when the slack snaps tight
+        const flowAmp = 0.05 + Math.min(0.18, Math.abs(ropeVelY) * 0.04);
+        pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * flowAmp * flow;
         pt.y += vy + GRAVITY;
       }
       // distance constraints — pin the top fully and the anchor end's Y to
@@ -6663,16 +6669,24 @@ function init() {
         pts[0].x = CX; pts[0].y = 0;
         last.y = ringY;
       }
+      // keep the anchor on screen even when it sways — anchor's left edge
+      // sits at (viewport) last.x - 49, so clamp last.x so it never goes off
+      const minLastX = 56;   // ~6px viewport padding on the left
+      const maxLastX = 56 + Math.max(0, window.innerWidth - 130 - 16);
+      if (last.x < minLastX) last.x = minLastX;
+      else if (last.x > maxLastX) last.x = maxLastX;
 
       // place the anchor: ring follows the rope end. The anchor is bottom-heavy,
       // so it stays upright and only leans gently into its sideways drift —
       // never spins or flips. Once digging in, it tips over onto its side.
       const tx = last.x - CX;
       const ty = last.y - RING_Y;
-      let tgtAngle = (last.x - last.px) * 2.6;
-      if (tgtAngle > 15) tgtAngle = 15;
-      else if (tgtAngle < -15) tgtAngle = -15;
-      anchorAngle += (tgtAngle - anchorAngle) * 0.1;
+      // anchor leans into its sideways drift with more range so it visibly
+      // rolls / sways during the sling after fast scrolls
+      let tgtAngle = (last.x - last.px) * 3.6;
+      if (tgtAngle > 28) tgtAngle = 28;
+      else if (tgtAngle < -28) tgtAngle = -28;
+      anchorAngle += (tgtAngle - anchorAngle) * 0.12;
       const dispAngle = anchorAngle * (1 - dig) + 74 * dig;
       anchor.style.transform =
         "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
