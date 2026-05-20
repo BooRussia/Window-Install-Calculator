@@ -6494,6 +6494,7 @@ function init() {
   let pts = null, anchorAngle = 0;
   let dig = 0, digTarget = 0;   // 0 = upright, 1 = rolled flat on its side
   let tension = 0, idleFrames = 0;   // tension: 0 = loose & lively, 1 = pulled taut & straight
+  let displayRingY = 0;   // smoothed rope-end target so the system has weight
 
   function initPts() {
     pts = [];
@@ -6600,7 +6601,11 @@ function init() {
       if (!atBottom) digTarget = Math.max(0, digTarget - 0.05);
       dig += (digTarget - dig) * 0.14;
 
-      const ringY = startY + (endY - startY) * p + dig * 44;
+      // smoothed rope-end target: the system has weight, so it trails the
+      // scroll slightly and catches up like a damped spring (no perfect snap)
+      const targetRingY = startY + (endY - startY) * p + dig * 44;
+      displayRingY += (targetRingY - displayRingY) * 0.16;
+      const ringY = displayRingY;
 
       const nowLanded = p > 0.985;
       if (nowLanded !== landed) {
@@ -6614,10 +6619,10 @@ function init() {
       const idle = idleFrames > 14 && Math.abs(targetP - p) < 0.004;
       tension += ((idle ? 1 : 0) - tension) * (idle ? 0.022 : 0.3);
 
-      // chain length matches the straight distance from top to anchor exactly,
-      // so the rope stays taut at all times and the anchor never separates
-      // from the rope's end — they read as one piece being let out from above
-      const seg = ringY / (N - 1);
+      // chain length carries a hint of slack (~1%) so the middle of the rope
+      // can whip a touch during fast motion — the anchor itself is still
+      // pinned to ringY so it never separates from the rope's end
+      const seg = (ringY * 1.01) / (N - 1);
       const last = pts[N - 1];
       const flow = (reduce || landed) ? 0 : (1 - tension);
       const damp = 0.985 - 0.06 * tension;
