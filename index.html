@@ -685,8 +685,8 @@
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="50" cy="20" r="9"/>
-        <line x1="50" y1="29" x2="50" y2="82"/>
+        <!-- ring removed — the rope's knot sits in its place -->
+        <line x1="50" y1="20" x2="50" y2="82"/>
         <line x1="33" y1="40" x2="67" y2="40"/>
         <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/>
         <path d="M22 60 L 13 52"/>
@@ -6609,7 +6609,10 @@ function init() {
       const idle = idleFrames > 14 && Math.abs(targetP - p) < 0.004;
       tension += ((idle ? 1 : 0) - tension) * (idle ? 0.022 : 0.3);
 
-      const seg = (ringY * (1.04 - 0.04 * tension) + 6 * (1 - tension)) / (N - 1);
+      // chain length matches the straight distance from top to anchor exactly,
+      // so the rope stays taut at all times and the anchor never separates
+      // from the rope's end — they read as one piece being let out from above
+      const seg = ringY / (N - 1);
       const last = pts[N - 1];
       const flow = (reduce || landed) ? 0 : (1 - tension);
       const damp = 0.985 - 0.06 * tension;
