@@ -6642,8 +6642,9 @@ function init() {
         pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * 0.05 * flow;
         pt.y += vy + GRAVITY;
       }
-      // distance constraints — pin only the top. The chain's total length
-      // limits how far the anchor can fall; nothing else holds it up.
+      // distance constraints — pin the top fully and the anchor end's Y to
+      // the rope's end. The anchor is rigidly attached to the rope so they
+      // descend as one piece; only the anchor's X stays free for gentle sway.
       for (let it = 0; it < 6; it++) {
         for (let i = 0; i < N - 1; i++) {
           const a = pts[i], b = pts[i + 1];
@@ -6655,6 +6656,7 @@ function init() {
           b.x += dx; b.y += dy;
         }
         pts[0].x = CX; pts[0].y = 0;
+        last.y = ringY;
       }
 
       // place the anchor: ring follows the rope end. The anchor is bottom-heavy,
@@ -6699,8 +6701,9 @@ function init() {
   window.addEventListener("resize", recalcTarget);
   ls.addEventListener("wheel", e => {
     const max = ls.scrollHeight - ls.clientHeight;
-    const atBottom = max > 0 && (max - ls.scrollTop) < 4;
-    if (atBottom && e.deltaY > 0) {
+    const atBottomOfPage = max > 0 && (max - ls.scrollTop) < 4;
+    const anchorLanded = p > 0.985;        // anchor has actually settled at the sand
+    if (atBottomOfPage && anchorLanded && e.deltaY > 0) {
       digTarget = Math.min(1, digTarget + e.deltaY * 0.0022);
     } else if (e.deltaY < 0) {
       digTarget = Math.max(0, digTarget + e.deltaY * 0.0022);
