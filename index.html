@@ -701,17 +701,33 @@
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
         <!-- ring removed — the rope's knot sits in its place -->
-        <line x1="50" y1="20" x2="50" y2="82"/>
-        <line x1="33" y1="40" x2="67" y2="40"/>
-        <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/>
-        <path d="M22 60 L 13 52"/>
-        <path d="M78 60 L 87 52"/>
+        <defs>
+          <g id="anchorGeom">
+            <line x1="50" y1="20" x2="50" y2="82"/>
+            <line x1="33" y1="40" x2="67" y2="40"/>
+            <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/>
+            <path d="M22 60 L 13 52"/>
+            <path d="M78 60 L 87 52"/>
+          </g>
+        </defs>
+        <!-- contact-shadow side (offset down-right, dark amber) — gives the
+             metal its underside depth -->
+        <use href="#anchorGeom" stroke="#4a3216" stroke-width="9.5" transform="translate(1.4 1.8)" opacity="0.55"/>
+        <!-- mid-tone gold body — the "true" colour of the cast metal -->
+        <use href="#anchorGeom" stroke="#c4a058" stroke-width="8"/>
+        <!-- lit edge / specular highlight (offset up-left, brighter, thinner) —
+             reads as light reflecting off a rounded metallic surface -->
+        <use href="#anchorGeom" stroke="#fbe7a4" stroke-width="2.8" transform="translate(-0.6 -1)" opacity="0.85"/>
+        <!-- pin-thin top sheen for a polished cast-bronze look -->
+        <use href="#anchorGeom" stroke="#fff5cf" stroke-width="1.1" transform="translate(-0.9 -1.4)" opacity="0.55"/>
       </svg>
     </div>
     <!-- knot drawn after the anchor so it sits in front of the anchor's shank -->
     <svg id="anchorKnotSvg">
       <ellipse id="ropeKnotCasing" rx="9" ry="11.5" fill="#2e2618"/>
       <ellipse id="ropeKnotBody" rx="7" ry="9.5" fill="#d8caa0"/>
+      <!-- small specular highlight bead so the knot reads as rounded -->
+      <ellipse id="ropeKnotHi" rx="2.4" ry="3.4" fill="#fbf3d8" opacity="0.7"/>
     </svg>
   </div>
 
@@ -6780,12 +6796,16 @@ function init() {
       const stripes = goldLines();
       document.getElementById("ropeGold").setAttribute("d", stripes.dA);
       document.getElementById("ropeGoldB").setAttribute("d", stripes.dB);
-      // knot at the rope's end — a small oval bulge of rope
+      // knot at the rope's end — a small oval bulge of rope, with a tiny
+      // specular bead offset up-left so it reads as rounded
       const kx = last.x.toFixed(1), ky = last.y.toFixed(1);
       const knotCasing = document.getElementById("ropeKnotCasing");
       const knotBody = document.getElementById("ropeKnotBody");
+      const knotHi = document.getElementById("ropeKnotHi");
       knotCasing.setAttribute("cx", kx); knotCasing.setAttribute("cy", ky);
       knotBody.setAttribute("cx", kx); knotBody.setAttribute("cy", ky);
+      knotHi.setAttribute("cx", (last.x - 2).toFixed(1));
+      knotHi.setAttribute("cy", (last.y - 3).toFixed(1));
 
       if (!reduce && !landed) {
         const moving = Math.abs(p - lastP) > 0.0035;
