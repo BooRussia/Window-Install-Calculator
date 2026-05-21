@@ -6966,12 +6966,13 @@ try {
   const section = document.getElementById("lpFL");
   if (!canvas || !section) throw new Error("FL elements missing");
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, premultipliedAlpha: false, powerPreference: "high-performance" });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
   const DPR = Math.min(window.devicePixelRatio, 2);
   renderer.setPixelRatio(DPR);
-  // transparent clear — the canvas adds the iridescent wake on top of the
-  // page's own #020617 background, so there's no colour seam at idle
-  renderer.setClearColor(0x000000, 0);
+  // disable Three's sRGB conversion so shader values render literally —
+  // means our exact #020617 in the shader matches the page's CSS #020617
+  renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+  renderer.setClearColor(0x020617, 1);
 
   const fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const fsGeo = new THREE.PlaneGeometry(2, 2);
@@ -7006,10 +7007,12 @@ try {
       "  vec2 amA = ascale(uMouse);",
       "  vec2 mouseDelta = uMouse - uPrevMouse;",
       "  float dToMouse = distance(auv, amA);",
-      "  float mInf = smoothstep(0.18, 0.0, dToMouse);",
+      "  // tighter cursor-influence radius for a more localized paddle",
+      "  float mInf = smoothstep(0.09, 0.0, dToMouse);",
       "  vec2 v = mouseDelta * mInf * 0.55;",
       "  vec4 prev = texture2D(uPrev, uv - v);",
-      "  float decay = pow(0.982, uDt * 60.0);",
+      "  // slightly faster decay so the wake fades sooner",
+      "  float decay = pow(0.972, uDt * 60.0);",
       "  prev *= decay;",
       "  float stamp = 0.0;",
       "  const int N = 8;",
@@ -7017,17 +7020,19 @@ try {
       "    float t = float(i) / float(N - 1) * 0.80 - 0.15;",
       "    vec2  p = ascale(mix(uPrevMouse, uMouse, t));",
       "    float d = distance(auv, p);",
-      "    stamp += exp(-d * d * 1200.0);",
+      "    // tighter falloff: 1200 → 3000 makes the wake much thinner",
+      "    stamp += exp(-d * d * 3000.0);",
       "  }",
       "  stamp /= float(N);",
       "  float speed = length(mouseDelta);",
       "  float motionGate = smoothstep(0.0012, 0.008, speed);",
-      "  float intensity = speed * 55.0 * motionGate;",
+      "  // lower deposit intensity for a more subtle wake",
+      "  float intensity = speed * 28.0 * motionGate;",
       "  stamp *= intensity * uMouseInside;",
-      "  stamp = min(stamp, 1.6);",
+      "  stamp = min(stamp, 1.2);",
       "  vec3 stampCol = vec3(0.62, 0.66, 0.78);",
       "  prev.rgb += stampCol * stamp;",
-      "  prev.rgb = min(prev.rgb, vec3(2.0));",
+      "  prev.rgb = min(prev.rgb, vec3(1.8));",
       "  gl_FragColor = prev;",
       "}",
     ].join("\n"),
@@ -7058,6 +7063,8 @@ try {
       "  L += texture2D(uLight, uv + vec2(0,  r)).r * 0.125;",
       "  L += texture2D(uLight, uv + vec2(0, -r)).r * 0.125;",
       "  L = L / (1.0 + L * 0.55);",
+      "  // bg matches the page's CSS #020617 exactly (no sRGB conversion)",
+      "  vec3 bg = vec3(0.0078, 0.0235, 0.0902);",
       "  float phase = L * 0.85 + 0.22*sin(uv.x*7.0 + uTime*0.20) + 0.16*cos(uv.y*5.5 - uTime*0.16) + uTime*0.045;",
       "  vec3 iridA = vec3(0.55, 0.50, 0.55);",
       "  vec3 iridB = vec3(0.45, 0.50, 0.50);",
@@ -7069,14 +7076,13 @@ try {
       "  vec3 paletted = mix(irid, gold, goldMix * 0.55);",
       "  float coreMix = smoothstep(0.55, 1.10, L);",
       "  vec3 mistColor = mix(paletted, vec3(0.98, 0.96, 1.00), coreMix * 0.65);",
-      "  vec3 mist = mistColor * L * 0.85;",
-      "  float edgeMask = smoothstep(0.0, 0.08, uv.x) * smoothstep(1.0, 0.92, uv.x)",
-      "                 * smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);",
+      "  // subtler mist multiplier",
+      "  vec3 mist = mistColor * L * 0.55;",
+      "  float edgeMask = smoothstep(0.0, 0.05, uv.x) * smoothstep(1.0, 0.95, uv.x)",
+      "                 * smoothstep(0.0, 0.04, uv.y) * smoothstep(1.0, 0.96, uv.y);",
       "  mist *= edgeMask;",
-      "  // alpha tracks the wake density — no light, fully transparent → the",
-      "  // page's own background shows through, so there's no colour seam",
-      "  float a = clamp(L * 1.4 * edgeMask, 0.0, 1.0);",
-      "  gl_FragColor = vec4(mist, a);",
+      "  vec3 col = bg + mist;",
+      "  gl_FragColor = vec4(col, 1.0);",
       "}",
     ].join("\n"),
   });
@@ -7085,9 +7091,11 @@ try {
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(compositeScene, fsCam));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.35, 0.60, 0.35);
+  // gentler bloom now that the wake itself is more subtle
+  const bloom = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.25, 0.55, 0.5);
   composer.addPass(bloom);
-  composer.addPass(new OutputPass());
+  // no OutputPass — we set outputColorSpace = LinearSRGB so shader values
+  // render literally with no gamma conversion
 
   /* mouse tracking — canvas-relative, bound on window so a drag from
      outside the canvas region is picked up the moment it enters */
