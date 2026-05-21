@@ -532,6 +532,22 @@
   /* Modal */
   .modal-backdrop { background: rgba(2,6,23,0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 
+  /* Modal close (×) — 44×44 tap target per Apple HIG / WCAG AA, used by
+     every primary modal so the dismiss control feels consistent and sits
+     comfortably inside the card edge instead of floating off it. */
+  .modal-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 10px;
+    color: #94a3b8; background: transparent; border: 0;
+    font-size: 22px; line-height: 1;
+    cursor: pointer; flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .15s ease, background .15s ease;
+  }
+  .modal-close:hover, .modal-close:focus-visible {
+    color: #f1f5f9; background: rgba(30,41,59,0.7); outline: none;
+  }
+
   /* Auto-fit targets must never wrap so scrollWidth reflects natural text width */
   #sellingPrice, #totalCost, #profit, #grandTotalFooter, #perLfFooter, #totalLF {
     white-space: nowrap;
@@ -720,10 +736,37 @@
   @media (prefers-reduced-motion: reduce) {
     .lp-reveal { opacity: 1; transform: none; transition: none; }
   }
-  /* Landing viewed while signed in — swap auth CTAs for "Open App" */
+  /* Landing CTA visibility — logged-out visitors see Log In + Get Started
+     (Open App is hidden because they don't have an app to open). Signed-in
+     visitors see only Open App, since Log In / Get Started don't apply. */
   #lpOpenApp { display: none; }
   .lp-authed #lpLogin, .lp-authed #lpSignup { display: none; }
   .lp-authed #lpOpenApp { display: inline-block; }
+
+  /* Primary CTA prominence — Get Started is the single dominant action for
+     logged-out visitors. Lift it visually so it clearly outweighs the
+     quieter Log In link beside it. */
+  #lpSignup, #lpOpenApp {
+    box-shadow: 0 12px 36px -10px rgba(181,143,74,0.65);
+  }
+  #lpSignup:hover, #lpOpenApp:hover {
+    box-shadow: 0 14px 40px -8px rgba(201,165,88,0.8);
+    transform: translateY(-1px);
+  }
+  /* Mobile nav — strip section anchors + Log In so only the logo + the
+     single primary CTA remain. The hero/scroll already gets users to
+     features, so the in-nav links are redundant on small screens. */
+  @media (max-width: 639px) {
+    .lp-nav .lp-scroll,
+    .lp-nav #lpLogin { display: none !important; }
+    /* Beef up the mobile CTA to a comfortable 44px+ tap target */
+    .lp-nav #lpSignup,
+    .lp-nav #lpOpenApp {
+      padding: 0.625rem 1.1rem;
+      font-size: 0.9rem;
+      min-height: 44px;
+    }
+  }
 
   /* ------- Full-page tabbed Settings ------- */
   .set-tab {
@@ -940,9 +983,9 @@
         <button class="lp-scroll btn hidden sm:block text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpTrust">Trusted</button>
         <button class="lp-scroll btn hidden sm:block text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpFeatures">Features</button>
         <button class="lp-scroll btn text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpFL">FL Lookup</button>
-        <button id="lpLogin" class="btn text-sm font-semibold text-slate-300 hover:text-[#c9a558] px-3 py-2">Log In</button>
-        <button id="lpSignup" class="lp-btn-gold btn rounded-full text-sm font-bold px-4 py-2 ml-1">Get Started</button>
-        <button id="lpOpenApp" class="lp-btn-gold btn rounded-full text-sm font-bold px-4 py-2 ml-1">Open App →</button>
+        <button id="lpLogin" class="btn text-sm font-medium text-slate-400 hover:text-[#c9a558] px-3 py-2">Log In</button>
+        <button id="lpSignup" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-2">Get Started</button>
+        <button id="lpOpenApp" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-2">Open App →</button>
       </div>
     </div>
   </nav>
@@ -1599,7 +1642,7 @@
 
     </div>
     <div class="flex items-center justify-between mt-4">
-      <button id="setupSkip" class="btn text-xs text-slate-500 hover:text-slate-300 font-semibold px-2 py-2">Skip setup</button>
+      <button id="setupSkip" class="btn rounded-full px-4 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-100 border border-slate-800 hover:border-slate-600 min-h-[44px]">Skip for now</button>
       <div class="flex gap-2">
         <button id="setupBack" class="btn rounded-full px-4 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-slate-500">Back</button>
         <button id="setupNext" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Next →</button>
@@ -1612,7 +1655,6 @@
 <div id="authScreen" class="fixed inset-0 z-[90] hidden items-center justify-center p-5">
   <div class="absolute inset-0 modal-backdrop" data-auth-close></div>
   <div class="relative w-full max-w-sm">
-    <button class="absolute -top-3 right-0 btn text-slate-500 hover:text-white text-2xl leading-none px-2" data-auth-close aria-label="Close">×</button>
     <div class="text-center mb-6">
       <span class="text-[#c9a558] inline-block mb-2">
         <svg viewBox="0 0 100 100" width="42" height="42" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1622,7 +1664,10 @@
       </span>
       <h1 class="font-black tracking-tightest text-slate-100 text-2xl">Anchor</h1>
     </div>
-    <div class="card rounded-3xl p-6">
+    <div class="relative card rounded-3xl p-6">
+      <!-- Close X — anchored inside the card frame at the top-right with a
+           44×44 tap target. Click handler is delegated via [data-auth-close]. -->
+      <button class="modal-close absolute top-2 right-2 z-10" data-auth-close aria-label="Close">×</button>
       <form id="authForm" class="space-y-3">
         <div class="mb-1">
           <div id="authTitle" class="text-base font-bold text-slate-100">Log In</div>
@@ -2097,7 +2142,7 @@
         <h3 class="text-base font-semibold text-slate-100">Scan Plan with AI</h3>
         <p class="text-xs text-slate-500 mt-0.5">Upload a plan or schedule — AI extracts window count, LF, and manufacturer</p>
       </div>
-      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-read>×</button>
+      <button class="modal-close" data-close-read aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-5 overflow-y-auto">
       <ol class="space-y-5 text-sm text-slate-300">
@@ -2133,7 +2178,7 @@
       </ol>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
-      <button data-close-read class="btn text-sm text-slate-400 hover:text-white px-4 py-2">Cancel</button>
+      <button data-close-read class="btn rounded-full text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Cancel</button>
       <button id="applyGrokBtn" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Apply Values</button>
     </div>
   </div>
@@ -2148,7 +2193,7 @@
         <h3 class="text-base font-semibold text-slate-100">Buck Cut List</h3>
         <p class="text-xs text-slate-500 mt-0.5">AI reads the schedule — the calculator optimizes the board cuts</p>
       </div>
-      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-buck>×</button>
+      <button class="modal-close" data-close-buck aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-5 overflow-y-auto">
       <ol class="space-y-5 text-sm text-slate-300">
@@ -2200,7 +2245,7 @@
       </div>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex justify-between items-center gap-2">
-      <button id="buckClearBtn" class="btn text-xs text-slate-500 hover:text-rose-300 px-2 py-2">Clear cut list</button>
+      <button id="buckClearBtn" class="btn rounded-full text-sm text-slate-500 hover:text-rose-300 hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Clear cut list</button>
       <div class="flex-1"></div>
       <button data-close-buck class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-slate-100 text-slate-950 hover:bg-white">Done</button>
     </div>
@@ -2213,7 +2258,7 @@
   <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
       <h3 class="text-base font-semibold text-slate-100">Save Job</h3>
-      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-save>×</button>
+      <button class="modal-close" data-close-save aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-4">
       <div>
@@ -2233,7 +2278,7 @@
       </div>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
-      <button data-close-save class="btn text-sm text-slate-400 hover:text-white px-4 py-2">Cancel</button>
+      <button data-close-save class="btn rounded-full text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Cancel</button>
       <button id="saveJobConfirm" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save Job</button>
     </div>
   </div>
@@ -2249,9 +2294,9 @@
         <p class="text-xs text-slate-500 mt-0.5">Side-by-side cost breakdown</p>
       </div>
       <div class="flex items-center gap-2">
-        <button id="viewComparisonPdf" class="btn rounded-full px-3 py-2 text-xs font-bold text-slate-400 hover:text-[#c9a558]">View</button>
-        <button id="exportComparisonPdf" class="btn rounded-full px-4 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Download PDF</button>
-        <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close-compare>×</button>
+        <button id="viewComparisonPdf" class="btn rounded-full px-3 py-2.5 text-xs font-bold text-slate-400 hover:text-[#c9a558] hover:bg-slate-800 min-h-[44px]">View</button>
+        <button id="exportComparisonPdf" class="btn rounded-full px-4 py-2.5 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] min-h-[44px]">Download PDF</button>
+        <button class="modal-close" data-close-compare aria-label="Close">×</button>
       </div>
     </div>
     <div id="compareBody" class="overflow-y-auto px-6 py-5 flex-1"></div>
@@ -2273,7 +2318,7 @@
         </span>
         <h3 class="text-base font-bold text-slate-100 tracking-tight">Settings</h3>
       </div>
-      <button class="btn rounded-full px-4 py-2 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]" data-close>Done</button>
+      <button class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] min-h-[44px]" data-close>Done</button>
     </div>
 
     <!-- Body: rail + content -->
@@ -2439,7 +2484,7 @@
 
     <!-- Footer -->
     <div id="settingsFooter" class="px-5 sm:px-8 py-4 border-t border-slate-800 flex items-center justify-end gap-2 flex-shrink-0">
-      <button id="adminReset" class="btn text-sm text-slate-400 hover:text-rose-300 px-3 py-2">Restore Defaults</button>
+      <button id="adminReset" class="btn rounded-full text-sm text-slate-400 hover:text-rose-300 hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Restore Defaults</button>
       <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
     </div>
   </div>
@@ -2456,7 +2501,7 @@
         <h3 class="text-base font-semibold text-slate-100">Florida Product Approvals</h3>
         <p class="text-xs text-slate-500 mt-0.5">Screw patterns by FL# — match the number on the unit's NFRC sticker.</p>
       </div>
-      <button class="btn text-slate-400 hover:text-white text-xl leading-none px-2" data-close>×</button>
+      <button class="modal-close" data-close aria-label="Close">×</button>
     </div>
 
     <!-- Search + add -->
