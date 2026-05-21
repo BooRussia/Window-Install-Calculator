@@ -6677,7 +6677,8 @@ function init() {
         pt.y += vy + GRAVITY * dt;
       }
       // distance constraints — alternate forward/backward each iteration
-      // (Jakobsen) so error doesn't accumulate at one end and produce a kink
+      // (Jakobsen) so error doesn't accumulate at one end and produce a kink.
+      // last.y is pinned EACH iteration so the relaxation respects the anchor.
       for (let it = 0; it < 8; it++) {
         if ((it & 1) === 0) {
           for (let i = 0; i < N - 1; i++) {
@@ -6701,8 +6702,25 @@ function init() {
           }
         }
         pts[0].x = CX; pts[0].y = 0;
+        last.y = ringY;
       }
-      last.y = ringY;
+      // when the rope is at rest, force every joint toward the ideal straight
+      // line between top and anchor and kill its momentum — guarantees the
+      // suspended rope is dead straight with no residual sag or sideways bow
+      if (tension > 0.01) {
+        const blend = tension * 0.35;
+        const killVel = tension * 0.7;
+        for (let i = 1; i < N - 1; i++) {
+          const t = i / (N - 1);
+          pts[i].x += (CX - pts[i].x) * blend;
+          pts[i].y += (t * ringY - pts[i].y) * blend;
+          pts[i].px = pts[i].px * (1 - killVel) + pts[i].x * killVel;
+          pts[i].py = pts[i].py * (1 - killVel) + pts[i].y * killVel;
+        }
+        // pull the anchor toward CX too so it can't sit slightly off-centre
+        last.x += (CX - last.x) * blend;
+        last.px = last.px * (1 - killVel) + last.x * killVel;
+      }
       // keep the anchor on screen and zero its X-velocity when it hits the
       // wall (avoids a synthetic kick on the next verlet step)
       const minLastX = 56;
