@@ -1015,13 +1015,15 @@
   </section>
 
   <!-- FL lookup section -->
-  <section id="lpFL" class="scroll-mt-20 min-h-screen flex flex-col items-center justify-center max-w-3xl mx-auto px-5 sm:px-6 py-32">
-    <div class="lp-reveal text-center">
+  <section id="lpFL" class="scroll-mt-20 min-h-screen flex flex-col items-center justify-center max-w-3xl mx-auto px-5 sm:px-6 py-32" style="position:relative; overflow:hidden;">
+    <!-- iridescent mouse-wake canvas (Three.js shader, lazy-loaded) -->
+    <canvas id="flTrailCanvas" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; opacity:0; transition:opacity .8s ease;"></canvas>
+    <div class="lp-reveal text-center" style="position:relative; z-index:2;">
       <span class="lp-eyebrow">Florida product approvals</span>
       <h2 class="text-3xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-5">No more digging through floridabuilding.org.</h2>
       <p class="text-slate-400 mt-3 max-w-lg mx-auto">Search the FL# right off the unit's sticker — get the screw pattern instantly, substrate by substrate.</p>
     </div>
-    <div class="lp-reveal mt-8">
+    <div class="lp-reveal mt-8" style="position:relative; z-index:2; width:100%;">
       <div class="relative">
         <svg class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
           <circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/>
@@ -6910,6 +6912,272 @@ function init() {
 })();
 
 document.addEventListener("DOMContentLoaded", boot);
+</script>
+
+<!-- ============================================================
+     FL search iridescent mouse-wake effect (Three.js, lazy-loaded)
+     Loads only once the user scrolls the FL section into view,
+     and only on devices with a real hover-capable pointer.
+     ============================================================ -->
+<script>
+(function () {
+  if (!window.matchMedia) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  if (!("IntersectionObserver" in window)) return;
+  var fl = document.getElementById("lpFL");
+  if (!fl) return;
+  var loaded = false;
+  var io = new IntersectionObserver(function (entries) {
+    if (loaded) return;
+    for (var i = 0; i < entries.length; i++) if (entries[i].isIntersecting) {
+      loaded = true; io.disconnect();
+      var imap = document.createElement("script");
+      imap.type = "importmap";
+      imap.textContent = '{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}';
+      document.head.appendChild(imap);
+      var mod = document.createElement("script");
+      mod.type = "module";
+      mod.id = "flTrailModule";
+      mod.textContent = document.getElementById("flTrailModuleSrc").textContent;
+      mod.onerror = function () { console.warn("FL FX failed to load — search still works"); };
+      document.body.appendChild(mod);
+      break;
+    }
+  }, { rootMargin: "200px" });
+  io.observe(fl);
+})();
+</script>
+
+<!-- the actual module body, kept as a text/plain template so the
+     classic loader above can inline it after the import map exists -->
+<script id="flTrailModuleSrc" type="text/plain">
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass }      from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass }      from "three/addons/postprocessing/OutputPass.js";
+
+try {
+  const canvas = document.getElementById("flTrailCanvas");
+  const section = document.getElementById("lpFL");
+  if (!canvas || !section) throw new Error("FL elements missing");
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, premultipliedAlpha: false, powerPreference: "high-performance" });
+  const DPR = Math.min(window.devicePixelRatio, 2);
+  renderer.setPixelRatio(DPR);
+  renderer.setClearColor(0x020617, 1);
+
+  const fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const fsGeo = new THREE.PlaneGeometry(2, 2);
+
+  const LRES = 0.7;
+  const rtParams = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false };
+  function rtSize() { const r = canvas.getBoundingClientRect(); return [Math.max(2, Math.floor(r.width * LRES)), Math.max(2, Math.floor(r.height * LRES))]; }
+  let lightA = new THREE.WebGLRenderTarget(...rtSize(), rtParams);
+  let lightB = new THREE.WebGLRenderTarget(...rtSize(), rtParams);
+
+  /* update shader — pure mouse-wake, no ambient, no drift */
+  const updateMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uPrev:        { value: null },
+      uMouse:       { value: new THREE.Vector2(-1, -1) },
+      uPrevMouse:   { value: new THREE.Vector2(-1, -1) },
+      uMouseInside: { value: 0.0 },
+      uDt:          { value: 0.016 },
+      uAspect:      { value: 1.0 },
+    },
+    vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position,1.0); }",
+    fragmentShader: [
+      "precision highp float;",
+      "uniform sampler2D uPrev;",
+      "uniform vec2  uMouse, uPrevMouse;",
+      "uniform float uMouseInside, uDt, uAspect;",
+      "varying vec2  vUv;",
+      "vec2 ascale(vec2 uv){ return vec2(uv.x*uAspect, uv.y); }",
+      "void main(){",
+      "  vec2 uv = vUv;",
+      "  vec2 auv = ascale(uv);",
+      "  vec2 amA = ascale(uMouse);",
+      "  vec2 mouseDelta = uMouse - uPrevMouse;",
+      "  float dToMouse = distance(auv, amA);",
+      "  float mInf = smoothstep(0.18, 0.0, dToMouse);",
+      "  vec2 v = mouseDelta * mInf * 0.55;",
+      "  vec4 prev = texture2D(uPrev, uv - v);",
+      "  float decay = pow(0.982, uDt * 60.0);",
+      "  prev *= decay;",
+      "  float stamp = 0.0;",
+      "  const int N = 8;",
+      "  for (int i = 0; i < N; i++) {",
+      "    float t = float(i) / float(N - 1) * 0.80 - 0.15;",
+      "    vec2  p = ascale(mix(uPrevMouse, uMouse, t));",
+      "    float d = distance(auv, p);",
+      "    stamp += exp(-d * d * 1200.0);",
+      "  }",
+      "  stamp /= float(N);",
+      "  float speed = length(mouseDelta);",
+      "  float motionGate = smoothstep(0.0012, 0.008, speed);",
+      "  float intensity = speed * 55.0 * motionGate;",
+      "  stamp *= intensity * uMouseInside;",
+      "  stamp = min(stamp, 1.6);",
+      "  vec3 stampCol = vec3(0.62, 0.66, 0.78);",
+      "  prev.rgb += stampCol * stamp;",
+      "  prev.rgb = min(prev.rgb, vec3(2.0));",
+      "  gl_FragColor = prev;",
+      "}",
+    ].join("\n"),
+  });
+  const updateScene = new THREE.Scene();
+  updateScene.add(new THREE.Mesh(fsGeo, updateMaterial));
+
+  /* composite shader — bg + iridescent mist, no text/vignette */
+  const compositeMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uLight:  { value: null },
+      uTime:   { value: 0.0 },
+      uAspect: { value: 1.0 },
+    },
+    vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position,1.0); }",
+    fragmentShader: [
+      "precision highp float;",
+      "uniform sampler2D uLight;",
+      "uniform float uTime, uAspect;",
+      "varying vec2 vUv;",
+      "void main(){",
+      "  vec2 uv = vUv;",
+      "  float r = 0.0015;",
+      "  float L = 0.0;",
+      "  L += texture2D(uLight, uv).r * 0.5;",
+      "  L += texture2D(uLight, uv + vec2( r, 0)).r * 0.125;",
+      "  L += texture2D(uLight, uv + vec2(-r, 0)).r * 0.125;",
+      "  L += texture2D(uLight, uv + vec2(0,  r)).r * 0.125;",
+      "  L += texture2D(uLight, uv + vec2(0, -r)).r * 0.125;",
+      "  L = L / (1.0 + L * 0.55);",
+      "  vec3 bg = vec3(0.0078, 0.0235, 0.0902);",
+      "  float phase = L * 0.85 + 0.22*sin(uv.x*7.0 + uTime*0.20) + 0.16*cos(uv.y*5.5 - uTime*0.16) + uTime*0.045;",
+      "  vec3 iridA = vec3(0.55, 0.50, 0.55);",
+      "  vec3 iridB = vec3(0.45, 0.50, 0.50);",
+      "  vec3 iridC = vec3(1.00, 1.00, 1.00);",
+      "  vec3 iridD = vec3(0.08, 0.33, 0.62);",
+      "  vec3 irid  = iridA + iridB * cos(6.28318 * (iridC * phase + iridD));",
+      "  vec3  gold = vec3(0.788, 0.647, 0.345);",
+      "  float goldMix = 1.0 - smoothstep(0.05, 0.45, L);",
+      "  vec3 paletted = mix(irid, gold, goldMix * 0.55);",
+      "  float coreMix = smoothstep(0.55, 1.10, L);",
+      "  vec3 mistColor = mix(paletted, vec3(0.98, 0.96, 1.00), coreMix * 0.65);",
+      "  vec3 mist = mistColor * L * 0.85;",
+      "  vec3 col = bg + mist;",
+      "  float edgeMask = smoothstep(0.0, 0.08, uv.x) * smoothstep(1.0, 0.92, uv.x)",
+      "                 * smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);",
+      "  col = mix(bg, col, edgeMask);",
+      "  float grain = (fract(sin(dot(uv * vec2(uTime, uTime + 1.7), vec2(91.7, 47.3))) * 43758.5) - 0.5) * 0.005;",
+      "  col += grain;",
+      "  gl_FragColor = vec4(col, 1.0);",
+      "}",
+    ].join("\n"),
+  });
+  const compositeScene = new THREE.Scene();
+  compositeScene.add(new THREE.Mesh(fsGeo, compositeMaterial));
+
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(compositeScene, fsCam));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.35, 0.60, 0.35);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+
+  /* mouse tracking — canvas-relative, bound on window so a drag from
+     outside the canvas region is picked up the moment it enters */
+  const mouse = new THREE.Vector2(-1, -1);
+  const prevMouse = new THREE.Vector2(-1, -1);
+  const target = new THREE.Vector2(-1, -1);
+  let mouseInside = false;
+  let firstMove = true;
+  function onPointerMove(e) {
+    const r = canvas.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return;
+    const cx = e.clientX - r.left, cy = e.clientY - r.top;
+    const inside = cx >= 0 && cx <= r.width && cy >= 0 && cy <= r.height;
+    if (!inside) { mouseInside = false; firstMove = true; return; }
+    target.set(cx / r.width, 1.0 - cy / r.height);
+    if (firstMove) { mouse.copy(target); prevMouse.copy(target); firstMove = false; }
+    mouseInside = true;
+  }
+  function onBlur() { mouseInside = false; firstMove = true; }
+  window.addEventListener("pointermove", onPointerMove, { passive: true });
+  window.addEventListener("blur", onBlur);
+  window.addEventListener("pointerleave", onBlur);
+
+  function onResize() {
+    const r = canvas.getBoundingClientRect();
+    const w = Math.max(2, Math.floor(r.width));
+    const h = Math.max(2, Math.floor(r.height));
+    renderer.setSize(w, h, false);
+    composer.setSize(w, h);
+    bloom.setSize(w, h);
+    const [rw, rh] = rtSize();
+    lightA.setSize(rw, rh);
+    lightB.setSize(rw, rh);
+    updateMaterial.uniforms.uAspect.value = w / h;
+    compositeMaterial.uniforms.uAspect.value = w / h;
+  }
+  const ro = new ResizeObserver(onResize);
+  ro.observe(canvas);
+  onResize();
+
+  const clock = new THREE.Clock();
+  let prev = lightA, curr = lightB;
+  let rafId = 0;
+  let visible = false;
+
+  function frame() {
+    const dt = Math.min(clock.getDelta(), 0.033);
+    if (!firstMove) {
+      prevMouse.copy(mouse);
+      mouse.x += (target.x - mouse.x) * 0.55;
+      mouse.y += (target.y - mouse.y) * 0.55;
+    }
+    updateMaterial.uniforms.uPrev.value = prev.texture;
+    updateMaterial.uniforms.uMouse.value.copy(mouse);
+    updateMaterial.uniforms.uPrevMouse.value.copy(prevMouse);
+    updateMaterial.uniforms.uMouseInside.value = mouseInside && !firstMove ? 1.0 : 0.0;
+    updateMaterial.uniforms.uDt.value = dt;
+    renderer.setRenderTarget(curr);
+    renderer.clear();
+    renderer.render(updateScene, fsCam);
+    renderer.setRenderTarget(null);
+    const tmp = prev; prev = curr; curr = tmp;
+    compositeMaterial.uniforms.uLight.value = prev.texture;
+    compositeMaterial.uniforms.uTime.value = clock.elapsedTime;
+    composer.render();
+    rafId = requestAnimationFrame(frame);
+  }
+  function start() {
+    if (rafId) return;
+    canvas.classList.add("on");
+    canvas.style.opacity = "1";
+    clock.start();
+    rafId = requestAnimationFrame(frame);
+  }
+  function stop() {
+    if (!rafId) return;
+    cancelAnimationFrame(rafId); rafId = 0;
+    canvas.classList.remove("on");
+    canvas.style.opacity = "0";
+  }
+  /* only run when the section is on screen — saves GPU on hero/features */
+  const visIO = new IntersectionObserver(function (entries) {
+    for (const e of entries) {
+      visible = e.isIntersecting;
+      if (visible) start(); else stop();
+    }
+  }, { threshold: 0.05 });
+  visIO.observe(section);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) stop(); else if (visible) start();
+  });
+} catch (err) {
+  console.warn("FL trail effect disabled:", err);
+}
 </script>
 </body>
 </html>
