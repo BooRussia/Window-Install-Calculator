@@ -236,6 +236,79 @@
 
   /* ------- Job rail: edge-attached, collapsible, hover-peek ------- */
   #jobSummaryLine { -webkit-tap-highlight-color: transparent; }
+
+  /* Sticky mobile/tablet "what am I quoting" bar — pins under the app header. */
+  #jobSummaryBar {
+    position: sticky; top: 3.5rem; z-index: 30;
+    background: rgba(2,6,23,0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(30,41,59,0.7);
+  }
+  #jobSummaryBar .jsb-inner {
+    max-width: 72rem; margin: 0 auto;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px;
+  }
+  #jobSummaryBar #jobSpecSummary {
+    flex: 1 1 auto; min-width: 0;
+    font-size: 12px; font-weight: 600;
+    color: #cbd5e1; line-height: 1.25;
+    text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #jobSummaryBar #jobSpecSummary.is-empty {
+    color: #c9a558; font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  #jobSummaryBar #jobSummaryEdit {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: #c9a558;
+    background: transparent;
+    border: 1px solid rgba(181,143,74,0.45);
+    border-radius: 999px;
+    padding: 6px 11px;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  #jobSummaryBar #jobSummaryEdit:hover,
+  #jobSummaryBar #jobSummaryEdit:focus-visible {
+    background: rgba(181,143,74,0.12);
+    border-color: #c9a558;
+    color: #e2c585;
+  }
+  #jobSummaryBar #jobSummaryEdit svg { flex-shrink: 0; }
+  @media (min-width: 1024px) { #jobSummaryBar { display: none; } }
+
+  /* Mobile-only "Job specs" floating action button. */
+  #jobSpecsFab {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 28;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 16px;
+    font-size: 12px; font-weight: 800;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: #0b1020;
+    background: #c9a558;
+    border: 1px solid #b58f4a;
+    border-radius: 999px;
+    box-shadow: 0 14px 28px -10px rgba(0,0,0,0.55),
+                0 2px 6px -2px rgba(181,143,74,0.55);
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .18s cubic-bezier(0.16,1,0.3,1), opacity .18s ease;
+  }
+  #jobSpecsFab:hover { background: #d4b063; }
+  #jobSpecsFab:active { transform: translateY(1px) scale(0.98); }
+  #jobSpecsFab svg { flex-shrink: 0; }
+  @media (min-width: 1024px) { #jobSpecsFab { display: none !important; } }
+  body.rail-open #jobSpecsFab { opacity: 0; pointer-events: none; transform: translateY(8px); }
+
   #jobRail {
     position: fixed; top: 3.5rem; bottom: 0; left: 0;
     width: 19rem; max-width: 86vw;
@@ -1670,6 +1743,21 @@
   </div>
 </div>
 
+<!-- Sticky mobile/tablet job summary — pins under the header so the user
+     always sees what they're quoting while scrolling the breakdown.
+     Reuses #jobSpecSummary so the existing render() pipeline keeps working. -->
+<div id="jobSummaryBar" class="lg:hidden">
+  <div class="jsb-inner">
+    <button id="jobSummaryLine" type="button" aria-label="Edit job specs" style="background:transparent;border:0;padding:0;margin:0;flex:1 1 auto;min-width:0;display:flex;align-items:center;">
+      <span id="jobSpecSummary" class="is-empty">Set up your job <span aria-hidden="true">&rarr;</span></span>
+    </button>
+    <button id="jobSummaryEdit" type="button" aria-label="Edit job specs">
+      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 3.5l4 4L7 17H3v-4z"/></svg>
+      Edit
+    </button>
+  </div>
+</div>
+
 <!-- THE JOB — edge-attached rail: collapsible, hover-peek on desktop; drawer on mobile -->
 <aside id="jobRail">
   <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-800/80 flex-shrink-0">
@@ -1762,13 +1850,9 @@
 
   <div id="quoteStage" class="w-full">
 
-  <!-- Mobile-only job trigger (the rail is always visible on desktop) -->
-  <div class="flex justify-center lg:hidden mb-1">
-    <button id="jobSummaryLine" type="button" class="btn flex items-center gap-2 text-slate-500 hover:text-slate-300 px-3 py-1.5 max-w-full">
-      <span id="jobSpecSummary" class="text-xs sm:text-sm font-medium tracking-tight text-center">—</span>
-      <svg class="flex-shrink-0 text-slate-600" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 3.5l4 4L7 17H3v-4z"/></svg>
-    </button>
-  </div>
+  <!-- The mobile job-spec summary now lives in a sticky bar that pins
+       below the app header (#jobSummaryBar, defined just after #appHeader
+       above) so it stays visible while scrolling the breakdown. -->
 
   <!-- Big LF input -->
   <section class="mt-2 sm:mt-4">
@@ -2449,6 +2533,15 @@
 </div>
 
 <div id="toast" class="toast">Saved</div>
+
+<!-- Mobile-only thumb-reachable shortcut to open the job rail. Hidden on
+     desktop (the pinned rail covers that case) and while the rail is open. -->
+<button id="jobSpecsFab" type="button" aria-label="Open job specs">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/>
+  </svg>
+  Job specs
+</button>
 
 <script>
 /* ============================================================
@@ -3659,12 +3752,21 @@ function render() {
   fitAll();
 }
 
-// The collapsed Job Spec line — reads the current spec like a sentence
+// The collapsed Job Spec line — reads the current spec like a sentence.
+// When nothing is selected we flip to a gold "Set up your job →" CTA so the
+// sticky mobile bar is useful even on a brand-new quote.
 function renderJobSpecSummary() {
   const el = document.getElementById("jobSpecSummary");
   if (!el) return;
-  el.textContent = [STATE.manufacturer, STATE.constructionType, STATE.houseType,
-    STATE.application, STATE.impact, STATE.stories].filter(Boolean).join("  ·  ");
+  const parts = [STATE.manufacturer, STATE.constructionType, STATE.houseType,
+    STATE.application, STATE.impact, STATE.stories].filter(Boolean);
+  if (parts.length) {
+    el.textContent = parts.join("  ·  ");
+    el.classList.remove("is-empty");
+  } else {
+    el.innerHTML = 'Set up your job <span aria-hidden="true">&rarr;</span>';
+    el.classList.add("is-empty");
+  }
 }
 
 // Per-job material variant toggles — one segmented control per category
@@ -3811,11 +3913,23 @@ function bindControls() {
     wcInput._wired = true;
   }
 
-  // Job Details sheet — opened from the quiet summary line
+  // Job Details sheet — opened from the sticky mobile summary bar (the spec
+  // line itself, the explicit "Edit" pill on the right, or the bottom-right
+  // floating "Job specs" FAB). All three routes hit openJobRail().
   const specBtn = document.getElementById("jobSummaryLine");
-  if (!specBtn._wired) {
+  if (specBtn && !specBtn._wired) {
     specBtn.addEventListener("click", openJobRail);
     specBtn._wired = true;
+  }
+  const editBtn = document.getElementById("jobSummaryEdit");
+  if (editBtn && !editBtn._wired) {
+    editBtn.addEventListener("click", openJobRail);
+    editBtn._wired = true;
+  }
+  const fab = document.getElementById("jobSpecsFab");
+  if (fab && !fab._wired) {
+    fab.addEventListener("click", openJobRail);
+    fab._wired = true;
   }
   updateLiftVisibility();
 
@@ -5081,14 +5195,17 @@ function closeFL() { flModal.classList.add("hidden"); flModal.classList.remove("
 /* ---- Job rail: collapsible + hover-peek on desktop, drawer on mobile ---- */
 function isDesktopRail() { return window.matchMedia("(min-width: 1024px)").matches; }
 
-// Mobile drawer
+// Mobile drawer. body.rail-open lets the FAB hide itself while the rail
+// is showing (only matters on mobile; CSS scopes the FAB to <1024px).
 function openJobRail() {
   document.getElementById("jobRail").classList.add("show");
   document.getElementById("jobRailBackdrop").classList.add("open");
+  document.body.classList.add("rail-open");
 }
 function closeJobRail() {
   document.getElementById("jobRail").classList.remove("show");
   document.getElementById("jobRailBackdrop").classList.remove("open");
+  document.body.classList.remove("rail-open");
 }
 
 // Desktop: pin the rail open <-> collapse it
