@@ -6648,9 +6648,10 @@ function init() {
       const idle = idleFrames > 14 && Math.abs(targetP - p) < 0.004;
       tension += ((idle ? 1 : 0) - tension) * (idle ? 0.022 : 0.3);
 
-      // chain length carries 2% slack — enough for a subtle whip during fast
-      // motion without producing a visible permanent kink at rest
-      const seg = (ringY * 1.02) / (N - 1);
+      // chain has 2% slack while scrolling (lets the rope whip), but goes
+      // fully taut at rest (tension → 1) so it can't sag into a catenary bow
+      // or leave a visible kink near the anchor end when the user stops
+      const seg = (ringY * (1.02 - 0.02 * tension)) / (N - 1);
       const last = pts[N - 1];
       const flow = (reduce || landed) ? 0 : (1 - tension);
       const damp = 0.985 - 0.06 * tension;
