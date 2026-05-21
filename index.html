@@ -1491,13 +1491,47 @@
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
         <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <div id="authForgotRow" class="flex justify-end -mt-1">
+          <button id="authForgotLink" type="button"
+            class="btn text-[11px] text-slate-400 hover:text-[#c9a558] underline underline-offset-2 decoration-slate-600 hover:decoration-[#c9a558]">Forgot password?</button>
+        </div>
         <input id="authConfirm" type="password" autocomplete="new-password" placeholder="Confirm password"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600 hidden" />
         <button id="authSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Log In</button>
         <div id="authMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
+        <button id="authMagicLink" type="button"
+          class="btn w-full text-[11px] text-slate-400 hover:text-[#c9a558] underline underline-offset-2 decoration-slate-700 hover:decoration-[#c9a558]">Or sign in with a magic link instead</button>
         <button id="authToggle" type="button"
           class="btn w-full text-xs text-slate-400 hover:text-[#c9a558] font-semibold pt-1">Need an account? Sign up</button>
+      </form>
+      <!-- Inline recovery form (forgot password / magic link) -->
+      <form id="authRecoveryForm" class="space-y-3 hidden">
+        <div class="mb-1">
+          <div id="recTitle" class="text-base font-bold text-slate-100">Reset Password</div>
+          <div id="recSubtitle" class="text-xs text-slate-500 mt-0.5">Enter your email and we'll send you a reset link.</div>
+        </div>
+        <input id="recEmail" type="email" autocomplete="email" placeholder="Email"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <button id="recSubmit" type="submit"
+          class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Send reset link</button>
+        <div id="recMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
+        <button id="recCancel" type="button"
+          class="btn w-full text-xs text-slate-400 hover:text-[#c9a558] font-semibold pt-1">Back to log in</button>
+      </form>
+      <!-- Set new password form (shown after clicking reset link) -->
+      <form id="authNewPwForm" class="space-y-3 hidden">
+        <div class="mb-1">
+          <div class="text-base font-bold text-slate-100">Set New Password</div>
+          <div class="text-xs text-slate-500 mt-0.5">Enter a new password for your account.</div>
+        </div>
+        <input id="newPwInput" type="password" autocomplete="new-password" placeholder="New password"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <input id="newPwConfirm" type="password" autocomplete="new-password" placeholder="Confirm new password"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <button id="newPwSubmit" type="submit"
+          class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Save new password</button>
+        <div id="newPwMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
       </form>
     </div>
   </div>
@@ -5908,6 +5942,10 @@ function setAuthMsg(text, kind) {
 function setAuthMode(mode) {
   authMode = mode;
   const signup = mode === "signup";
+  // Always return to the main auth form (out of recovery / new-password screens)
+  document.getElementById("authForm").classList.remove("hidden");
+  document.getElementById("authRecoveryForm").classList.add("hidden");
+  document.getElementById("authNewPwForm").classList.add("hidden");
   document.getElementById("authTitle").textContent = signup ? "Create Account" : "Log In";
   document.getElementById("authSubtitle").textContent = signup
     ? "Create your account — free, takes a minute."
@@ -5922,7 +5960,136 @@ function setAuthMode(mode) {
   const confirm = document.getElementById("authConfirm");
   confirm.classList.toggle("hidden", !signup);
   confirm.value = "";
+  // Forgot-password link only makes sense in login mode
+  document.getElementById("authForgotRow").classList.toggle("hidden", signup);
+  // Magic-link option works for either mode (signup gets a passwordless start)
+  document.getElementById("authMagicLink").textContent = signup
+    ? "Or sign up with a magic link instead"
+    : "Or sign in with a magic link instead";
   setAuthMsg("");
+}
+
+// Recovery / magic-link inline form. `kind` is "reset" or "magic".
+let recoveryKind = "reset";
+function setRecMsg(text, kind) {
+  const el = document.getElementById("recMsg");
+  if (!text) { el.classList.add("hidden"); return; }
+  el.textContent = text;
+  el.className = "text-[12px] text-center font-medium px-2 " +
+    (kind === "error" ? "text-rose-300" : kind === "ok" ? "text-[#c9a558]" : "text-slate-400");
+  el.classList.remove("hidden");
+}
+function setNewPwMsg(text, kind) {
+  const el = document.getElementById("newPwMsg");
+  if (!text) { el.classList.add("hidden"); return; }
+  el.textContent = text;
+  el.className = "text-[12px] text-center font-medium px-2 " +
+    (kind === "error" ? "text-rose-300" : kind === "ok" ? "text-[#c9a558]" : "text-slate-400");
+  el.classList.remove("hidden");
+}
+
+function showRecoveryForm(kind) {
+  recoveryKind = kind === "magic" ? "magic" : "reset";
+  document.getElementById("authForm").classList.add("hidden");
+  document.getElementById("authNewPwForm").classList.add("hidden");
+  const rec = document.getElementById("authRecoveryForm");
+  rec.classList.remove("hidden");
+  document.getElementById("recTitle").textContent =
+    recoveryKind === "magic" ? "Magic Link Sign-In" : "Reset Password";
+  document.getElementById("recSubtitle").textContent =
+    recoveryKind === "magic"
+      ? "Enter your email and we'll send you a one-tap sign-in link."
+      : "Enter your email and we'll send you a reset link.";
+  document.getElementById("recSubmit").textContent =
+    recoveryKind === "magic" ? "Send magic link" : "Send reset link";
+  // Pre-fill from the login email if present
+  const loginEmail = document.getElementById("authEmail").value.trim();
+  document.getElementById("recEmail").value = loginEmail;
+  setRecMsg("");
+  setTimeout(() => document.getElementById("recEmail").focus(), 60);
+}
+
+async function handleRecoverySubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById("recEmail").value.trim();
+  const submitBtn = document.getElementById("recSubmit");
+  if (!email) { setRecMsg("Enter your email.", "error"); return; }
+  if (!sb) { setRecMsg("Cloud unavailable — recovery requires online.", "error"); return; }
+  const redirectTo = window.location.origin + window.location.pathname;
+  submitBtn.disabled = true;
+  const originalText = submitBtn.textContent;
+  submitBtn.textContent = "Sending…";
+  try {
+    if (recoveryKind === "magic") {
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo }
+      });
+      if (error) throw error;
+      toast(`Magic link sent to ${email}`);
+    } else {
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw error;
+      toast(`Reset link sent to ${email}`);
+    }
+    // Back to the login form
+    setAuthMode("login");
+    document.getElementById("authEmail").value = email;
+  } catch (err) {
+    setRecMsg(err.message || "Couldn't send — try again.", "error");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
+}
+
+// Reset-link return flow — Supabase drops us back with #access_token=…&type=recovery
+function showSetNewPasswordForm() {
+  const authScreen = document.getElementById("authScreen");
+  authScreen.classList.remove("hidden");
+  authScreen.classList.add("flex");
+  document.getElementById("authForm").classList.add("hidden");
+  document.getElementById("authRecoveryForm").classList.add("hidden");
+  document.getElementById("authNewPwForm").classList.remove("hidden");
+  setNewPwMsg("");
+  setTimeout(() => document.getElementById("newPwInput").focus(), 60);
+}
+
+async function handleNewPasswordSubmit(e) {
+  e.preventDefault();
+  const pw = document.getElementById("newPwInput").value;
+  const pwConfirm = document.getElementById("newPwConfirm").value;
+  const submitBtn = document.getElementById("newPwSubmit");
+  if (!pw || pw.length < 6) { setNewPwMsg("Password must be at least 6 characters.", "error"); return; }
+  if (pw !== pwConfirm) { setNewPwMsg("Passwords don't match.", "error"); return; }
+  if (!sb) { setNewPwMsg("Cloud unavailable — try again online.", "error"); return; }
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Saving…";
+  try {
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) throw error;
+    // Clear the recovery hash so a refresh doesn't re-trigger this flow
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    toast("Password updated");
+    closeAuth();
+    // The recovery link auto-signed us in — drop into the app
+    try { await enterApp(); }
+    catch (_) { showLanding(); }
+  } catch (err) {
+    setNewPwMsg(err.message || "Couldn't update — try again.", "error");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Save new password";
+  }
+}
+
+// Returns true if the current URL hash is a Supabase recovery callback
+function isRecoveryHash() {
+  const h = window.location.hash || "";
+  if (!h) return false;
+  // Strip leading "#" and parse as query string
+  const params = new URLSearchParams(h.replace(/^#/, ""));
+  return params.get("type") === "recovery";
 }
 
 async function handleAuthSubmit(e) {
@@ -6154,12 +6321,41 @@ async function boot() {
   document.getElementById("authForm").addEventListener("submit", handleAuthSubmit);
   document.getElementById("authToggle").addEventListener("click",
     () => setAuthMode(authMode === "login" ? "signup" : "login"));
+  document.getElementById("authForgotLink").addEventListener("click", () => showRecoveryForm("reset"));
+  document.getElementById("authMagicLink").addEventListener("click", () => showRecoveryForm("magic"));
+  document.getElementById("authRecoveryForm").addEventListener("submit", handleRecoverySubmit);
+  document.getElementById("recCancel").addEventListener("click", () => setAuthMode("login"));
+  document.getElementById("authNewPwForm").addEventListener("submit", handleNewPasswordSubmit);
   document.getElementById("authScreen").addEventListener("click", e => {
     if (e.target.dataset.authClose !== undefined) closeAuth();
   });
 
+  // React to auth-state changes (magic-link return, multi-tab sign-out, etc.)
+  // — "PASSWORD_RECOVERY" fires when the user lands via a reset link.
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY") {
+      showSetNewPasswordForm();
+    } else if (event === "SIGNED_IN" && !currentUser) {
+      // Magic-link return — drop straight into the app
+      enterApp().catch(() => showLanding());
+    }
+  });
+
+  // Detect a recovery callback BEFORE deciding where to send the user.
+  // Supabase auto-establishes a session from the hash but we want to
+  // intercept and force the "set new password" form first.
+  const recoveryPending = isRecoveryHash();
+
   const { data: { session } } = await sb.auth.getSession();
-  if (session) {
+  if (recoveryPending) {
+    // Wait briefly for Supabase to emit PASSWORD_RECOVERY; if it doesn't,
+    // show the form anyway so the user isn't stuck on the splash.
+    setTimeout(() => {
+      if (!document.getElementById("authNewPwForm").classList.contains("hidden")) return;
+      showSetNewPasswordForm();
+    }, 400);
+    document.getElementById("bootSplash").classList.add("hidden");
+  } else if (session) {
     // signed-in users on a refresh stay on the home page — the app
     // is initialised behind them and they can click "Open App" to enter
     await enterApp();
