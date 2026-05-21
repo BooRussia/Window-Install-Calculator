@@ -1944,6 +1944,9 @@
       <button id="saveJob" class="btn rounded-full px-5 py-3 text-sm font-bold bg-slate-100 text-slate-950 hover:bg-white tracking-tight">
         Save Job
       </button>
+      <button id="saveAsNewVersionBtn" class="hidden btn rounded-full px-5 py-3 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/55 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight" title="Save as a new version, keeping the original">
+        Save as new version
+      </button>
       <button id="resetAll" class="btn rounded-full px-5 py-3 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] tracking-tight">
         New Job
       </button>
@@ -2804,6 +2807,7 @@ function buildState() {
     customerNotes: "",
     buckList: null,
     variants: {},
+    currentJobId: null,
     ...loadState()
   };
 }
@@ -3644,7 +3648,13 @@ function render() {
     customerNotes: STATE.customerNotes,
     buckList: STATE.buckList,
     variants: STATE.variants || {},
+    currentJobId: STATE.currentJobId || null,
   });
+
+  // Toggle "Save as new version" button visibility and keep a local-only
+  // "Working draft" entry in sync with the rail (both are no-ops when N/A).
+  updateSaveVersionVisibility();
+  scheduleDraftAutosave(r);
 
   fitAll();
 }
@@ -3692,14 +3702,35 @@ function renderSavedJobs() {
   const bar = document.getElementById("compareBar");
   if (!list.length) { wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
+  const atCap = compareSet.size >= 2;
   el.innerHTML = list.slice().reverse().map(j => {
     const inCompare = compareSet.has(j.id);
     const details = [j.manufacturer, j.application, j.houseType, j.constructionType,
       j.stories || "1 Story", `${j.totalLF} LF`].join(" · ");
+    const draftPill = j.isDraft
+      ? ` <span class="ml-1.5 inline-flex items-center text-[8px] uppercase tracking-[0.16em] font-bold text-[#c9a558]/85 border border-[#b58f4a]/45 bg-[#b58f4a]/10 rounded-full px-1.5 py-0.5 align-middle">Draft</span>`
+      : "";
+    const cardCls = j.isDraft
+      ? "card rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center sm:items-center justify-between gap-2 sm:gap-3 text-center sm:text-left opacity-80 border-dashed"
+      : "card rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center sm:items-center justify-between gap-2 sm:gap-3 text-center sm:text-left";
+    // Compare button: count badge + dimmed-when-cap-reached UX (audit #10)
+    const capLocked = atCap && !inCompare;
+    let compareCls = "text-[11px] font-semibold ";
+    if (inCompare) compareCls += "text-[#c9a558]";
+    else if (capLocked) compareCls += "text-slate-700 cursor-not-allowed";
+    else compareCls += "text-slate-500 hover:text-slate-300";
+    const compareLabel = inCompare
+      ? `✓ Compare (${compareSet.size}/2)`
+      : (compareSet.size === 0
+          ? `Compare <span class="text-slate-700 font-normal">(2 max)</span>`
+          : `Compare (${compareSet.size}/2)`);
+    const compareTitle = capLocked
+      ? `title="Remove one job from comparison first"`
+      : (inCompare ? `title="Click to remove from comparison"` : `title="Add to side-by-side comparison (up to 2)"`);
     return `
-    <div class="card rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center sm:items-center justify-between gap-2 sm:gap-3 text-center sm:text-left">
+    <div class="${cardCls}">
       <div class="min-w-0 w-full sm:w-auto">
-        <div class="text-sm text-slate-100 font-bold truncate">${j.customerName || j.name || "Untitled Job"}</div>
+        <div class="text-sm text-slate-100 font-bold truncate">${j.customerName || j.name || "Untitled Job"}${draftPill}</div>
         ${j.customerAddress ? `<div class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">${j.customerAddress}</div>` : ""}
         <div class="text-[11px] text-slate-500 mt-0.5 font-medium">${details}</div>
       </div>
@@ -3707,7 +3738,7 @@ function renderSavedJobs() {
         <div class="text-sm font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${formatMoney(j.sellingPrice)}</div>
         <div class="flex gap-3 justify-center sm:justify-end mt-1">
           <button data-load="${j.id}" class="text-[11px] text-slate-400 hover:text-slate-100 font-semibold">Load</button>
-          <button data-compare="${j.id}" class="text-[11px] font-semibold ${inCompare ? "text-[#c9a558]" : "text-slate-500 hover:text-slate-300"}">${inCompare ? "✓ Compare" : "Compare"}</button>
+          <button data-compare="${j.id}" ${compareTitle} ${capLocked ? "aria-disabled=\"true\"" : ""} class="${compareCls}">${compareLabel}</button>
           <button data-del="${j.id}" class="text-[11px] text-slate-500 hover:text-rose-300 font-semibold">Delete</button>
         </div>
       </div>
@@ -3719,7 +3750,7 @@ function renderSavedJobs() {
     const id = b.dataset.compare;
     if (compareSet.has(id)) { compareSet.delete(id); }
     else {
-      if (compareSet.size >= 2) { toast("Select only 2 jobs to compare"); return; }
+      if (compareSet.size >= 2) { toast("Remove one job from comparison first"); return; }
       compareSet.add(id);
     }
     renderSavedJobs();
@@ -3838,6 +3869,27 @@ function toast(msg) {
   toast._t = setTimeout(() => t.classList.remove("show"), 1600);
 }
 
+// True when the calculator screen owns the user's focus — i.e. landing,
+// boot splash, auth screen, and full-screen modals (settings, compare,
+// save-job, scan plan, FL lookup, buck cut list) are all out of the way.
+// Used to gate global keyboard shortcuts like Cmd/Ctrl+S.
+function isOnCalculator() {
+  const hidden = id => {
+    const el = document.getElementById(id);
+    return !el || el.classList.contains("hidden");
+  };
+  if (!hidden("bootSplash")) return false;
+  if (!hidden("landingScreen")) return false;
+  if (!hidden("authScreen")) return false;
+  if (!hidden("adminModal")) return false;
+  if (!hidden("compareModal")) return false;
+  if (!hidden("saveJobModal")) return false;
+  if (!hidden("readPlanModal")) return false;
+  if (!hidden("flModal")) return false;
+  if (!hidden("buckModal")) return false;
+  return true;
+}
+
 function resetAll() {
   const jd = DATA.config.jobDefaults || {};
   STATE = {
@@ -3857,6 +3909,7 @@ function resetAll() {
     customerNotes: "",
     buckList: null,
     variants: {},
+    currentJobId: null,
   };
   saveState(STATE);
   bindControls();
@@ -3890,13 +3943,110 @@ function confirmSaveJob() {
   STATE.customerName = name;
   STATE.customerAddress = address;
   STATE.customerNotes = notes;
+
+  const jobs = loadJobs();
+  // If a draft exists, upgrade it in place rather than creating a duplicate entry
+  const draftIdx = jobs.findIndex(x => x.isDraft);
+  const reuseId = (draftIdx >= 0) ? jobs[draftIdx].id : crypto.randomUUID();
+
   const job = {
-    id: crypto.randomUUID(),
+    id: reuseId,
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerNotes: notes,
     buckList: STATE.buckList,
     variants: clone(STATE.variants || {}),
+    createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
+    manufacturer: STATE.manufacturer, application: STATE.application,
+    houseType: STATE.houseType, constructionType: STATE.constructionType,
+    impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    permitEnabled: STATE.permitEnabled,
+    totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
+    profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
+    // note: no isDraft flag — this is an explicit save
+  };
+
+  if (draftIdx >= 0) jobs[draftIdx] = job; else jobs.push(job);
+  saveJobs(jobs);
+  STATE.currentJobId = job.id;
+  pushJobToCloud(job);   // best-effort cloud sync (explicit saves only)
+  logQuoteEvent("saved_job");
+  closeSaveJobModal();
+  renderSavedJobs();
+  updateSaveVersionVisibility();
+  toast(draftIdx >= 0 ? "Draft saved as job" : "Job saved");
+}
+
+function saveCurrentJob() { openSaveJobModal(); }
+
+// Cmd/Ctrl+S handler: save silently if we already have a named, loaded job;
+// otherwise open the save-job modal so the user can name it.
+function quickSaveOrPrompt() {
+  const r = calculate();
+  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (STATE.currentJobId) {
+    const jobs = loadJobs();
+    const idx = jobs.findIndex(x => x.id === STATE.currentJobId && !x.isDraft);
+    if (idx >= 0 && (jobs[idx].name || jobs[idx].customerName)) {
+      const existing = jobs[idx];
+      const updated = {
+        ...existing,
+        buckList: STATE.buckList,
+        variants: clone(STATE.variants || {}),
+        manufacturer: STATE.manufacturer, application: STATE.application,
+        houseType: STATE.houseType, constructionType: STATE.constructionType,
+        impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
+        liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+        permitEnabled: STATE.permitEnabled,
+        totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
+        profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows,
+        updatedAt: new Date().toISOString()
+      };
+      jobs[idx] = updated;
+      saveJobs(jobs);
+      pushJobToCloud(updated);
+      renderSavedJobs();
+      toast("Saved");
+      return;
+    }
+  }
+  openSaveJobModal();
+}
+
+// "Save as new version" — clone the currently-loaded job under "<name> vN"
+function saveAsNewVersion() {
+  const r = calculate();
+  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (!STATE.currentJobId) { toast("Load a saved job first"); return; }
+  const jobs = loadJobs();
+  const base = jobs.find(x => x.id === STATE.currentJobId && !x.isDraft);
+  if (!base) { toast("Original job not found"); return; }
+
+  // Derive the base name (strip any trailing " vN") then find the next free vN
+  const rawName = base.name || base.customerName || "Job";
+  const baseName = rawName.replace(/\s+v\d+$/i, "");
+  const escBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const versionRegex = new RegExp("^" + escBase + "(?:\\s+v(\\d+))?$", "i");
+  let maxV = 1;
+  jobs.forEach(j => {
+    if (j.isDraft) return;
+    const m = (j.name || "").match(versionRegex);
+    if (m) {
+      const n = m[1] ? parseInt(m[1], 10) : 1;
+      if (n >= maxV) maxV = n;
+    }
+  });
+  const nextV = maxV + 1;
+  const newName = `${baseName} v${nextV}`;
+
+  const newJob = {
+    ...base,
+    id: crypto.randomUUID(),
+    name: newName,
+    customerName: base.customerName || baseName,
     createdAt: new Date().toISOString(),
+    buckList: STATE.buckList,
+    variants: clone(STATE.variants || {}),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
@@ -3905,17 +4055,74 @@ function confirmSaveJob() {
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
-  const jobs = loadJobs();
-  jobs.push(job);
+  delete newJob.isDraft;
+  jobs.push(newJob);
   saveJobs(jobs);
-  pushJobToCloud(job);   // best-effort cloud sync
-  logQuoteEvent("saved_job");
-  closeSaveJobModal();
+  STATE.currentJobId = newJob.id;
+  pushJobToCloud(newJob);
+  logQuoteEvent("saved_job_version");
   renderSavedJobs();
-  toast("Job saved");
+  updateSaveVersionVisibility();
+  toast(`Saved as ${newName}`);
 }
 
-function saveCurrentJob() { openSaveJobModal(); }
+// Show "Save as new version" only when an explicitly-saved job is loaded
+function updateSaveVersionVisibility() {
+  const btn = document.getElementById("saveAsNewVersionBtn");
+  if (!btn) return;
+  let show = false;
+  if (STATE.currentJobId) {
+    const j = loadJobs().find(x => x.id === STATE.currentJobId);
+    if (j && !j.isDraft) show = true;
+  }
+  btn.classList.toggle("hidden", !show);
+}
+
+// ----- Working draft autosave (audit #7) -----
+// Keeps a single "Working draft" entry in the saved-jobs list so in-progress
+// quote work isn't invisible. Debounced; never pushed to cloud.
+let _draftSaveTimer = null;
+function scheduleDraftAutosave(r) {
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = setTimeout(() => writeDraftJob(r), 600);
+}
+function writeDraftJob(r) {
+  if (!r) r = calculate();
+  if (!r || r.lf <= 0) return;
+  // If a named job is currently loaded, edits belong to it — not a new draft.
+  if (STATE.currentJobId) {
+    const cur = loadJobs().find(x => x.id === STATE.currentJobId);
+    if (cur && !cur.isDraft) return;
+  }
+  const jobs = loadJobs();
+  let idx = jobs.findIndex(x => x.isDraft);
+  const draftName = `Draft — ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  const baseId = (idx >= 0) ? jobs[idx].id : crypto.randomUUID();
+  const draft = {
+    id: baseId,
+    isDraft: true,
+    name: draftName,
+    customerName: STATE.customerName || "",
+    customerAddress: STATE.customerAddress || "",
+    customerNotes: STATE.customerNotes || "",
+    buckList: STATE.buckList,
+    variants: clone(STATE.variants || {}),
+    createdAt: (idx >= 0 && jobs[idx].createdAt) || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    manufacturer: STATE.manufacturer, application: STATE.application,
+    houseType: STATE.houseType, constructionType: STATE.constructionType,
+    impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    permitEnabled: STATE.permitEnabled,
+    totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
+    profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
+  };
+  if (idx >= 0) jobs[idx] = draft; else jobs.push(draft);
+  saveJobs(jobs);
+  // Re-render the saved-jobs list so the draft is visible immediately.
+  // (No cloud push — drafts stay local until explicitly saved.)
+  renderSavedJobs();
+}
 
 function loadJob(id) {
   const j = loadJobs().find(x => x.id === id);
@@ -3936,17 +4143,20 @@ function loadJob(id) {
   STATE.customerNotes = j.customerNotes || "";
   STATE.buckList = j.buckList || null;
   STATE.variants = j.variants ? clone(j.variants) : {};
+  STATE.currentJobId = j.id;
   bindControls();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
-  toast("Job loaded");
+  toast(j.isDraft ? "Draft loaded" : "Job loaded");
 }
 
 function deleteJob(id) {
   const jobs = loadJobs().filter(x => x.id !== id);
   saveJobs(jobs);
   deleteJobFromCloud(id);   // best-effort cloud sync
+  if (STATE.currentJobId === id) STATE.currentJobId = null;
   renderSavedJobs();
+  updateSaveVersionVisibility();
   toast("Deleted");
 }
 
@@ -6396,7 +6606,9 @@ async function syncFromCloud() {
         .select("id,data").eq("user_id", user.id);
       if (jErr) throw jErr;
       const jobs = (jobRows || []).map(row => ({ ...row.data, id: row.id }));
-      localStorage.setItem(LS_KEYS.jobs, JSON.stringify(jobs));
+      // Preserve any local-only working drafts across cloud refreshes
+      const localDrafts = loadJobs().filter(j => j.isDraft);
+      localStorage.setItem(LS_KEYS.jobs, JSON.stringify([...jobs, ...localDrafts]));
     } else {
       // First login ever — seed the cloud from whatever is already local
       await firstLoginMigration(user.id);
@@ -6413,13 +6625,17 @@ async function firstLoginMigration(userId) {
   const localData = loadData();
   await sb.from("profiles").upsert({ id: userId, data: localData });
   const localJobs = loadJobs();
-  if (localJobs.length) {
-    const rows = localJobs.map(j => {
+  // Working drafts stay local-only — they're for the current device/session.
+  const drafts = localJobs.filter(j => j.isDraft);
+  const realJobs = localJobs.filter(j => !j.isDraft);
+  if (realJobs.length) {
+    const rows = realJobs.map(j => {
       const id = isUuid(j.id) ? j.id : crypto.randomUUID();
       return { id, user_id: userId, data: { ...j, id } };
     });
     await sb.from("jobs").insert(rows);
-    localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
+    // Keep any local-only drafts alongside the freshly-uploaded jobs
+    localStorage.setItem(LS_KEYS.jobs, JSON.stringify([...rows.map(r => r.data), ...drafts]));
   }
 }
 
@@ -6435,7 +6651,10 @@ async function pushProfileToCloud(d) {
 async function pushJobToCloud(job) {
   if (!sb || !currentUser) return;
   try {
-    await trackCloud(sb.from("jobs").insert({ id: job.id, user_id: currentUser.id, data: job }));
+    // Upsert (not insert) so Cmd+S overwriting an already-uploaded job and
+    // explicit-save-upgrades of a draft id both succeed instead of colliding
+    // on the primary key.
+    await trackCloud(sb.from("jobs").upsert({ id: job.id, user_id: currentUser.id, data: job }));
   } catch (e) {
     // Header pill already shows offline state; keep the toast for immediate
     // user feedback on the action they just took
@@ -7054,6 +7273,19 @@ function init() {
   document.getElementById("viewBuckCutList").addEventListener("click", () => fileBuckAction("view"));
   document.getElementById("saveJob").addEventListener("click", saveCurrentJob);
   document.getElementById("resetAll").addEventListener("click", resetAll);
+  const saveVerBtn = document.getElementById("saveAsNewVersionBtn");
+  if (saveVerBtn) saveVerBtn.addEventListener("click", saveAsNewVersion);
+
+  // Cmd/Ctrl+S → save (overwrite if named + loaded, else open save modal).
+  // Only active when the user is actually on the calculator screen — gated by
+  // isOnCalculator() so it doesn't fire on landing, auth, or while a modal
+  // (settings/compare/save/etc.) is open and intercepting the user's focus.
+  document.addEventListener("keydown", e => {
+    if (!((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S"))) return;
+    if (!isOnCalculator()) return;
+    e.preventDefault();
+    quickSaveOrPrompt();
+  });
 
   // Save Job modal
   const saveModal = document.getElementById("saveJobModal");
