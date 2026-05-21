@@ -382,6 +382,41 @@
     -webkit-backdrop-filter: blur(20px);
   }
   .row-alt:nth-child(even) { background: rgba(15,23,42,0.35); }
+
+  /* Pencil "edit this rate" button at the end of each breakdown row.
+     Subtle slate by default; hovering the row warms it a little so the
+     affordance is discoverable without competing for attention. */
+  .edit-rate-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 8px;
+    color: #475569;
+    background: transparent; border: 1px solid transparent;
+    transition: color .15s ease, background .15s ease, border-color .15s ease, transform .15s ease;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .edit-rate-btn:hover, .edit-rate-btn:focus-visible {
+    color: var(--gold-hi);
+    background: var(--gold-soft);
+    border-color: rgba(181,143,74,0.35);
+    outline: none;
+  }
+  .edit-rate-btn:active { transform: scale(0.92); }
+  tbody#breakdownBody tr:hover .edit-rate-btn { color: #94a3b8; }
+
+  /* 1.5s gold pulse on the targeted Settings input after a pencil jump.
+     Purely visual — does not change the input value. */
+  .settings-highlight {
+    animation: settingsHighlightPulse 1.5s ease-out 1;
+    border-radius: 10px;
+  }
+  @keyframes settingsHighlightPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(201,165,88,0.0), 0 0 0 0 rgba(201,165,88,0.0); }
+    15%  { box-shadow: 0 0 0 4px rgba(201,165,88,0.55), 0 0 22px 6px rgba(201,165,88,0.45); }
+    60%  { box-shadow: 0 0 0 3px rgba(201,165,88,0.35), 0 0 18px 4px rgba(201,165,88,0.25); }
+    100% { box-shadow: 0 0 0 0 rgba(201,165,88,0.0), 0 0 0 0 rgba(201,165,88,0.0); }
+  }
+
   .btn {
     transition: transform .15s ease, background .2s ease, border-color .2s ease, color .2s ease;
     font-feature-settings: "tnum";
@@ -1790,6 +1825,7 @@
               <th class="text-right font-medium py-3 px-3">Quantity</th>
               <th class="text-right font-medium py-3 px-3 hidden sm:table-cell">Case Count</th>
               <th class="text-right font-medium py-3 px-5 sm:px-6">Total Cost</th>
+              <th class="w-10" aria-label="Edit rate"></th>
             </tr>
           </thead>
           <tbody id="breakdownBody" class="divide-y divide-slate-800/60"></tbody>
@@ -1800,6 +1836,7 @@
               <td></td>
               <td class="hidden sm:table-cell"></td>
               <td id="perLfFooter" class="text-right py-3 px-5 sm:px-6 font-semibold">$0.00</td>
+              <td></td>
             </tr>
             <tr class="text-slate-100">
               <td class="py-4 px-5 sm:px-6 text-xs uppercase tracking-[0.14em] text-slate-400">Grand Total</td>
@@ -1807,6 +1844,7 @@
               <td></td>
               <td class="hidden sm:table-cell"></td>
               <td id="grandTotalFooter" class="text-right py-4 px-5 sm:px-6 text-lg font-bold accent-glow">$0.00</td>
+              <td></td>
             </tr>
           </tfoot>
         </table>
@@ -3399,6 +3437,21 @@ function render() {
     const verifyBadge = (item && item.unverified)
       ? ` <span class="ml-1.5 text-[8px] align-middle text-amber-400 border border-amber-500/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold whitespace-nowrap">Unverified</span>`
       : "";
+    // Pencil "edit this rate" — jumps to the matching Settings input.
+    // Skip rows that aren't directly editable as a single number:
+    //   labor → composite (minutes/LF × stories × impact ×, see info tooltip)
+    //   tax   → calculated from the Tax % field in the Rates header; no per-item input
+    const editable = item && row.id !== "labor" && row.id !== "tax";
+    const editCell = editable
+      ? `<td class="text-right py-3 px-3 sm:px-4">
+           <button type="button" class="edit-rate-btn" data-edit-item="${row.id}" aria-label="Edit ${escHtml(row.name)} rate" title="Edit in Settings">
+             <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+               <path d="M14.2 3.3a1.7 1.7 0 0 1 2.4 0l.1.1a1.7 1.7 0 0 1 0 2.4L7.5 15 4 16l1-3.5 9.2-9.2z"/>
+               <path d="M13 4.5 15.5 7"/>
+             </svg>
+           </button>
+         </td>`
+      : `<td></td>`;
     return `
       <tr class="row-alt fade-in">
         <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center flex-wrap gap-y-1">${row.name}${infoIcon}${verifyBadge}</span></td>
@@ -3406,6 +3459,7 @@ function render() {
         <td class="text-right py-3 px-3 text-slate-400">${qtyStr}</td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${caseStr}</td>
         <td class="text-right py-3 px-5 sm:px-6 font-medium text-slate-100">${formatMoney(row.totalCost)}</td>
+        ${editCell}
       </tr>
     `;
   }).join("");
@@ -4425,6 +4479,58 @@ function showSettingsTab(name) {
   const dataTab = ["brand", "defaults", "manufacturers", "rates"].includes(name);
   document.getElementById("settingsFooter").style.display = dataTab ? "" : "none";
   if (name === "admin") renderAdminPanel();
+}
+
+// Open Settings on the Rates tab, scroll to the input that controls a
+// breakdown line item, and flash a gold ring on it. Wired to the pencil
+// icon at the end of each Cost Breakdown row.
+//   - Material categories (caulking, shims, screws, etc.) target the
+//     default brand variant's price input inside the material's card.
+//   - Job-fee items (disposal, permit, lift_rental) target the single
+//     [data-unitprice="..."] input on the right side of the card.
+function openSettingsToItem(itemId) {
+  if (!itemId) return;
+  openAdmin();
+  showSettingsTab("rates");
+
+  // Two rAFs let the panel layout settle before we measure scroll offsets,
+  // and the setTimeout gives the modal's overflow-y container time to mount.
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+    const wrap = document.getElementById("adminRatesBody");
+    if (!wrap) return;
+
+    let target = null;       // element to scroll into view
+    let highlight = null;    // element to receive the gold pulse
+
+    const card = wrap.querySelector(`[data-cat="${itemId}"]`);
+    if (card) {
+      // Material category — flash the default variant's price input so the
+      // user lands on the number that drives the breakdown row's cost.
+      target = card;
+      const defaultRadio = card.querySelector(".var-default:checked");
+      const row = defaultRadio ? defaultRadio.closest("[data-variant-row]") : null;
+      highlight = (row && row.querySelector(".var-price")) ||
+                  card.querySelector(".var-price") ||
+                  card.querySelector("input[data-key]") ||
+                  card;
+    } else {
+      // Job-fee / labor-style item — one unit-price input.
+      highlight = wrap.querySelector(`[data-unitprice="${itemId}"]`);
+      target = highlight;
+    }
+    if (!target) return;
+
+    try { target.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    catch { target.scrollIntoView(); }
+
+    if (highlight) {
+      highlight.classList.remove("settings-highlight");
+      // Force a reflow so re-adding the class restarts the animation.
+      void highlight.offsetWidth;
+      highlight.classList.add("settings-highlight");
+      setTimeout(() => highlight.classList.remove("settings-highlight"), 1700);
+    }
+  }, 60)));
 }
 
 /* ---- Admin gate (Stage B wires the dashboard + FL queue) ---- */
@@ -6956,6 +7062,15 @@ function init() {
   document.getElementById("saveJobName").addEventListener("keydown", e => { if (e.key === "Enter") confirmSaveJob(); });
 
   document.getElementById("openAdmin").addEventListener("click", openAdmin);
+
+  // Pencil icons in the Cost Breakdown rows — delegated because the table
+  // body is re-rendered on every recalculation.
+  document.getElementById("breakdownBody").addEventListener("click", e => {
+    const btn = e.target.closest(".edit-rate-btn");
+    if (!btn) return;
+    e.preventDefault();
+    openSettingsToItem(btn.dataset.editItem);
+  });
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
   // Profile (PFP) menu
   document.getElementById("pfpBtn").addEventListener("click", togglePfpMenu);
