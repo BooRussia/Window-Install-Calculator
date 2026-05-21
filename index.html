@@ -544,8 +544,9 @@
   #anchorDive {
     position: fixed; left: 16px; top: 0; bottom: 0; width: 110px;
     pointer-events: none; z-index: 20; overflow: visible;
-    opacity: 0.85;
-    filter: blur(0.4px);
+    opacity: 0.88;
+    /* dropped the sub-pixel blur — invisible at retina, forced a raster
+       compositor pass each frame and defeated GPU path acceleration */
   }
   #anchorRopeSvg, #anchorKnotSvg {
     position: absolute; inset: 0; width: 100%; height: 100%;
@@ -6548,7 +6549,11 @@ function init() {
       d += " Q" + pts[i].x.toFixed(1) + " " + pts[i].y.toFixed(1) +
            " " + mx.toFixed(1) + " " + my.toFixed(1);
     }
-    d += " L" + pts[N - 1].x.toFixed(1) + " " + pts[N - 1].y.toFixed(1);
+    // close with a Q (not L) so the path stays C¹-continuous to the end —
+    // a straight L from the last midpoint to pts[N-1] would create a tangent
+    // break right above the anchor that reads as a kink
+    d += " Q" + pts[N - 1].x.toFixed(1) + " " + pts[N - 1].y.toFixed(1) +
+         " " + pts[N - 1].x.toFixed(1) + " " + pts[N - 1].y.toFixed(1);
     return d;
   }
 
@@ -6628,11 +6633,17 @@ function init() {
       dig += (digTarget - dig) * 0.14;
 
       // weighted rope-end target — a critically-damped spring with momentum,
-      // so the system can gently overshoot a moving target then settle
+      // so the system can gently overshoot a moving target then settle. Snap
+      // to exact target once it's truly at rest so no sub-pixel jitter keeps
+      // re-perturbing the anchor pin.
       const targetRingY = startY + (endY - startY) * p + dig * 44;
       prevDisplayRingY = displayRingY;
       ringSpringVel = (ringSpringVel + (targetRingY - displayRingY) * 0.05 * dt) * Math.pow(0.86, dt);
       displayRingY += ringSpringVel * dt;
+      if (tension > 0.95 && Math.abs(ringSpringVel) < 0.003 && Math.abs(targetRingY - displayRingY) < 0.6) {
+        ringSpringVel = 0;
+        displayRingY = targetRingY;
+      }
       const ringY = displayRingY;
       const ropeVelY = displayRingY - prevDisplayRingY;
 
@@ -6660,6 +6671,9 @@ function init() {
       // — without it the mid-rope whipped unrealistically. Gravity is scaled
       // by dt so behaviour is identical at 60Hz and 120Hz.
       const flowAmp = 0.05 + Math.min(0.18, Math.abs(ropeVelY) * 0.04);
+      // hard cutoff on flow when nearly idle — a tiny sinusoid the solver
+      // can't damp would keep injecting standing waves into the chain
+      const effFlow = flow < 0.06 ? 0 : flow;
       for (let i = 1; i < N; i++) {
         const pt = pts[i];
         let vx = (pt.x - pt.px) * damp;
@@ -6672,12 +6686,10 @@ function init() {
           vy -= vy * drag;
         }
         pt.px = pt.x; pt.py = pt.y;
-        // flow undulation scales with rope motion → real lateral whip
-        pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * flowAmp * flow;
-        // rope is near-neutrally-buoyant in water; the anchor is the weight.
-        // Mid-points get reduced gravity so the chain doesn't keep sagging
-        // every frame and forcing the solver to fight it.
-        const gFactor = (i === N - 1) ? 1 : 0.35;
+        pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * flowAmp * effFlow;
+        // mid-rope gravity tapers to 0 at rest so the chain stops sagging
+        // every frame (the perpetual body force the solver was fighting)
+        const gFactor = (i === N - 1) ? 1 : 0.35 * (1 - tension);
         pt.y += vy + GRAVITY * dt * gFactor;
       }
       // distance constraints — alternate forward/backward each iteration
@@ -6708,23 +6720,33 @@ function init() {
         pts[0].x = CX; pts[0].y = 0;
         last.y = ringY;
       }
-      // when the rope settles, gently bias every joint toward the ideal
-      // straight line and softly damp its velocity. Numbers are tuned for an
-      // anchor in water — drag + tension produce ~2-3 second exponential
-      // decay to vertical, never an instant snap.
+      // when the rope settles, gently bias every joint toward the line that
+      // goes from pts[0] to the anchor (NOT just a vertical line) so the
+      // bottom segment doesn't lag while last.x is drifting back to centre.
+      // Numbers are tuned for ~2-3 second exponential decay, no instant snap.
       if (tension > 0.01) {
-        const blend = tension * 0.06;     // gentle pull each frame
-        const killVel = tension * 0.18;   // soft velocity damping
+        const blend = tension * 0.06;
+        const killVel = tension * 0.18;
+        // last itself pulls toward CX so the line target eventually becomes
+        // vertical, but the mid-joints are biased toward the CURRENT line
+        last.x += (CX - last.x) * blend;
+        last.px = last.px * (1 - killVel) + last.x * killVel;
         for (let i = 1; i < N - 1; i++) {
           const t = i / (N - 1);
-          pts[i].x += (CX - pts[i].x) * blend;
-          pts[i].y += (t * ringY - pts[i].y) * blend;
+          const targetX = pts[0].x + (last.x - pts[0].x) * t;  // line top→anchor
+          const targetY = t * ringY;
+          pts[i].x += (targetX - pts[i].x) * blend;
+          pts[i].y += (targetY - pts[i].y) * blend;
           pts[i].px = pts[i].px * (1 - killVel) + pts[i].x * killVel;
           pts[i].py = pts[i].py * (1 - killVel) + pts[i].y * killVel;
         }
-        last.x += (CX - last.x) * blend;
-        last.px = last.px * (1 - killVel) + last.x * killVel;
       }
+      // anchor's Y is hard-pinned every frame, so its py would otherwise
+      // hold a stale value and inject phantom vy = (last.y - last.py) on
+      // the next verlet step — which the y-pin cancels but in the meantime
+      // tugs pts[N-2] sideways via the distance constraint, producing the
+      // exact corner-near-the-knot the user reported. Sync py to y.
+      last.py = last.y;
       // keep the anchor on screen and zero its X-velocity when it hits the
       // wall (avoids a synthetic kick on the next verlet step)
       const minLastX = 56;
