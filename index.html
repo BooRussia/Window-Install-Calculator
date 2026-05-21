@@ -6674,7 +6674,11 @@ function init() {
         pt.px = pt.x; pt.py = pt.y;
         // flow undulation scales with rope motion → real lateral whip
         pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * flowAmp * flow;
-        pt.y += vy + GRAVITY * dt;
+        // rope is near-neutrally-buoyant in water; the anchor is the weight.
+        // Mid-points get reduced gravity so the chain doesn't keep sagging
+        // every frame and forcing the solver to fight it.
+        const gFactor = (i === N - 1) ? 1 : 0.35;
+        pt.y += vy + GRAVITY * dt * gFactor;
       }
       // distance constraints — alternate forward/backward each iteration
       // (Jakobsen) so error doesn't accumulate at one end and produce a kink.
@@ -6704,12 +6708,13 @@ function init() {
         pts[0].x = CX; pts[0].y = 0;
         last.y = ringY;
       }
-      // when the rope is at rest, force every joint toward the ideal straight
-      // line between top and anchor and kill its momentum — guarantees the
-      // suspended rope is dead straight with no residual sag or sideways bow
+      // when the rope settles, gently bias every joint toward the ideal
+      // straight line and softly damp its velocity. Numbers are tuned for an
+      // anchor in water — drag + tension produce ~2-3 second exponential
+      // decay to vertical, never an instant snap.
       if (tension > 0.01) {
-        const blend = tension * 0.35;
-        const killVel = tension * 0.7;
+        const blend = tension * 0.06;     // gentle pull each frame
+        const killVel = tension * 0.18;   // soft velocity damping
         for (let i = 1; i < N - 1; i++) {
           const t = i / (N - 1);
           pts[i].x += (CX - pts[i].x) * blend;
@@ -6717,7 +6722,6 @@ function init() {
           pts[i].px = pts[i].px * (1 - killVel) + pts[i].x * killVel;
           pts[i].py = pts[i].py * (1 - killVel) + pts[i].y * killVel;
         }
-        // pull the anchor toward CX too so it can't sit slightly off-centre
         last.x += (CX - last.x) * blend;
         last.px = last.px * (1 - killVel) + last.x * killVel;
       }
