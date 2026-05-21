@@ -5096,6 +5096,7 @@ function resetSetup() {
   DATA.config.onboarded = false;
   DATA.config.setupComplete = false;
   saveData(DATA);
+  setNudgeDismissed(false);  // surface the nudge again on next render
   closeAdmin();
   showOnboarding();
   toast("Setup reset — walk through the wizard");
@@ -6183,7 +6184,7 @@ async function enterApp() {
   if (acct && currentUser) acct.textContent = currentUser.email;
   init();
   renderDemoBanner();
-  renderSetupNudge();
+  // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
   document.getElementById("landingScreen").classList.add("hidden");
   document.getElementById("bootSplash").classList.add("hidden");
@@ -6283,6 +6284,7 @@ function submitOnboarding() {
   ob.classList.add("hidden");
   ob.classList.remove("flex");
   toast("Profile saved");
+  renderSetupNudge();
   // First run continues into the multi-step setup wizard
   if (!DATA.config.setupComplete) showSetupWizard();
 }
@@ -6400,6 +6402,7 @@ function completeSetup(viaSkip) {
   applyBrandToUI();
   bindControls();
   renderDemoBanner();
+  renderSetupNudge();
   render();
   toast(viaSkip ? "Setup skipped — demo pricing in use" : "Setup complete");
 }
@@ -6408,6 +6411,48 @@ function renderDemoBanner() {
   const banner = document.getElementById("demoBanner");
   if (!banner) return;
   banner.classList.toggle("hidden", DATA.config.ratesCustomized || demoBannerDismissed);
+}
+
+// Persistent (per-session) nudge to finish onboarding + setup. Dismissed state
+// lives in localStorage so it sticks across reloads but resets on a fresh
+// browser session, or whenever the user actually completes setup.
+const NUDGE_DISMISS_KEY = "anchorNudgeDismissed";
+function isNudgeDismissed() {
+  try { return localStorage.getItem(NUDGE_DISMISS_KEY) === "1"; }
+  catch (e) { return false; }
+}
+function setNudgeDismissed(v) {
+  try {
+    if (v) localStorage.setItem(NUDGE_DISMISS_KEY, "1");
+    else localStorage.removeItem(NUDGE_DISMISS_KEY);
+  } catch (e) { /* private mode — fine */ }
+}
+function renderSetupNudge() {
+  const bar = document.getElementById("setupNudge");
+  if (!bar) return;
+  const incomplete = !DATA.config.onboarded || !DATA.config.setupComplete;
+  // Auto-clear the dismiss flag once setup is truly done so future
+  // partial-resets (rare) still surface the nudge.
+  if (!incomplete) setNudgeDismissed(false);
+  const show = incomplete && !isNudgeDismissed();
+  bar.classList.toggle("is-on", show);
+  // Tweak CTA label so it matches the stage they're at
+  const cta = document.getElementById("setupNudgeCta");
+  if (cta) cta.textContent = DATA.config.onboarded ? "Finish setup →" : "Set up profile →";
+  // Hide the PFP "Finish setup" entry when nothing's left to do
+  const pfpItem = document.getElementById("pfpFinishSetup");
+  if (pfpItem) {
+    pfpItem.classList.toggle("hidden", !incomplete);
+    const lbl = document.getElementById("pfpFinishSetupLabel");
+    if (lbl) lbl.textContent = DATA.config.onboarded ? "Finish setup" : "Set up profile";
+  }
+}
+// Launch whichever step is still outstanding — used by the nudge bar CTA and
+// the PFP menu entry. Onboarded but no setup → straight to wizard.
+function startSetupFlow() {
+  if (!DATA.config.onboarded) showOnboarding();
+  else if (!DATA.config.setupComplete) showSetupWizard();
+  else toast("Setup already complete");
 }
 
 // Materials on the pricing checklist — generic item names, with the exact
@@ -6548,6 +6593,7 @@ function init() {
   bindControls();
   render();
   renderSavedJobs();
+  renderSetupNudge();
   // Enable AI-button collapse transitions only after the initial paint,
   // so a Stick-Framed saved job doesn't animate the button away on load.
   requestAnimationFrame(() => {
@@ -6679,6 +6725,18 @@ function init() {
   document.getElementById("demoBannerDismiss").addEventListener("click", () => {
     demoBannerDismissed = true;
     renderDemoBanner();
+  });
+
+  // Finish-setup nudge bar
+  document.getElementById("setupNudgeCta").addEventListener("click", startSetupFlow);
+  document.getElementById("setupNudgeDismiss").addEventListener("click", () => {
+    setNudgeDismissed(true);
+    renderSetupNudge();
+  });
+  // PFP menu entry — always-available manual trigger
+  document.getElementById("pfpFinishSetup").addEventListener("click", () => {
+    closePfpMenu();
+    startSetupFlow();
   });
 
   // Onboarding wizard
