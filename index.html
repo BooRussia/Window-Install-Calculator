@@ -1554,7 +1554,12 @@
       </span>
       <span class="text-base font-black tracking-tightest text-slate-100">Anchor</span>
     </div>
-    <div class="relative">
+    <div class="flex items-center gap-2">
+      <button id="headerFLLookupBtn" type="button" class="hidden sm:inline-flex btn items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]" aria-label="Open FL product approval lookup">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+        FL Lookup
+      </button>
+      <div class="relative">
       <button id="pfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800" aria-label="Account menu" aria-haspopup="true">
         <span id="pfpInner" class="w-full h-full flex items-center justify-center"></span>
       </button>
@@ -1584,6 +1589,7 @@
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M13 14l4-4-4-4M17 10H8"/></svg>
           Sign Out
         </button>
+      </div>
       </div>
     </div>
   </div>
@@ -1878,8 +1884,27 @@
   </section>
 
   <!-- Empty state -->
-  <section id="emptyState" class="mt-16 text-center text-slate-500 text-sm">
-    Enter total linear footage to see live pricing.
+  <section id="emptyState" class="mt-16 text-center">
+    <h2 class="text-xl sm:text-2xl font-black tracking-tight text-slate-100">Start a job in seconds</h2>
+    <p class="mt-2 text-slate-500 text-sm">Pick a typical FL install to prefill the calculator — or enter your own linear footage in the rail.</p>
+    <div id="emptyStateChips" class="mt-6 flex flex-wrap justify-center gap-2 max-w-2xl mx-auto px-4">
+      <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
+        data-lf="240" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="2 Story" data-lift="false">
+        240 LF &middot; Block &middot; Impact &middot; 2-story
+      </button>
+      <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
+        data-lf="180" data-construction="New Construction" data-house="Stick Framed" data-impact="Non-Impact" data-stories="1 Story" data-lift="false">
+        180 LF &middot; Stick &middot; Non-impact &middot; 1-story
+      </button>
+      <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
+        data-lf="320" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="3 Story" data-lift="true">
+        320 LF &middot; Block &middot; Impact &middot; 3-story &middot; Lift
+      </button>
+    </div>
+    <button id="emptyStateScanLink" type="button" class="btn mt-5 inline-flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-[#c9a558] underline underline-offset-4 decoration-slate-700 hover:decoration-[#c9a558]">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" class="flex-shrink-0" aria-hidden="true"><path d="M8 0.5l1.2 4.3L13.5 6l-4.3 1.2L8 11.5 6.8 7.2 2.5 6l4.3-1.2z"/><path d="M13 11l0.5 1.5L15 13l-1.5 0.5L13 15l-0.5-1.5L11 13l1.5-0.5z"/></svg>
+      Or use AI to skip typing
+    </button>
   </section>
 
   </div><!-- /#quoteStage -->
@@ -6996,6 +7021,49 @@ function init() {
     const card = document.getElementById("costBasisCard");
     const isOpen = card.classList.toggle("collapsed") === false;
     document.getElementById("costBasisToggle").setAttribute("aria-expanded", String(isOpen));
+  });
+
+  // Header FL Lookup pill — mirrors the profile-menu entry
+  const headerFLBtn = document.getElementById("headerFLLookupBtn");
+  if (headerFLBtn) headerFLBtn.addEventListener("click", openFL);
+
+  // Empty-state prefill chips: set STATE, sync the rail visuals, then re-render
+  document.querySelectorAll("#emptyStateChips .empty-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const lf = chip.dataset.lf;
+      const construction = chip.dataset.construction;
+      const house = chip.dataset.house;
+      const impact = chip.dataset.impact;
+      const stories = chip.dataset.stories;
+      const lift = chip.dataset.lift === "true";
+
+      STATE.totalLF = String(lf);
+      const lfInput = document.getElementById("totalLF");
+      if (lfInput) lfInput.value = STATE.totalLF;
+
+      STATE.constructionType = construction;
+      STATE.houseType = house;
+      STATE.impact = impact;
+      STATE.stories = stories;
+      STATE.liftEnabled = lift && stories !== "1 Story";
+
+      // Sync segmented controls in the rail without re-firing their onChange
+      if (SEGMENTS.segConstructionType) SEGMENTS.segConstructionType.setValue(construction, false);
+      if (SEGMENTS.segHouseType) SEGMENTS.segHouseType.setValue(house, false);
+      if (SEGMENTS.segImpact) SEGMENTS.segImpact.setValue(impact, false);
+      if (SEGMENTS.segStories) SEGMENTS.segStories.setValue(stories, false);
+
+      updateLiftVisibility();
+      updateLiftToggleUI();
+      updateJobExtrasSummary();
+      render();
+    });
+  });
+
+  // Empty-state "Or use AI to skip typing" → opens the Scan Plan modal
+  const emptyScanLink = document.getElementById("emptyStateScanLink");
+  if (emptyScanLink) emptyScanLink.addEventListener("click", () => {
+    document.getElementById("readFromPlanBtn").click();
   });
 
   // Read from Plan / Schedule
