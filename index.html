@@ -1015,23 +1015,26 @@
   </section>
 
   <!-- FL lookup section -->
-  <section id="lpFL" class="scroll-mt-20 min-h-screen flex flex-col items-center justify-center max-w-3xl mx-auto px-5 sm:px-6 py-32" style="position:relative; overflow:hidden;">
-    <!-- iridescent mouse-wake canvas (Three.js shader, lazy-loaded) -->
+  <section id="lpFL" class="scroll-mt-20 min-h-screen flex flex-col items-center justify-center px-5 sm:px-6 py-32" style="position:relative; overflow:hidden;">
+    <!-- iridescent mouse-wake canvas spans the entire viewport width;
+         content below is constrained to max-w-3xl inside it -->
     <canvas id="flTrailCanvas" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; opacity:0; transition:opacity .8s ease;"></canvas>
-    <div class="lp-reveal text-center" style="position:relative; z-index:2;">
-      <span class="lp-eyebrow">Florida product approvals</span>
-      <h2 class="text-3xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-5">No more digging through floridabuilding.org.</h2>
-      <p class="text-slate-400 mt-3 max-w-lg mx-auto">Search the FL# right off the unit's sticker — get the screw pattern instantly, substrate by substrate.</p>
-    </div>
-    <div class="lp-reveal mt-8" style="position:relative; z-index:2; width:100%;">
-      <div class="relative">
-        <svg class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-          <circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/>
-        </svg>
-        <input id="flPublicSearch" type="search" placeholder="Search FL#, series, or manufacturer…" class="control rounded-2xl pl-14 pr-4 py-5 w-full text-lg font-semibold text-slate-100 placeholder:text-slate-600 placeholder:font-medium" />
+    <div class="max-w-3xl mx-auto w-full" style="position:relative; z-index:2;">
+      <div class="lp-reveal text-center">
+        <span class="lp-eyebrow">Florida product approvals</span>
+        <h2 class="text-3xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-5">No more digging through floridabuilding.org.</h2>
+        <p class="text-slate-400 mt-3 max-w-lg mx-auto">Search the FL# right off the unit's sticker — get the screw pattern instantly, substrate by substrate.</p>
       </div>
-      <div id="flPublicList" class="mt-3 space-y-2"></div>
-      <p class="text-[11px] text-slate-600 mt-3 text-center">Reference catalog — verify the exact FL# on the unit's label before use. Logged-in users can add their own FL#s.</p>
+      <div class="lp-reveal mt-8">
+        <div class="relative">
+          <svg class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/>
+          </svg>
+          <input id="flPublicSearch" type="search" placeholder="Search FL#, series, or manufacturer…" class="control rounded-2xl pl-14 pr-4 py-5 w-full text-lg font-semibold text-slate-100 placeholder:text-slate-600 placeholder:font-medium" />
+        </div>
+        <div id="flPublicList" class="mt-3 space-y-2"></div>
+        <p class="text-[11px] text-slate-600 mt-3 text-center">Reference catalog — verify the exact FL# on the unit's label before use. Logged-in users can add their own FL#s.</p>
+      </div>
     </div>
   </section>
 
@@ -6966,7 +6969,9 @@ try {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, premultipliedAlpha: false, powerPreference: "high-performance" });
   const DPR = Math.min(window.devicePixelRatio, 2);
   renderer.setPixelRatio(DPR);
-  renderer.setClearColor(0x020617, 1);
+  // transparent clear — the canvas adds the iridescent wake on top of the
+  // page's own #020617 background, so there's no colour seam at idle
+  renderer.setClearColor(0x000000, 0);
 
   const fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const fsGeo = new THREE.PlaneGeometry(2, 2);
@@ -7053,7 +7058,6 @@ try {
       "  L += texture2D(uLight, uv + vec2(0,  r)).r * 0.125;",
       "  L += texture2D(uLight, uv + vec2(0, -r)).r * 0.125;",
       "  L = L / (1.0 + L * 0.55);",
-      "  vec3 bg = vec3(0.0078, 0.0235, 0.0902);",
       "  float phase = L * 0.85 + 0.22*sin(uv.x*7.0 + uTime*0.20) + 0.16*cos(uv.y*5.5 - uTime*0.16) + uTime*0.045;",
       "  vec3 iridA = vec3(0.55, 0.50, 0.55);",
       "  vec3 iridB = vec3(0.45, 0.50, 0.50);",
@@ -7066,13 +7070,13 @@ try {
       "  float coreMix = smoothstep(0.55, 1.10, L);",
       "  vec3 mistColor = mix(paletted, vec3(0.98, 0.96, 1.00), coreMix * 0.65);",
       "  vec3 mist = mistColor * L * 0.85;",
-      "  vec3 col = bg + mist;",
       "  float edgeMask = smoothstep(0.0, 0.08, uv.x) * smoothstep(1.0, 0.92, uv.x)",
       "                 * smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);",
-      "  col = mix(bg, col, edgeMask);",
-      "  float grain = (fract(sin(dot(uv * vec2(uTime, uTime + 1.7), vec2(91.7, 47.3))) * 43758.5) - 0.5) * 0.005;",
-      "  col += grain;",
-      "  gl_FragColor = vec4(col, 1.0);",
+      "  mist *= edgeMask;",
+      "  // alpha tracks the wake density — no light, fully transparent → the",
+      "  // page's own background shows through, so there's no colour seam",
+      "  float a = clamp(L * 1.4 * edgeMask, 0.0, 1.0);",
+      "  gl_FragColor = vec4(mist, a);",
       "}",
     ].join("\n"),
   });
