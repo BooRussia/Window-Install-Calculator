@@ -552,7 +552,13 @@
     overflow: visible;
   }
   #anchorRopeSvg {
-    filter: drop-shadow(0 0 5px rgba(201,165,88,0.3));
+    /* cool underwater ambient instead of warm gold halo
+       (long wavelengths absorb first underwater) */
+    filter: drop-shadow(0 0 4px rgba(120,160,180,0.28));
+    shape-rendering: geometricPrecision;
+  }
+  #anchorKnotSvg {
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55)) drop-shadow(0 0 3px rgba(60,90,110,0.35));
   }
   #anchorEl {
     position: absolute; left: 50%; top: 0;
@@ -563,7 +569,8 @@
   #anchorEl svg {
     display: block; width: 100%; height: 100%;
     color: #dfc07a;
-    filter: drop-shadow(0 0 7px rgba(201,165,88,0.35)) drop-shadow(0 5px 9px rgba(0,0,0,0.5));
+    /* cool underwater ambient instead of warm gold rim halo */
+    filter: drop-shadow(0 0 8px rgba(50,80,100,0.4)) drop-shadow(0 4px 6px rgba(0,0,0,0.4));
   }
   /* coarse, gritty sand footer — layered fractal-noise specks on solid sand */
   /* base only — the grain texture itself is generated procedurally in JS
@@ -574,16 +581,20 @@
   }
   .dive-bubble {
     position: absolute; border-radius: 50%;
-    background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.85), rgba(201,165,88,0.28) 60%, rgba(201,165,88,0.05));
-    border: 1px solid rgba(223,192,122,0.4);
+    /* clear/white water bubble (real bubbles aren't gold) */
+    background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.95), rgba(200,225,240,0.3) 60%, rgba(200,225,240,0.05));
+    border: 1px solid rgba(220,240,255,0.45);
     opacity: 0; will-change: transform, opacity;
     animation: bubbleRise var(--dur,3s) ease-in forwards;
   }
+  /* multi-keyframe wobble simulates vortex-shedding sway as bubbles rise */
   @keyframes bubbleRise {
-    0% { opacity: 0; transform: translate(0,0) scale(0.5); }
-    12% { opacity: 0.8; }
-    70% { opacity: 0.55; }
-    100% { opacity: 0; transform: translate(var(--sway,8px), calc(-1 * var(--rise,200px))) scale(1.05); }
+    0%   { opacity: 0;    transform: translate(0,0) scale(0.4); }
+    12%  { opacity: 0.85; }
+    35%  { transform: translate(8px, calc(-1 * var(--rise,200px) * 0.3)) scale(0.7); }
+    60%  { transform: translate(-6px, calc(-1 * var(--rise,200px) * 0.6)) scale(0.95); opacity: 0.55; }
+    85%  { transform: translate(10px, calc(-1 * var(--rise,200px) * 0.88)) scale(1.2); opacity: 0.35; }
+    100% { opacity: 0;    transform: translate(var(--sway,8px), calc(-1 * var(--rise,200px))) scale(1.4); }
   }
   @media (max-width: 1340px) { #anchorDive { display: none; } }
   @media (prefers-reduced-motion: reduce) {
@@ -678,9 +689,13 @@
   <!-- Scroll-driven anchor dive -->
   <div id="anchorDive" aria-hidden="true">
     <svg id="anchorRopeSvg">
-      <path class="ropePath" fill="none" stroke="#564b34" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
-      <path class="ropePath" fill="none" stroke="#e9e2cd" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-      <path id="ropeGold" fill="none" stroke="#c9a558" stroke-width="3.5" stroke-linecap="round"/>
+      <path class="ropePath" fill="none" stroke="#3a2f1f" stroke-width="18" stroke-linecap="butt" stroke-linejoin="round"/>
+      <path class="ropePath" fill="none" stroke="#e9e2cd" stroke-width="14" stroke-linecap="butt" stroke-linejoin="round"/>
+      <!-- bright centreline highlight — makes the rope read as a lit cylinder -->
+      <path id="ropeHighlight" fill="none" stroke="#f5efdd" stroke-width="2.8" stroke-linecap="butt" stroke-linejoin="round" opacity="0.72"/>
+      <!-- two crossing diagonal stripe sets form a chevron / plait pattern -->
+      <path id="ropeGold"  fill="none" stroke="#b8964c" stroke-width="2.4" stroke-linecap="butt"/>
+      <path id="ropeGoldB" fill="none" stroke="#b8964c" stroke-width="2.4" stroke-linecap="butt"/>
     </svg>
     <div id="anchorEl">
       <svg id="anchorSvg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
@@ -694,8 +709,8 @@
     </div>
     <!-- knot drawn after the anchor so it sits in front of the anchor's shank -->
     <svg id="anchorKnotSvg">
-      <ellipse id="ropeKnotCasing" rx="8.5" ry="11" fill="#564b34"/>
-      <ellipse id="ropeKnotBody" rx="6.5" ry="9" fill="#e9e2cd"/>
+      <ellipse id="ropeKnotCasing" rx="9" ry="11.5" fill="#2e2618"/>
+      <ellipse id="ropeKnotBody" rx="7" ry="9.5" fill="#d8caa0"/>
     </svg>
   </div>
 
@@ -6494,6 +6509,8 @@ function init() {
   let dig = 0, digTarget = 0;   // 0 = upright, 1 = rolled flat on its side
   let tension = 0, idleFrames = 0;   // tension: 0 = loose & lively, 1 = pulled taut & straight
   let displayRingY = 0, prevDisplayRingY = 0;   // smoothed rope-end target + previous frame for velocity
+  let ringSpringVel = 0;   // velocity of the rope-end spring for proper momentum/overshoot
+  let prevTs = 0;          // for frame-rate-independent dt
 
   function initPts() {
     pts = [];
@@ -6574,22 +6591,32 @@ function init() {
       const len = Math.hypot(dx, dy) || 1;
       return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
     }
-    const pitch = 14, hw = 8;
-    const stop = total - pitch * 0.5;
-    let d = "";
+    // chevron / plait: two crossing diagonals per row.
+    // pitch 10 (≠ rope width 14 → no moiré); hw 5.5 stays within the body
+    // so round-cap bulge can't poke out the sides.
+    const pitch = 10, hw = 5.5;
+    const stop = total - 14;        // stop before the knot so stripes never peek out
+    const aParts = [], bParts = [];
     for (let s = 0; s < stop; s += pitch) {
       const p0 = at(s), p1 = at(s + pitch);
-      d += "M" + (p0.x - hw * p0.nx).toFixed(1) + " " + (p0.y - hw * p0.ny).toFixed(1) +
-           "L" + (p1.x + hw * p1.nx).toFixed(1) + " " + (p1.y + hw * p1.ny).toFixed(1);
+      const ax1 = (p0.x - hw * p0.nx).toFixed(1), ay1 = (p0.y - hw * p0.ny).toFixed(1);
+      const ax2 = (p1.x + hw * p1.nx).toFixed(1), ay2 = (p1.y + hw * p1.ny).toFixed(1);
+      const bx1 = (p0.x + hw * p0.nx).toFixed(1), by1 = (p0.y + hw * p0.ny).toFixed(1);
+      const bx2 = (p1.x - hw * p1.nx).toFixed(1), by2 = (p1.y - hw * p1.ny).toFixed(1);
+      aParts.push("M", ax1, " ", ay1, "L", ax2, " ", ay2);
+      bParts.push("M", bx1, " ", by1, "L", bx2, " ", by2);
     }
-    return d;
+    return { dA: aParts.join(""), dB: bParts.join("") };
   }
 
   function frame(ts) {
+    // frame-rate-independent time step (clamped so a long pause doesn't explode)
+    const dt = prevTs > 0 ? Math.min(2.5, (ts - prevTs) / 16.667) : 1;
+    prevTs = ts;
     if (!ls.classList.contains("hidden")) {
       if (!pts) initPts();
 
-      p += (targetP - p) * 0.12;
+      p += (targetP - p) * 0.12 * dt;
       const startY = 86;
       const endY = Math.max(startY, ls.clientHeight - 128);
 
@@ -6600,11 +6627,12 @@ function init() {
       if (!atBottom) digTarget = Math.max(0, digTarget - 0.05);
       dig += (digTarget - dig) * 0.14;
 
-      // smoothed rope-end target: the system has weight, so it trails the
-      // scroll slightly and catches up like a damped spring (no perfect snap)
+      // weighted rope-end target — a critically-damped spring with momentum,
+      // so the system can gently overshoot a moving target then settle
       const targetRingY = startY + (endY - startY) * p + dig * 44;
       prevDisplayRingY = displayRingY;
-      displayRingY += (targetRingY - displayRingY) * 0.16;
+      ringSpringVel = (ringSpringVel + (targetRingY - displayRingY) * 0.05 * dt) * Math.pow(0.86, dt);
+      displayRingY += ringSpringVel * dt;
       const ringY = displayRingY;
       const ropeVelY = displayRingY - prevDisplayRingY;
 
@@ -6629,32 +6657,28 @@ function init() {
       const flow = (reduce || landed) ? 0 : (1 - tension);
       const damp = 0.985 - 0.06 * tension;
 
-      // verlet integration with real falling-in-water physics on the anchor:
-      // gravity pulls it down, quadratic water drag (F_drag = k * v^2) opposes
-      // motion so it has a terminal velocity, and the chain's length is the
-      // only thing that ever stops it — exactly like an anchor on a rope.
+      // verlet integration. Every rope joint has water drag (anchor heavier)
+      // — without it the mid-rope whipped unrealistically. Gravity is scaled
+      // by dt so behaviour is identical at 60Hz and 120Hz.
+      const flowAmp = 0.05 + Math.min(0.18, Math.abs(ropeVelY) * 0.04);
       for (let i = 1; i < N; i++) {
         const pt = pts[i];
         let vx = (pt.x - pt.px) * damp;
         let vy = (pt.y - pt.py) * damp;
-        if (i === N - 1) {
-          const speed = Math.hypot(vx, vy);
-          if (speed > 0.01) {
-            const drag = Math.min(0.55, 0.018 * speed);
-            vx -= vx * drag;
-            vy -= vy * drag;
-          }
+        const speed = Math.hypot(vx, vy);
+        if (speed > 0.01) {
+          const dragK = (i === N - 1) ? 0.018 : 0.0055;
+          const drag = Math.min(0.55, dragK * speed);
+          vx -= vx * drag;
+          vy -= vy * drag;
         }
         pt.px = pt.x; pt.py = pt.y;
-        // flow undulation gets boosted during fast rope motion — gives the
-        // chain a real sideways whip when the slack snaps tight
-        const flowAmp = 0.05 + Math.min(0.18, Math.abs(ropeVelY) * 0.04);
+        // flow undulation scales with rope motion → real lateral whip
         pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * flowAmp * flow;
-        pt.y += vy + GRAVITY;
+        pt.y += vy + GRAVITY * dt;
       }
-      // distance constraints — pin the top fully and the anchor end's Y to
-      // the rope's end. The anchor is rigidly attached to the rope so they
-      // descend as one piece; only the anchor's X stays free for gentle sway.
+      // distance constraints — only top pinned during the relax loop; pin
+      // last.y just once afterward so we don't inject energy each iteration
       for (let it = 0; it < 6; it++) {
         for (let i = 0; i < N - 1; i++) {
           const a = pts[i], b = pts[i + 1];
@@ -6666,26 +6690,28 @@ function init() {
           b.x += dx; b.y += dy;
         }
         pts[0].x = CX; pts[0].y = 0;
-        last.y = ringY;
       }
-      // keep the anchor on screen even when it sways — anchor's left edge
-      // sits at (viewport) last.x - 49, so clamp last.x so it never goes off
-      const minLastX = 56;   // ~6px viewport padding on the left
+      last.y = ringY;
+      // keep the anchor on screen and zero its X-velocity when it hits the
+      // wall (avoids a synthetic kick on the next verlet step)
+      const minLastX = 56;
       const maxLastX = 56 + Math.max(0, window.innerWidth - 130 - 16);
-      if (last.x < minLastX) last.x = minLastX;
-      else if (last.x > maxLastX) last.x = maxLastX;
+      if (last.x < minLastX)      { last.x = minLastX; last.px = minLastX; }
+      else if (last.x > maxLastX) { last.x = maxLastX; last.px = maxLastX; }
 
       // place the anchor: ring follows the rope end. The anchor is bottom-heavy,
       // so it stays upright and only leans gently into its sideways drift —
       // never spins or flips. Once digging in, it tips over onto its side.
       const tx = last.x - CX;
       const ty = last.y - RING_Y;
-      // anchor leans into its sideways drift with more range so it visibly
-      // rolls / sways during the sling after fast scrolls
-      let tgtAngle = (last.x - last.px) * 3.6;
+      // anchor hangs along the rope's tangent at the attach point — a real
+      // suspended anchor aligns with the rope, not just with its own velocity
+      const tdx = last.x - pts[N - 2].x;
+      const tdy = Math.max(1, last.y - pts[N - 2].y);
+      let tgtAngle = Math.atan2(tdx, tdy) * (180 / Math.PI);
       if (tgtAngle > 28) tgtAngle = 28;
       else if (tgtAngle < -28) tgtAngle = -28;
-      anchorAngle += (tgtAngle - anchorAngle) * 0.12;
+      anchorAngle += (tgtAngle - anchorAngle) * 0.15;
       const dispAngle = anchorAngle * (1 - dig) + 74 * dig;
       anchor.style.transform =
         "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
@@ -6693,7 +6719,12 @@ function init() {
       const d = ropeD();
       ropePaths[0].setAttribute("d", d);
       ropePaths[1].setAttribute("d", d);
-      document.getElementById("ropeGold").setAttribute("d", goldLines());
+      // bright centreline highlight rides the same Q-curve as the body
+      document.getElementById("ropeHighlight").setAttribute("d", d);
+      // chevron stripes: two crossing diagonals each row
+      const stripes = goldLines();
+      document.getElementById("ropeGold").setAttribute("d", stripes.dA);
+      document.getElementById("ropeGoldB").setAttribute("d", stripes.dB);
       // knot at the rope's end — a small oval bulge of rope
       const kx = last.x.toFixed(1), ky = last.y.toFixed(1);
       const knotCasing = document.getElementById("ropeKnotCasing");
