@@ -762,6 +762,39 @@
     transition: color 0.15s;
   }
   #setupNudge .nudge-dismiss:hover { color: #f0d49a; }
+
+  /* Offline indicator pill — appears when cloud writes start failing */
+  #offlineIndicator {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: #f0c977;
+    background: rgba(220, 150, 40, 0.15);
+    border: 1px solid #d8a342;
+    cursor: help;
+    user-select: none;
+    white-space: nowrap;
+    animation: oi-fade-in 0.25s ease-out;
+  }
+  body.is-offline #offlineIndicator { display: inline-flex; }
+  #offlineIndicator svg { color: #f0c977; flex-shrink: 0; }
+  #offlineIndicator .oi-dot { opacity: 0.55; margin: 0 1px; }
+  @keyframes oi-fade-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  /* On narrow screens, collapse to icon-only — connectivity is flakiest on
+     mobile, so we keep it visible but compact it to save header space */
+  @media (max-width: 480px) {
+    #offlineIndicator { padding: 5px 7px; }
+    #offlineIndicator .oi-label { display: none; }
+  }
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen rail-pinned">
@@ -1559,6 +1592,13 @@
         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
         FL Lookup
       </button>
+      <div id="offlineIndicator" role="status" aria-live="polite" title="Your latest changes are stored on this device. They'll sync when the connection returns.">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M17.5 19H9a5 5 0 0 1-1.4-9.8 7 7 0 0 1 13.4 3.3"/>
+          <line x1="3" y1="3" x2="21" y2="21"/>
+        </svg>
+        <span class="oi-label">Offline <span class="oi-dot">·</span> Saved locally</span>
+      </div>
       <div class="relative">
       <button id="pfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800" aria-label="Account menu" aria-haspopup="true">
         <span id="pfpInner" class="w-full h-full flex items-center justify-center"></span>
@@ -4433,11 +4473,11 @@ async function logQuoteEvent(kind) {
   if (!sb || !currentUser) return;
   try {
     const snap = quoteSnapshot();
-    await sb.from("quote_events").insert({
+    await trackCloud(sb.from("quote_events").insert({
       user_id: currentUser.id, user_email: currentUser.email,
       kind, total: snap.total, snapshot: snap, quote_id: currentQuoteId()
-    });
-  } catch (e) { console.warn("quote event log failed", e); }
+    }));
+  } catch (e) { /* error already routed via trackCloud */ }
 }
 
 // Report an FL# that was searched but not found — session-deduped.
@@ -4450,11 +4490,11 @@ async function reportMissingFL(query, source) {
   _flReported.add(key);
   if (!sb) return;
   try {
-    await sb.from("fl_missing").insert({
+    await trackCloud(sb.from("fl_missing").insert({
       fl: q, source: source || "app",
       user_email: (currentUser && currentUser.email) || null
-    });
-  } catch (e) { console.warn("fl_missing report failed", e); }
+    }));
+  } catch (e) { /* error already routed via trackCloud */ }
 }
 
 // Debounced — after typing stops, if an FL-looking query still has zero
@@ -4508,7 +4548,8 @@ async function renderAdminDashboard() {
       .select("*").order("created_at", { ascending: false }).limit(1000);
     if (error) throw error;
     events = data || [];
-  } catch (e) { adminErr(el, e.message || String(e)); return; }
+    markCloudOk();
+  } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
 
   const kpiCard = (label, value, sub) => `
     <div class="card rounded-xl px-4 py-3.5">
@@ -4624,15 +4665,21 @@ async function renderAdminDashboard() {
 
 // Delete specific quote_events rows by id (chunked for safety).
 async function deleteQuoteEvents(ids) {
-  for (let i = 0; i < ids.length; i += 150) {
-    const { error } = await sb.from("quote_events").delete().in("id", ids.slice(i, i + 150));
-    if (error) throw error;
-  }
+  try {
+    for (let i = 0; i < ids.length; i += 150) {
+      const { error } = await sb.from("quote_events").delete().in("id", ids.slice(i, i + 150));
+      if (error) throw error;
+    }
+    markCloudOk();
+  } catch (e) { markCloudError(e); throw e; }
 }
 // Delete every quote_events row.
 async function purgeQuoteEvents() {
-  const { error } = await sb.from("quote_events").delete().gte("created_at", "1900-01-01");
-  if (error) throw error;
+  try {
+    const { error } = await sb.from("quote_events").delete().gte("created_at", "1900-01-01");
+    if (error) throw error;
+    markCloudOk();
+  } catch (e) { markCloudError(e); throw e; }
 }
 
 async function renderAdminQueue() {
@@ -4643,7 +4690,8 @@ async function renderAdminQueue() {
       .select("*").order("created_at", { ascending: false });
     if (error) throw error;
     rows = data || [];
-  } catch (e) { adminErr(el, e.message || String(e)); return; }
+    markCloudOk();
+  } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
 
   // group repeated searches by normalized FL#
   const groups = {};
@@ -4692,8 +4740,8 @@ async function renderAdminQueue() {
 
 async function flQueueResolve(ids) {
   if (!sb || !ids || !ids.length) return;
-  try { await sb.from("fl_missing").delete().in("id", ids); }
-  catch (e) { console.warn("fl queue resolve failed", e); }
+  try { await trackCloud(sb.from("fl_missing").delete().in("id", ids)); }
+  catch (e) { /* error already routed via trackCloud */ }
 }
 
 /* ============================================================
@@ -5955,6 +6003,64 @@ let sb = null;            // supabase client
 let currentUser = null;   // logged-in user
 let authMode = "login";   // or "signup"
 
+/* ---- Cloud connectivity tracker --------------------------------------
+   A single source of truth for whether our writes to Supabase are landing.
+   Any cloud call site can flip this with markCloudError()/markCloudOk(),
+   and the header pill (#offlineIndicator) renders off body.is-offline.
+   When offline, we ping a cheap Supabase endpoint every 30s instead of
+   waiting passively — a single success anywhere clears the state. ---- */
+let _cloudOffline = false;
+let _cloudRetryTimer = null;
+const CLOUD_RETRY_MS = 30000;
+
+function markCloudError(err) {
+  if (err) console.warn("cloud call failed", err);
+  if (_cloudOffline) return;          // already showing — no-op
+  _cloudOffline = true;
+  document.body.classList.add("is-offline");
+  if (_cloudRetryTimer) return;
+  _cloudRetryTimer = setInterval(_cloudRetryPing, CLOUD_RETRY_MS);
+}
+
+function markCloudOk() {
+  if (!_cloudOffline) return;
+  _cloudOffline = false;
+  document.body.classList.remove("is-offline");
+  if (_cloudRetryTimer) { clearInterval(_cloudRetryTimer); _cloudRetryTimer = null; }
+}
+
+async function _cloudRetryPing() {
+  // Browser-level offline beats any network call — skip the ping
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  if (!sb) return;
+  try {
+    // Cheap HEAD-style query: count-only, zero rows, RLS-safe (returns 0 if
+    // unauthenticated; we only care that the request completes without error)
+    const { error } = await sb.from("profiles").select("id", { count: "exact", head: true }).limit(1);
+    if (error) throw error;
+    markCloudOk();
+  } catch (e) {
+    // Still offline — wait for next interval tick
+  }
+}
+
+// Wrap any promise that hits the cloud. Auto-routes outcome to the tracker.
+function trackCloud(promise) {
+  return Promise.resolve(promise).then(
+    v => { markCloudOk(); return v; },
+    e => { markCloudError(e); throw e; }
+  );
+}
+
+// Fast-path: the browser already knows it lost network — show the pill now
+// rather than waiting for the next write to time out. Gate on `sb` being
+// available: if Supabase SDK never loaded we're a pure-local app and an
+// "offline" warning would be misleading.
+if (typeof window !== "undefined") {
+  window.addEventListener("offline", () => { if (sb) markCloudError(new Error("navigator offline")); });
+  window.addEventListener("online", () => { if (sb) _cloudRetryPing(); });
+}
+
 function setAuthMsg(text, kind) {
   const el = document.getElementById("authMsg");
   if (!text) { el.classList.add("hidden"); return; }
@@ -6169,24 +6275,31 @@ function isUuid(s) {
 // Pull this user's profile + jobs from Supabase into localStorage (the
 // app reads localStorage synchronously, so the cloud is just the backing store).
 async function syncFromCloud() {
-  const { data: { user } } = await sb.auth.getUser();
-  currentUser = user;
-  if (!user) throw new Error("Not signed in");
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    currentUser = user;
+    if (!user) throw new Error("Not signed in");
 
-  const { data: prof, error: pErr } = await sb.from("profiles")
-    .select("data").eq("id", user.id).maybeSingle();
-  if (pErr) throw pErr;
+    const { data: prof, error: pErr } = await sb.from("profiles")
+      .select("data").eq("id", user.id).maybeSingle();
+    if (pErr) throw pErr;
 
-  if (prof && prof.data && Object.keys(prof.data).length) {
-    localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
-    const { data: jobRows, error: jErr } = await sb.from("jobs")
-      .select("id,data").eq("user_id", user.id);
-    if (jErr) throw jErr;
-    const jobs = (jobRows || []).map(row => ({ ...row.data, id: row.id }));
-    localStorage.setItem(LS_KEYS.jobs, JSON.stringify(jobs));
-  } else {
-    // First login ever — seed the cloud from whatever is already local
-    await firstLoginMigration(user.id);
+    if (prof && prof.data && Object.keys(prof.data).length) {
+      localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
+      const { data: jobRows, error: jErr } = await sb.from("jobs")
+        .select("id,data").eq("user_id", user.id);
+      if (jErr) throw jErr;
+      const jobs = (jobRows || []).map(row => ({ ...row.data, id: row.id }));
+      localStorage.setItem(LS_KEYS.jobs, JSON.stringify(jobs));
+    } else {
+      // First login ever — seed the cloud from whatever is already local
+      await firstLoginMigration(user.id);
+    }
+    markCloudOk();
+  } catch (e) {
+    // Auth failures aren't connectivity issues — don't flag offline for those
+    if (e && e.message !== "Not signed in") markCloudError(e);
+    throw e;
   }
 }
 
@@ -6207,26 +6320,27 @@ async function firstLoginMigration(userId) {
 async function pushProfileToCloud(d) {
   if (!sb || !currentUser) return;
   try {
-    await sb.from("profiles").upsert({
+    await trackCloud(sb.from("profiles").upsert({
       id: currentUser.id, data: d, updated_at: new Date().toISOString()
-    });
-  } catch (e) { console.warn("Profile sync failed", e); }
+    }));
+  } catch (e) { /* error already routed via trackCloud */ }
 }
 
 async function pushJobToCloud(job) {
   if (!sb || !currentUser) return;
   try {
-    await sb.from("jobs").insert({ id: job.id, user_id: currentUser.id, data: job });
+    await trackCloud(sb.from("jobs").insert({ id: job.id, user_id: currentUser.id, data: job }));
   } catch (e) {
-    console.warn("Job sync failed", e);
+    // Header pill already shows offline state; keep the toast for immediate
+    // user feedback on the action they just took
     toast("Saved locally — cloud sync failed");
   }
 }
 
 async function deleteJobFromCloud(id) {
   if (!sb || !currentUser) return;
-  try { await sb.from("jobs").delete().eq("id", id); }
-  catch (e) { console.warn("Job delete sync failed", e); }
+  try { await trackCloud(sb.from("jobs").delete().eq("id", id)); }
+  catch (e) { /* error already routed via trackCloud */ }
 }
 
 /* ---- Landing page + auth modal ---- */
