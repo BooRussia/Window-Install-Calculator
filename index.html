@@ -6648,11 +6648,9 @@ function init() {
       const idle = idleFrames > 14 && Math.abs(targetP - p) < 0.004;
       tension += ((idle ? 1 : 0) - tension) * (idle ? 0.022 : 0.3);
 
-      // chain length carries 5% slack so the rope can really whip + curve
-      // during fast motion. The anchor itself is still pinned to ringY so
-      // it never separates from the rope's end; the slack creates pendulum
-      // sling when the rope catches up tight after a fast scroll
-      const seg = (ringY * 1.05) / (N - 1);
+      // chain length carries 2% slack — enough for a subtle whip during fast
+      // motion without producing a visible permanent kink at rest
+      const seg = (ringY * 1.02) / (N - 1);
       const last = pts[N - 1];
       const flow = (reduce || landed) ? 0 : (1 - tension);
       const damp = 0.985 - 0.06 * tension;
@@ -6677,17 +6675,29 @@ function init() {
         pt.x += vx + Math.sin(ts * 0.0011 + i * 0.55) * flowAmp * flow;
         pt.y += vy + GRAVITY * dt;
       }
-      // distance constraints — only top pinned during the relax loop; pin
-      // last.y just once afterward so we don't inject energy each iteration
-      for (let it = 0; it < 6; it++) {
-        for (let i = 0; i < N - 1; i++) {
-          const a = pts[i], b = pts[i + 1];
-          let dx = b.x - a.x, dy = b.y - a.y;
-          const dist = Math.hypot(dx, dy) || 0.0001;
-          const diff = (seg - dist) / dist * 0.5;
-          dx *= diff; dy *= diff;
-          a.x -= dx; a.y -= dy;
-          b.x += dx; b.y += dy;
+      // distance constraints — alternate forward/backward each iteration
+      // (Jakobsen) so error doesn't accumulate at one end and produce a kink
+      for (let it = 0; it < 8; it++) {
+        if ((it & 1) === 0) {
+          for (let i = 0; i < N - 1; i++) {
+            const a = pts[i], b = pts[i + 1];
+            let dx = b.x - a.x, dy = b.y - a.y;
+            const dist = Math.hypot(dx, dy) || 0.0001;
+            const diff = (seg - dist) / dist * 0.5;
+            dx *= diff; dy *= diff;
+            a.x -= dx; a.y -= dy;
+            b.x += dx; b.y += dy;
+          }
+        } else {
+          for (let i = N - 2; i >= 0; i--) {
+            const a = pts[i], b = pts[i + 1];
+            let dx = b.x - a.x, dy = b.y - a.y;
+            const dist = Math.hypot(dx, dy) || 0.0001;
+            const diff = (seg - dist) / dist * 0.5;
+            dx *= diff; dy *= diff;
+            a.x -= dx; a.y -= dy;
+            b.x += dx; b.y += dy;
+          }
         }
         pts[0].x = CX; pts[0].y = 0;
       }
@@ -6704,14 +6714,14 @@ function init() {
       // never spins or flips. Once digging in, it tips over onto its side.
       const tx = last.x - CX;
       const ty = last.y - RING_Y;
-      // anchor hangs along the rope's tangent at the attach point — a real
-      // suspended anchor aligns with the rope, not just with its own velocity
-      const tdx = last.x - pts[N - 2].x;
-      const tdy = Math.max(1, last.y - pts[N - 2].y);
-      let tgtAngle = Math.atan2(tdx, tdy) * (180 / Math.PI);
-      if (tgtAngle > 28) tgtAngle = 28;
-      else if (tgtAngle < -28) tgtAngle = -28;
-      anchorAngle += (tgtAngle - anchorAngle) * 0.15;
+      // a real heavy anchor hangs straight down regardless of rope angle —
+      // its centre of mass sits below the attach point so gravity holds it
+      // vertical. Only lateral motion of the attach point briefly tilts it,
+      // and gravity pulls it back to upright when motion stops.
+      let tgtAngle = (last.x - last.px) * 3.2;
+      if (tgtAngle > 22) tgtAngle = 22;
+      else if (tgtAngle < -22) tgtAngle = -22;
+      anchorAngle += (tgtAngle - anchorAngle) * 0.12;
       const dispAngle = anchorAngle * (1 - dig) + 74 * dig;
       anchor.style.transform =
         "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
