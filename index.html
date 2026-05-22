@@ -1864,7 +1864,7 @@
         </div>
       </div>
       <div id="swingDoorsRailField" class="rail-field hidden">
-        <label>Swing doors<span class="info-tip" tabindex="0" role="button" aria-label="How swing doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Swing doors price per door, not per LF. Single-leaf ~$X, double-leaf ~1.6&times;. Threshold hardware adds per door. Tune rates in Settings.</span></span></label>
+        <label>Swing doors<span class="info-tip" tabindex="0" role="button" aria-label="How swing doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Swing doors price per door, not per LF. Threshold hardware is included. Toggle sill flashing on/off &mdash; usually on for new construction over concrete. Tune rates in Settings.</span></span></label>
         <div class="space-y-2">
           <label class="margin-pill" style="cursor:text">
             <span class="lbl">Single-leaf</span>
@@ -1874,7 +1874,7 @@
             <span class="lbl">Double-leaf</span>
             <input id="swingDoubleInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
-          <button id="swingThresholdToggleBtn" type="button" class="toggle-pill"><span class="lbl">Threshold</span><span class="val">Off</span></button>
+          <button id="swingFlashingToggleBtn" type="button" class="toggle-pill"><span class="lbl">Sill flashing</span><span class="val">Off</span></button>
           <div id="swingDoorsSummary" class="hidden text-[10px] tracking-[0.14em] uppercase font-bold text-slate-500 px-1" style="font-variant-numeric: tabular-nums;"></div>
         </div>
       </div>
@@ -2487,7 +2487,7 @@
                 <span>Enable in rail</span>
               </label>
             </div>
-            <p class="text-[11px] text-slate-500 mb-4">Priced per door, not per LF. Tune the labor minutes, materials, and threshold hardware below. Defaults are construction-shop estimates &mdash; verify against your suppliers.</p>
+            <p class="text-[11px] text-slate-500 mb-4">Priced per door, not per LF. Threshold hardware is included in the per-door materials cost. Tune below &mdash; defaults are construction-shop estimates, verify against your suppliers.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div class="rounded-xl border border-slate-800 p-4" data-swing-leaf="single">
                 <div class="text-sm font-semibold text-slate-100 mb-2.5">Single-leaf</div>
@@ -2501,13 +2501,7 @@
                     <span class="text-xs text-slate-400 w-32">Materials</span>
                     <span class="text-[11px] text-slate-500">$</span>
                     <input id="adminSwingSingleMaterials" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-                    <span class="text-[11px] text-slate-500">/ door</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-slate-400 w-32">Threshold</span>
-                    <span class="text-[11px] text-slate-500">$</span>
-                    <input id="adminSwingSingleThreshold" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-                    <span class="text-[11px] text-slate-500">/ door</span>
+                    <span class="text-[11px] text-slate-500">/ door (incl. threshold)</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-slate-400 w-32">Anchors</span>
@@ -2528,19 +2522,36 @@
                     <span class="text-xs text-slate-400 w-32">Materials</span>
                     <span class="text-[11px] text-slate-500">$</span>
                     <input id="adminSwingDoubleMaterials" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-                    <span class="text-[11px] text-slate-500">/ door</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-slate-400 w-32">Threshold</span>
-                    <span class="text-[11px] text-slate-500">$</span>
-                    <input id="adminSwingDoubleThreshold" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-                    <span class="text-[11px] text-slate-500">/ door</span>
+                    <span class="text-[11px] text-slate-500">/ door (incl. threshold)</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-slate-400 w-32">Anchors</span>
                     <input id="adminSwingDoubleAnchors" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
                     <span class="text-[11px] text-slate-500">each / door</span>
                   </div>
+                </div>
+              </div>
+            </div>
+            <!-- Sill flashing (peel-and-stick membrane under the sill, separating it from concrete) -->
+            <div class="mt-4 rounded-xl border border-slate-800 p-4">
+              <div class="text-sm font-semibold text-slate-100 mb-1">Sill flashing</div>
+              <p class="text-[11px] text-slate-500 mb-3">Priced per LF of total door width. Toggle on/off per job in the rail. Door widths set the flashing length each door type contributes.</p>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-24">Rate</span>
+                  <span class="text-[11px] text-slate-500">$</span>
+                  <input id="adminSwingFlashingPerLF" type="number" step="0.25" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">/ LF</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-24">Single width</span>
+                  <input id="adminSwingSingleWidthLF" type="number" step="0.25" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">LF</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-24">Double width</span>
+                  <input id="adminSwingDoubleWidthLF" type="number" step="0.25" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">LF</span>
                 </div>
               </div>
             </div>
@@ -2719,18 +2730,23 @@ const DEFAULT_DATA = {
       rates: {
         single: {
           labor: 75,           // minutes per single-leaf door
-          materialsBase: 380,  // frame, anchors, screws per door
-          threshold: 110       // sill / threshold hardware per door
+          materialsBase: 490   // frame, threshold, anchors, screws per door (threshold rolled in — always included)
         },
         double: {
           labor: 105,          // minutes per double-leaf door
-          materialsBase: 620,  // shared frame, anchors, screws
-          threshold: 165       // wider sill / threshold per door
+          materialsBase: 785   // shared frame, threshold, anchors, screws (threshold rolled in)
         }
       },
       // Extra anchors beyond what window LF math counts
       anchorsPerSingle: 8,
-      anchorsPerDouble: 12
+      anchorsPerDouble: 12,
+      // Sill flashing (peel-and-stick membrane / aluminum pan) — priced per LF
+      // of total door width. Single-leaf doors are 3 LF (36" slab), double-leaf
+      // are 6 LF (two 36" slabs). User can toggle off per job if flashing is
+      // being supplied separately or reused on a remodel.
+      flashingPerLF: 4.5,
+      singleDoorWidthLF: 3,
+      doubleDoorWidthLF: 6
     }
   },
   manufacturers: ["Viwinco", "Weathershield", "Velocity", "ES Window & Door", "Other"],
@@ -3073,7 +3089,7 @@ function buildState() {
   const persisted = loadState();
   // Old saved states may not have swingDoors — guard with a default
   const swingDoors = Object.assign(
-    { single: 0, double: 0, withThreshold: true },
+    { single: 0, double: 0, withFlashing: true },
     persisted.swingDoors || {}
   );
   return {
@@ -3272,7 +3288,7 @@ function buckListBoardCount(bl) {
 // Swing-door totals — returns per-leaf counts and contributory dollars/minutes.
 // All zero when the feature is disabled or no doors are entered.
 function computeSwingDoors() {
-  const sd = STATE.swingDoors || { single: 0, double: 0, withThreshold: true };
+  const sd = STATE.swingDoors || { single: 0, double: 0, withFlashing: true };
   const single = Math.max(0, parseInt(sd.single, 10) || 0);
   const double = Math.max(0, parseInt(sd.double, 10) || 0);
   const cfg = (DATA.config.swingDoors) || {};
@@ -3282,7 +3298,7 @@ function computeSwingDoors() {
   const enabled = cfg.enabled !== false; // default true if missing
   if (!enabled || (single === 0 && double === 0)) {
     return { single, double, total: single + double, enabled,
-      laborCost: 0, materialsCost: 0, thresholdCost: 0,
+      laborCost: 0, materialsCost: 0, flashingLF: 0, flashingCost: 0,
       extraAnchorCount: 0, extraAnchorCost: 0, totalCost: 0,
       laborMinutes: 0 };
   }
@@ -3290,16 +3306,19 @@ function computeSwingDoors() {
   const dLaborMin = dR.labor || 0;
   const sMat = sR.materialsBase || 0;
   const dMat = dR.materialsBase || 0;
-  const sThresh = sR.threshold || 0;
-  const dThresh = dR.threshold || 0;
   // Labor: minutes → hours → $ via the "labor" cost item's hourly price.
   const laborItem = DATA.costItems.find(c => c.id === "labor");
   const hourly = (laborItem && laborItem.unitPrice) || 0;
   const laborMinutes = single * sLaborMin + double * dLaborMin;
   const laborCost = (laborMinutes / 60) * hourly * getImpactLaborMultiplier();
   const materialsCost = single * sMat + double * dMat;
-  const withThresh = sd.withThreshold !== false;
-  const thresholdCost = withThresh ? (single * sThresh + double * dThresh) : 0;
+  // Sill flashing — LF based on total door widths
+  const singleW = cfg.singleDoorWidthLF != null ? cfg.singleDoorWidthLF : 3;
+  const doubleW = cfg.doubleDoorWidthLF != null ? cfg.doubleDoorWidthLF : 6;
+  const flashRate = cfg.flashingPerLF != null ? cfg.flashingPerLF : 0;
+  const withFlash = sd.withFlashing !== false;
+  const flashingLF = withFlash ? (single * singleW + double * doubleW) : 0;
+  const flashingCost = withFlash ? flashingLF * flashRate : 0;
   // Extra anchors above the per-LF window math
   const anchorItem = DATA.costItems.find(c => c.id === "concrete_anchors");
   const anchorPrice = anchorItem ? (getUnitPrice(anchorItem) || 0) : 0;
@@ -3308,9 +3327,9 @@ function computeSwingDoors() {
   const extraAnchorCost = extraAnchorCount * anchorPrice;
   return {
     single, double, total: single + double, enabled,
-    laborCost, materialsCost, thresholdCost,
+    laborCost, materialsCost, flashingLF, flashingCost,
     extraAnchorCount, extraAnchorCost,
-    totalCost: laborCost + materialsCost + thresholdCost + extraAnchorCost,
+    totalCost: laborCost + materialsCost + flashingCost + extraAnchorCost,
     laborMinutes
   };
 }
@@ -3443,17 +3462,17 @@ function calculate() {
       totalCost += sd.materialsCost;
       if (lf > 0) perLfCost += sd.materialsCost / lf;
     }
-    if (sd.thresholdCost > 0) {
+    if (sd.flashingCost > 0) {
       rows.push({
-        id: "swing_doors_threshold",
-        name: "Swing doors — threshold",
-        rateLabel: `sill hardware · ${countLabel}`,
-        ratePerLF: lf > 0 ? sd.thresholdCost / lf : 0,
-        quantity: sd.total, unit: "door", totalCost: sd.thresholdCost,
+        id: "swing_doors_flashing",
+        name: "Swing doors — sill flashing",
+        rateLabel: `under-sill membrane · ${sd.flashingLF} LF total`,
+        ratePerLF: lf > 0 ? sd.flashingCost / lf : 0,
+        quantity: sd.flashingLF, unit: "LF", totalCost: sd.flashingCost,
         isFixed: true, isSwingDoor: true
       });
-      totalCost += sd.thresholdCost;
-      if (lf > 0) perLfCost += sd.thresholdCost / lf;
+      totalCost += sd.flashingCost;
+      if (lf > 0) perLfCost += sd.flashingCost / lf;
     }
     // Add the extra anchors onto the concrete-anchors row if it exists,
     // else push a standalone swing-door anchors row.
@@ -3796,7 +3815,7 @@ function updateSwingDoorsUI() {
   wrap.classList.toggle("hidden", !enabled);
   if (!enabled) return;
   const summary = document.getElementById("swingDoorsSummary");
-  const sd = STATE.swingDoors || { single: 0, double: 0, withThreshold: true };
+  const sd = STATE.swingDoors || { single: 0, double: 0, withFlashing: true };
   const single = Math.max(0, parseInt(sd.single, 10) || 0);
   const double = Math.max(0, parseInt(sd.double, 10) || 0);
   const total = single + double;
@@ -3810,12 +3829,12 @@ function updateSwingDoorsUI() {
       summary.textContent = "";
     }
   }
-  // Sync threshold toggle pill UI
-  const tBtn = document.getElementById("swingThresholdToggleBtn");
-  if (tBtn) {
-    const on = sd.withThreshold !== false;
-    tBtn.classList.toggle("active", on);
-    const v = tBtn.querySelector(".val");
+  // Sync sill-flashing toggle pill UI
+  const fBtn = document.getElementById("swingFlashingToggleBtn");
+  if (fBtn) {
+    const on = sd.withFlashing !== false;
+    fBtn.classList.toggle("active", on);
+    const v = fBtn.querySelector(".val");
     if (v) v.textContent = on ? "On" : "Off";
   }
 }
@@ -4092,7 +4111,7 @@ function render() {
     buckList: STATE.buckList,
     variants: STATE.variants || {},
     currentJobId: STATE.currentJobId || null,
-    swingDoors: STATE.swingDoors || { single: 0, double: 0, withThreshold: true },
+    swingDoors: STATE.swingDoors || { single: 0, double: 0, withFlashing: true },
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -4324,10 +4343,10 @@ function bindControls() {
   updateJobExtrasSummary();
 
   // ---- Swing Doors rail wiring ----
-  STATE.swingDoors = STATE.swingDoors || { single: 0, double: 0, withThreshold: true };
+  STATE.swingDoors = STATE.swingDoors || { single: 0, double: 0, withFlashing: true };
   const swSingle = document.getElementById("swingSingleInput");
   const swDouble = document.getElementById("swingDoubleInput");
-  const swThresh = document.getElementById("swingThresholdToggleBtn");
+  const swFlash = document.getElementById("swingFlashingToggleBtn");
   if (swSingle) {
     swSingle.value = (STATE.swingDoors.single > 0) ? STATE.swingDoors.single : "";
     if (!swSingle._wired) {
@@ -4348,12 +4367,12 @@ function bindControls() {
       swDouble._wired = true;
     }
   }
-  if (swThresh && !swThresh._wired) {
-    swThresh.addEventListener("click", () => {
-      STATE.swingDoors.withThreshold = !(STATE.swingDoors.withThreshold !== false);
+  if (swFlash && !swFlash._wired) {
+    swFlash.addEventListener("click", () => {
+      STATE.swingDoors.withFlashing = !(STATE.swingDoors.withFlashing !== false);
       render();
     });
-    swThresh._wired = true;
+    swFlash._wired = true;
   }
   updateSwingDoorsUI();
 
@@ -4409,7 +4428,7 @@ function resetAll() {
     buckList: null,
     variants: {},
     currentJobId: null,
-    swingDoors: { single: 0, double: 0, withThreshold: true },
+    swingDoors: { single: 0, double: 0, withFlashing: true },
   };
   saveState(STATE);
   bindControls();
@@ -4466,7 +4485,7 @@ function confirmSaveJob() {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
-    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
+    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
     // note: no isDraft flag — this is an explicit save
@@ -4504,7 +4523,7 @@ function quickSaveOrPrompt() {
         impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
         liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
         permitEnabled: STATE.permitEnabled,
-        swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
+        swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
         totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
         profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows,
         updatedAt: new Date().toISOString()
@@ -4559,7 +4578,7 @@ function saveAsNewVersion() {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
-    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
+    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -4622,7 +4641,7 @@ function writeDraftJob(r) {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
-    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
+    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -4655,7 +4674,7 @@ function loadJob(id) {
   STATE.currentJobId = j.id;
   // Swing doors — older saved jobs predate this; default to zero.
   STATE.swingDoors = Object.assign(
-    { single: 0, double: 0, withThreshold: true },
+    { single: 0, double: 0, withFlashing: true },
     j.swingDoors || {}
   );
   bindControls();
@@ -5239,12 +5258,12 @@ function openSettingsToItem(itemId) {
 
     // Swing-door rows — jump to the Swing Doors editor (sibling of #adminRatesBody)
     if (itemId === "swing_doors_labor" || itemId === "swing_doors_materials"
-        || itemId === "swing_doors_threshold" || itemId === "swing_doors_anchors") {
+        || itemId === "swing_doors_flashing" || itemId === "swing_doors_anchors") {
       // Pick the input most relevant to the row clicked
       const map = {
         swing_doors_labor: "adminSwingSingleLabor",
         swing_doors_materials: "adminSwingSingleMaterials",
-        swing_doors_threshold: "adminSwingSingleThreshold",
+        swing_doors_flashing: "adminSwingFlashingPerLF",
         swing_doors_anchors: "adminSwingSingleAnchors",
       };
       highlight = document.getElementById(map[itemId]);
@@ -5893,13 +5912,14 @@ function buildAdminUI() {
   const swEnDef = document.getElementById("adminSwingEnabledDefault");
   if (swEnDef) swEnDef.checked = swEnabled;
   setIf("adminSwingSingleLabor", swS.labor ?? 75);
-  setIf("adminSwingSingleMaterials", swS.materialsBase ?? 380);
-  setIf("adminSwingSingleThreshold", swS.threshold ?? 110);
+  setIf("adminSwingSingleMaterials", swS.materialsBase ?? 490);
   setIf("adminSwingSingleAnchors", swCfg.anchorsPerSingle ?? 8);
   setIf("adminSwingDoubleLabor", swD.labor ?? 105);
-  setIf("adminSwingDoubleMaterials", swD.materialsBase ?? 620);
-  setIf("adminSwingDoubleThreshold", swD.threshold ?? 165);
+  setIf("adminSwingDoubleMaterials", swD.materialsBase ?? 785);
   setIf("adminSwingDoubleAnchors", swCfg.anchorsPerDouble ?? 12);
+  setIf("adminSwingFlashingPerLF", swCfg.flashingPerLF ?? 4.5);
+  setIf("adminSwingSingleWidthLF", swCfg.singleDoorWidthLF ?? 3);
+  setIf("adminSwingDoubleWidthLF", swCfg.doubleDoorWidthLF ?? 6);
 
   const wrap = document.getElementById("adminRatesBody");
   wrap.innerHTML = DATA.costItems.map(item => {
@@ -6065,13 +6085,17 @@ function saveAdmin() {
     return isNaN(n) ? fallback : n;
   };
   sw.rates.single.labor = readNum("adminSwingSingleLabor", sw.rates.single.labor ?? 75);
-  sw.rates.single.materialsBase = readNum("adminSwingSingleMaterials", sw.rates.single.materialsBase ?? 380);
-  sw.rates.single.threshold = readNum("adminSwingSingleThreshold", sw.rates.single.threshold ?? 110);
+  sw.rates.single.materialsBase = readNum("adminSwingSingleMaterials", sw.rates.single.materialsBase ?? 490);
   sw.anchorsPerSingle = readNum("adminSwingSingleAnchors", sw.anchorsPerSingle ?? 8);
   sw.rates.double.labor = readNum("adminSwingDoubleLabor", sw.rates.double.labor ?? 105);
-  sw.rates.double.materialsBase = readNum("adminSwingDoubleMaterials", sw.rates.double.materialsBase ?? 620);
-  sw.rates.double.threshold = readNum("adminSwingDoubleThreshold", sw.rates.double.threshold ?? 165);
+  sw.rates.double.materialsBase = readNum("adminSwingDoubleMaterials", sw.rates.double.materialsBase ?? 785);
   sw.anchorsPerDouble = readNum("adminSwingDoubleAnchors", sw.anchorsPerDouble ?? 12);
+  sw.flashingPerLF = readNum("adminSwingFlashingPerLF", sw.flashingPerLF ?? 4.5);
+  sw.singleDoorWidthLF = readNum("adminSwingSingleWidthLF", sw.singleDoorWidthLF ?? 3);
+  sw.doubleDoorWidthLF = readNum("adminSwingDoubleWidthLF", sw.doubleDoorWidthLF ?? 6);
+  // Strip out legacy threshold fields if migrating from the old shape
+  delete sw.rates.single.threshold;
+  delete sw.rates.double.threshold;
 
   // Saving real rates counts as customizing — clears the demo banner
   DATA.config.ratesCustomized = true;
