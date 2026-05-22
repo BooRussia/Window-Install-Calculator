@@ -1863,6 +1863,21 @@
           </label>
         </div>
       </div>
+      <div id="swingDoorsRailField" class="rail-field hidden">
+        <label>Swing doors<span class="info-tip" tabindex="0" role="button" aria-label="How swing doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Swing doors price per door, not per LF. Single-leaf ~$X, double-leaf ~1.6&times;. Threshold hardware adds per door. Tune rates in Settings.</span></span></label>
+        <div class="space-y-2">
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">Single-leaf</span>
+            <input id="swingSingleInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">Double-leaf</span>
+            <input id="swingDoubleInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+          <button id="swingThresholdToggleBtn" type="button" class="toggle-pill"><span class="lbl">Threshold</span><span class="val">Off</span></button>
+          <div id="swingDoorsSummary" class="hidden text-[10px] tracking-[0.14em] uppercase font-bold text-slate-500 px-1" style="font-variant-numeric: tabular-nums;"></div>
+        </div>
+      </div>
       <div id="remodelNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
         ↑ Enter window count to include disposal cost
       </div>
@@ -2419,6 +2434,12 @@
               <select id="defaultStories" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
             </div>
           </div>
+          <div class="mt-6 pt-5 border-t border-slate-800 max-w-2xl">
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+              <input id="adminSwingEnabledDefault" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+              <span>Enable swing doors in The Job rail <span class="text-slate-600">&middot; rates live in Rates &amp; Pricing</span></span>
+            </label>
+          </div>
         </div>
 
         <!-- Manufacturers -->
@@ -2456,6 +2477,74 @@
             </div>
           </div>
           <div id="adminRatesBody" class="space-y-6"></div>
+
+          <!-- Swing Doors — priced per UNIT, not per LF -->
+          <div class="mt-8 pt-6 border-t border-slate-800">
+            <div class="flex items-center justify-between mb-3 gap-3">
+              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Swing Doors</h4>
+              <label class="flex items-center gap-2 text-xs text-slate-400">
+                <input id="adminSwingEnabled" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+                <span>Enable in rail</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-slate-500 mb-4">Priced per door, not per LF. Tune the labor minutes, materials, and threshold hardware below. Defaults are construction-shop estimates &mdash; verify against your suppliers.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="rounded-xl border border-slate-800 p-4" data-swing-leaf="single">
+                <div class="text-sm font-semibold text-slate-100 mb-2.5">Single-leaf</div>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Labor</span>
+                    <input id="adminSwingSingleLabor" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">min / door</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Materials</span>
+                    <span class="text-[11px] text-slate-500">$</span>
+                    <input id="adminSwingSingleMaterials" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">/ door</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Threshold</span>
+                    <span class="text-[11px] text-slate-500">$</span>
+                    <input id="adminSwingSingleThreshold" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">/ door</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Anchors</span>
+                    <input id="adminSwingSingleAnchors" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">each / door</span>
+                  </div>
+                </div>
+              </div>
+              <div class="rounded-xl border border-slate-800 p-4" data-swing-leaf="double">
+                <div class="text-sm font-semibold text-slate-100 mb-2.5">Double-leaf</div>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Labor</span>
+                    <input id="adminSwingDoubleLabor" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">min / door</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Materials</span>
+                    <span class="text-[11px] text-slate-500">$</span>
+                    <input id="adminSwingDoubleMaterials" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">/ door</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Threshold</span>
+                    <span class="text-[11px] text-slate-500">$</span>
+                    <input id="adminSwingDoubleThreshold" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">/ door</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Anchors</span>
+                    <input id="adminSwingDoubleAnchors" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">each / door</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Account -->
@@ -2622,6 +2711,26 @@ const DEFAULT_DATA = {
       constructionType: "New Construction",
       impact: "Impact",
       stories: "1 Story"
+    },
+    // Swing doors — priced per UNIT, not per LF. Section hidden until enabled.
+    // Defaults below are construction-shop estimates; tune in Settings → Rates.
+    swingDoors: {
+      enabled: false,
+      rates: {
+        single: {
+          labor: 75,           // minutes per single-leaf door
+          materialsBase: 380,  // frame, anchors, screws per door
+          threshold: 110       // sill / threshold hardware per door
+        },
+        double: {
+          labor: 105,          // minutes per double-leaf door
+          materialsBase: 620,  // shared frame, anchors, screws
+          threshold: 165       // wider sill / threshold per door
+        }
+      },
+      // Extra anchors beyond what window LF math counts
+      anchorsPerSingle: 8,
+      anchorsPerDouble: 12
     }
   },
   manufacturers: ["Viwinco", "Weathershield", "Velocity", "ES Window & Door", "Other"],
@@ -2705,6 +2814,37 @@ const DEFAULT_DATA = {
           { sub: "Metal / Mullion", text: "Self-drilling or TEKS-style screws · full penetration + threads beyond interior wall." }
         ],
         note: "HVHZ compliant. Mullion and combination-unit anchors referenced in separate approvals. Non-impact line not separately specified — same pattern assumed." }
+    ],
+    // Swing doors — entry / patio swinging units. Anchored per leaf, not per LF.
+    "Swing Doors": [
+      { seeded: true, category: "swing-door", fls: ["FL19887-R3"], series: "Therma-Tru Smooth-Star · Single-leaf In-swing", glass: "impact", dp: "PG50 impact",
+        rows: [
+          { sub: "Hinge Jamb", text: "4 #10 wood screws (3\" min) through hinge into framing — 1 per hinge + 1 mid-jamb." },
+          { sub: "Strike Jamb", text: "2 #10 wood screws (3\" min) — one at strike plate, one at mid-jamb." },
+          { sub: "Head / Threshold", text: "2 #10 head screws · 1 threshold anchor per side · 1.25\" min embedment." }
+        ],
+        note: "Single-leaf swing door. Typical 6–8 fasteners total per door. Threshold is required for weather seal and impact rating." },
+      { seeded: true, category: "swing-door", fls: ["FL21142-R2"], series: "Plastpro DRS · Double-leaf French", glass: "impact", dp: "PG40 impact",
+        rows: [
+          { sub: "Hinge Jambs", text: "4 #10 wood screws per hinge side · 1 per hinge + mid-jamb · both leaves." },
+          { sub: "Astragal / Strike", text: "2 #10 screws at astragal flush bolts top & bottom." },
+          { sub: "Head / Threshold", text: "3 head screws · threshold anchored at both ends + center · 1.25\" min embedment." }
+        ],
+        note: "Double-leaf swing door. Typical 10–12 fasteners total. Active and inactive leaves share frame anchoring." },
+      { seeded: true, category: "swing-door", fls: ["FL15880-R1"], series: "Masonite Belleville Steel · Out-swing", glass: "impact", dp: "PG65 impact",
+        rows: [
+          { sub: "Hinge Jamb", text: "Heavy-duty #12 thru-frame screws · 1 per hinge + 2 spread along jamb (5–6 total)." },
+          { sub: "Strike Jamb", text: "2 #12 thru-frame screws · 1 at strike, 1 mid-jamb." },
+          { sub: "Concrete Threshold", text: "Tapcon-style sill anchors at 8\" O.C. · 1.25\" min embedment." }
+        ],
+        note: "Out-swing single-leaf. HVHZ-friendly. Hinge side carries the heavier fastener load — don't under-anchor." },
+      { seeded: true, category: "swing-door", fls: ["FL30471-R0"], series: "ES Aluminum SD-200 · Commercial Single-leaf", glass: "impact", dp: "HVHZ compliant",
+        rows: [
+          { sub: "Aluminum Frame Jambs", text: "Self-drilling #12 TEKS at 8\" O.C. · 6 per side typical." },
+          { sub: "Masonry / Concrete", text: "1/4\" Tapcon anchors at 8\" O.C. · 1.5\" min embedment." },
+          { sub: "Threshold", text: "Continuous sill anchored at 6\" O.C. with sealant set." }
+        ],
+        note: "Commercial aluminum swing door. Denser fastener pattern than residential — adjust labor accordingly." }
     ]
   },
   applicationTypes: ["Nail-fin", "Unequal Leg", "Equal Leg"],
@@ -2930,6 +3070,12 @@ let DATA = loadData();
 // A function so it can be rebuilt after a cloud sync re-populates DATA.
 function buildState() {
   const jd = DATA.config.jobDefaults || {};
+  const persisted = loadState();
+  // Old saved states may not have swingDoors — guard with a default
+  const swingDoors = Object.assign(
+    { single: 0, double: 0, withThreshold: true },
+    persisted.swingDoors || {}
+  );
   return {
     manufacturer: jd.manufacturer || DATA.manufacturers[0],
     application: jd.application || DATA.applicationTypes[0],
@@ -2948,7 +3094,8 @@ function buildState() {
     buckList: null,
     variants: {},
     currentJobId: null,
-    ...loadState()
+    ...persisted,
+    swingDoors,
   };
 }
 let STATE = buildState();
@@ -3122,9 +3269,56 @@ function buckListBoardCount(bl) {
   return (bl && bl.totalBoards) ? bl.totalBoards : 0;
 }
 
+// Swing-door totals — returns per-leaf counts and contributory dollars/minutes.
+// All zero when the feature is disabled or no doors are entered.
+function computeSwingDoors() {
+  const sd = STATE.swingDoors || { single: 0, double: 0, withThreshold: true };
+  const single = Math.max(0, parseInt(sd.single, 10) || 0);
+  const double = Math.max(0, parseInt(sd.double, 10) || 0);
+  const cfg = (DATA.config.swingDoors) || {};
+  const rates = cfg.rates || {};
+  const sR = rates.single || {};
+  const dR = rates.double || {};
+  const enabled = cfg.enabled !== false; // default true if missing
+  if (!enabled || (single === 0 && double === 0)) {
+    return { single, double, total: single + double, enabled,
+      laborCost: 0, materialsCost: 0, thresholdCost: 0,
+      extraAnchorCount: 0, extraAnchorCost: 0, totalCost: 0,
+      laborMinutes: 0 };
+  }
+  const sLaborMin = sR.labor || 0;
+  const dLaborMin = dR.labor || 0;
+  const sMat = sR.materialsBase || 0;
+  const dMat = dR.materialsBase || 0;
+  const sThresh = sR.threshold || 0;
+  const dThresh = dR.threshold || 0;
+  // Labor: minutes → hours → $ via the "labor" cost item's hourly price.
+  const laborItem = DATA.costItems.find(c => c.id === "labor");
+  const hourly = (laborItem && laborItem.unitPrice) || 0;
+  const laborMinutes = single * sLaborMin + double * dLaborMin;
+  const laborCost = (laborMinutes / 60) * hourly * getImpactLaborMultiplier();
+  const materialsCost = single * sMat + double * dMat;
+  const withThresh = sd.withThreshold !== false;
+  const thresholdCost = withThresh ? (single * sThresh + double * dThresh) : 0;
+  // Extra anchors above the per-LF window math
+  const anchorItem = DATA.costItems.find(c => c.id === "concrete_anchors");
+  const anchorPrice = anchorItem ? (getUnitPrice(anchorItem) || 0) : 0;
+  const extraAnchorCount = single * (cfg.anchorsPerSingle || 0)
+                         + double * (cfg.anchorsPerDouble || 0);
+  const extraAnchorCost = extraAnchorCount * anchorPrice;
+  return {
+    single, double, total: single + double, enabled,
+    laborCost, materialsCost, thresholdCost,
+    extraAnchorCount, extraAnchorCost,
+    totalCost: laborCost + materialsCost + thresholdCost + extraAnchorCost,
+    laborMinutes
+  };
+}
+
 function calculate() {
   const lf = parseFloat(STATE.totalLF) || 0;
   const wc = parseInt(STATE.windowCount) || 0;
+  const sd = computeSwingDoors();
   const rows = [];
   let perLfCost = 0;
   let totalCost = 0;
@@ -3216,6 +3410,77 @@ function calculate() {
     totalCost += cost;
   });
 
+  // ---- Swing doors — priced per unit, not per LF ----
+  // Rows sit just before the materials-tax line so tax includes door materials.
+  // Each row is editable (pencil → Settings → Rates → Swing Doors).
+  if (sd.enabled && sd.total > 0) {
+    const partsLabel = [];
+    if (sd.single > 0) partsLabel.push(`${sd.single} single`);
+    if (sd.double > 0) partsLabel.push(`${sd.double} double`);
+    const countLabel = partsLabel.join(" + ");
+
+    if (sd.laborCost > 0) {
+      rows.push({
+        id: "swing_doors_labor",
+        name: "Swing doors — labor",
+        rateLabel: `${sd.laborMinutes} min · ${countLabel}`,
+        ratePerLF: lf > 0 ? sd.laborCost / lf : 0,
+        quantity: sd.total, unit: "door", totalCost: sd.laborCost,
+        isFixed: true, isLabor: true, isSwingDoor: true
+      });
+      totalCost += sd.laborCost;
+      if (lf > 0) perLfCost += sd.laborCost / lf;
+    }
+    if (sd.materialsCost > 0) {
+      rows.push({
+        id: "swing_doors_materials",
+        name: "Swing doors — materials",
+        rateLabel: `frame + hardware · ${countLabel}`,
+        ratePerLF: lf > 0 ? sd.materialsCost / lf : 0,
+        quantity: sd.total, unit: "door", totalCost: sd.materialsCost,
+        isFixed: true, isSwingDoor: true
+      });
+      totalCost += sd.materialsCost;
+      if (lf > 0) perLfCost += sd.materialsCost / lf;
+    }
+    if (sd.thresholdCost > 0) {
+      rows.push({
+        id: "swing_doors_threshold",
+        name: "Swing doors — threshold",
+        rateLabel: `sill hardware · ${countLabel}`,
+        ratePerLF: lf > 0 ? sd.thresholdCost / lf : 0,
+        quantity: sd.total, unit: "door", totalCost: sd.thresholdCost,
+        isFixed: true, isSwingDoor: true
+      });
+      totalCost += sd.thresholdCost;
+      if (lf > 0) perLfCost += sd.thresholdCost / lf;
+    }
+    // Add the extra anchors onto the concrete-anchors row if it exists,
+    // else push a standalone swing-door anchors row.
+    if (sd.extraAnchorCost > 0) {
+      const anchorRow = rows.find(r => r.id === "concrete_anchors");
+      if (anchorRow) {
+        anchorRow.quantity += sd.extraAnchorCount;
+        anchorRow.totalCost += sd.extraAnchorCost;
+        anchorRow.rateLabel += ` · +${sd.extraAnchorCount} for doors`;
+        if (lf > 0) {
+          anchorRow.ratePerLF = anchorRow.totalCost / lf;
+        }
+      } else {
+        rows.push({
+          id: "swing_doors_anchors",
+          name: "Swing doors — anchors",
+          rateLabel: `${sd.extraAnchorCount} anchors · ${countLabel}`,
+          ratePerLF: lf > 0 ? sd.extraAnchorCost / lf : 0,
+          quantity: sd.extraAnchorCount, unit: "each",
+          totalCost: sd.extraAnchorCost, isFixed: true, isSwingDoor: true
+        });
+      }
+      totalCost += sd.extraAnchorCost;
+      if (lf > 0) perLfCost += sd.extraAnchorCost / lf;
+    }
+  }
+
   // Materials tax (applied to everything except labor)
   const taxRate = DATA.config.materialsTaxRate || 0;
   if (taxRate > 0 && lf > 0) {
@@ -3233,7 +3498,7 @@ function calculate() {
   const sellingPrice = totalCost * (1 + margin / 100);
   const profit = sellingPrice - totalCost;
 
-  return { lf, wc, rows, perLfCost, totalCost, sellingPrice, profit, margin };
+  return { lf, wc, rows, perLfCost, totalCost, sellingPrice, profit, margin, swingDoors: sd };
 }
 
 /* ============================================================
@@ -3522,12 +3787,49 @@ function updateJobExtrasSummary() {
   }
 }
 
+// Show / hide the Swing Doors rail section based on the global enable flag
+// (DATA.config.swingDoors.enabled). Also refreshes the inline summary chip.
+function updateSwingDoorsUI() {
+  const wrap = document.getElementById("swingDoorsRailField");
+  if (!wrap) return;
+  const enabled = (DATA.config.swingDoors && DATA.config.swingDoors.enabled !== false) ? true : false;
+  wrap.classList.toggle("hidden", !enabled);
+  if (!enabled) return;
+  const summary = document.getElementById("swingDoorsSummary");
+  const sd = STATE.swingDoors || { single: 0, double: 0, withThreshold: true };
+  const single = Math.max(0, parseInt(sd.single, 10) || 0);
+  const double = Math.max(0, parseInt(sd.double, 10) || 0);
+  const total = single + double;
+  if (summary) {
+    if (total > 0) {
+      const dollars = computeSwingDoors().totalCost;
+      summary.textContent = `${total} door${total === 1 ? "" : "s"} · ${formatMoney(dollars)}`;
+      summary.classList.remove("hidden");
+    } else {
+      summary.classList.add("hidden");
+      summary.textContent = "";
+    }
+  }
+  // Sync threshold toggle pill UI
+  const tBtn = document.getElementById("swingThresholdToggleBtn");
+  if (tBtn) {
+    const on = sd.withThreshold !== false;
+    tBtn.classList.toggle("active", on);
+    const v = tBtn.querySelector(".val");
+    if (v) v.textContent = on ? "On" : "Off";
+  }
+}
+
 function render() {
   const r = calculate();
   document.getElementById("marginLabel").textContent = String(r.margin);
   updateBuckButtonVisibility();
+  updateSwingDoorsUI();
 
-  const hasInput = (parseFloat(STATE.totalLF) || 0) > 0;
+  // Either footage OR swing-door units constitutes "have a quote"
+  const hasLf = (parseFloat(STATE.totalLF) || 0) > 0;
+  const hasDoors = !!(r.swingDoors && r.swingDoors.total > 0 && r.swingDoors.enabled);
+  const hasInput = hasLf || hasDoors;
   const results = document.getElementById("results");
   const empty = document.getElementById("emptyState");
   results.classList.toggle("hidden", !hasInput);
@@ -3585,7 +3887,8 @@ function render() {
     // Skip rows that aren't directly editable as a single number:
     //   labor → composite (minutes/LF × stories × impact ×, see info tooltip)
     //   tax   → calculated from the Tax % field in the Rates header; no per-item input
-    const editable = item && row.id !== "labor" && row.id !== "tax";
+    const editable = (item && row.id !== "labor" && row.id !== "tax")
+                  || row.isSwingDoor;
     const editCell = editable
       ? `<td class="text-right py-3 px-3 sm:px-4">
            <button type="button" class="edit-rate-btn" data-edit-item="${row.id}" aria-label="Edit ${escHtml(row.name)} rate" title="Edit in Settings">
@@ -3789,6 +4092,7 @@ function render() {
     buckList: STATE.buckList,
     variants: STATE.variants || {},
     currentJobId: STATE.currentJobId || null,
+    swingDoors: STATE.swingDoors || { single: 0, double: 0, withThreshold: true },
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -4019,6 +4323,40 @@ function bindControls() {
   updatePermitToggleUI();
   updateJobExtrasSummary();
 
+  // ---- Swing Doors rail wiring ----
+  STATE.swingDoors = STATE.swingDoors || { single: 0, double: 0, withThreshold: true };
+  const swSingle = document.getElementById("swingSingleInput");
+  const swDouble = document.getElementById("swingDoubleInput");
+  const swThresh = document.getElementById("swingThresholdToggleBtn");
+  if (swSingle) {
+    swSingle.value = (STATE.swingDoors.single > 0) ? STATE.swingDoors.single : "";
+    if (!swSingle._wired) {
+      swSingle.addEventListener("input", e => {
+        STATE.swingDoors.single = Math.max(0, parseInt(e.target.value, 10) || 0);
+        render();
+      });
+      swSingle._wired = true;
+    }
+  }
+  if (swDouble) {
+    swDouble.value = (STATE.swingDoors.double > 0) ? STATE.swingDoors.double : "";
+    if (!swDouble._wired) {
+      swDouble.addEventListener("input", e => {
+        STATE.swingDoors.double = Math.max(0, parseInt(e.target.value, 10) || 0);
+        render();
+      });
+      swDouble._wired = true;
+    }
+  }
+  if (swThresh && !swThresh._wired) {
+    swThresh.addEventListener("click", () => {
+      STATE.swingDoors.withThreshold = !(STATE.swingDoors.withThreshold !== false);
+      render();
+    });
+    swThresh._wired = true;
+  }
+  updateSwingDoorsUI();
+
   setTimeout(() => { try { lf.focus({ preventScroll: true }); } catch {} }, 60);
 }
 
@@ -4071,6 +4409,7 @@ function resetAll() {
     buckList: null,
     variants: {},
     currentJobId: null,
+    swingDoors: { single: 0, double: 0, withThreshold: true },
   };
   saveState(STATE);
   bindControls();
@@ -4078,9 +4417,14 @@ function resetAll() {
   toast("Reset");
 }
 
+// "Has something quotable" — footage OR at least one swing door.
+function hasQuoteInput(r) {
+  return (r.lf > 0) || (r.swingDoors && r.swingDoors.total > 0 && r.swingDoors.enabled);
+}
+
 function openSaveJobModal() {
   const r = calculate();
-  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   document.getElementById("saveJobName").value = STATE.customerName || "";
   document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
   document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
@@ -4122,6 +4466,7 @@ function confirmSaveJob() {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
+    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
     // note: no isDraft flag — this is an explicit save
@@ -4144,7 +4489,7 @@ function saveCurrentJob() { openSaveJobModal(); }
 // otherwise open the save-job modal so the user can name it.
 function quickSaveOrPrompt() {
   const r = calculate();
-  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (STATE.currentJobId) {
     const jobs = loadJobs();
     const idx = jobs.findIndex(x => x.id === STATE.currentJobId && !x.isDraft);
@@ -4159,6 +4504,7 @@ function quickSaveOrPrompt() {
         impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
         liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
         permitEnabled: STATE.permitEnabled,
+        swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
         totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
         profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows,
         updatedAt: new Date().toISOString()
@@ -4177,7 +4523,7 @@ function quickSaveOrPrompt() {
 // "Save as new version" — clone the currently-loaded job under "<name> vN"
 function saveAsNewVersion() {
   const r = calculate();
-  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!STATE.currentJobId) { toast("Load a saved job first"); return; }
   const jobs = loadJobs();
   const base = jobs.find(x => x.id === STATE.currentJobId && !x.isDraft);
@@ -4213,6 +4559,7 @@ function saveAsNewVersion() {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
+    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -4249,7 +4596,7 @@ function scheduleDraftAutosave(r) {
 }
 function writeDraftJob(r) {
   if (!r) r = calculate();
-  if (!r || r.lf <= 0) return;
+  if (!r || !hasQuoteInput(r)) return;
   // If a named job is currently loaded, edits belong to it — not a new draft.
   if (STATE.currentJobId) {
     const cur = loadJobs().find(x => x.id === STATE.currentJobId);
@@ -4275,6 +4622,7 @@ function writeDraftJob(r) {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
+    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withThreshold: true }),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -4305,6 +4653,11 @@ function loadJob(id) {
   STATE.buckList = j.buckList || null;
   STATE.variants = j.variants ? clone(j.variants) : {};
   STATE.currentJobId = j.id;
+  // Swing doors — older saved jobs predate this; default to zero.
+  STATE.swingDoors = Object.assign(
+    { single: 0, double: 0, withThreshold: true },
+    j.swingDoors || {}
+  );
   bindControls();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -4337,7 +4690,7 @@ function outputPDF(doc, filename, mode) {
 
 function exportCustomerPDF(mode) {
   const r = calculate();
-  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   logQuoteEvent("customer_quote");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -4441,6 +4794,13 @@ function exportCustomerPDF(mode) {
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
+  // Swing doors — surface to the customer if any are in the bid
+  if (r.swingDoors && r.swingDoors.total > 0) {
+    const parts = [];
+    if (r.swingDoors.single > 0) parts.push(`${r.swingDoors.single} single-leaf`);
+    if (r.swingDoors.double > 0) parts.push(`${r.swingDoors.double} double-leaf`);
+    scope.push(["Swing Doors", parts.join(", ")]);
+  }
   if (STATE.permitEnabled) scope.push(["Permit", "Included"]);
   const labelX = M, valueX = M + 130;
   scope.forEach(([label, value]) => {
@@ -4519,7 +4879,7 @@ function exportCustomerPDF(mode) {
 
 function exportPDF(mode) {
   const r = calculate();
-  if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   logQuoteEvent("cost_basis");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -4571,6 +4931,10 @@ function exportPDF(mode) {
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) details.push(["Window Count", `${r.wc}`]);
+  if (r.swingDoors && r.swingDoors.total > 0) {
+    if (r.swingDoors.single > 0) details.push(["Single-leaf Doors", `${r.swingDoors.single}`]);
+    if (r.swingDoors.double > 0) details.push(["Double-leaf Doors", `${r.swingDoors.double}`]);
+  }
   if (STATE.permitEnabled) details.push(["Permit", "Included"]);
   if (STATE.liftEnabled && STATE.stories !== "1 Story") details.push(["Lift Rental", `${STATE.liftDays} day(s)`]);
 
@@ -4873,21 +5237,36 @@ function openSettingsToItem(itemId) {
     let target = null;       // element to scroll into view
     let highlight = null;    // element to receive the gold pulse
 
-    const card = wrap.querySelector(`[data-cat="${itemId}"]`);
-    if (card) {
-      // Material category — flash the default variant's price input so the
-      // user lands on the number that drives the breakdown row's cost.
-      target = card;
-      const defaultRadio = card.querySelector(".var-default:checked");
-      const row = defaultRadio ? defaultRadio.closest("[data-variant-row]") : null;
-      highlight = (row && row.querySelector(".var-price")) ||
-                  card.querySelector(".var-price") ||
-                  card.querySelector("input[data-key]") ||
-                  card;
+    // Swing-door rows — jump to the Swing Doors editor (sibling of #adminRatesBody)
+    if (itemId === "swing_doors_labor" || itemId === "swing_doors_materials"
+        || itemId === "swing_doors_threshold" || itemId === "swing_doors_anchors") {
+      // Pick the input most relevant to the row clicked
+      const map = {
+        swing_doors_labor: "adminSwingSingleLabor",
+        swing_doors_materials: "adminSwingSingleMaterials",
+        swing_doors_threshold: "adminSwingSingleThreshold",
+        swing_doors_anchors: "adminSwingSingleAnchors",
+      };
+      highlight = document.getElementById(map[itemId]);
+      // Scroll to the section card, not the tiny input
+      target = highlight ? highlight.closest("[data-swing-leaf]") || highlight : null;
     } else {
-      // Job-fee / labor-style item — one unit-price input.
-      highlight = wrap.querySelector(`[data-unitprice="${itemId}"]`);
-      target = highlight;
+      const card = wrap.querySelector(`[data-cat="${itemId}"]`);
+      if (card) {
+        // Material category — flash the default variant's price input so the
+        // user lands on the number that drives the breakdown row's cost.
+        target = card;
+        const defaultRadio = card.querySelector(".var-default:checked");
+        const row = defaultRadio ? defaultRadio.closest("[data-variant-row]") : null;
+        highlight = (row && row.querySelector(".var-price")) ||
+                    card.querySelector(".var-price") ||
+                    card.querySelector("input[data-key]") ||
+                    card;
+      } else {
+        // Job-fee / labor-style item — one unit-price input.
+        highlight = wrap.querySelector(`[data-unitprice="${itemId}"]`);
+        target = highlight;
+      }
     }
     if (!target) return;
 
@@ -5503,6 +5882,25 @@ function buildAdminUI() {
   document.getElementById("adminMargin").value = DATA.config.defaultMargin;
   document.getElementById("adminTax").value = DATA.config.materialsTaxRate ?? 0;
   document.getElementById("adminImpactLabor").value = DATA.config.impactLaborMultiplier ?? 1.15;
+
+  // Swing doors — populate the editor with current rates
+  const swCfg = (DATA.config.swingDoors) || {};
+  const swR = swCfg.rates || {};
+  const swS = swR.single || {}, swD = swR.double || {};
+  const setIf = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+  const swEnabled = swCfg.enabled !== false;
+  document.getElementById("adminSwingEnabled").checked = swEnabled;
+  const swEnDef = document.getElementById("adminSwingEnabledDefault");
+  if (swEnDef) swEnDef.checked = swEnabled;
+  setIf("adminSwingSingleLabor", swS.labor ?? 75);
+  setIf("adminSwingSingleMaterials", swS.materialsBase ?? 380);
+  setIf("adminSwingSingleThreshold", swS.threshold ?? 110);
+  setIf("adminSwingSingleAnchors", swCfg.anchorsPerSingle ?? 8);
+  setIf("adminSwingDoubleLabor", swD.labor ?? 105);
+  setIf("adminSwingDoubleMaterials", swD.materialsBase ?? 620);
+  setIf("adminSwingDoubleThreshold", swD.threshold ?? 165);
+  setIf("adminSwingDoubleAnchors", swCfg.anchorsPerDouble ?? 12);
+
   const wrap = document.getElementById("adminRatesBody");
   wrap.innerHTML = DATA.costItems.map(item => {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
@@ -5652,6 +6050,29 @@ function saveAdmin() {
       }
     }
   });
+  // Swing doors — read editor values back into config. The two enable
+  // checkboxes (Defaults + Rates tabs) are kept in sync on change, so either
+  // value reflects the user's intent.
+  if (!DATA.config.swingDoors) DATA.config.swingDoors = {};
+  const sw = DATA.config.swingDoors;
+  const enRates = document.getElementById("adminSwingEnabled");
+  sw.enabled = !!(enRates && enRates.checked);
+  sw.rates = sw.rates || {};
+  sw.rates.single = sw.rates.single || {};
+  sw.rates.double = sw.rates.double || {};
+  const readNum = (id, fallback) => {
+    const n = parseFloat(document.getElementById(id).value);
+    return isNaN(n) ? fallback : n;
+  };
+  sw.rates.single.labor = readNum("adminSwingSingleLabor", sw.rates.single.labor ?? 75);
+  sw.rates.single.materialsBase = readNum("adminSwingSingleMaterials", sw.rates.single.materialsBase ?? 380);
+  sw.rates.single.threshold = readNum("adminSwingSingleThreshold", sw.rates.single.threshold ?? 110);
+  sw.anchorsPerSingle = readNum("adminSwingSingleAnchors", sw.anchorsPerSingle ?? 8);
+  sw.rates.double.labor = readNum("adminSwingDoubleLabor", sw.rates.double.labor ?? 105);
+  sw.rates.double.materialsBase = readNum("adminSwingDoubleMaterials", sw.rates.double.materialsBase ?? 620);
+  sw.rates.double.threshold = readNum("adminSwingDoubleThreshold", sw.rates.double.threshold ?? 165);
+  sw.anchorsPerDouble = readNum("adminSwingDoubleAnchors", sw.anchorsPerDouble ?? 12);
+
   // Saving real rates counts as customizing — clears the demo banner
   DATA.config.ratesCustomized = true;
   saveData(DATA);
@@ -7795,6 +8216,15 @@ function init() {
   document.getElementById("adminLogoRemove").addEventListener("click", () => {
     adminLogoData = "";
     renderLogoPreview("adminLogoPreview", "adminLogoRemove", "");
+  });
+  // Swing doors — keep the two "Enable" checkboxes (Defaults tab + Rates tab) in sync
+  const swEnRates = document.getElementById("adminSwingEnabled");
+  const swEnDef = document.getElementById("adminSwingEnabledDefault");
+  if (swEnRates) swEnRates.addEventListener("change", () => {
+    if (swEnDef) swEnDef.checked = swEnRates.checked;
+  });
+  if (swEnDef) swEnDef.addEventListener("change", () => {
+    if (swEnRates) swEnRates.checked = swEnDef.checked;
   });
   adminModal.addEventListener("click", e => { if (e.target.dataset.close !== undefined) closeAdmin(); });
   document.querySelectorAll("#jobRail .info-tip").forEach(tip => {
