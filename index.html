@@ -8837,8 +8837,51 @@ function defaultEntitlements() {
 
 function getEntitlements() {
   if (!DATA.config) DATA.config = {};
-  if (!DATA.config.entitlements) DATA.config.entitlements = defaultEntitlements();
+  if (!DATA.config.entitlements) {
+    DATA.config.entitlements = defaultEntitlements();
+    persistEntitlements(DATA.config.entitlements);
+  }
   return DATA.config.entitlements;
+}
+
+let _entitlementsCloudPush = Promise.resolve();
+
+function persistEntitlements(entitlements) {
+  if (!DATA.config) DATA.config = {};
+  if (entitlements) DATA.config.entitlements = entitlements;
+  try { localStorage.setItem(LS_KEYS.data, JSON.stringify(DATA)); }
+  catch (e) { console.warn("Could not persist entitlements locally", e); }
+  pushEntitlementsToCloud(DATA.config.entitlements);
+}
+
+function pushEntitlementsToCloud(entitlements) {
+  if (!sb || !currentUser || !entitlements) return;
+  const userId = currentUser.id;
+  const snapshot = clone(entitlements);
+  _entitlementsCloudPush = _entitlementsCloudPush
+    .catch(() => {})
+    .then(() => pushEntitlementsSnapshotToCloud(userId, snapshot));
+}
+
+async function pushEntitlementsSnapshotToCloud(userId, entitlements) {
+  try {
+    const { data: prof, error: pErr } = await trackCloud(
+      sb.from("profiles").select("data").eq("id", userId).maybeSingle()
+    );
+    if (pErr) throw pErr;
+    const remoteData = prof && prof.data && typeof prof.data === "object"
+      ? clone(prof.data)
+      : clone(DATA);
+    if (!remoteData.config) remoteData.config = {};
+    // Quote-count writes must not upload a stale full-profile snapshot.
+    remoteData.config.entitlements = clone(entitlements);
+    const { error: uErr } = await trackCloud(sb.from("profiles").upsert({
+      id: userId,
+      data: remoteData,
+      updated_at: new Date().toISOString()
+    }));
+    if (uErr) throw uErr;
+  } catch (e) { markCloudError(e); }
 }
 
 // The plan record (from PLANS) that matches the entitlement plan id.
@@ -8890,7 +8933,7 @@ function cycleNeedsReset() {
   if (isCycleExpired() && e.plan !== "trial") {
     e.quotesUsedThisCycle = 0;
     e.cycleResetAt = Date.now() + CYCLE_MS;
-    saveData(DATA);
+    persistEntitlements(e);
     return true;
   }
   return false;
@@ -8917,7 +8960,7 @@ function consumeQuote() {
   const e = getEntitlements();
   e.quotesUsedThisCycle = (e.quotesUsedThisCycle || 0) + 1;
   e.lastQuoteAt = Date.now();
-  saveData(DATA);
+  persistEntitlements(e);
   try {
     window.track("quote_consumed", {
       plan: e.plan,
@@ -9200,7 +9243,7 @@ function resetEntitlementsDev() {
   if (!window.__ANCHOR_DEV) return;
   if (!confirm("Reset your entitlement record to a fresh 14-day trial?\n\nThis is a dev-only tool. Brand info, rates, and saved jobs are kept.")) return;
   DATA.config.entitlements = defaultEntitlements();
-  saveData(DATA);
+  persistEntitlements(DATA.config.entitlements);
   _entitlementsInitTracked = false;
   updateUsageBadge();
   renderSubscriptionPanel();
