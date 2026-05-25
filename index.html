@@ -8937,6 +8937,7 @@ function wirePricing(ls) {
         }
         // Phase 1: route to existing signup; Phase 3 will swap for Stripe checkout.
         if (currentUser) {
+          closePricing();
           closeLanding();
         } else {
           openAuth("signup");
@@ -8976,7 +8977,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "trial", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) { closePricing(); closeLanding(); } else openAuth("signup");
     });
   }
   const finalCta = document.getElementById("lpPricingFinalCta");
@@ -8985,7 +8986,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "final", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) { closePricing(); closeLanding(); } else openAuth("signup");
     });
   }
 
@@ -9092,6 +9093,7 @@ async function enterApp() {
   renderDemoBanner();
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
+  closePricing();
   document.getElementById("landingScreen").classList.add("hidden");
   document.getElementById("bootSplash").classList.add("hidden");
   // Onboarding/setup are now opt-in — the user lands in the calculator with
