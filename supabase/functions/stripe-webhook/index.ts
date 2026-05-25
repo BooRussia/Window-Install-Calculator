@@ -19,7 +19,7 @@
 // at this function's public URL. See PHASE_3_SETUP.md.
 
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
-import { stripe, planFromPriceId } from "../_shared/stripe.ts";
+import { stripe, planFromPriceId, type Plan } from "../_shared/stripe.ts";
 import { supabaseAdmin } from "../_shared/supabase-admin.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
@@ -197,10 +197,11 @@ async function applySubscriptionToEntitlements(
     console.warn("[webhook] subscription has no items", sub.id);
     return;
   }
-  const plan = planFromPriceId(item.price.id);
+  const plan = planForSubscription(sub, item.price.id);
   if (!plan) {
-    console.warn("[webhook] unknown price id", item.price.id, "(check plan registry)");
-    return;
+    throw new Error(
+      `[webhook] unknown price id ${item.price.id}; check Stripe price env vars`,
+    );
   }
   await patchEntitlements(userId, {
     plan,
@@ -213,22 +214,33 @@ async function applySubscriptionToEntitlements(
   });
 }
 
+function planForSubscription(sub: Stripe.Subscription, priceId: string): Plan | null {
+  const plan = planFromPriceId(priceId);
+  if (plan) return plan;
+
+  const metadataPlan = sub.metadata?.plan;
+  if (isPlan(metadataPlan)) {
+    console.warn(
+      "[webhook] price id not in registry; falling back to subscription metadata plan",
+      { subscription: sub.id, priceId, metadataPlan },
+    );
+    return metadataPlan;
+  }
+
+  return null;
+}
+
+function isPlan(value: unknown): value is Plan {
+  return value === "starter" || value === "pro" || value === "unlimited";
+}
+
 async function patchEntitlements(
   userId: string,
   patch: Record<string, unknown>,
 ) {
-  const { data: profile, error: pErr } = await supabaseAdmin
-    .from("profiles")
-    .select("data")
-    .eq("id", userId)
-    .maybeSingle();
-  if (pErr) throw pErr;
-  const data = profile?.data ?? {};
-  data.config = data.config ?? {};
-  data.config.entitlements = { ...(data.config.entitlements ?? {}), ...patch };
-  const { error: upErr } = await supabaseAdmin
-    .from("profiles")
-    .update({ data })
-    .eq("id", userId);
-  if (upErr) throw upErr;
+  const { error } = await supabaseAdmin.rpc("patch_profile_entitlements", {
+    target_user_id: userId,
+    entitlement_patch: patch,
+  });
+  if (error) throw error;
 }

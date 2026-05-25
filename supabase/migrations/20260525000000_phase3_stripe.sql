@@ -52,7 +52,139 @@ create trigger profiles_protect_stripe_customer_id
   for each row
   execute function public.profiles_block_stripe_customer_id_update();
 
--- ── 4. Helper view (optional but handy in the SQL editor) ───────────────────
+-- ── 4. JSON merge helpers ───────────────────────────────────────────────────
+-- Client profile saves are allowed to replace calculator/settings data, but
+-- Stripe entitlements are server-owned once webhooks start writing them. These
+-- helpers avoid last-write-wins races on the single profiles.data JSON blob.
+
+create or replace function public.update_profile_data_preserve_entitlements(
+  profile_data jsonb
+)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  server_entitlements jsonb;
+  client_entitlements jsonb;
+  effective_entitlements jsonb;
+  merged_data jsonb := coalesce(profile_data, '{}'::jsonb);
+  profile_found boolean := false;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select p.data #> '{config,entitlements}'
+    into server_entitlements
+  from public.profiles p
+  where p.id = auth.uid()
+  for update;
+  profile_found := found;
+
+  if server_entitlements is not null then
+    client_entitlements := merged_data #> '{config,entitlements}';
+    if client_entitlements is null
+       or client_entitlements->'plan' is distinct from server_entitlements->'plan'
+       or client_entitlements->'subscriptionStatus' is distinct from server_entitlements->'subscriptionStatus'
+       or client_entitlements->'cycleResetAt' is distinct from server_entitlements->'cycleResetAt'
+       or client_entitlements->'planSetAt' is distinct from server_entitlements->'planSetAt' then
+      effective_entitlements := server_entitlements;
+    else
+      effective_entitlements := client_entitlements;
+    end if;
+
+    merged_data := jsonb_set(
+      jsonb_set(
+        merged_data,
+        '{config}',
+        coalesce(merged_data->'config', '{}'::jsonb),
+        true
+      ),
+      '{config,entitlements}',
+      effective_entitlements,
+      true
+    );
+  end if;
+
+  if profile_found then
+    update public.profiles
+    set data = merged_data
+    where id = auth.uid();
+  else
+    insert into public.profiles (id, data)
+    values (auth.uid(), merged_data)
+    on conflict (id) do update
+    set data = case
+      when public.profiles.data #> '{config,entitlements}' is not null then
+        jsonb_set(
+          jsonb_set(
+            excluded.data,
+            '{config}',
+            coalesce(excluded.data->'config', '{}'::jsonb),
+            true
+          ),
+          '{config,entitlements}',
+          public.profiles.data #> '{config,entitlements}',
+          true
+        )
+      else excluded.data
+    end;
+  end if;
+end;
+$$;
+
+revoke all on function public.update_profile_data_preserve_entitlements(jsonb)
+  from public;
+grant execute on function public.update_profile_data_preserve_entitlements(jsonb)
+  to authenticated, service_role;
+
+create or replace function public.patch_profile_entitlements(
+  target_user_id uuid,
+  entitlement_patch jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  safe_patch jsonb := coalesce(entitlement_patch, '{}'::jsonb);
+begin
+  update public.profiles p
+  set data = jsonb_set(
+    jsonb_set(
+      coalesce(p.data, '{}'::jsonb),
+      '{config}',
+      coalesce(p.data->'config', '{}'::jsonb),
+      true
+    ),
+    '{config,entitlements}',
+    coalesce(p.data #> '{config,entitlements}', '{}'::jsonb) || safe_patch,
+    true
+  )
+  where p.id = target_user_id;
+
+  if not found then
+    insert into public.profiles (id, data)
+    values (
+      target_user_id,
+      jsonb_build_object(
+        'config',
+        jsonb_build_object('entitlements', safe_patch)
+      )
+    );
+  end if;
+end;
+$$;
+
+revoke all on function public.patch_profile_entitlements(uuid, jsonb)
+  from public;
+grant execute on function public.patch_profile_entitlements(uuid, jsonb)
+  to service_role;
+
+-- ── 5. Helper view (optional but handy in the SQL editor) ───────────────────
 -- Flat view of every user's current plan + usage, pulled out of the
 -- entitlements JSON. Useful for ops: "who's about to hit their limit?"
 create or replace view public.v_user_entitlements as

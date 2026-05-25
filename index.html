@@ -8702,9 +8702,13 @@ async function firstLoginMigration(userId) {
 async function pushProfileToCloud(d) {
   if (!sb || !currentUser) return;
   try {
-    await trackCloud(sb.from("profiles").upsert({
-      id: currentUser.id, data: d, updated_at: new Date().toISOString()
-    }));
+    await trackCloud(
+      sb.rpc("update_profile_data_preserve_entitlements", { profile_data: d })
+        .then(res => {
+          if (res && res.error) throw res.error;
+          return res;
+        })
+    );
   } catch (e) { /* error already routed via trackCloud */ }
 }
 
