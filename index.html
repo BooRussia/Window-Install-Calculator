@@ -2775,6 +2775,12 @@
           <span class="flex-1">My plan</span>
           <span id="pfpMyPlanTag" class="text-[10px] uppercase tracking-[0.12em] text-[#c9a558] font-bold">—</span>
         </button>
+        <!-- Manage Subscription: only rendered for users with an active Stripe sub.
+             Toggled by updateUsageBadge() based on entitlements.plan. -->
+        <button id="pfpManageBilling" type="button" class="pfp-item hidden" title="Update payment method, change plan, cancel">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="15" height="10" rx="1.5"/><path d="M2.5 8.5h15M5.5 12.5h3"/></svg>
+          Manage subscription
+        </button>
         <div class="border-t border-slate-800 my-1"></div>
         <button id="signOutBtn" type="button" class="pfp-item text-rose-300/80 hover:text-rose-300">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M13 14l4-4-4-4M17 10H8"/></svg>
@@ -9031,6 +9037,15 @@ function updateUsageBadge() {
   // Keep the PFP "My plan" suffix tag in sync (just shows the plan name)
   const pfpTag = document.getElementById("pfpMyPlanTag");
   if (pfpTag) pfpTag.textContent = _fmtPlanName();
+
+  // Phase 3: show "Manage subscription" only for users with an active
+  // Stripe subscription. Trial users haven't paid yet, so the portal would
+  // 400 with "No Stripe customer for this user."
+  const manageBtn = document.getElementById("pfpManageBilling");
+  if (manageBtn) {
+    const hasSub = e.plan !== "trial" && e.subscriptionStatus !== "canceled";
+    manageBtn.classList.toggle("hidden", !hasSub);
+  }
 }
 
 // 60s tick keeps "Nd left" honest across midnight without needing
@@ -9205,6 +9220,136 @@ function resetEntitlementsDev() {
   updateUsageBadge();
   renderSubscriptionPanel();
   toast("Entitlements reset to fresh trial");
+}
+
+// =========================================================
+// PHASE 3 — STRIPE BRIDGE
+//   Thin client-side wrappers around the Supabase Edge Functions
+//   (create-checkout-session, create-portal-session). Each function:
+//     • verifies the user is signed in (otherwise punts to /signup),
+//     • POSTs to the edge function with the Supabase JWT,
+//     • redirects the browser to the returned Stripe-hosted URL.
+//
+//   When Stripe isn't configured yet (no price IDs / no secret key), the
+//   edge function returns a 503 with an actionable message and we surface
+//   it to the user as a toast so they know what's missing.
+//
+//   Auth dependency: `sb` is the Supabase JS client (created in init()),
+//   `currentUser` is the cached user object, `openAuth(mode)` opens the
+//   login/signup modal, `toast(msg)` shows the bottom-of-screen pill.
+// =========================================================
+
+// Track in-flight checkout/portal calls so a double-click can't fire two
+// redirects (which would create two Stripe Customers on a fresh user).
+let _stripeBusy = false;
+
+async function startStripeCheckout(plan, billing) {
+  if (_stripeBusy) return;
+  if (!sb) { toast("Sign in to subscribe"); return; }
+
+  // Auth gate — sign up first, then come back to pricing.
+  if (!currentUser) {
+    if (typeof window.track === "function") {
+      window.track("checkout_auth_gate", { plan, billing });
+    }
+    openAuth("signup");
+    return;
+  }
+
+  _stripeBusy = true;
+  try {
+    if (typeof window.track === "function") {
+      window.track("checkout_started", { plan, billing });
+    }
+    // Where Stripe should send the user back to. We strip any existing
+    // ?checkout=... param so the success/cancel handlers don't double-fire.
+    const returnUrl = window.location.origin + window.location.pathname;
+
+    const { data, error } = await sb.functions.invoke("create-checkout-session", {
+      body: { plan, billing, returnUrl },
+    });
+    if (error) throw error;
+    if (!data || !data.url) throw new Error(data && data.error ? data.error : "No checkout URL returned");
+    // Hand off to Stripe. window.location.href (not assign) so the back
+    // button on the Stripe page returns the user to where they were.
+    window.location.href = data.url;
+  } catch (err) {
+    console.error("[stripe] checkout failed", err);
+    const msg = (err && err.message) || "Checkout unavailable";
+    // 503 from the edge function comes through with the original message.
+    if (/PLACEHOLDER|placeholder|not configured|step 3/i.test(msg)) {
+      toast("Stripe isn't wired up yet — see PHASE_3_SETUP.md");
+    } else {
+      toast(msg);
+    }
+    _stripeBusy = false;
+  }
+  // Note: we don't reset _stripeBusy on success — the page is about to
+  // unload as the Stripe redirect fires. If anything cancels it, the next
+  // pageload starts fresh anyway.
+}
+
+async function openStripePortal() {
+  if (_stripeBusy) return;
+  if (!sb || !currentUser) { toast("Sign in to manage your subscription"); return; }
+
+  _stripeBusy = true;
+  try {
+    if (typeof window.track === "function") window.track("portal_opened");
+    const returnUrl = window.location.origin + window.location.pathname;
+    const { data, error } = await sb.functions.invoke("create-portal-session", {
+      body: { returnUrl },
+    });
+    if (error) throw error;
+    if (!data || !data.url) throw new Error(data && data.error ? data.error : "No portal URL returned");
+    window.location.href = data.url;
+  } catch (err) {
+    console.error("[stripe] portal failed", err);
+    const msg = (err && err.message) || "Could not open billing portal";
+    if (/No Stripe customer/i.test(msg)) {
+      toast("Subscribe first before managing billing");
+    } else {
+      toast(msg);
+    }
+    _stripeBusy = false;
+  }
+}
+
+// Called on app boot if the URL has ?checkout=success or ?checkout=canceled
+// (Stripe appends these when redirecting back from the hosted page).
+async function handleStripeReturn() {
+  const url = new URL(window.location.href);
+  const checkout = url.searchParams.get("checkout");
+  if (!checkout) return;
+
+  // Strip the params from the URL so a manual refresh doesn't re-fire the
+  // toast / re-sync needlessly. We keep the pathname + hash intact.
+  url.searchParams.delete("checkout");
+  url.searchParams.delete("session_id");
+  window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+
+  if (checkout === "success") {
+    toast("Subscription activated — welcome!");
+    if (typeof window.track === "function") window.track("checkout_success");
+    // The webhook updates Supabase asynchronously. Pull a fresh profile so
+    // entitlements (plan, cycleResetAt) reflect the new subscription. We
+    // retry a couple of times because the webhook can lag a second or two.
+    for (let i = 0; i < 4; i++) {
+      try { await syncFromCloud(); } catch (_) { /* offline, will retry */ }
+      try {
+        DATA = loadData();
+        ensureEntitlements();
+        updateUsageBadge();
+        renderSubscriptionPanel?.();
+      } catch (_) {}
+      const plan = (DATA?.config?.entitlements?.plan) || "trial";
+      if (plan !== "trial") break;       // webhook landed
+      await new Promise(r => setTimeout(r, 1200 + i * 800));
+    }
+  } else if (checkout === "canceled") {
+    toast("Checkout canceled — your plan is unchanged");
+    if (typeof window.track === "function") window.track("checkout_canceled");
+  }
 }
 
 let _landingViewedTracked = false;
@@ -9462,12 +9607,9 @@ function wirePricing(ls) {
         if (typeof window.track === "function") {
           window.track("pricing_cta_click", { plan, billing: billingPeriod });
         }
-        // Phase 1: route to existing signup; Phase 3 will swap for Stripe checkout.
-        if (currentUser) {
-          closeLanding();
-        } else {
-          openAuth("signup");
-        }
+        // Phase 3: tier CTAs go to Stripe Checkout. startStripeCheckout()
+        // handles the auth gate (kicks logged-out users to signup first).
+        startStripeCheckout(plan, billingPeriod);
       });
     });
   }
@@ -9624,6 +9766,11 @@ async function enterApp() {
   // Onboarding/setup are now opt-in — the user lands in the calculator with
   // demo data and is nudged (via #setupNudge + the PFP menu) to finish setup
   // when they're ready. This kills the forced 14-field wall at signup.
+
+  // PHASE 3: if the URL has ?checkout=success / ?checkout=canceled (Stripe
+  // redirect target), surface a toast + force-refresh entitlements. Fire-
+  // and-forget — the toast/sync can take a second or two without blocking.
+  handleStripeReturn();
 }
 
 /* ============================================================
@@ -10434,6 +10581,14 @@ function init() {
     closePfpMenu();
     openAdmin();
     showSettingsTab("subscription");
+  });
+
+  // PFP menu → "Manage subscription" — Stripe Customer Portal
+  // (visibility toggled by updateUsageBadge() based on entitlements.plan)
+  const pfpManageBilling = document.getElementById("pfpManageBilling");
+  if (pfpManageBilling) pfpManageBilling.addEventListener("click", () => {
+    closePfpMenu();
+    openStripePortal();
   });
 
   // Initial paint + ticker
