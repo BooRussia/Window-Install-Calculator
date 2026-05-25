@@ -1469,6 +1469,28 @@
     #offlineIndicator { padding: 5px 7px; }
     #offlineIndicator .oi-label { display: none; }
   }
+
+  /* Usage badge — header pill that shows quote count or trial days left.
+     Color states are applied by updateUsageBadge() via data-tier:
+       ok    → slate (calm)
+       low   → amber (heads-up)
+       limit → rose  (acted)
+     The .ub-full / .ub-short spans let us collapse to a tight form on
+     narrow screens without losing the signal. */
+  #usageBadge { white-space: nowrap; user-select: none; line-height: 1; }
+  #usageBadge[data-tier="ok"]    { color: #cbd5e1; }
+  #usageBadge[data-tier="low"]   { color: #fcd34d; border-color: rgba(252,211,77,0.45); background: rgba(252,211,77,0.08); }
+  #usageBadge[data-tier="limit"] { color: #fda4af; border-color: rgba(253,164,175,0.45); background: rgba(244,63,94,0.08); }
+  #usageBadge[data-tier="unlimited"] { color: #c9a558; border-color: rgba(181,143,74,0.45); background: rgba(181,143,74,0.08); }
+  #usageBadge .ub-glyph { color: #c9a558; font-weight: 800; }
+  #usageBadge .ub-cta { color: #c9a558; margin-left: 4px; }
+  #usageBadge .ub-short { display: none; }
+  /* Mobile: use the short text (e.g. "5/15", "Upgrade", "∞") to save space */
+  @media (max-width: 520px) {
+    #usageBadge .ub-full  { display: none; }
+    #usageBadge .ub-short { display: inline; }
+    #usageBadge { padding: 5px 9px; }
+  }
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen rail-pinned">
@@ -2705,6 +2727,9 @@
     </div>
     <div class="flex items-center gap-2">
       <button id="headerPricingBtn" type="button" class="btn inline-flex items-center text-sm font-bold text-[#c9a558] hover:text-[#dfc07a] px-3 py-1.5" aria-label="Plans &amp; Pricing">Pricing</button>
+      <button id="usageBadge" type="button" class="hidden inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold tracking-[0.04em] bg-slate-900/60 border border-slate-700 hover:border-[#b58f4a] hover:bg-slate-800/70 transition" aria-label="Quote usage and plan">
+        <span id="usageBadgeText" class="text-slate-300">—</span>
+      </button>
       <button id="headerFLLookupBtn" type="button" class="hidden sm:inline-flex btn items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]" aria-label="Open FL product approval lookup">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
         FL Lookup
@@ -2744,6 +2769,11 @@
         <button id="pfpPricing" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h14M3 10h14M3 14.5h9"/><circle cx="15.5" cy="14.5" r="2.2"/></svg>
           Plans &amp; Pricing
+        </button>
+        <button id="pfpMyPlan" type="button" class="pfp-item" title="View your current plan + usage">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l2.5 1.5"/></svg>
+          <span class="flex-1">My plan</span>
+          <span id="pfpMyPlanTag" class="text-[10px] uppercase tracking-[0.12em] text-[#c9a558] font-bold">—</span>
         </button>
         <div class="border-t border-slate-800 my-1"></div>
         <button id="signOutBtn" type="button" class="pfp-item text-rose-300/80 hover:text-rose-300">
@@ -3307,6 +3337,46 @@
   </div>
 </div>
 
+<!-- Upsell / Limit-reached Modal (Phase 2)
+     A soft nudge — in Phase 2 the action that triggered it STILL went
+     through (preview mode). Phase 4 will make this a hard block. -->
+<div id="upsellModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[55]">
+  <div class="absolute inset-0 modal-backdrop" data-close-upsell></div>
+  <div class="relative card rounded-3xl w-full max-w-lg overflow-hidden flex flex-col">
+    <div class="px-6 py-5 border-b border-slate-800 flex items-start justify-between gap-3">
+      <div>
+        <div class="text-[10px] uppercase tracking-[0.18em] text-[#c9a558] font-bold mb-1.5" id="upsellEyebrow">Plan</div>
+        <h3 class="text-lg font-bold text-slate-100 tracking-tight" id="upsellHeadline">—</h3>
+        <p class="text-sm text-slate-400 mt-2 leading-relaxed" id="upsellBody">—</p>
+      </div>
+      <button class="modal-close" data-close-upsell aria-label="Close">×</button>
+    </div>
+    <!-- Recommended next plan -->
+    <div class="px-6 py-5 space-y-4">
+      <div class="rounded-2xl border border-[#b58f4a]/40 bg-gradient-to-b from-[#1a1306]/40 to-transparent p-4">
+        <div class="flex items-baseline justify-between gap-3 mb-2">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.18em] text-[#c9a558] font-bold">Recommended</div>
+            <div class="text-base font-bold text-slate-100 mt-0.5" id="upsellRecPlanName">—</div>
+            <div class="text-xs text-slate-500 mt-0.5" id="upsellRecPlanTagline">—</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xl font-black text-slate-100" id="upsellRecPlanPrice">—</div>
+            <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500" id="upsellRecPlanBilling">/ month</div>
+          </div>
+        </div>
+        <ul class="text-xs text-slate-300 space-y-1.5 mt-3" id="upsellRecPlanFeatures"></ul>
+      </div>
+      <!-- Phase 2 preview-mode disclaimer (REMOVE in Phase 4) -->
+      <p id="upsellPhase2Note" class="text-[11px] italic text-slate-500 leading-relaxed">You can keep quoting in preview mode — but please upgrade soon to support the work.</p>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-800 flex flex-col-reverse sm:flex-row justify-end gap-2">
+      <button data-close-upsell class="btn rounded-full text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2.5 min-h-[44px]" id="upsellLaterBtn">Maybe later</button>
+      <button id="upsellSeePlansBtn" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] min-h-[44px]">See all plans →</button>
+    </div>
+  </div>
+</div>
+
 <!-- Job Comparison Modal -->
 <div id="compareModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
   <div class="absolute inset-0 modal-backdrop" data-close-compare></div>
@@ -3352,6 +3422,7 @@
         <button type="button" class="set-tab" data-tab="defaults">Job Defaults</button>
         <button type="button" class="set-tab" data-tab="manufacturers">Manufacturers</button>
         <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
+        <button type="button" class="set-tab" data-tab="subscription">Subscription</button>
         <button type="button" class="set-tab" data-tab="account">Account</button>
         <button type="button" class="set-tab hidden" data-tab="admin" id="adminTabBtn">Admin</button>
       </nav>
@@ -3561,6 +3632,45 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Subscription (Phase 2 — read-only. Phase 3 wires Stripe.) -->
+        <div class="set-panel" data-panel="subscription">
+          <div class="set-h">Subscription</div>
+          <div class="set-sub mb-5">Your current plan and quote usage. Plan changes land in the next release.</div>
+          <div class="card rounded-xl p-5 max-w-2xl">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+              <div>
+                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Plan</div>
+                <div id="subPlanName" class="text-base font-bold text-slate-100">—</div>
+                <div id="subPlanStatus" class="text-xs text-slate-400 mt-0.5">—</div>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Quotes this cycle</div>
+                <div id="subUsage" class="text-base font-bold text-slate-100">—</div>
+                <div id="subUsageBar" class="mt-1.5 h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                  <div id="subUsageFill" class="h-full bg-[#b58f4a] transition-all" style="width:0%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Cycle resets</div>
+                <div id="subCycleResets" class="text-sm text-slate-200">—</div>
+              </div>
+              <div id="subTrialBlock">
+                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Trial started</div>
+                <div id="subTrialStarted" class="text-sm text-slate-200">—</div>
+              </div>
+            </div>
+            <div class="mt-5 pt-4 border-t border-slate-800 flex flex-wrap gap-2">
+              <button id="subOpenPricing" type="button" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/55 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]">See all plans &rarr;</button>
+            </div>
+          </div>
+          <!-- DEV ONLY — enable by pasting `window.__ANCHOR_DEV = true` in DevTools console, then reopen Settings. -->
+          <div id="subDevTools" class="hidden mt-7 pt-5 border-t border-slate-800 max-w-2xl">
+            <div class="text-[11px] uppercase tracking-[0.16em] text-amber-400/80 font-bold mb-1">Dev tools</div>
+            <p class="text-[11px] text-slate-600 mb-3">Reset your entitlement record to a fresh trial — for testing the badge + upsell flow.</p>
+            <button id="subResetEntitlements" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2">↻ Reset entitlements (DEV)</button>
           </div>
         </div>
 
@@ -5641,6 +5751,19 @@ function confirmSaveJob() {
   const draftIdx = jobs.findIndex(x => x.isDraft);
   const reuseId = (draftIdx >= 0) ? jobs[draftIdx].id : crypto.randomUUID();
 
+  // ENTITLEMENTS (Phase 2) — count this as a NEW quote only if it's not an
+  // edit-and-resave of an existing saved job. STATE.currentJobId matching a
+  // non-draft entry means the user is updating, which is free. Anything else
+  // (fresh save, draft promotion, brand-new) consumes one quote.
+  // In Phase 2 attemptGenerateQuote() ALWAYS returns true (preview mode), so
+  // the save itself is never blocked — the upsell modal is the only signal.
+  const _existing = STATE.currentJobId
+    ? jobs.find(x => x.id === STATE.currentJobId && !x.isDraft)
+    : null;
+  if (!_existing) {
+    attemptGenerateQuote();
+  }
+
   const job = {
     id: reuseId,
     name: name || `Job ${new Date().toLocaleDateString()}`,
@@ -5716,6 +5839,10 @@ function saveAsNewVersion() {
   const jobs = loadJobs();
   const base = jobs.find(x => x.id === STATE.currentJobId && !x.isDraft);
   if (!base) { toast("Original job not found"); return; }
+
+  // ENTITLEMENTS (Phase 2) — a new version creates a new saved-job entry,
+  // so it counts as a new quote. Preview-only in Phase 2: still proceeds.
+  attemptGenerateQuote();
 
   // Derive the base name (strip any trailing " vN") then find the next free vN
   const rawName = base.name || base.customerName || "Job";
@@ -6534,6 +6661,7 @@ function showSettingsTab(name) {
   const dataTab = ["brand", "defaults", "manufacturers", "rates"].includes(name);
   document.getElementById("settingsFooter").style.display = dataTab ? "" : "none";
   if (name === "admin") renderAdminPanel();
+  if (name === "subscription") renderSubscriptionPanel();
 }
 
 // Open Settings on the Rates tab, scroll to the input that controls a
@@ -8679,6 +8807,406 @@ const PLANS = [
   }
 ];
 
+// ====================================================================
+// PHASE 2 — ENTITLEMENTS BRAIN
+// --------------------------------------------------------------------
+//   The single source of truth for "what can this user do right now?".
+//   Lives at DATA.config.entitlements and persists through saveData()
+//   (which already pushes to localStorage + the Supabase profile JSON).
+//
+//   Critical Phase-2 rule: WE DO NOT LOCK ANYONE OUT YET. The badge
+//   and upsell modal are friendly upsells — the underlying action
+//   (save quote, etc.) still goes through. Phase 4 will flip the
+//   `attemptGenerateQuote()` return to actually block.
+// ====================================================================
+const DAY_MS = 86400 * 1000;
+const CYCLE_MS = 30 * DAY_MS;
+
+function defaultEntitlements() {
+  const now = Date.now();
+  return {
+    plan: "trial",
+    subscriptionStatus: "trialing",
+    trialStartedAt: now,
+    quotesUsedThisCycle: 0,
+    cycleResetAt: now + (TRIAL.days * DAY_MS),
+    planSetAt: now,
+    lastQuoteAt: null
+  };
+}
+
+function getEntitlements() {
+  if (!DATA.config) DATA.config = {};
+  if (!DATA.config.entitlements) DATA.config.entitlements = defaultEntitlements();
+  return DATA.config.entitlements;
+}
+
+// The plan record (from PLANS) that matches the entitlement plan id.
+// Trial isn't in PLANS, so synthesize a record for it.
+function getPlanDef() {
+  const e = getEntitlements();
+  if (e.plan === "trial") {
+    return { id: "trial", name: "Free trial", quoteLimit: TRIAL.quotes, _synthetic: true };
+  }
+  return PLANS.find(p => p.id === e.plan) || PLANS[0];
+}
+
+function getPlanLimit() {
+  const e = getEntitlements();
+  if (e.plan === "trial") return TRIAL.quotes;
+  if (e.plan === "unlimited") return Infinity;
+  const p = PLANS.find(pp => pp.id === e.plan);
+  return p ? p.quoteLimit : TRIAL.quotes;
+}
+
+function getQuotesRemaining() {
+  const lim = getPlanLimit();
+  if (lim === Infinity) return Infinity;
+  const e = getEntitlements();
+  return Math.max(0, lim - (e.quotesUsedThisCycle || 0));
+}
+
+function getCycleDaysRemaining() {
+  const e = getEntitlements();
+  const ms = (e.cycleResetAt || 0) - Date.now();
+  return Math.max(0, Math.floor(ms / DAY_MS));
+}
+
+function isTrialExpired() {
+  const e = getEntitlements();
+  return e.plan === "trial" && Date.now() >= (e.cycleResetAt || 0);
+}
+
+function isCycleExpired() {
+  const e = getEntitlements();
+  return Date.now() >= (e.cycleResetAt || 0);
+}
+
+// Paid-plan cycle rollover — auto-resets the counter when the
+// anniversary has passed. Trial doesn't auto-reset; the user must
+// subscribe to start a new cycle. Returns true if a reset occurred.
+function cycleNeedsReset() {
+  const e = getEntitlements();
+  if (isCycleExpired() && e.plan !== "trial") {
+    e.quotesUsedThisCycle = 0;
+    e.cycleResetAt = Date.now() + CYCLE_MS;
+    saveData(DATA);
+    return true;
+  }
+  return false;
+}
+
+// Returns { allowed, reason } — single decision point for whether the
+// next quote should consume entitlement OR trigger an upsell. Order of
+// checks is intentional: trial expiry beats subscription status, which
+// beats the per-cycle limit. Reasons feed `showUpsellModal(reason)`.
+function canGenerate() {
+  cycleNeedsReset();   // refresh paid cycles before checking
+  const e = getEntitlements();
+  if (isTrialExpired()) return { allowed: false, reason: "trial_expired" };
+  if (e.plan !== "trial" && e.plan !== "unlimited") {
+    if (e.subscriptionStatus && e.subscriptionStatus !== "active" && e.subscriptionStatus !== "trialing") {
+      return { allowed: false, reason: "subscription_inactive" };
+    }
+  }
+  if (getQuotesRemaining() <= 0) return { allowed: false, reason: "limit_reached" };
+  return { allowed: true, reason: null };
+}
+
+function consumeQuote() {
+  const e = getEntitlements();
+  e.quotesUsedThisCycle = (e.quotesUsedThisCycle || 0) + 1;
+  e.lastQuoteAt = Date.now();
+  saveData(DATA);
+  try {
+    window.track("quote_consumed", {
+      plan: e.plan,
+      used: e.quotesUsedThisCycle,
+      limit: getPlanLimit() === Infinity ? "unlimited" : getPlanLimit()
+    });
+  } catch (_) {}
+  updateUsageBadge();
+}
+
+// Wrapper used by every "new quote" entry point. In Phase 2 this is
+// PREVIEW MODE — if blocked we still consume + return true (the action
+// proceeds) and show the upsell modal as a soft nudge. Phase 4 changes
+// the return to `false` to actually lock the action.
+function attemptGenerateQuote() {
+  const check = canGenerate();
+  if (!check.allowed) {
+    showUpsellModal(check.reason);
+    // PHASE 2: preview mode — still consume + still allow. Phase 4
+    // removes the consumeQuote() call below and returns false instead.
+    consumeQuote();
+    return true;
+  }
+  consumeQuote();
+  return true;
+}
+
+let _entitlementsInitTracked = false;
+function trackEntitlementsInit() {
+  if (_entitlementsInitTracked) return;
+  _entitlementsInitTracked = true;
+  const e = getEntitlements();
+  try {
+    window.track("entitlement_initialized", {
+      plan: e.plan,
+      subscriptionStatus: e.subscriptionStatus
+    });
+  } catch (_) {}
+}
+
+// --------------------------------------------------------------------
+//  HEADER USAGE BADGE
+//  Central renderer — reads entitlements, picks the right text + color
+//  tier, and shows/hides the badge based on sign-in status. Called from
+//  init(), after consumeQuote(), and on a 60s tick so the day counter
+//  stays fresh without a full re-render.
+// --------------------------------------------------------------------
+function _fmtPlanName() {
+  const e = getEntitlements();
+  if (e.plan === "trial") return "Trial";
+  if (e.plan === "unlimited") return "Unlimited";
+  const p = PLANS.find(pp => pp.id === e.plan);
+  return p ? p.name : "Plan";
+}
+
+function updateUsageBadge() {
+  const badge = document.getElementById("usageBadge");
+  const text  = document.getElementById("usageBadgeText");
+  if (!badge || !text) return;
+
+  // Only visible to signed-in users. (Logged-out / public-quote routes
+  // and offline-mode skip the badge entirely.)
+  if (!currentUser) { badge.classList.add("hidden"); badge.classList.remove("inline-flex"); return; }
+
+  cycleNeedsReset();   // make sure paid cycles have rolled over
+
+  const e = getEntitlements();
+  const limit = getPlanLimit();
+  const used = e.quotesUsedThisCycle || 0;
+  const remaining = getQuotesRemaining();
+  const daysLeft = getCycleDaysRemaining();
+
+  let tier = "ok";
+  let full = "";
+  let short = "";
+
+  if (e.plan === "trial") {
+    if (isTrialExpired()) {
+      tier = "limit";
+      full = `Trial ended <span class="ub-cta">Upgrade →</span>`;
+      short = `Upgrade`;
+    } else {
+      const low = daysLeft <= 3 || remaining <= 2;
+      tier = low ? "low" : "ok";
+      full = `${daysLeft}d &middot; ${remaining} quote${remaining === 1 ? "" : "s"} left`;
+      short = `${daysLeft}d &middot; ${remaining}`;
+    }
+  } else if (e.plan === "unlimited") {
+    tier = "unlimited";
+    full = `<span class="ub-glyph">∞</span> Unlimited`;
+    short = `<span class="ub-glyph">∞</span>`;
+  } else {
+    // Paid (starter / pro)
+    if (remaining <= 0) {
+      tier = "limit";
+      full = `Limit reached <span class="ub-cta">Upgrade →</span>`;
+      short = `Upgrade`;
+    } else {
+      const pct = limit > 0 ? (used / limit) : 0;
+      tier = pct >= 0.8 ? "low" : "ok";
+      full = `${used} / ${limit} this month`;
+      short = `${used}/${limit}`;
+    }
+  }
+
+  badge.setAttribute("data-tier", tier);
+  text.innerHTML = `<span class="ub-full">${full}</span><span class="ub-short">${short}</span>`;
+  badge.classList.remove("hidden");
+  badge.classList.add("inline-flex");
+
+  // Keep the PFP "My plan" suffix tag in sync (just shows the plan name)
+  const pfpTag = document.getElementById("pfpMyPlanTag");
+  if (pfpTag) pfpTag.textContent = _fmtPlanName();
+}
+
+// 60s tick keeps "Nd left" honest across midnight without needing
+// every other render path to remember to call us.
+let _usageBadgeTimer = null;
+function startUsageBadgeTicker() {
+  if (_usageBadgeTimer) return;
+  _usageBadgeTimer = setInterval(updateUsageBadge, 60 * 1000);
+}
+
+// --------------------------------------------------------------------
+//  UPSELL MODAL
+//  Soft nudge surfaced when canGenerate() blocks. In Phase 2 the action
+//  that triggered it still went through (preview mode); Phase 4 wires
+//  the actual lock and removes the preview-mode disclaimer line.
+// --------------------------------------------------------------------
+const UPSELL_COPY = {
+  trial_expired: {
+    eyebrow: "Free trial ended",
+    headline: "Your free trial ended",
+    body: "Pick a plan to keep quoting. Your saved jobs and settings stay put."
+  },
+  limit_reached: {
+    eyebrow: "Monthly cap reached",
+    headline: "You've hit your monthly quote limit",
+    // body filled in dynamically with {plan}, {limit}, {date}
+    body: "You're on the {plan} plan ({limit} quotes/month). Upgrade for more — or wait until {date} for your next cycle."
+  },
+  subscription_inactive: {
+    eyebrow: "Action needed",
+    headline: "Subscription needs attention",
+    body: "Update your payment method to keep quoting."
+  }
+};
+
+// Which plan to recommend on the upsell card. One step up the ladder.
+function _recommendedPlan() {
+  const e = getEntitlements();
+  if (e.plan === "trial")    return PLANS.find(p => p.id === "pro") || PLANS[0];
+  if (e.plan === "starter")  return PLANS.find(p => p.id === "pro") || PLANS[0];
+  if (e.plan === "pro")      return PLANS.find(p => p.id === "unlimited") || PLANS[PLANS.length - 1];
+  return PLANS.find(p => p.id === "unlimited") || PLANS[PLANS.length - 1];
+}
+
+function _formatCycleDate() {
+  const e = getEntitlements();
+  const d = new Date(e.cycleResetAt || Date.now());
+  try {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch { return d.toDateString(); }
+}
+
+function showUpsellModal(reason) {
+  const modal = document.getElementById("upsellModal");
+  if (!modal) return;
+  const r = (reason && UPSELL_COPY[reason]) ? reason : "limit_reached";
+  const e = getEntitlements();
+  const copy = UPSELL_COPY[r];
+
+  document.getElementById("upsellEyebrow").textContent = copy.eyebrow;
+  document.getElementById("upsellHeadline").textContent = copy.headline;
+
+  let body = copy.body;
+  if (r === "limit_reached") {
+    body = body
+      .replace("{plan}", _fmtPlanName())
+      .replace("{limit}", String(getPlanLimit()))
+      .replace("{date}", _formatCycleDate());
+  }
+  document.getElementById("upsellBody").textContent = body;
+
+  // Recommended next plan card
+  const rec = _recommendedPlan();
+  document.getElementById("upsellRecPlanName").textContent = rec.name;
+  document.getElementById("upsellRecPlanTagline").textContent = rec.tagline || "";
+  document.getElementById("upsellRecPlanPrice").textContent = "$" + rec.monthlyPrice;
+  const featuresEl = document.getElementById("upsellRecPlanFeatures");
+  const featList = (rec.features || []).slice(0, 4);
+  featuresEl.innerHTML = featList.map(f => `
+    <li class="flex items-start gap-2">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="#c9a558" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 flex-shrink-0"><polyline points="4 10.5 8 14.5 16 6"/></svg>
+      <span>${f}</span>
+    </li>`).join("");
+
+  // Phase-2 preview-mode disclaimer is visible by default; flip __ANCHOR_PHASE4
+  // to hide it once the lock lands. (Hook for the future.)
+  const note = document.getElementById("upsellPhase2Note");
+  if (note) note.style.display = window.__ANCHOR_PHASE4 ? "none" : "";
+
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+
+  try { window.track("upsell_modal_shown", { reason: r, plan: e.plan }); } catch (_) {}
+}
+
+function closeUpsellModal() {
+  const modal = document.getElementById("upsellModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+// --------------------------------------------------------------------
+//  SETTINGS → SUBSCRIPTION TAB
+//  Read-only Phase 2 panel. Phase 3 adds change-plan + cancel.
+// --------------------------------------------------------------------
+function renderSubscriptionPanel() {
+  const e = getEntitlements();
+  cycleNeedsReset();
+
+  const nameEl = document.getElementById("subPlanName");
+  const statusEl = document.getElementById("subPlanStatus");
+  const usageEl = document.getElementById("subUsage");
+  const fillEl = document.getElementById("subUsageFill");
+  const cycleEl = document.getElementById("subCycleResets");
+  const trialBlock = document.getElementById("subTrialBlock");
+  const trialEl = document.getElementById("subTrialStarted");
+  if (!nameEl) return;
+
+  nameEl.textContent = _fmtPlanName();
+
+  let statusLine;
+  if (e.plan === "trial") {
+    statusLine = isTrialExpired() ? "Trial ended" : `Trialing · ${getCycleDaysRemaining()} days left`;
+  } else if (e.plan === "unlimited") {
+    statusLine = "Active · Unlimited quotes";
+  } else {
+    statusLine = `Status: ${e.subscriptionStatus || "—"}`;
+  }
+  statusEl.textContent = statusLine;
+
+  const limit = getPlanLimit();
+  const used = e.quotesUsedThisCycle || 0;
+  if (limit === Infinity) {
+    usageEl.textContent = `${used} this cycle`;
+    fillEl.style.width = "100%";
+    fillEl.style.background = "#c9a558";
+  } else {
+    usageEl.textContent = `${used} / ${limit}`;
+    const pct = Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
+    fillEl.style.width = pct + "%";
+    fillEl.style.background = pct >= 100 ? "#fda4af" : (pct >= 80 ? "#fcd34d" : "#c9a558");
+  }
+
+  const cd = new Date(e.cycleResetAt || Date.now());
+  try {
+    cycleEl.textContent = cd.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch { cycleEl.textContent = cd.toDateString(); }
+
+  // Trial-only block
+  if (e.plan === "trial" && e.trialStartedAt) {
+    trialBlock.style.display = "";
+    const td = new Date(e.trialStartedAt);
+    try {
+      trialEl.textContent = td.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    } catch { trialEl.textContent = td.toDateString(); }
+  } else {
+    trialBlock.style.display = "none";
+  }
+
+  // DEV tools — only visible if window.__ANCHOR_DEV is truthy.
+  const dev = document.getElementById("subDevTools");
+  if (dev) dev.classList.toggle("hidden", !window.__ANCHOR_DEV);
+}
+
+function resetEntitlementsDev() {
+  if (!window.__ANCHOR_DEV) return;
+  if (!confirm("Reset your entitlement record to a fresh 14-day trial?\n\nThis is a dev-only tool. Brand info, rates, and saved jobs are kept.")) return;
+  DATA.config.entitlements = defaultEntitlements();
+  saveData(DATA);
+  _entitlementsInitTracked = false;
+  updateUsageBadge();
+  renderSubscriptionPanel();
+  toast("Entitlements reset to fresh trial");
+}
+
 let _landingViewedTracked = false;
 function showLanding() {
   document.getElementById("bootSplash").classList.add("hidden");
@@ -9858,6 +10386,62 @@ function init() {
   // App header gold "Pricing" link
   const headerPricingBtn = document.getElementById("headerPricingBtn");
   if (headerPricingBtn) headerPricingBtn.addEventListener("click", () => showPricing("app_header"));
+
+  // PHASE 2 — entitlements wiring
+  // Header usage badge
+  const usageBadgeEl = document.getElementById("usageBadge");
+  if (usageBadgeEl) {
+    usageBadgeEl.addEventListener("click", () => {
+      const e = getEntitlements();
+      let state = "ok";
+      if (e.plan === "trial" && isTrialExpired()) state = "limit";
+      else if (e.plan !== "trial" && e.plan !== "unlimited" && getQuotesRemaining() <= 0) state = "limit";
+      else if (e.plan === "trial" && (getCycleDaysRemaining() <= 3 || getQuotesRemaining() <= 2)) state = "low";
+      else if (e.plan !== "trial" && e.plan !== "unlimited") {
+        const lim = getPlanLimit(); const used = e.quotesUsedThisCycle || 0;
+        if (lim > 0 && (used / lim) >= 0.8) state = "low";
+      }
+      try { window.track("usage_badge_clicked", { plan: e.plan, state }); } catch (_) {}
+      showPricing("usage_badge");
+    });
+  }
+  // Upsell modal — backdrop + buttons
+  const upsellEl = document.getElementById("upsellModal");
+  if (upsellEl) {
+    upsellEl.addEventListener("click", e => {
+      if (e.target.dataset.closeUpsell !== undefined) {
+        try { window.track("upsell_cta_clicked", { which: "later" }); } catch (_) {}
+        closeUpsellModal();
+      }
+    });
+    const seePlansBtn = document.getElementById("upsellSeePlansBtn");
+    if (seePlansBtn) seePlansBtn.addEventListener("click", () => {
+      try { window.track("upsell_cta_clicked", { which: "pricing" }); } catch (_) {}
+      closeUpsellModal();
+      showPricing("upsell_modal");
+    });
+  }
+  // Settings → Subscription tab: pricing button + dev reset
+  const subOpenPricingBtn = document.getElementById("subOpenPricing");
+  if (subOpenPricingBtn) subOpenPricingBtn.addEventListener("click", () => {
+    closeAdmin();
+    showPricing("settings_subscription");
+  });
+  const subResetBtn = document.getElementById("subResetEntitlements");
+  if (subResetBtn) subResetBtn.addEventListener("click", resetEntitlementsDev);
+
+  // PFP menu → "My plan" — drops into the Subscription tab in Settings
+  const pfpMyPlanBtn = document.getElementById("pfpMyPlan");
+  if (pfpMyPlanBtn) pfpMyPlanBtn.addEventListener("click", () => {
+    closePfpMenu();
+    openAdmin();
+    showSettingsTab("subscription");
+  });
+
+  // Initial paint + ticker
+  updateUsageBadge();
+  startUsageBadgeTicker();
+  trackEntitlementsInit();
 
   // Onboarding wizard
   document.getElementById("obSubmit").addEventListener("click", submitOnboarding);
