@@ -8655,7 +8655,10 @@ async function syncFromCloud() {
     if (pErr) throw pErr;
 
     if (prof && prof.data && Object.keys(prof.data).length) {
-      localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
+      const localData = loadData();
+      const mergedProfile = mergeCloudProfileForLocal(prof.data, localData);
+      localStorage.setItem(LS_KEYS.data, JSON.stringify(mergedProfile));
+      if (mergedProfile !== prof.data) await pushProfileToCloud(mergedProfile);
       const { data: jobRows, error: jErr } = await sb.from("jobs")
         .select("id,data").eq("user_id", user.id);
       if (jErr) throw jErr;
@@ -8691,6 +8694,64 @@ async function firstLoginMigration(userId) {
     // Keep any local-only drafts alongside the freshly-uploaded jobs
     localStorage.setItem(LS_KEYS.jobs, JSON.stringify([...rows.map(r => r.data), ...drafts]));
   }
+}
+
+function parseEntitlementTime(v) {
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : Date.parse(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function mergeEntitlementsForSync(cloudEntitlements, localEntitlements) {
+  if (!localEntitlements) return cloudEntitlements || null;
+  if (!cloudEntitlements) return clone(localEntitlements);
+
+  const cloudPlan = cloudEntitlements.plan || "trial";
+  const localPlan = localEntitlements.plan || "trial";
+  // Once billing is authoritative, do not let stale local plan metadata
+  // overwrite the server's current subscription state.
+  if (cloudPlan !== localPlan) return cloudEntitlements;
+
+  const merged = { ...cloudEntitlements };
+  const cloudUsed = Number(cloudEntitlements.quotesUsedThisCycle || 0);
+  const localUsed = Number(localEntitlements.quotesUsedThisCycle || 0);
+  if (Number.isFinite(localUsed) && localUsed > cloudUsed) {
+    merged.quotesUsedThisCycle = localUsed;
+  }
+
+  const cloudLastQuote = parseEntitlementTime(cloudEntitlements.lastQuoteAt);
+  const localLastQuote = parseEntitlementTime(localEntitlements.lastQuoteAt);
+  if (localLastQuote != null && (cloudLastQuote == null || localLastQuote > cloudLastQuote)) {
+    merged.lastQuoteAt = localEntitlements.lastQuoteAt;
+  }
+
+  if (cloudPlan === "trial") {
+    const cloudTrialStart = parseEntitlementTime(cloudEntitlements.trialStartedAt);
+    const localTrialStart = parseEntitlementTime(localEntitlements.trialStartedAt);
+    if (localTrialStart != null && (cloudTrialStart == null || localTrialStart < cloudTrialStart)) {
+      merged.trialStartedAt = localEntitlements.trialStartedAt;
+    }
+    const cloudTrialEnd = parseEntitlementTime(cloudEntitlements.cycleResetAt);
+    const localTrialEnd = parseEntitlementTime(localEntitlements.cycleResetAt);
+    if (localTrialEnd != null && (cloudTrialEnd == null || localTrialEnd < cloudTrialEnd)) {
+      merged.cycleResetAt = localEntitlements.cycleResetAt;
+    }
+  }
+
+  if (JSON.stringify(merged) === JSON.stringify(cloudEntitlements)) return cloudEntitlements;
+  return merged;
+}
+
+function mergeCloudProfileForLocal(cloudData, localData) {
+  if (!cloudData || typeof cloudData !== "object") return cloudData;
+  const cloudEntitlements = cloudData.config && cloudData.config.entitlements;
+  const localEntitlements = localData && localData.config && localData.config.entitlements;
+  const mergedEntitlements = mergeEntitlementsForSync(cloudEntitlements, localEntitlements);
+  if (!mergedEntitlements || mergedEntitlements === cloudEntitlements) return cloudData;
+  const merged = clone(cloudData);
+  if (!merged.config) merged.config = {};
+  merged.config.entitlements = mergedEntitlements;
+  return merged;
 }
 
 async function pushProfileToCloud(d) {
@@ -9420,6 +9481,14 @@ function wirePricing(ls) {
     const r = (Math.round(v * 100) / 100).toFixed(2).replace(/\.?0+$/, "");
     return "$" + r;
   };
+  const routePricingSignupCta = () => {
+    if (currentUser) {
+      closePricing();
+      closeLanding();
+    } else {
+      openAuth("signup");
+    }
+  };
 
   const checkSvg =
     '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 11 8.5 15.5 16 6"/></svg>';
@@ -9462,12 +9531,8 @@ function wirePricing(ls) {
         if (typeof window.track === "function") {
           window.track("pricing_cta_click", { plan, billing: billingPeriod });
         }
-        // Phase 1: route to existing signup; Phase 3 will swap for Stripe checkout.
-        if (currentUser) {
-          closeLanding();
-        } else {
-          openAuth("signup");
-        }
+        // Phase 1: route to existing signup/open-app; Phase 3 swaps for Stripe checkout.
+        routePricingSignupCta();
       });
     });
   }
@@ -9503,7 +9568,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "trial", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      routePricingSignupCta();
     });
   }
   const finalCta = document.getElementById("lpPricingFinalCta");
@@ -9512,7 +9577,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "final", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      routePricingSignupCta();
     });
   }
 
