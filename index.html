@@ -8732,6 +8732,11 @@ function closePricing() {
     history.replaceState(null, "", window.location.pathname + window.location.search);
   }
 }
+function closeMarketingScreens() {
+  const ps = document.getElementById("pricingScreen");
+  if (ps && !ps.classList.contains("hidden")) closePricing();
+  closeLanding();
+}
 function wirePricingScreen() {
   const ps = document.getElementById("pricingScreen");
   if (!ps) return;
@@ -8750,18 +8755,17 @@ function wirePricingScreen() {
   // Login / Signup CTAs in mini-nav
   document.getElementById("prLogin").addEventListener("click", () => {
     window.track("pricing_cta_click", { plan: "nav", billing: "n/a", which: "login" });
-    if (currentUser) { closePricing(); document.getElementById("landingScreen").classList.add("hidden"); }
+    if (currentUser) closeMarketingScreens();
     else openAuth("login");
   });
   document.getElementById("prSignup").addEventListener("click", () => {
     window.track("pricing_cta_click", { plan: "nav", billing: "n/a", which: "signup" });
-    if (currentUser) { closePricing(); document.getElementById("landingScreen").classList.add("hidden"); }
+    if (currentUser) closeMarketingScreens();
     else openAuth("signup");
   });
   document.getElementById("prOpenApp").addEventListener("click", () => {
     window.track("pricing_cta_click", { plan: "nav", billing: "n/a", which: "open_app" });
-    closePricing();
-    document.getElementById("landingScreen").classList.add("hidden");
+    closeMarketingScreens();
   });
   // Reuse the existing pricing-section wiring (plan cards, billing toggle, CTAs, FAQ)
   wirePricing(ps);
@@ -8931,7 +8935,7 @@ function wirePricing(ls) {
         }
         // Phase 1: route to existing signup; Phase 3 will swap for Stripe checkout.
         if (currentUser) {
-          closeLanding();
+          closeMarketingScreens();
         } else {
           openAuth("signup");
         }
@@ -8970,7 +8974,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "trial", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) closeMarketingScreens(); else openAuth("signup");
     });
   }
   const finalCta = document.getElementById("lpPricingFinalCta");
@@ -8979,7 +8983,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "final", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) closeMarketingScreens(); else openAuth("signup");
     });
   }
 
@@ -9086,7 +9090,7 @@ async function enterApp() {
   renderDemoBanner();
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
-  document.getElementById("landingScreen").classList.add("hidden");
+  closeMarketingScreens();
   document.getElementById("bootSplash").classList.add("hidden");
   // Onboarding/setup are now opt-in — the user lands in the calculator with
   // demo data and is nudged (via #setupNudge + the PFP menu) to finish setup
