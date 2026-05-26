@@ -104,8 +104,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     ? session.customer
     : session.customer?.id;
   if (!userId) {
-    console.warn("[webhook] checkout.completed missing client_reference_id");
-    return;
+    throw new Error("checkout.completed missing client_reference_id");
   }
 
   // Make sure stripe_customer_id is persisted (it should already be — the
@@ -129,13 +128,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
 async function handleSubscriptionChanged(sub: Stripe.Subscription) {
   const userId = await userIdFromSubscription(sub);
-  if (!userId) return;
+  if (!userId) throw new Error(`No profile found for subscription ${sub.id}`);
   await applySubscriptionToEntitlements(userId, sub);
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
   const userId = await userIdFromSubscription(sub);
-  if (!userId) return;
+  if (!userId) throw new Error(`No profile found for deleted subscription ${sub.id}`);
   // Downgrade back to trial-with-zero-quotes — the frontend's Phase-4
   // lockdown can decide what to do (offer reactivation, etc.).
   await patchEntitlements(userId, {
@@ -154,7 +153,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   if (!subId) return;
   const sub = await stripe.subscriptions.retrieve(subId);
   const userId = await userIdFromSubscription(sub);
-  if (!userId) return;
+  if (!userId) throw new Error(`No profile found for paid invoice ${invoice.id}`);
   await patchEntitlements(userId, {
     quotesUsedThisCycle: 0,
     cycleResetAt: sub.current_period_end * 1000,
@@ -194,13 +193,11 @@ async function applySubscriptionToEntitlements(
 ) {
   const item = sub.items.data[0];
   if (!item) {
-    console.warn("[webhook] subscription has no items", sub.id);
-    return;
+    throw new Error(`Subscription ${sub.id} has no items`);
   }
   const plan = planFromPriceId(item.price.id);
   if (!plan) {
-    console.warn("[webhook] unknown price id", item.price.id, "(check plan registry)");
-    return;
+    throw new Error(`Unknown Stripe price id ${item.price.id}; check plan registry`);
   }
   await patchEntitlements(userId, {
     plan,
@@ -217,18 +214,9 @@ async function patchEntitlements(
   userId: string,
   patch: Record<string, unknown>,
 ) {
-  const { data: profile, error: pErr } = await supabaseAdmin
-    .from("profiles")
-    .select("data")
-    .eq("id", userId)
-    .maybeSingle();
-  if (pErr) throw pErr;
-  const data = profile?.data ?? {};
-  data.config = data.config ?? {};
-  data.config.entitlements = { ...(data.config.entitlements ?? {}), ...patch };
-  const { error: upErr } = await supabaseAdmin
-    .from("profiles")
-    .update({ data })
-    .eq("id", userId);
-  if (upErr) throw upErr;
+  const { error } = await supabaseAdmin.rpc("profiles_patch_entitlements", {
+    p_user_id: userId,
+    p_patch: patch,
+  });
+  if (error) throw error;
 }
