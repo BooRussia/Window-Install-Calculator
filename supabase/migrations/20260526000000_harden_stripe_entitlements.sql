@@ -139,8 +139,10 @@ begin
 end;
 $$;
 
-revoke all on function public.profiles_safe_trial_entitlements() from public, anon, authenticated;
-revoke all on function public.profiles_with_entitlements(jsonb, jsonb) from public, anon, authenticated;
+revoke all on function public.profiles_safe_trial_entitlements() from public;
+revoke all on function public.profiles_with_entitlements(jsonb, jsonb) from public;
 revoke all on function public.profiles_preserve_server_entitlements() from public, anon, authenticated;
 revoke all on function public.profiles_patch_entitlements(uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.profiles_safe_trial_entitlements() to anon, authenticated, service_role;
+grant execute on function public.profiles_with_entitlements(jsonb, jsonb) to anon, authenticated, service_role;
 grant execute on function public.profiles_patch_entitlements(uuid, jsonb) to service_role;
