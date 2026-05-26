@@ -64,13 +64,19 @@ begin
   end if;
 
   -- First client-created profile gets a safe trial record regardless of any
-  -- localStorage tampering before signup.
+  -- localStorage tampering before signup, and cannot pre-seed a Stripe
+  -- customer id that belongs to someone else.
   if TG_OP = 'INSERT' then
+    NEW.stripe_customer_id = null;
     NEW.data = public.profiles_with_entitlements(
       NEW.data,
       public.profiles_safe_trial_entitlements()
     );
     return NEW;
+  end if;
+
+  if NEW.stripe_customer_id is distinct from OLD.stripe_customer_id then
+    raise exception 'stripe_customer_id is read-only for normal users';
   end if;
 
   old_entitlements := OLD.data->'config'->'entitlements';
