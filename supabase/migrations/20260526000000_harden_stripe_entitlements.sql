@@ -74,14 +74,18 @@ begin
   end if;
 
   old_entitlements := OLD.data->'config'->'entitlements';
-  new_entitlements := coalesce(
-    NEW.data->'config'->'entitlements',
-    '{}'::jsonb
-  );
-
   if old_entitlements is null then
     old_entitlements := public.profiles_safe_trial_entitlements();
   end if;
+
+  -- Settings actions like "restore defaults" may omit entitlements entirely.
+  -- Treat omission as "leave subscription state alone", not deletion.
+  if NEW.data->'config'->'entitlements' is null then
+    NEW.data = public.profiles_with_entitlements(NEW.data, old_entitlements);
+    return NEW;
+  end if;
+
+  new_entitlements := NEW.data->'config'->'entitlements';
 
   merged_entitlements := new_entitlements;
   foreach protected_key in array protected_keys loop
