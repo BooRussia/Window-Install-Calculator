@@ -6821,16 +6821,25 @@ async function reportMissingFL(query, source) {
 // Debounced — after typing stops, if an FL-looking query still has zero
 // matches, push it to the missing-FL# queue.
 let _flMissTimer = null;
+let _flMissSeq = 0;
 function scheduleFLMissingCheck(query, source) {
   clearTimeout(_flMissTimer);
   const q = (query || "").trim();
+  const seq = ++_flMissSeq;
   if (!/^fl\s?\d{4,}/i.test(q)) return;
-  _flMissTimer = setTimeout(() => {
+  _flMissTimer = setTimeout(async () => {
     const src = (source === "landing" ? DEFAULT_DATA.flApprovals : DATA.flApprovals) || {};
     const lc = q.toLowerCase();
     let found = false;
     Object.keys(src).forEach(mfr =>
       (src[mfr] || []).forEach(e => { if (flEntryMatches(mfr, e, lc)) found = true; }));
+    if (!found) {
+      try {
+        await loadFbcIndex();
+        found = searchFbc(q, 1).length > 0;
+      } catch (_) { /* If the official index is unavailable, keep catalog-only behavior. */ }
+    }
+    if (seq !== _flMissSeq) return;
     if (!found) reportMissingFL(q, source);
   }, 1200);
 }
@@ -7299,9 +7308,19 @@ let _fbcCache = null;        // { scrapedAt, approvals: [...] }
 let _fbcLoadPromise = null;  // dedupes concurrent loads
 let _fbcLoadError = null;
 
+function setFbcCache(data) {
+  if (!data || !Array.isArray(data.approvals)) {
+    throw new Error("FBC index is missing approvals array");
+  }
+  _fbcCache = data;
+  _fbcLoadError = null;
+  return _fbcCache;
+}
+
 async function loadFbcIndex() {
   if (_fbcCache) return _fbcCache;
   if (_fbcLoadPromise) return _fbcLoadPromise;
+  _fbcLoadError = null;
   _fbcLoadPromise = (async () => {
     try {
       const t0 = performance.now();
@@ -7313,7 +7332,7 @@ async function loadFbcIndex() {
             const ds = new DecompressionStream("gzip");
             const stream = res.body.pipeThrough(ds);
             const text = await new Response(stream).text();
-            _fbcCache = JSON.parse(text);
+            setFbcCache(JSON.parse(text));
             window.track?.("fbc_index_loaded", {
               source: "gz", ms: Math.round(performance.now() - t0), records: _fbcCache.approvals.length
             });
@@ -7324,7 +7343,7 @@ async function loadFbcIndex() {
       // Fallback: raw JSON
       const res = await fetch(FBC_INDEX_URL_RAW, { cache: "force-cache" });
       if (!res.ok) throw new Error("FBC index HTTP " + res.status);
-      _fbcCache = await res.json();
+      setFbcCache(await res.json());
       window.track?.("fbc_index_loaded", {
         source: "raw", ms: Math.round(performance.now() - t0), records: _fbcCache.approvals.length
       });
@@ -7332,6 +7351,7 @@ async function loadFbcIndex() {
     } catch (err) {
       _fbcLoadError = err;
       console.warn("[fbc] failed to load index", err);
+      _fbcCache = null;
       throw err;
     } finally {
       _fbcLoadPromise = null;
@@ -7437,11 +7457,16 @@ async function renderFbcInto(containerId, query, opts = {}) {
     </div>`;
     try { await loadFbcIndex(); } catch (_) {}
   }
-  if (_fbcLoadError) {
+  if (_fbcLoadError && !_fbcCache) {
     wrap.innerHTML = `<div class="text-center text-rose-400 text-xs py-6">
       Couldn't load the FBC database.
-      <button onclick="loadFbcIndex().then(()=>renderFbcInto('${containerId}','${escHtml(q).replace(/'/g,"\\'")}'))" class="underline ml-1">Retry</button>
+      <button type="button" data-fbc-retry class="underline ml-1">Retry</button>
     </div>`;
+    wrap.querySelector("[data-fbc-retry]")?.addEventListener("click", () => {
+      loadFbcIndex()
+        .catch(() => {})
+        .then(() => renderFbcInto(containerId, q, opts));
+    });
     return;
   }
   const results = searchFbc(q, opts.limit ?? 100);
