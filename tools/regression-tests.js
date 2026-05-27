@@ -16,6 +16,10 @@ function sliceBetween(startMarker, endMarker) {
   return html.slice(start, end);
 }
 
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function loadStorageApi(storage) {
   const storageScript = sliceBetween("const DEFAULT_DATA = ", "let DATA = loadData();");
   const context = {
@@ -57,7 +61,7 @@ globalThis.__fbc = {
   assert.ok(context.__fbc.error, "first failed load should record an error");
 
   const cache = await context.__fbc.loadFbcIndex();
-  assert.deepEqual(cache, { approvals: [] });
+  assert.deepEqual(plain(cache), { approvals: [] });
   assert.equal(context.__fbc.error, null, "successful retry should clear the stale error");
 }
 
@@ -80,7 +84,7 @@ async function main() {
   saveRawData(customized);
   let loaded = loadData();
   assert.equal(loaded.config.flSeedV, 1);
-  assert.deepEqual(loaded.manufacturerRates.Viwinco, customized.manufacturerRates.Viwinco);
+  assert.deepEqual(plain(loaded.manufacturerRates.Viwinco), customized.manufacturerRates.Viwinco);
 
   const untouched = clone(DEFAULT_DATA);
   delete untouched.config.flSeedV;
@@ -92,7 +96,7 @@ async function main() {
   };
   saveRawData(untouched);
   loaded = loadData();
-  assert.deepEqual(loaded.manufacturerRates.Viwinco, DEFAULT_DATA.manufacturerRates.Viwinco);
+  assert.deepEqual(plain(loaded.manufacturerRates.Viwinco), plain(DEFAULT_DATA.manufacturerRates.Viwinco));
 
   const deletedSeed = clone(DEFAULT_DATA);
   delete deletedSeed.config.flSeedV;
