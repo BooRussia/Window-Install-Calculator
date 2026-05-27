@@ -4508,12 +4508,15 @@ function loadData() {
     Object.keys(merged.manufacturerRates).forEach(k => {
       merged.manufacturerRates[k] = normalizeMfrRate(merged.manufacturerRates[k]);
     });
-    // One-time migration: re-seed the default manufacturers' screw density from
-    // the FL-approval-derived numbers, replacing the original placeholder guesses.
+    // One-time migration: re-seed untouched demo/default screw densities from
+    // the FL-approval-derived numbers. Preserve users who already saved real
+    // rates so quote math is not silently overwritten on first post-update load.
     if (needsFlSeed) {
-      Object.keys(DEFAULT_DATA.manufacturerRates).forEach(k => {
-        merged.manufacturerRates[k] = clone(DEFAULT_DATA.manufacturerRates[k]);
-      });
+      if (!merged.config.ratesCustomized) {
+        Object.keys(DEFAULT_DATA.manufacturerRates).forEach(k => {
+          merged.manufacturerRates[k] = clone(DEFAULT_DATA.manufacturerRates[k]);
+        });
+      }
       merged.config.flSeedV = 1;
     }
     // Drop obsolete per-manufacturer rate keys (they moved to manufacturerRates)
@@ -4538,6 +4541,7 @@ function loadJobs() {
 function saveJobs(j) { localStorage.setItem(LS_KEYS.jobs, JSON.stringify(j)); }
 
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
+function flSeedKey(fl) { return String(fl || "").trim().toUpperCase(); }
 
 // Normalize a screw count into { impact, nonImpact }. Accepts a bare number
 // (legacy format) or a partial object, falling back to `dflt`.
@@ -4578,16 +4582,18 @@ function mergeData(base, override) {
   if (override?.flApprovals && typeof override.flApprovals === "object") {
     base.flApprovals = override.flApprovals;
     // Reseed: any DEFAULT_DATA `seeded: true` entries the user doesn't have
-    // yet get added to their list (matched by FL#). Lets us roll out new
-    // official approvals to existing users without wiping their custom adds.
-    // (If a user explicitly deletes a seeded entry it re-appears on next
-    //  load — acceptable for now; deleted-seeds tracking is TODO.)
+    // yet get added to their list (matched by FL#). Explicitly deleted seeded
+    // entries are tombstoned in config.deletedFlSeedFls so deletes survive load.
+    const deletedSeedFls = new Set(((base.config && base.config.deletedFlSeedFls) || [])
+      .map(flSeedKey).filter(Boolean));
     for (const [mfr, defaults] of Object.entries(DEFAULT_DATA.flApprovals || {})) {
       const userList = base.flApprovals[mfr] = base.flApprovals[mfr] || [];
-      const userFls = new Set(userList.flatMap(e => e.fls || []));
+      const userFls = new Set(userList.flatMap(e => e.fls || []).map(flSeedKey).filter(Boolean));
       for (const seed of defaults) {
         if (!seed.seeded) continue;
-        if ((seed.fls || []).some(fl => userFls.has(fl))) continue;
+        const seedFls = (seed.fls || []).map(flSeedKey).filter(Boolean);
+        if (seedFls.some(fl => deletedSeedFls.has(fl))) continue;
+        if (seedFls.some(fl => userFls.has(fl))) continue;
         userList.push(clone(seed));
       }
     }
@@ -7626,6 +7632,12 @@ function deleteFLEntry(mfr, idx) {
   if (!list || !list[idx]) return;
   const e = list[idx];
   if (!confirm(`Delete ${(e.fls || []).join(", ") || "this FL#"}?`)) return;
+  if (e.seeded) {
+    DATA.config = DATA.config || {};
+    const deleted = new Set((DATA.config.deletedFlSeedFls || []).map(flSeedKey).filter(Boolean));
+    (e.fls || []).map(flSeedKey).filter(Boolean).forEach(fl => deleted.add(fl));
+    DATA.config.deletedFlSeedFls = Array.from(deleted).sort();
+  }
   list.splice(idx, 1);
   if (!list.length) delete DATA.flApprovals[mfr];
   saveData(DATA);
@@ -7652,8 +7664,12 @@ let _fbcLoadPromise = null;  // dedupes concurrent loads
 let _fbcLoadError = null;
 
 async function loadFbcIndex() {
-  if (_fbcCache) return _fbcCache;
+  if (_fbcCache) {
+    _fbcLoadError = null;
+    return _fbcCache;
+  }
   if (_fbcLoadPromise) return _fbcLoadPromise;
+  _fbcLoadError = null;
   _fbcLoadPromise = (async () => {
     try {
       const t0 = performance.now();
