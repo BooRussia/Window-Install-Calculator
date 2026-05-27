@@ -66,12 +66,10 @@ assert.equal(result.totalHrs, 66.5);
 assert.equal(result.customerLaborTotal, 4987.5);
 assert.equal(result.crewPayTotal, 6982.5);
 assert.equal(result.effectivePerLF, 49.875);
-assert.deepEqual(
-  result.breakdown.map(row => row.label),
-  [
-    "Mobilization (load \u00b7 drive \u00b7 stage)",
-    "Per-opening setup (13 openings \u00d7 45 min)",
-    "Window install (100 LF \u00d7 30.0 min/LF)",
-    "Door install (3 doors)",
-  ]
-);
+const labels = Array.from(result.breakdown, row => row.label);
+assert.deepEqual(labels, [
+  "Mobilization (load \u00b7 drive \u00b7 stage)",
+  "Per-opening setup (13 openings \u00d7 45 min)",
+  "Window install (100 LF \u00d7 30.0 min/LF)",
+  "Door install (3 doors)",
+]);
