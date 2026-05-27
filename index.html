@@ -7366,7 +7366,17 @@ function searchFbc(query, limit = 100) {
   return [...exact, ...prefix, ...partial].slice(0, limit);
 }
 
-// Render a single FBC approval as a card (modal + landing both use this)
+// Supabase edge function that proxies floridabuilding.org PDFs with CORS
+// (FBC sets X-Frame-Options: SAMEORIGIN so we can't iframe them directly).
+const FBC_PDF_PROXY = "https://fzitkcvmbvyeilwzclme.supabase.co/functions/v1/proxy-fbc-pdf";
+function proxiedPdfUrl(fbcUrl) {
+  return FBC_PDF_PROXY + "?url=" + encodeURIComponent(fbcUrl);
+}
+
+// Render a single FBC approval as a card (modal + landing both use this).
+// Each card has a collapsible "View install drawing" section that lazily
+// embeds the PDF via the proxy — keeps the initial render fast and only
+// pays the bandwidth for PDFs the user actually opens.
 function fbcCard(a) {
   const fl = "FL" + escHtml(a.fl) + (a.rev ? "-" + escHtml(a.rev) : "");
   const hasHvhz   = (a.products || []).some(p => p.hvhz);
@@ -7389,14 +7399,35 @@ function fbcCard(a) {
      </div>`).join("");
   const moreProducts = a.products && a.products.length > 6
     ? `<div class="text-[10px] text-slate-600 italic">+ ${a.products.length - 6} more model line${a.products.length - 6 === 1 ? "" : "s"}</div>` : "";
-  const pdfBtn = a.installPdf
-    ? `<a href="${escHtml(a.installPdf)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#c9a558] hover:text-[#dfc07a]">
-         <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5h14M10 1.5v14M5 11l5 5 5-5"/></svg>
-         Installation PDF
-       </a>` : "";
+
+  // Pre-extracted structured screw patterns (Phase C output) — shown above
+  // the PDF embed when we have them. Falls back to the inline PDF for
+  // FL#s we haven't extracted yet.
+  const patterns = a.patterns || {};
+  const patternRows = Object.entries(patterns).map(([sub, text]) =>
+    `<div class="flex gap-2 text-[11px] leading-snug">
+       <div class="text-slate-500 font-semibold w-24 flex-shrink-0 capitalize">${escHtml(sub)}</div>
+       <div class="text-slate-300">${escHtml(text)}</div>
+     </div>`).join("");
+  const patternsBlock = patternRows
+    ? `<div class="mt-2.5 pt-2.5 border-t border-slate-800/60">
+         <div class="text-[10px] uppercase tracking-[0.14em] text-[#c9a558] font-bold mb-1.5">Screw Pattern</div>
+         <div class="space-y-1">${patternRows}</div>
+       </div>` : "";
+
+  // Inline PDF viewer — collapsed by default, lazy-loaded on expand
+  const pdfBlock = a.installPdf
+    ? `<details class="fbc-pdf-details mt-2 group" data-pdf-url="${escHtml(a.installPdf)}">
+         <summary class="cursor-pointer select-none inline-flex items-center gap-1.5 text-[11px] font-bold text-[#c9a558] hover:text-[#dfc07a]">
+           <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-open:rotate-90"><polyline points="7 4 13 10 7 16"/></svg>
+           ${patternRows ? "View install drawing" : "View install drawing (screw pattern)"}
+         </summary>
+         <div class="mt-2 fbc-pdf-frame-wrap"></div>
+       </details>` : "";
+
   const detailBtn = a.detailUrl
-    ? `<a href="${escHtml(a.detailUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-300">
-         Details ↗
+    ? `<a href="${escHtml(a.detailUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 hover:text-slate-400">
+         Full record on floridabuilding.org ↗
        </a>` : "";
 
   return `<div class="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
@@ -7410,9 +7441,36 @@ function fbcCard(a) {
     <div class="text-xs font-semibold text-slate-200 mb-1.5">${escHtml(a.mfr || "—")}</div>
     <div class="space-y-1">${products}</div>
     ${moreProducts}
-    <div class="flex items-center gap-3 mt-2">${pdfBtn}${detailBtn}</div>
+    ${patternsBlock}
+    ${pdfBlock}
+    <div class="mt-2">${detailBtn}</div>
   </div>`;
 }
+
+// Delegated handler: when a <details data-pdf-url> opens, lazy-inject the
+// PDF iframe (via the CORS proxy). Inserts once, then re-opens are cached.
+document.addEventListener("toggle", (e) => {
+  const el = e.target;
+  if (!el.matches?.(".fbc-pdf-details")) return;
+  if (!el.open) return;
+  const wrap = el.querySelector(".fbc-pdf-frame-wrap");
+  if (!wrap || wrap.firstChild) return; // already loaded
+  const pdfUrl = el.dataset.pdfUrl;
+  if (!pdfUrl) return;
+  try { window.track?.("fbc_pdf_viewed", { url: pdfUrl }); } catch (_) {}
+  // 600px tall by default — tall enough to read a typical install drawing
+  // without dwarfing the rest of the modal. User can scroll inside iframe.
+  wrap.innerHTML = `<iframe
+    src="${escHtml(proxiedPdfUrl(pdfUrl))}#toolbar=1&navpanes=0"
+    class="w-full rounded border border-slate-800 bg-slate-950"
+    style="height:600px;"
+    title="Install instructions PDF"
+    loading="lazy"></iframe>
+   <div class="text-[10px] text-slate-600 mt-1.5 flex items-center justify-between">
+     <span>PDF served via Anchor's CORS proxy — original at floridabuilding.org.</span>
+     <a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener" class="text-[#c9a558] hover:text-[#dfc07a] font-semibold">Open in new tab ↗</a>
+   </div>`;
+}, true);
 
 // Render FBC results into a container — wraps the loader + search.
 // State machine: loading → loaded → error / no results.
