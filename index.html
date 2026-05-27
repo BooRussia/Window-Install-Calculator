@@ -4855,10 +4855,18 @@ function estimateLaborBreakdown() {
 
   // Counts
   const wc = parseInt(STATE.windowCount, 10) || 0;
-  const lf = Number(STATE.lf) || 0;
-  // Door count from variants — sum quantities. Doors are already piece-rate
-  // priced via DATA.swingDoors so we count them for setup time only.
-  const doorVariants = (STATE.swingDoorVariants || []);
+  const lf = parseFloat(STATE.totalLF) || 0;
+  // Door count from the persisted rail shape. Doors are already piece-rate
+  // priced via DATA.config.swingDoors so we count them for setup time here.
+  const swingCfg = (DATA.config && DATA.config.swingDoors) || {};
+  const swingEnabled = swingCfg.enabled !== false;
+  const swingDoors = swingEnabled ? (STATE.swingDoors || {}) : {};
+  const doorVariants = swingEnabled
+    ? [
+        { type: "single", qty: Math.max(0, parseInt(swingDoors.single, 10) || 0) },
+        { type: "double", qty: Math.max(0, parseInt(swingDoors.double, 10) || 0) },
+      ].filter(v => v.qty > 0)
+    : [];
   const dc = doorVariants.reduce((s, v) => s + (parseInt(v.qty, 10) || 0), 0);
 
   // Setup overhead — every opening, window or door, costs the same setup
@@ -4871,9 +4879,9 @@ function estimateLaborBreakdown() {
 
   // Door install — pull from swing-door config (minutes per door × qty)
   let doorInstallHrs = 0;
-  if (DATA.swingDoors && doorVariants.length) {
+  if (swingEnabled && doorVariants.length) {
     for (const v of doorVariants) {
-      const rate = (DATA.swingDoors.rates || {})[v.type];   // 'single' | 'double'
+      const rate = (swingCfg.rates || {})[v.type];   // 'single' | 'double'
       if (!rate) continue;
       const minutes = (parseInt(v.qty, 10) || 0) * (Number(rate.labor) || 0);
       doorInstallHrs += minutes / 60;
