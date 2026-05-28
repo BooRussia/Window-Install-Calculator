@@ -4737,6 +4737,19 @@ function setCountyValue(prefix, county) {
   if (search) search.value = county || "";
 }
 
+function reconcileCountyValue(prefix) {
+  const hidden = document.getElementById(prefix + "County");
+  const search = document.getElementById(prefix + "CountySearch");
+  if (!hidden || !search) return "";
+  const typed = search.value.trim().toLowerCase();
+  const exact = Object.keys(FL_COUNTY_SURTAX).find(c => c.toLowerCase() === typed);
+  const prev = hidden.value || "";
+  const county = exact || prev;
+  setCountyValue(prefix, county);
+  if (exact && exact !== prev) hidden.dispatchEvent(new Event("change", { bubbles: true }));
+  return county;
+}
+
 function setupCountyCombobox(prefix) {
   const hidden = document.getElementById(prefix + "County");
   const search = document.getElementById(prefix + "CountySearch");
@@ -4768,6 +4781,7 @@ function setupCountyCombobox(prefix) {
     hidden.dispatchEvent(new Event("change", { bubbles: true }));
     close();
   };
+  const reconcileAndClose = () => { reconcileCountyValue(prefix); close(); };
 
   search.addEventListener("focus", open);
   search.addEventListener("input", () => { activeIdx = -1; open(); });
@@ -4776,19 +4790,17 @@ function setupCountyCombobox(prefix) {
     if (e.key === "ArrowDown")      { e.preventDefault(); activeIdx = Math.min(filtered.length - 1, activeIdx + 1); render(search.value); scrollActive(); }
     else if (e.key === "ArrowUp")   { e.preventDefault(); activeIdx = Math.max(0, activeIdx - 1); render(search.value); scrollActive(); }
     else if (e.key === "Enter" && activeIdx >= 0 && filtered[activeIdx]) { e.preventDefault(); pick(filtered[activeIdx]); }
-    else if (e.key === "Escape")    { close(); }
+    else if (e.key === "Escape")    { e.preventDefault(); e.stopPropagation(); reconcileAndClose(); }
   });
+  search.addEventListener("blur", reconcileAndClose);
   // Keep focus on mousedown so the click registers before any close logic
   list.addEventListener("mousedown", (e) => e.preventDefault());
   list.addEventListener("click", (e) => { const b = e.target.closest("[data-county]"); if (b) pick(b.dataset.county); });
   // Close + reconcile on outside pointer (mobile-safe — no blur race)
   document.addEventListener("pointerdown", (e) => {
-    if (list.classList.contains("hidden")) return;
     if (e.target.closest(`[data-county-prefix="${prefix}"]`)) return;
     // Accept an exact typed match; otherwise revert the display to the last valid value
-    const typed = search.value.trim().toLowerCase();
-    const exact = counties.find(c => c.toLowerCase() === typed);
-    if (exact) pick(exact); else { setCountyValue(prefix, hidden.value); close(); }
+    reconcileAndClose();
   });
 }
 
@@ -8807,6 +8819,7 @@ function variantRowHTML(catId, unit, v, isDefault) {
 
 function saveAdmin() {
   // Brand
+  reconcileCountyValue("brand");
   if (!DATA.config.brand) DATA.config.brand = {};
   DATA.config.brand.companyName = document.getElementById("brandCompanyName").value.trim();
   DATA.config.brand.tagline = document.getElementById("brandTagline").value.trim();
@@ -11433,6 +11446,7 @@ function renderOnboardingStatus() {
 }
 
 function submitOnboarding() {
+  reconcileCountyValue("ob");
   const name = document.getElementById("obCompanyName").value.trim();
   if (!name) {
     const m = document.getElementById("obMsg");
