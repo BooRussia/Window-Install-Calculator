@@ -104,8 +104,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     ? session.customer
     : session.customer?.id;
   if (!userId) {
-    console.warn("[webhook] checkout.completed missing client_reference_id");
-    return;
+    throw new Error("checkout.completed missing client_reference_id");
   }
 
   // Make sure stripe_customer_id is persisted (it should already be — the
@@ -129,13 +128,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
 async function handleSubscriptionChanged(sub: Stripe.Subscription) {
   const userId = await userIdFromSubscription(sub);
-  if (!userId) return;
+  if (!userId) throw new Error(`Could not map subscription ${sub.id} to a user`);
   await applySubscriptionToEntitlements(userId, sub);
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
   const userId = await userIdFromSubscription(sub);
-  if (!userId) return;
+  if (!userId) throw new Error(`Could not map deleted subscription ${sub.id} to a user`);
   // Downgrade back to trial-with-zero-quotes — the frontend's Phase-4
   // lockdown can decide what to do (offer reactivation, etc.).
   await patchEntitlements(userId, {
@@ -154,7 +153,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   if (!subId) return;
   const sub = await stripe.subscriptions.retrieve(subId);
   const userId = await userIdFromSubscription(sub);
-  if (!userId) return;
+  if (!userId) throw new Error(`Could not map paid invoice ${invoice.id} to a user`);
   await patchEntitlements(userId, {
     quotesUsedThisCycle: 0,
     cycleResetAt: sub.current_period_end * 1000,
@@ -194,13 +193,11 @@ async function applySubscriptionToEntitlements(
 ) {
   const item = sub.items.data[0];
   if (!item) {
-    console.warn("[webhook] subscription has no items", sub.id);
-    return;
+    throw new Error(`Subscription ${sub.id} has no items`);
   }
   const plan = planFromPriceId(item.price.id);
   if (!plan) {
-    console.warn("[webhook] unknown price id", item.price.id, "(check plan registry)");
-    return;
+    throw new Error(`Unknown Stripe price id ${item.price.id}; check plan registry`);
   }
   await patchEntitlements(userId, {
     plan,
