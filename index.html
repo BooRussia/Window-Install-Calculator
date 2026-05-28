@@ -1905,8 +1905,9 @@
       </div>
     </div>
 
-    <!-- Fabricated client logos — desaturated text+icon "wordmarks" that read as a logo wall -->
-    <div class="lp-reveal mt-10 sm:mt-14">
+    <!-- Fabricated client logos — desaturated text+icon "wordmarks" that read as a logo wall.
+         Gated behind LP_TRUST_COUNT (hidden until there are real customers). -->
+    <div id="lpLogoWall" class="lp-reveal mt-10 sm:mt-14">
       <div class="lp-logo-row">
         <!-- CYPRESS GLASS CO — palm glyph -->
         <div class="lp-logo-tile" title="Cypress Glass Co.">
@@ -1961,8 +1962,8 @@
     <!-- Testimonial + security strip side-by-side on desktop, stacked on mobile.
          The lp-card framing keeps the band visually consistent with the rest of the page
          without escalating to feature-section weight. -->
-    <div class="lp-reveal mt-10 sm:mt-14 grid md:grid-cols-5 gap-6 sm:gap-8 items-stretch">
-      <div class="md:col-span-3">
+    <div id="lpProofGrid" class="lp-reveal mt-10 sm:mt-14 grid md:grid-cols-5 gap-6 sm:gap-8 items-stretch">
+      <div id="lpTestimonial" class="md:col-span-3">
         <div class="lp-card rounded-2xl px-6 sm:px-7 py-6 sm:py-7 h-full flex flex-col justify-center">
           <blockquote class="lp-quote">
             <p class="lp-quote-text">"Cut my quoting time from 45 minutes to 2. The FL approval lookup alone saves me hours a week."</p>
@@ -1976,7 +1977,7 @@
           </div>
         </div>
       </div>
-      <div class="md:col-span-2">
+      <div id="lpSecurityStrip" class="md:col-span-2">
         <div class="lp-card rounded-2xl px-6 py-6 sm:py-7 h-full flex flex-col justify-center">
           <div class="text-[10px] uppercase tracking-[0.16em] text-[#c9a558] font-bold mb-3">Built right</div>
           <div class="lp-trust-strip">
@@ -10791,9 +10792,19 @@ function wireLanding() {
   const LP_TRUST_COUNT = 0;
   const trustCount = document.getElementById("lpTrustCount");
   if (LP_TRUST_COUNT <= 0) {
-    // Pre-launch: hide the unsubstantiated count + rating headline entirely.
+    // Pre-launch: hide ALL fabricated social proof until there are real
+    // customers — the count + rating headline, the client-logo wall, and
+    // the testimonial. The "Built right" security strip (encrypted /
+    // US-hosted / FL code current) stays — those are factual, not social
+    // proof — and stretches to fill the row once the testimonial is gone.
     const headline = document.querySelector("#lpTrust .lp-trust-headline");
     if (headline) headline.classList.add("hidden");
+    const logoWall = document.getElementById("lpLogoWall");
+    if (logoWall) logoWall.classList.add("hidden");
+    const testimonial = document.getElementById("lpTestimonial");
+    if (testimonial) testimonial.classList.add("hidden");
+    const strip = document.getElementById("lpSecurityStrip");
+    if (strip) { strip.classList.remove("md:col-span-2"); strip.classList.add("md:col-span-5"); }
   }
   if (trustCount && LP_TRUST_COUNT > 0) {
     const target = LP_TRUST_COUNT;
