@@ -1337,6 +1337,21 @@
     100% { box-shadow: 0 0 0 0 rgba(201,165,88,0.0); }
   }
   .rates-pulse { animation: ratesPulse 1.4s ease-out; border-radius: 12px; }
+  /* Searchable county combobox */
+  .county-combo-list {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 60;
+    max-height: 244px; overflow-y: auto;
+    background: #0b1120; border: 1px solid #1e293b; border-radius: 12px;
+    box-shadow: 0 24px 48px -12px rgba(0,0,0,0.7); padding: 4px;
+  }
+  .county-combo-opt {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px;
+    font-size: 13px; color: #cbd5e1; cursor: pointer; background: transparent; border: 0;
+  }
+  .county-combo-opt:hover, .county-combo-opt.active { background: var(--gold-soft); color: var(--gold-hi); }
+  .county-combo-opt .ct-tax { color: #64748b; font-size: 11px; flex-shrink: 0; }
+  .county-combo-opt:hover .ct-tax, .county-combo-opt.active .ct-tax { color: var(--gold-hi); }
   /* Hide native disclosure arrow on the material card summary
      (we render our own chevron) */
   #adminRatesBody details > summary::-webkit-details-marker { display: none; }
@@ -2556,7 +2571,12 @@
       </div>
       <div>
         <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1 flex items-center justify-between gap-2"><span>County <span class="text-slate-600 normal-case tracking-normal">· sets your sales-tax rate</span></span><span class="ob-status normal-case tracking-normal" data-status-for="obCounty"></span></label>
-        <select id="obCounty" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100"></select>
+        <div class="county-combo relative" data-county-prefix="ob">
+          <input type="hidden" id="obCounty" />
+          <input id="obCountySearch" type="text" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false"
+            placeholder="Type your county…" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+          <div id="obCountyList" role="listbox" class="county-combo-list hidden"></div>
+        </div>
         <p id="obCountyTax" class="hidden text-[11px] text-[#c9a558] mt-1 font-semibold"></p>
       </div>
       <div>
@@ -3564,7 +3584,12 @@
             </div>
             <div class="sm:col-span-2">
               <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">County <span class="text-slate-600 normal-case tracking-normal">· sets the Materials Tax rate</span></label>
-              <select id="brandCounty" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+              <div class="county-combo relative" data-county-prefix="brand">
+                <input type="hidden" id="brandCounty" />
+                <input id="brandCountySearch" type="text" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false"
+                  placeholder="Type your county…" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+                <div id="brandCountyList" role="listbox" class="county-combo-list hidden"></div>
+              </div>
             </div>
             <div>
               <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Phone <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
@@ -4697,6 +4722,74 @@ function countyOptionsHTML(selected) {
   return `<option value="">Select county…</option>` +
     Object.keys(FL_COUNTY_SURTAX).map(c =>
       `<option value="${c}"${c === selected ? " selected" : ""}>${c}</option>`).join("");
+}
+
+// ─── Searchable county combobox ──────────────────────────────────────────
+// Type-to-filter over the 67 FL counties. Backed by a hidden <input> that
+// keeps the same id (obCounty / brandCounty) so every existing .value read
+// and the sales-tax lookup keep working unchanged. On pick, dispatches a
+// 'change' on the hidden input so existing change listeners fire.
+//   prefix = "ob" | "brand"
+function setCountyValue(prefix, county) {
+  const hidden = document.getElementById(prefix + "County");
+  const search = document.getElementById(prefix + "CountySearch");
+  if (hidden) hidden.value = county || "";
+  if (search) search.value = county || "";
+}
+
+function setupCountyCombobox(prefix) {
+  const hidden = document.getElementById(prefix + "County");
+  const search = document.getElementById(prefix + "CountySearch");
+  const list   = document.getElementById(prefix + "CountyList");
+  if (!hidden || !search || !list || search._comboWired) return;
+  search._comboWired = true;
+
+  const counties = Object.keys(FL_COUNTY_SURTAX);
+  let activeIdx = -1, filtered = [];
+
+  const render = (q) => {
+    q = (q || "").trim().toLowerCase();
+    filtered = counties.filter(c => !q || c.toLowerCase().includes(q));
+    if (!filtered.length) {
+      list.innerHTML = `<div class="px-2.5 py-2 text-[12px] text-slate-600">No county matches "${escHtml(q)}"</div>`;
+      return;
+    }
+    list.innerHTML = filtered.map((c, i) => {
+      const tax = materialsTaxForCounty(c);
+      return `<button type="button" class="county-combo-opt${i === activeIdx ? " active" : ""}" data-county="${escHtml(c)}">`
+        + `<span>${escHtml(c)}</span><span class="ct-tax">${tax != null ? tax.toFixed(1) + "%" : ""}</span></button>`;
+    }).join("");
+  };
+  const open  = () => { render(search.value); list.classList.remove("hidden"); search.setAttribute("aria-expanded", "true"); };
+  const close = () => { list.classList.add("hidden"); search.setAttribute("aria-expanded", "false"); activeIdx = -1; };
+  const scrollActive = () => { const el = list.querySelector(".county-combo-opt.active"); if (el) el.scrollIntoView({ block: "nearest" }); };
+  const pick = (county) => {
+    setCountyValue(prefix, county);
+    hidden.dispatchEvent(new Event("change", { bubbles: true }));
+    close();
+  };
+
+  search.addEventListener("focus", open);
+  search.addEventListener("input", () => { activeIdx = -1; open(); });
+  search.addEventListener("keydown", (e) => {
+    if (list.classList.contains("hidden") && e.key !== "Escape" && e.key !== "Tab") open();
+    if (e.key === "ArrowDown")      { e.preventDefault(); activeIdx = Math.min(filtered.length - 1, activeIdx + 1); render(search.value); scrollActive(); }
+    else if (e.key === "ArrowUp")   { e.preventDefault(); activeIdx = Math.max(0, activeIdx - 1); render(search.value); scrollActive(); }
+    else if (e.key === "Enter" && activeIdx >= 0 && filtered[activeIdx]) { e.preventDefault(); pick(filtered[activeIdx]); }
+    else if (e.key === "Escape")    { close(); }
+  });
+  // Keep focus on mousedown so the click registers before any close logic
+  list.addEventListener("mousedown", (e) => e.preventDefault());
+  list.addEventListener("click", (e) => { const b = e.target.closest("[data-county]"); if (b) pick(b.dataset.county); });
+  // Close + reconcile on outside pointer (mobile-safe — no blur race)
+  document.addEventListener("pointerdown", (e) => {
+    if (list.classList.contains("hidden")) return;
+    if (e.target.closest(`[data-county-prefix="${prefix}"]`)) return;
+    // Accept an exact typed match; otherwise revert the display to the last valid value
+    const typed = search.value.trim().toLowerCase();
+    const exact = counties.find(c => c.toLowerCase() === typed);
+    if (exact) pick(exact); else { setCountyValue(prefix, hidden.value); close(); }
+  });
 }
 
 /* ============================================================
@@ -6754,8 +6847,15 @@ function deleteJob(id) {
 function outputPDF(doc, filename, mode) {
   if (mode === "view") {
     try {
-      window.open(doc.output("bloburl"), "_blank");
-      toast("Opening preview…");
+      // window.open returns null when the browser blocks the popup (common
+      // default in Safari/Chrome). If that happens, clicking "View" would
+      // silently do nothing — a dead end for a non-technical user. Detect
+      // the block and fall back to a download so something always happens.
+      const win = window.open(doc.output("bloburl"), "_blank");
+      if (win && !win.closed) { toast("Opening preview…"); return; }
+      // Popup blocked → download instead + tell the user why
+      doc.save(filename);
+      toast("Preview was blocked — downloaded the PDF instead");
       return;
     } catch (e) { /* fall through to download */ }
   }
@@ -8316,7 +8416,8 @@ function buildAdminUI() {
   document.getElementById("brandTagline").value = b.tagline || "";
   document.getElementById("brandCity").value = b.city || "";
   document.getElementById("brandState").value = b.state || "";
-  document.getElementById("brandCounty").innerHTML = countyOptionsHTML(b.county || "");
+  setupCountyCombobox("brand");
+  setCountyValue("brand", b.county || "");
   document.getElementById("brandPhone").value = b.phone || "";
   document.getElementById("brandEmail").value = b.email || "";
   document.getElementById("brandWebsite").value = b.website || "";
@@ -8640,17 +8741,34 @@ function attachRatesNavObserver() {
     ...document.querySelectorAll("#adminRatesBody [data-rates-item]"),
   ];
   if (!targets.length) return;
-  // The settings content area is the scroll container — root: null tracks
-  // the viewport which is approximately right since the modal fills it.
+
+  // The content scrolls inside an inner container (the settings modal's
+  // overflow-y-auto panel), NOT the window — so the observer must use that
+  // container as its root, or intersection ratios are computed against the
+  // wrong box and the wrong link lights up.
+  const scrollRoot = document.getElementById("ratesShell")?.closest(".overflow-y-auto") || null;
+
+  // DOM order index for "topmost wins" tie-breaking. Multiple sections can
+  // straddle the trigger band at once; we want the one highest on the page.
+  const order = new Map(targets.map((t, i) => [t.id, i]));
+  const visible = new Set();
+
+  const highlightTopmost = () => {
+    if (!visible.size) return;
+    let bestId = null, best = Infinity;
+    visible.forEach(id => { const o = order.get(id); if (o != null && o < best) { best = o; bestId = id; } });
+    if (!bestId) return;
+    document.querySelectorAll(".rates-nav-link.active").forEach(el => el.classList.remove("active"));
+    document.querySelectorAll(`.rates-nav-link[data-nav-link="${bestId}"]`).forEach(l => l.classList.add("active"));
+  };
+
   _ratesNavObserver = new IntersectionObserver((entries) => {
     entries.forEach(en => {
-      if (en.isIntersecting) {
-        document.querySelectorAll(".rates-nav-link.active").forEach(el => el.classList.remove("active"));
-        const links = document.querySelectorAll(`.rates-nav-link[data-nav-link="${en.target.id}"]`);
-        links.forEach(l => l.classList.add("active"));
-      }
+      if (en.isIntersecting) visible.add(en.target.id);
+      else visible.delete(en.target.id);
     });
-  }, { rootMargin: "-30% 0px -55% 0px", threshold: 0 });
+    highlightTopmost();
+  }, { root: scrollRoot, rootMargin: "0px 0px -70% 0px", threshold: 0 });
   targets.forEach(t => _ratesNavObserver.observe(t));
 }
 
@@ -11145,7 +11263,8 @@ function showOnboarding() {
   document.getElementById("obTagline").value = b.tagline || "";
   document.getElementById("obCity").value = realOrBlank(b.city, DEMO_BRAND.city);
   document.getElementById("obState").value = fresh && (b.city || "") === DEMO_BRAND.city ? "Florida" : (b.state || "");
-  document.getElementById("obCounty").innerHTML = countyOptionsHTML(b.county || "");
+  setupCountyCombobox("ob");
+  setCountyValue("ob", b.county || "");
   updateObCountyTax();
   document.getElementById("obPhone").value = b.phone || "";
   document.getElementById("obEmail").value = b.email || "";
