@@ -2693,8 +2693,14 @@
         </div>
         <input id="authEmail" type="email" autocomplete="email" placeholder="Email"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
-        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password"
-          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <div class="relative">
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password"
+            class="control rounded-xl px-4 py-3 pr-11 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+          <button id="authPwToggle" type="button" tabindex="-1" aria-label="Show or hide password"
+            class="btn absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#c9a558] p-1.5">
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="10" cy="10" r="2.5"/></svg>
+          </button>
+        </div>
         <div id="authForgotRow" class="flex justify-end -mt-1">
           <button id="authForgotLink" type="button"
             class="btn text-[11px] text-slate-400 hover:text-[#c9a558] underline underline-offset-2 decoration-slate-600 hover:decoration-[#c9a558]">Forgot password?</button>
@@ -4082,8 +4088,13 @@ const DEFAULT_DATA = {
     laborModel: {
       setupMinPerOpening: 45,   // measure, level, plumb, anchor layout, cleanup
       mobilizationHours: 2,     // load truck + drive + stage (per job, one-time)
-      crewSize: 3,              // typical FL install crew = 1 lead + 2 helpers
-      crewPayRatePerHr: 35,     // PER PERSON per hour (so total payout = size × rate × hrs)
+      // Defaults chosen so the job is PROFITABLE out of the box: a 2-person
+      // crew at $30/hr each = $60/hr crew cost, vs. the default $75/hr billing
+      // rate (costItems.labor.unitPrice) → ~20% labor margin. The user tunes
+      // these to their real crew in Settings; the Labor Detail card flags red
+      // if their numbers ever invert.
+      crewSize: 2,              // 2-person residential install crew
+      crewPayRatePerHr: 30,     // PER PERSON per hour (total payout = size × rate × hrs)
       showLaborHoursInPDF: false,  // off by default — match existing customer PDF
     },
     brand: {
@@ -5718,10 +5729,25 @@ function render() {
            <span class="info-pop">10 min/LF (Stick New) &nbsp;•&nbsp; 25 min/LF (Block) &nbsp;•&nbsp; 40 min/LF (Remodel) &nbsp;•&nbsp; ×1.3 (2 Story) &nbsp;•&nbsp; ×1.65 (3 Story) &nbsp;•&nbsp; ×${DATA.config.impactLaborMultiplier ?? 1.15} (Impact)</span>
          </span>`
       : "";
-    // "Unverified" tag for cost items still on placeholder/estimated numbers
+    // "Unverified" tag for cost items still on placeholder/estimated numbers.
+    // Tappable → jumps to that rate in Settings so the user can replace the
+    // demo number with their real supplier price.
     const verifyBadge = (item && item.unverified)
-      ? ` <span class="ml-1.5 text-[8px] align-middle text-amber-400 border border-amber-500/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold whitespace-nowrap">Unverified</span>`
+      ? ` <button type="button" data-verify-jump="${row.id}" title="Tap to set your real price in Settings" class="ml-1.5 text-[8px] align-middle text-amber-400 border border-amber-500/40 hover:bg-amber-500/15 hover:border-amber-400 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold whitespace-nowrap cursor-pointer transition-colors">Unverified ✎</button>`
       : "";
+    // Loss warning on the Labor line — if the crew costs more per hour than
+    // the customer is billed, this job loses money on labor. Surfaced right
+    // on the main breakdown (not just the internal Labor Detail card) so a
+    // user who never opens that card still sees it.
+    let lossBadge = "";
+    if (row.id === "labor") {
+      try {
+        const lb = estimateLaborBreakdown();
+        if (lb && lb.marginTotal < -1) {
+          lossBadge = ` <span class="ml-1.5 text-[8px] align-middle text-rose-300 border border-rose-500/50 bg-rose-500/10 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold whitespace-nowrap" title="Your crew (${lb.crewSize} × ${formatMoney(lb.crewPayPerHrEach)}/hr) costs more than you're billing (${formatMoney(lb.billingRate)}/hr). Raise your labor rate or adjust crew in Settings.">⚠ Losing ${formatMoney(Math.abs(lb.marginTotal))}</span>`;
+        }
+      } catch (_) {}
+    }
     // Pencil "edit this rate" — jumps to the matching Settings input.
     // Skip rows that aren't directly editable as a single number:
     //   labor → composite (minutes/LF × stories × impact ×, see info tooltip)
@@ -5740,7 +5766,7 @@ function render() {
       : `<td></td>`;
     return `
       <tr class="row-alt fade-in">
-        <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center flex-wrap gap-y-1">${row.name}${infoIcon}${verifyBadge}</span></td>
+        <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center flex-wrap gap-y-1">${row.name}${infoIcon}${verifyBadge}${lossBadge}</span></td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${rateStr}</td>
         <td class="text-right py-3 px-3 text-slate-400">${qtyStr}</td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${caseStr}</td>
@@ -6739,6 +6765,19 @@ function outputPDF(doc, filename, mode) {
 function exportCustomerPDF(mode) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
+  // Guard: don't let a customer-facing quote go out with the demo company
+  // name still in place. A non-technical user could easily ship "Prime
+  // Window & Door" to a real customer without noticing.
+  const cn = (DATA.config.brand && DATA.config.brand.companyName) || "";
+  if (!DATA.config.onboarded || cn === DEMO_BRAND.companyName) {
+    const proceed = confirm(
+      "Heads up — this quote still shows the demo company name \"" + (cn || "Prime Window & Door") + "\".\n\n" +
+      "Set up your profile first so the customer sees YOUR company name, logo, and contact info.\n\n" +
+      "OK = set up now   ·   Cancel = generate with demo branding anyway"
+    );
+    if (proceed) { startSetupFlow(); return; }
+    // else fall through and generate with demo branding (their choice)
+  }
   logQuoteEvent("customer_quote");
   window.track("customer_pdf_downloaded");
   const { jsPDF } = window.jspdf;
@@ -7399,6 +7438,13 @@ function openSettingsToItem(itemId) {
   window.track("rate_edited_from_breakdown", { row_id: String(itemId) });
   openAdmin();
   showSettingsTab("rates");
+  // Reset the rates filter to "all" so the target card isn't hidden by a
+  // previously-active focus filter, and expand it if it's a collapsed card.
+  try { if (typeof setRatesFilter === "function") setRatesFilter("all"); } catch (_) {}
+  try {
+    const det = document.querySelector(`#adminRatesBody details[data-cat="${itemId}"]`);
+    if (det && !det.open) det.open = true;
+  } catch (_) {}
 
   // Two rAFs let the panel layout settle before we measure scroll offsets,
   // and the setTimeout gives the modal's overflow-y container time to mount.
@@ -10737,9 +10783,20 @@ function wireLanding() {
   }
   // Trust-band install counter — count 0→200 once when scrolled into view, then stop.
   // Reuses the same IntersectionObserver pattern as lp-reveal so behaviour matches the rest of the page.
+  // Real installer count. Keep at 0 until you actually have customers —
+  // showing a fabricated "200+ · 4.9/5" with zero real users is false
+  // social proof (and a legal risk). When you have real numbers, set
+  // LP_TRUST_COUNT (and the rating in the HTML) to the true values and the
+  // headline reappears automatically.
+  const LP_TRUST_COUNT = 0;
   const trustCount = document.getElementById("lpTrustCount");
-  if (trustCount) {
-    const target = 200;
+  if (LP_TRUST_COUNT <= 0) {
+    // Pre-launch: hide the unsubstantiated count + rating headline entirely.
+    const headline = document.querySelector("#lpTrust .lp-trust-headline");
+    if (headline) headline.classList.add("hidden");
+  }
+  if (trustCount && LP_TRUST_COUNT > 0) {
+    const target = LP_TRUST_COUNT;
     const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const runCounter = () => {
       if (prefersReducedMotion) { trustCount.textContent = String(target); return; }
@@ -10929,6 +10986,19 @@ async function boot() {
     () => setAuthMode(authMode === "login" ? "signup" : "login"));
   document.getElementById("authForgotLink").addEventListener("click", () => showRecoveryForm("reset"));
   document.getElementById("authMagicLink").addEventListener("click", () => showRecoveryForm("magic"));
+  // Show/hide password — toggles both the password + confirm fields together
+  // so the user can verify what they typed (big help for non-technical users
+  // who can't tell why "passwords don't match").
+  const authPwToggle = document.getElementById("authPwToggle");
+  if (authPwToggle) authPwToggle.addEventListener("click", () => {
+    const pw = document.getElementById("authPassword");
+    const cf = document.getElementById("authConfirm");
+    const show = pw.type === "password";
+    pw.type = show ? "text" : "password";
+    if (cf) cf.type = show ? "text" : "password";
+    authPwToggle.classList.toggle("text-[#c9a558]", show);
+    authPwToggle.classList.toggle("text-slate-500", !show);
+  });
   document.getElementById("authRecoveryForm").addEventListener("submit", handleRecoverySubmit);
   document.getElementById("recCancel").addEventListener("click", () => setAuthMode("login"));
   document.getElementById("authNewPwForm").addEventListener("submit", handleNewPasswordSubmit);
@@ -11046,13 +11116,24 @@ function renderLogoPreview(previewId, removeId, dataUrl) {
   }
 }
 
+// Demo brand values seeded into DEFAULT_DATA. A brand-new (un-onboarded)
+// user shouldn't see these pre-filled as if they were their own — otherwise
+// they can submit "Prime Window & Door" as their company name and ship
+// customer quotes with placeholder branding. We blank them in onboarding so
+// the user is forced to type their real info.
+const DEMO_BRAND = { companyName: "Prime Window & Door", city: "Ocala", state: "Florida" };
+
 function showOnboarding() {
   window.track("onboarding_opened");
   const b = DATA.config.brand || {};
-  document.getElementById("obCompanyName").value = b.companyName || "";
+  // Before first onboarding, treat demo placeholders as empty so the user
+  // types their own. After they've onboarded, show whatever they saved.
+  const fresh = !DATA.config.onboarded;
+  const realOrBlank = (val, demoVal) => (fresh && (val || "") === demoVal) ? "" : (val || "");
+  document.getElementById("obCompanyName").value = realOrBlank(b.companyName, DEMO_BRAND.companyName);
   document.getElementById("obTagline").value = b.tagline || "";
-  document.getElementById("obCity").value = b.city || "";
-  document.getElementById("obState").value = b.state || "";
+  document.getElementById("obCity").value = realOrBlank(b.city, DEMO_BRAND.city);
+  document.getElementById("obState").value = fresh && (b.city || "") === DEMO_BRAND.city ? "Florida" : (b.state || "");
   document.getElementById("obCounty").innerHTML = countyOptionsHTML(b.county || "");
   updateObCountyTax();
   document.getElementById("obPhone").value = b.phone || "";
@@ -11608,10 +11689,11 @@ function init() {
   // Pencil icons in the Cost Breakdown rows — delegated because the table
   // body is re-rendered on every recalculation.
   document.getElementById("breakdownBody").addEventListener("click", e => {
-    const btn = e.target.closest(".edit-rate-btn");
-    if (!btn) return;
-    e.preventDefault();
-    openSettingsToItem(btn.dataset.editItem);
+    const editBtn = e.target.closest(".edit-rate-btn");
+    if (editBtn) { e.preventDefault(); openSettingsToItem(editBtn.dataset.editItem); return; }
+    // Tappable "Unverified ✎" badge → jump to that rate in Settings
+    const verifyBtn = e.target.closest("[data-verify-jump]");
+    if (verifyBtn) { e.preventDefault(); openSettingsToItem(verifyBtn.dataset.verifyJump); }
   });
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
   // Profile (PFP) menu
