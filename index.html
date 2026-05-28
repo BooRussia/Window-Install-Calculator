@@ -5704,10 +5704,45 @@ function render() {
       document.getElementById("laborCrewTotal").textContent = formatMoney(lb.crewPayTotal);
       document.getElementById("laborCrewRate").textContent =
         formatMoney(lb.crewSize * lb.crewPayPerHrEach) + " (" + lb.crewSize + " × " + formatMoney(lb.crewPayPerHrEach) + ")";
-      document.getElementById("laborMarginTotal").textContent = formatMoney(lb.marginTotal);
+
+      // Margin — color reflects the SIGN of the number so the user sees
+      // at-a-glance whether they're making or losing money.
+      //   >  $1   → emerald (good — making money on labor)
+      //   < -$1   → rose    (bad — paying crew more than billing)
+      //   else    → amber   (break-even — risky, no margin for surprises)
+      const marginEl = document.getElementById("laborMarginTotal");
+      const pctEl    = document.getElementById("laborMarginPct");
+      const marginColor =
+        lb.marginTotal >  1 ? "text-emerald-300" :
+        lb.marginTotal < -1 ? "text-rose-400"    :
+                              "text-amber-300";
+      marginEl.classList.remove("text-emerald-300", "text-rose-400", "text-amber-300");
+      marginEl.classList.add(marginColor);
+      marginEl.textContent = formatMoney(lb.marginTotal);
       const marginPct = lb.customerLaborTotal > 0 ? Math.round((lb.marginTotal / lb.customerLaborTotal) * 100) : 0;
-      document.getElementById("laborMarginPct").textContent = marginPct + "%";
-      document.getElementById("laborEffPerLF").textContent = formatMoney(lb.effectivePerLF);
+      pctEl.classList.remove("text-emerald-300", "text-rose-400", "text-amber-300", "text-slate-600");
+      pctEl.classList.add(marginColor);
+      pctEl.textContent = (marginPct > 0 ? "+" : "") + marginPct + "%";
+
+      // Per-LF comparison: existing line-item per-LF cost vs. the more-
+      // accurate hours-based effective rate. Helps the user calibrate
+      // their per-LF rate without staring at total dollars.
+      const lfForCompare = Number(STATE.totalLF) || 0;
+      const existingPerLF = (function() {
+        const item = (DATA.costItems || []).find(c => c.id === "labor");
+        if (!item || lfForCompare <= 0) return 0;
+        // Existing per-LF cost = hours/LF × $/hr unitPrice
+        return getLaborPerLF() * (Number(item.unitPrice) || 0);
+      })();
+      const eff = lb.effectivePerLF || 0;
+      const diff = eff - existingPerLF;
+      const diffStr = existingPerLF > 0
+        ? ` (${diff >= 0 ? "+" : ""}${formatMoney(diff)} vs. line-item ${formatMoney(existingPerLF)})`
+        : "";
+      const effEl = document.getElementById("laborEffPerLF");
+      effEl.textContent = formatMoney(eff);
+      const effRow = effEl.parentElement;
+      if (effRow) effRow.innerHTML = `Effective <span id="laborEffPerLF" class="text-slate-300 font-semibold">${formatMoney(eff)}</span>/LF${diffStr}`;
     } else {
       laborCard.classList.add("hidden");
     }
