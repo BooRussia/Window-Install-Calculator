@@ -1308,6 +1308,27 @@
   .set-panel.active { display: block; animation: fadeIn .25s ease both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
   .set-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+  /* Rates panel sidebar nav — active section pill */
+  .rates-nav-link {
+    border-left: 2px solid transparent;
+    margin-left: -2px;
+  }
+  .rates-nav-link.active {
+    background: var(--gold-soft);
+    color: var(--gold-hi);
+    border-left-color: var(--gold-hi);
+  }
+  /* Scroll-jump pulse — briefly outline the target so user sees what landed */
+  @keyframes ratesPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(201,165,88,0.0); }
+    30%  { box-shadow: 0 0 0 4px rgba(201,165,88,0.35); }
+    100% { box-shadow: 0 0 0 0 rgba(201,165,88,0.0); }
+  }
+  .rates-pulse { animation: ratesPulse 1.4s ease-out; border-radius: 12px; }
+  /* Hide native disclosure arrow on the material card summary
+     (we render our own chevron) */
+  #adminRatesBody details > summary::-webkit-details-marker { display: none; }
+  #adminRatesBody details > summary { list-style: none; }
 
   /* ------- App header + profile menu ------- */
   .pfp-item {
@@ -3592,30 +3613,56 @@
         <div class="set-panel" data-panel="rates">
           <div class="set-h">Rates &amp; Pricing</div>
           <div class="set-sub mb-5">Margins, taxes, and what every material costs.</div>
-          <div class="mb-7 flex flex-wrap gap-4">
-            <div class="flex items-center gap-3">
-              <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Margin %</label>
-              <input id="adminMargin" type="number" step="0.1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-            </div>
-            <div class="flex items-center gap-3">
-              <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Materials Tax %</label>
-              <input id="adminTax" type="number" step="0.1" min="0" max="100" placeholder="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-            </div>
-            <div class="flex items-center gap-3">
-              <label class="text-xs uppercase tracking-[0.14em] text-slate-500" title="Labor multiplier applied to impact-glass jobs">Impact Labor ×</label>
-              <input id="adminImpactLabor" type="number" step="0.05" min="1" placeholder="1.15" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-            </div>
-          </div>
 
-          <!-- Crew Pay & Labor Hours model ────────────────────────────────
-               Fixes the "LF-only" flaw: per-LF alone undercharges jobs
-               with lots of small openings (more setups, more walking).
-               These params add the per-opening + mobilization overhead.
+          <!-- ═══ Two-pane layout: sticky left nav + scrollable right content ═══
+               The nav is built dynamically in buildRatesNav() (called after
+               render) so it stays in sync as material cards / variant counts
+               change. Each section has a stable id="rates-section-*" anchor.
           -->
-          <div class="mb-7 rounded-xl border border-slate-800 p-4 bg-slate-950/40">
+          <div class="grid lg:grid-cols-[210px_1fr] gap-x-6 gap-y-3" id="ratesShell">
+
+            <!-- LEFT: sticky nav ────────────────────────────────────────── -->
+            <aside class="hidden lg:block">
+              <div class="sticky top-0 -mt-1 pt-1 pb-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+                <div class="relative mb-3">
+                  <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+                  <input id="ratesNavSearch" type="search" placeholder="Filter…" class="control rounded-lg pl-8 pr-2 py-1.5 w-full text-[12px] text-slate-100 placeholder:text-slate-600" />
+                </div>
+                <nav id="ratesNav" class="space-y-0.5 text-[12px]"></nav>
+              </div>
+            </aside>
+
+            <!-- Mobile-only pill nav (above content on <lg) -->
+            <div class="lg:hidden -mt-1 mb-2 flex flex-wrap gap-1.5" id="ratesNavMobile"></div>
+
+            <!-- RIGHT: stacked sections ─────────────────────────────────── -->
+            <div class="space-y-7 min-w-0">
+
+            <!-- ═══ Section: Pricing & Margin ═══ -->
+            <section id="rates-section-pricing" data-rates-section data-nav-label="Pricing &amp; Margin">
+              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Pricing &amp; Margin</h4>
+              <div class="flex flex-wrap gap-4">
+                <div class="flex items-center gap-3">
+                  <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Margin %</label>
+                  <input id="adminMargin" type="number" step="0.1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                </div>
+                <div class="flex items-center gap-3">
+                  <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Materials Tax %</label>
+                  <input id="adminTax" type="number" step="0.1" min="0" max="100" placeholder="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                </div>
+                <div class="flex items-center gap-3">
+                  <label class="text-xs uppercase tracking-[0.14em] text-slate-500" title="Labor multiplier applied to impact-glass jobs">Impact Labor ×</label>
+                  <input id="adminImpactLabor" type="number" step="0.05" min="1" placeholder="1.15" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                </div>
+              </div>
+            </section>
+
+            <!-- ═══ Section: Crew Pay & Labor Hours (Model 4) ═══ -->
+            <section id="rates-section-crewpay" data-rates-section data-nav-label="Crew Pay &amp; Hours">
+            <div class="rounded-xl border border-slate-800 p-4 bg-slate-950/40">
             <div class="flex items-center justify-between gap-3 mb-3">
               <div>
-                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Crew Pay & Labor Hours</h4>
+                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Crew Pay &amp; Labor Hours</h4>
                 <p class="text-[11px] text-slate-500 mt-0.5">Adds per-opening setup + mobilization on top of the per-LF rate. Tracks what you pay the crew vs. what you charge.</p>
               </div>
               <span class="text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold whitespace-nowrap">Internal</span>
@@ -3642,18 +3689,26 @@
               <input id="adminShowLaborHoursInPDF" type="checkbox" class="rounded border-slate-700 bg-slate-900 text-[#c9a558] focus:ring-[#b58f4a]" />
               <span class="text-[12px] text-slate-300">Show labor hours line on the customer's quote PDF <span class="text-slate-600">(default off — customer sees only the total labor charge)</span></span>
             </label>
-          </div>
-          <div class="flex items-center justify-between mb-3 gap-3">
-            <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Material Rates</h4>
-            <div class="flex items-center gap-1.5 flex-shrink-0">
-              <button type="button" id="adminChecklistView" class="btn rounded-full px-2.5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-[#c9a558] uppercase tracking-[0.1em]">View</button>
-              <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
             </div>
-          </div>
-          <div id="adminRatesBody" class="space-y-6"></div>
+            </section>
 
-          <!-- Swing Doors — priced per UNIT, not per LF -->
-          <div class="mt-8 pt-6 border-t border-slate-800">
+            <!-- ═══ Section: Materials (the dynamic list — each card gets
+                 id="rates-item-<itemId>" from the renderer so the nav can
+                 jump to it) ═══ -->
+            <section id="rates-section-materials" data-rates-section data-nav-label="Materials" data-nav-group="true">
+              <div class="flex items-center justify-between mb-3 gap-3">
+                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Materials</h4>
+                <div class="flex items-center gap-1.5 flex-shrink-0">
+                  <button type="button" id="adminChecklistView" class="btn rounded-full px-2.5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-[#c9a558] uppercase tracking-[0.1em]">View</button>
+                  <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
+                </div>
+              </div>
+              <div id="adminRatesBody" class="space-y-3"></div>
+            </section>
+
+            <!-- ═══ Section: Swing Doors ═══ -->
+            <section id="rates-section-doors" data-rates-section data-nav-label="Swing Doors">
+            <div class="pt-2">
             <div class="flex items-center justify-between mb-3 gap-3">
               <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Swing Doors</h4>
               <label class="flex items-center gap-2 text-xs text-slate-400">
@@ -3729,7 +3784,11 @@
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+            </section>
+
+            </div><!-- /right content -->
+          </div><!-- /ratesShell grid -->
         </div>
 
         <!-- Subscription (Phase 2 — read-only. Phase 3 wires Stripe.) -->
@@ -8244,6 +8303,12 @@ function buildAdminUI() {
   setIf("adminSwingDoubleWidthLF", swCfg.doubleDoorWidthLF ?? 6);
 
   const wrap = document.getElementById("adminRatesBody");
+  // Per-card collapsed state lives in localStorage so it survives reloads.
+  // Default: collapsed when 2+ variants (cards get tall fast); expanded
+  // otherwise. User can toggle each card and we remember.
+  let collapsePrefs = {};
+  try { collapsePrefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
+
   wrap.innerHTML = DATA.costItems.map(item => {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
@@ -8257,15 +8322,32 @@ function buildAdminUI() {
     if (MATERIAL_IDS.includes(item.id)) {
       const variantRows = (item.variants || []).map(v =>
         variantRowHTML(item.id, item.unit, v, v.id === item.defaultVariant)).join("");
+      const variantCount = (item.variants || []).length;
+      const def = (item.variants || []).find(v => v.id === item.defaultVariant) || (item.variants || [])[0] || {};
+      const summary = variantCount
+        ? `${variantCount} brand${variantCount === 1 ? "" : "s"}${def.brand ? ` · ${escHtml(def.brand)}` : ""}${def.unitPrice != null ? ` $${(+def.unitPrice).toFixed(3)}/${item.unit}` : ""}`
+        : "no variants yet";
+      // Default-collapsed if 2+ variants AND user hasn't explicitly opened it
+      const userPref = collapsePrefs[item.id];
+      const collapsed = userPref != null ? userPref : (variantCount >= 2);
       return `
-        <div class="rounded-xl border border-slate-800 p-4" data-cat="${item.id}">
-          <div class="text-sm font-semibold text-slate-100 mb-2.5">${item.name}</div>
-          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Consumption</div>
-          <div class="grid sm:grid-cols-2 gap-2 mb-4">${rateRows}</div>
-          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Brand variants <span class="text-slate-600 normal-case tracking-normal">· name them however you buy them</span></div>
-          <div class="space-y-1.5" data-variant-list>${variantRows}</div>
-          <button type="button" class="var-add mt-2 btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10" data-add-cat="${item.id}">+ Add variant</button>
-        </div>
+        <details class="rounded-xl border border-slate-800 bg-slate-950/30 group" id="rates-item-${item.id}" data-cat="${item.id}" data-rates-item data-variant-count="${variantCount}" ${collapsed ? "" : "open"}>
+          <summary class="cursor-pointer select-none px-4 py-3 flex items-center gap-2.5 list-none">
+            <svg class="text-slate-500 group-open:rotate-90 transition-transform flex-shrink-0" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 4 13 10 7 16"/></svg>
+            <span class="text-sm font-semibold text-slate-100 flex-shrink-0">${escHtml(item.name)}</span>
+            <span class="group-open:hidden flex-1 min-w-0 text-[11px] text-slate-500 truncate" data-summary>${summary}</span>
+            <span class="ml-auto inline-flex items-center gap-1.5 flex-shrink-0">
+              <span class="text-[10px] font-bold text-slate-500 bg-slate-800/60 rounded-full px-2 py-0.5">${variantCount}</span>
+            </span>
+          </summary>
+          <div class="px-4 pb-4 pt-1">
+            <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Consumption</div>
+            <div class="grid sm:grid-cols-2 gap-2 mb-4">${rateRows}</div>
+            <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Brand variants <span class="text-slate-600 normal-case tracking-normal">· name them however you buy them</span></div>
+            <div class="space-y-1.5" data-variant-list>${variantRows}</div>
+            <button type="button" class="var-add mt-2 btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10" data-add-cat="${item.id}">+ Add variant</button>
+          </div>
+        </details>
       `;
     }
 
@@ -8280,7 +8362,7 @@ function buildAdminUI() {
         `).join("")
       : "";
     return `
-      <div class="rounded-xl border border-slate-800 p-4">
+      <div class="rounded-xl border border-slate-800 p-4" id="rates-item-${item.id}" data-rates-item>
         <div class="flex items-center justify-between mb-3">
           <div class="text-sm font-semibold text-slate-100">${item.name}</div>
           <div class="flex items-center gap-2">
@@ -8293,7 +8375,133 @@ function buildAdminUI() {
       </div>
     `;
   }).join("");
+
+  // Build the sticky nav after content is rendered so it reflects current
+  // variant counts. Idempotent — re-builds on every renderAdminRates() call.
+  buildRatesNav();
 }
+
+// ─── Rates sidebar nav ──────────────────────────────────────────────────
+// Built from the rendered sections + item cards. Smooth-scrolls to clicked
+// section, highlights the active one via IntersectionObserver, supports
+// filter-by-typing in the search box. Per-card variant collapse is remembered
+// in localStorage (see rates_collapse key).
+function buildRatesNav() {
+  const nav = document.getElementById("ratesNav");
+  const mobile = document.getElementById("ratesNavMobile");
+  if (!nav) return;
+
+  // Pull the rendered sections + items. Each section has data-nav-label.
+  const sections = [...document.querySelectorAll("#ratesShell [data-rates-section]")];
+  const items = [...document.querySelectorAll("#adminRatesBody [data-rates-item]")];
+
+  // Build flat link list — section heading, then nested items for the
+  // Materials section, then the rest of the top-level sections.
+  const links = [];
+  for (const sec of sections) {
+    links.push({ id: sec.id, label: sec.getAttribute("data-nav-label") || sec.id, level: 0 });
+    if (sec.getAttribute("data-nav-group") === "true") {
+      // Materials — nest each card under this section
+      for (const it of items) {
+        const cardId = it.id;
+        const name = it.querySelector(".text-sm.font-semibold")?.textContent?.trim() || cardId;
+        const variantCount = parseInt(it.getAttribute("data-variant-count") || "0", 10);
+        links.push({ id: cardId, label: name, level: 1, variantCount });
+      }
+    }
+  }
+
+  // Render desktop sticky nav
+  nav.innerHTML = links.map(l => `
+    <a href="#${l.id}" data-nav-link="${l.id}" class="rates-nav-link block px-2 py-1.5 rounded ${l.level === 0 ? "font-semibold text-slate-300 mt-2 first:mt-0" : "pl-5 text-slate-400 font-medium"} hover:bg-slate-800/60 hover:text-slate-100 transition-colors">
+      <span class="flex items-center gap-1.5 min-w-0">
+        <span class="flex-1 min-w-0 truncate">${escHtml(l.label)}</span>
+        ${l.variantCount != null && l.variantCount > 0 ? `<span class="text-[9px] text-slate-600 bg-slate-800/40 rounded-full px-1.5 py-0.5 flex-shrink-0">${l.variantCount}</span>` : ""}
+      </span>
+    </a>`).join("");
+
+  // Mobile pill nav — only top-level sections, no nesting (too cluttered)
+  if (mobile) {
+    mobile.innerHTML = links.filter(l => l.level === 0).map(l => `
+      <a href="#${l.id}" data-nav-link="${l.id}" class="rates-nav-link inline-flex text-[11px] font-bold tracking-tight px-3 py-1.5 rounded-full bg-slate-900/60 border border-slate-800 text-slate-300 hover:border-[#b58f4a] hover:text-[#c9a558]">
+        ${escHtml(l.label)}
+      </a>`).join("");
+  }
+
+  // Click handlers — smooth-scroll inside the modal's content scroll
+  // container instead of letting the URL hash change (which would mess
+  // with the public-quote hashrouter).
+  nav.querySelectorAll("a[data-nav-link]").forEach(a => {
+    a.addEventListener("click", scrollToRatesSection);
+  });
+  if (mobile) mobile.querySelectorAll("a[data-nav-link]").forEach(a => {
+    a.addEventListener("click", scrollToRatesSection);
+  });
+
+  // Active section highlighting via IntersectionObserver
+  attachRatesNavObserver();
+
+  // Filter-as-you-type
+  const search = document.getElementById("ratesNavSearch");
+  if (search && !search._wired) {
+    search._wired = true;
+    search.addEventListener("input", e => filterRatesNav(e.target.value));
+  }
+}
+
+function scrollToRatesSection(e) {
+  e.preventDefault();
+  const id = e.currentTarget.getAttribute("data-nav-link");
+  const target = document.getElementById(id);
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Pulse the target so the user sees what they jumped to
+  target.classList.add("rates-pulse");
+  setTimeout(() => target.classList.remove("rates-pulse"), 1500);
+}
+
+let _ratesNavObserver = null;
+function attachRatesNavObserver() {
+  if (_ratesNavObserver) _ratesNavObserver.disconnect();
+  // Watch BOTH top-level sections and the per-item cards inside Materials
+  const targets = [
+    ...document.querySelectorAll("#ratesShell [data-rates-section]"),
+    ...document.querySelectorAll("#adminRatesBody [data-rates-item]"),
+  ];
+  if (!targets.length) return;
+  // The settings content area is the scroll container — root: null tracks
+  // the viewport which is approximately right since the modal fills it.
+  _ratesNavObserver = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+      if (en.isIntersecting) {
+        document.querySelectorAll(".rates-nav-link.active").forEach(el => el.classList.remove("active"));
+        const links = document.querySelectorAll(`.rates-nav-link[data-nav-link="${en.target.id}"]`);
+        links.forEach(l => l.classList.add("active"));
+      }
+    });
+  }, { rootMargin: "-30% 0px -55% 0px", threshold: 0 });
+  targets.forEach(t => _ratesNavObserver.observe(t));
+}
+
+function filterRatesNav(query) {
+  const q = (query || "").trim().toLowerCase();
+  document.querySelectorAll("#ratesNav .rates-nav-link").forEach(a => {
+    if (!q) { a.classList.remove("hidden"); return; }
+    const txt = a.textContent.toLowerCase();
+    a.classList.toggle("hidden", !txt.includes(q));
+  });
+}
+
+// Persist per-card collapse state when user clicks <summary>
+document.addEventListener("toggle", (e) => {
+  const el = e.target;
+  if (!el.matches?.("#adminRatesBody [data-cat]")) return;
+  const id = el.getAttribute("data-cat");
+  let prefs = {};
+  try { prefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
+  prefs[id] = !el.open;
+  try { localStorage.setItem("rates_collapse", JSON.stringify(prefs)); } catch (_) {}
+}, true);
 
 // One editable brand-variant row inside a material category card
 function variantRowHTML(catId, unit, v, isDefault) {
