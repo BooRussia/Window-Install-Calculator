@@ -5472,17 +5472,27 @@ function calculate() {
     }
   }
 
-  // Materials tax (applied to everything except labor)
+  // Materials sales tax — this is what WE pay our supplier on materials, so
+  // it's a real cost. But the install itself is a service: in Florida you
+  // don't charge the customer sales tax on labor, so this is NOT a separate
+  // customer-facing line. Instead we fold the tax into each material's cost
+  // (true landed cost). Labor and pass-through fees (permit / disposal /
+  // lift) are never taxed.
   const taxRate = DATA.config.materialsTaxRate || 0;
-  if (taxRate > 0 && lf > 0) {
-    const materialsCost = rows.filter(r => !r.isLabor).reduce((s, r) => s + r.totalCost, 0);
-    const taxAmt = materialsCost * (taxRate / 100);
-    if (taxAmt > 0) {
-      rows.push({ id: "tax", name: `Sales Tax (${taxRate}%)`, rateLabel: "on materials",
-        ratePerLF: taxAmt / lf, quantity: 1, unit: "job", totalCost: taxAmt, isFixed: true });
+  if (taxRate > 0) {
+    const TAXABLE_IDS = new Set([
+      ...MATERIAL_IDS,
+      "swing_doors_materials", "swing_doors_flashing", "swing_doors_anchors",
+    ]);
+    const factor = taxRate / 100;
+    rows.forEach(r => {
+      if (!TAXABLE_IDS.has(r.id)) return;
+      const taxAmt = r.totalCost * factor;
+      if (taxAmt <= 0) return;
+      r.totalCost += taxAmt;
+      if (lf > 0) { r.ratePerLF += taxAmt / lf; perLfCost += taxAmt / lf; }
       totalCost += taxAmt;
-      perLfCost += taxAmt / lf;
-    }
+    });
   }
 
   const margin = DATA.config.defaultMargin || 35;
