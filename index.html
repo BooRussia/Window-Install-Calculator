@@ -1318,6 +1318,18 @@
     color: var(--gold-hi);
     border-left-color: var(--gold-hi);
   }
+  /* Show-All button — turns gold when a filter is active so it reads as
+     an "exit filter" call-to-action */
+  .rates-show-all.rates-show-all-active {
+    background: var(--gold-soft);
+    color: var(--gold-hi);
+    border-color: rgba(181,143,74,0.4);
+  }
+  .rates-show-all-mobile.rates-show-all-active {
+    background: var(--gold-soft);
+    color: var(--gold-hi);
+    border-color: rgba(181,143,74,0.4);
+  }
   /* Scroll-jump pulse — briefly outline the target so user sees what landed */
   @keyframes ratesPulse {
     0%   { box-shadow: 0 0 0 0 rgba(201,165,88,0.0); }
@@ -3624,6 +3636,16 @@
             <!-- LEFT: sticky nav ────────────────────────────────────────── -->
             <aside class="hidden lg:block">
               <div class="sticky top-0 -mt-1 pt-1 pb-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+                <!-- Show-All toggle: click a category to focus on it, click here to reset.
+                     Default state ("All") shows every section + every material card.
+                     Filter state ("Caulking" etc.) hides all but the chosen one. -->
+                <button id="ratesShowAll" type="button" class="rates-show-all w-full mb-2 px-2.5 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-[0.12em] flex items-center justify-between gap-2 border border-slate-700 text-slate-400 hover:border-[#b58f4a] hover:text-[#c9a558] transition-colors">
+                  <span class="flex items-center gap-1.5">
+                    <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>
+                    Show all
+                  </span>
+                  <span id="ratesShowAllBadge" class="text-[9px] font-medium text-slate-600 normal-case tracking-normal"></span>
+                </button>
                 <div class="relative mb-3">
                   <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
                   <input id="ratesNavSearch" type="search" placeholder="Filter…" class="control rounded-lg pl-8 pr-2 py-1.5 w-full text-[12px] text-slate-100 placeholder:text-slate-600" />
@@ -3633,7 +3655,9 @@
             </aside>
 
             <!-- Mobile-only pill nav (above content on <lg) -->
-            <div class="lg:hidden -mt-1 mb-2 flex flex-wrap gap-1.5" id="ratesNavMobile"></div>
+            <div class="lg:hidden -mt-1 mb-2 flex flex-wrap gap-1.5" id="ratesNavMobile">
+              <button id="ratesShowAllMobile" type="button" class="rates-show-all-mobile inline-flex text-[11px] font-bold tracking-tight px-3 py-1.5 rounded-full bg-slate-900/60 border border-slate-700 text-slate-300 hover:border-[#b58f4a]">All</button>
+            </div>
 
             <!-- RIGHT: stacked sections ─────────────────────────────────── -->
             <div class="space-y-7 min-w-0">
@@ -8428,36 +8452,136 @@ function buildRatesNav() {
       </a>`).join("");
   }
 
-  // Click handlers — smooth-scroll inside the modal's content scroll
-  // container instead of letting the URL hash change (which would mess
-  // with the public-quote hashrouter).
+  // Click handlers — click a nav item to FILTER (show only that one).
+  // "Show All" button (top of sidebar) resets to default = show everything.
+  // Filter state persists across re-renders within the same modal open.
   nav.querySelectorAll("a[data-nav-link]").forEach(a => {
-    a.addEventListener("click", scrollToRatesSection);
+    a.addEventListener("click", onRatesNavClick);
   });
   if (mobile) mobile.querySelectorAll("a[data-nav-link]").forEach(a => {
-    a.addEventListener("click", scrollToRatesSection);
+    a.addEventListener("click", onRatesNavClick);
   });
 
-  // Active section highlighting via IntersectionObserver
+  // Show-All buttons
+  const showAllBtn = document.getElementById("ratesShowAll");
+  if (showAllBtn && !showAllBtn._wired) {
+    showAllBtn._wired = true;
+    showAllBtn.addEventListener("click", () => setRatesFilter("all"));
+  }
+  const showAllBtnMobile = document.getElementById("ratesShowAllMobile");
+  if (showAllBtnMobile && !showAllBtnMobile._wired) {
+    showAllBtnMobile._wired = true;
+    showAllBtnMobile.addEventListener("click", () => setRatesFilter("all"));
+  }
+
+  // Active section highlighting via IntersectionObserver (only in "all" mode)
   attachRatesNavObserver();
 
-  // Filter-as-you-type
+  // Filter-as-you-type (this filters the NAV links, not the content panes)
   const search = document.getElementById("ratesNavSearch");
   if (search && !search._wired) {
     search._wired = true;
     search.addEventListener("input", e => filterRatesNav(e.target.value));
   }
+
+  // Re-apply whichever filter was active before this rebuild — so toggling
+  // a card's variant collapse doesn't snap us back to "show all".
+  applyRatesFilter();
 }
 
-function scrollToRatesSection(e) {
+// Current filter: "all" = show everything; otherwise an element id
+// (either a section id like "rates-section-pricing" or an item id
+// like "rates-item-caulking"). Defaults to "all" each time the modal opens.
+let _ratesFilter = "all";
+
+function onRatesNavClick(e) {
   e.preventDefault();
   const id = e.currentTarget.getAttribute("data-nav-link");
-  const target = document.getElementById(id);
-  if (!target) return;
-  target.scrollIntoView({ behavior: "smooth", block: "start" });
-  // Pulse the target so the user sees what they jumped to
-  target.classList.add("rates-pulse");
-  setTimeout(() => target.classList.remove("rates-pulse"), 1500);
+  if (!id) return;
+  setRatesFilter(id);
+}
+
+function setRatesFilter(id) {
+  _ratesFilter = id || "all";
+  applyRatesFilter();
+  // Scroll the visible region into view + pulse the focused thing
+  if (_ratesFilter !== "all") {
+    const target = document.getElementById(_ratesFilter);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.classList.add("rates-pulse");
+      setTimeout(() => target.classList.remove("rates-pulse"), 1500);
+    }
+  } else {
+    // Show-All → scroll back to the top of the rates panel
+    const top = document.getElementById("rates-section-pricing");
+    if (top) top.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+// Hide every section except the one matching the current filter (or show
+// everything when filter is "all"). Also updates the active nav-link
+// styling + the Show-All badge text.
+function applyRatesFilter() {
+  const filter = _ratesFilter || "all";
+  const sections = document.querySelectorAll("#ratesShell [data-rates-section]");
+  const items    = document.querySelectorAll("#adminRatesBody [data-rates-item]");
+
+  if (filter === "all") {
+    sections.forEach(s => s.classList.remove("hidden"));
+    items.forEach(i => i.classList.remove("hidden"));
+  } else {
+    // Two cases: filter is a top-level section, OR filter is a sub-item card
+    const isItem = filter.startsWith("rates-item-");
+    sections.forEach(s => {
+      if (isItem) {
+        // Show the Materials wrapper section + hide all other sections
+        s.classList.toggle("hidden", s.id !== "rates-section-materials");
+      } else {
+        s.classList.toggle("hidden", s.id !== filter);
+      }
+    });
+    items.forEach(i => i.classList.toggle("hidden", isItem && i.id !== filter));
+  }
+
+  // Update Show-All button label/badge
+  const badge = document.getElementById("ratesShowAllBadge");
+  const showAllBtn = document.getElementById("ratesShowAll");
+  if (badge && showAllBtn) {
+    if (filter === "all") {
+      badge.textContent = "showing everything";
+      showAllBtn.classList.remove("rates-show-all-active");
+    } else {
+      const label = navLabelFor(filter);
+      badge.textContent = label ? `← exit "${label}"` : "← exit filter";
+      showAllBtn.classList.add("rates-show-all-active");
+    }
+  }
+  // Mobile Show-All
+  const mobBtn = document.getElementById("ratesShowAllMobile");
+  if (mobBtn) {
+    mobBtn.classList.toggle("rates-show-all-active", filter !== "all");
+    mobBtn.textContent = filter === "all" ? "All" : "× " + (navLabelFor(filter) || "Reset");
+  }
+
+  // Sync active-link styling — current filter is the "active" link
+  document.querySelectorAll(".rates-nav-link.active").forEach(el => el.classList.remove("active"));
+  if (filter !== "all") {
+    document.querySelectorAll(`.rates-nav-link[data-nav-link="${filter}"]`).forEach(l => l.classList.add("active"));
+  }
+
+  // Disable observer when filtered (only one thing visible — no need to track scroll)
+  if (_ratesNavObserver) {
+    if (filter === "all") attachRatesNavObserver();
+    else _ratesNavObserver.disconnect();
+  }
+}
+
+function navLabelFor(id) {
+  // Match either a top-level section or a per-item nav link
+  const link = document.querySelector(`.rates-nav-link[data-nav-link="${id}"]`);
+  if (!link) return null;
+  return link.textContent.trim().replace(/\s+\d+$/, "").trim();
 }
 
 let _ratesNavObserver = null;
