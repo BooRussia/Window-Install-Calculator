@@ -5245,7 +5245,9 @@ function getUnitPrice(item) {
 function getBlockSealerJobQty(totalLF) {
   if (STATE.houseType !== "Block Framed") return 0;
   if (totalLF <= 0) return 0;
-  return totalLF > 400 ? 10 : 5;
+  // 5 gallons per 300 LF, rounded up to the next 5-gal bucket.
+  //   1–300 LF → 5 gal · 301–600 → 10 · 601–900 → 15 · etc.
+  return Math.ceil(totalLF / 300) * 5;
 }
 
 // Total linear feet of lumber bought across all boards in a buck cut list
@@ -5320,7 +5322,7 @@ function calculate() {
       const qty = getBlockSealerJobQty(lf);
       const cost = qty * getUnitPrice(item);
       if (cost > 0) {
-        rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${qty} ${item.unit} fixed`,
+        rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${qty} ${item.unit} · 5 gal / 300 LF`,
           ratePerLF: lf > 0 ? cost / lf : 0, quantity: qty, unit: item.unit, totalCost: cost, isFixed: true });
         totalCost += cost;
         if (lf > 0) perLfCost += cost / lf;
