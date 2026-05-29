@@ -3767,7 +3767,17 @@
             </section>
 
             <!-- ═══ Section: Crew Pay & Labor Hours (Model 4) ═══ -->
-            <section id="rates-section-crewpay" data-rates-section data-nav-label="Crew Pay &amp; Hours">
+            <!-- ═══ Section: Labor — all labor cost lives here: the per-LF
+                 billing rate (rendered into #adminLaborRateBody by the
+                 renderer) PLUS the crew-pay / hours model. ═══ -->
+            <section id="rates-section-labor" data-rates-section data-nav-label="Labor">
+            <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Labor</h4>
+
+            <!-- Billing rate + per-LF hours (the "labor" cost item, pulled
+                 out of Materials and rendered here by renderAdminRates) -->
+            <div id="adminLaborRateBody" class="mb-3"></div>
+
+            <!-- Crew pay & hours (internal cost-tracking model) -->
             <div class="rounded-xl border border-slate-800 p-4 bg-slate-950/40">
             <div class="flex items-center justify-between gap-3 mb-3">
               <div>
@@ -7586,6 +7596,12 @@ function openSettingsToItem(itemId) {
     let target = null;       // element to scroll into view
     let highlight = null;    // element to receive the gold pulse
 
+    // Labor — now lives in its own Labor section (#adminLaborRateBody),
+    // not in the Materials body. Land on the bill-rate input there.
+    if (itemId === "labor") {
+      highlight = document.querySelector('#adminLaborRateBody [data-unitprice="labor"]');
+      target = document.getElementById("rates-section-labor") || highlight;
+    } else
     // Swing-door rows — jump to the Swing Doors editor (sibling of #adminRatesBody)
     if (itemId === "swing_doors_labor" || itemId === "swing_doors_materials"
         || itemId === "swing_doors_flashing" || itemId === "swing_doors_anchors") {
@@ -8511,7 +8527,9 @@ function buildAdminUI() {
   let collapsePrefs = {};
   try { collapsePrefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
 
-  wrap.innerHTML = DATA.costItems.map(item => {
+  // Labor is rendered in its own "Labor" section (see #adminLaborRateBody),
+  // not in the Materials list — so exclude it here.
+  wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor").map(item => {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
         <span class="text-xs text-slate-400 w-44 truncate">${k}</span>
@@ -8577,6 +8595,35 @@ function buildAdminUI() {
       </div>
     `;
   }).join("");
+
+  // Render the labor billing rate + per-LF hours into the Labor section
+  // (data-unitprice / data-item attrs preserved so saveAdmin reads them).
+  const laborItem = DATA.costItems.find(c => c.id === "labor");
+  const laborBody = document.getElementById("adminLaborRateBody");
+  if (laborItem && laborBody) {
+    const laborRateRows = Object.entries(laborItem.rates).map(([k, v]) => `
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-400 w-44 truncate">${k}</span>
+        <input data-item="labor" data-key="${k}" type="number" step="0.001" value="${v}" class="control rounded-lg px-3 py-2 w-32 text-sm text-slate-100" />
+        <span class="text-[11px] text-slate-500">${laborItem.unit}/LF</span>
+      </div>`).join("");
+    laborBody.innerHTML = `
+      <div class="rounded-xl border border-slate-800 p-4" id="rates-item-labor" data-rates-item>
+        <div class="flex items-center justify-between mb-3 gap-2">
+          <div>
+            <div class="text-sm font-semibold text-slate-100">${laborItem.name}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">What you bill the customer per hour</div>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-[11px] text-slate-500">Bill rate</span>
+            <input data-unitprice="labor" type="number" step="0.001" value="${laborItem.unitPrice}" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+            <span class="text-[11px] text-slate-500">$/${laborItem.unit}</span>
+          </div>
+        </div>
+        <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Install hours per LF</div>
+        <div class="grid sm:grid-cols-2 gap-2">${laborRateRows}</div>
+      </div>`;
+  }
 
   // Build the sticky nav after content is rendered so it reflects current
   // variant counts. Idempotent — re-builds on every renderAdminRates() call.
