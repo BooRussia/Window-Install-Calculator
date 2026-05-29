@@ -3120,26 +3120,16 @@
       </div>
     </div>
 
-    <!-- Labor Detail (Model 4 — hours-based, crew-pay aware) ============
-         Sits between the line-item breakdown above and the materials card
-         below. Internal-only by default (toggle in Settings to expose on
-         the customer PDF). Surfaces:
-           • Actual install hours (mobilization · setup · install)
-           • Customer labor charge (what you bill)
-           • Crew pay (what you pay the crew)
-           • Margin per job
-         The hours estimate uses estimateLaborBreakdown() which adds
-         per-opening setup time on top of the existing per-LF rate —
-         fixing the "30 small openings looks the same as 6 big openings"
-         flaw of strict per-LF labor.
-    -->
+    <!-- Labor Detail — the hour breakdown behind the single Labor line in
+         the table above. Cost-plus: crew-hours × what the crew costs/hr.
+         That cost is marked up by the job margin like everything else. -->
     <div id="laborDetailCard" class="mt-6 card rounded-2xl overflow-hidden hidden">
       <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Labor Detail
             <span class="ml-1.5 align-middle text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold">Internal</span>
           </h2>
-          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Same hours as the Labor line above, broken down + matched to what your crew actually costs</p>
+          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">The hours behind the Labor line above</p>
         </div>
         <div class="text-right">
           <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Total crew-hours</div>
@@ -3149,26 +3139,16 @@
       <div class="divide-y divide-slate-800/60">
         <!-- Breakdown rows (mobilization · setup · window install · door install) -->
         <div id="laborBreakdownRows"></div>
-        <!-- Money section -->
-        <div class="px-5 sm:px-6 py-4 grid grid-cols-3 gap-3 bg-slate-950/40">
+        <!-- Cost line -->
+        <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-3 bg-slate-950/40">
           <div>
-            <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500">Customer pays</div>
-            <div id="laborCustomerTotal" class="text-base font-bold text-slate-100 mt-0.5">—</div>
-            <div class="text-[10px] text-slate-600 mt-0.5"><span id="laborCustomerRate">—</span> /hr × hrs</div>
+            <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500">Labor cost</div>
+            <div class="text-[10px] text-slate-600 mt-0.5">crew <span id="laborCostRate">—</span></div>
           </div>
-          <div>
-            <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500">Crew pay</div>
-            <div id="laborCrewTotal" class="text-base font-bold text-amber-300 mt-0.5">—</div>
-            <div class="text-[10px] text-slate-600 mt-0.5"><span id="laborCrewRate">—</span> /hr × hrs</div>
-          </div>
-          <div>
-            <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500">Margin</div>
-            <div id="laborMarginTotal" class="text-base font-bold text-emerald-300 mt-0.5">—</div>
-            <div class="text-[10px] text-slate-600 mt-0.5"><span id="laborMarginPct">—</span> of customer</div>
-          </div>
+          <div id="laborCostTotal" class="text-lg font-bold text-slate-100">—</div>
         </div>
         <div class="px-5 sm:px-6 py-3 flex items-center justify-between text-[11px] text-slate-500">
-          <div>Effective <span id="laborEffPerLF" class="text-slate-300 font-semibold">—</span> /LF (vs. existing per-LF rate)</div>
+          <div>Marked up by your job margin, same as materials.</div>
           <button id="laborEditBtn" type="button" class="text-[10px] uppercase tracking-[0.14em] text-[#c9a558] hover:text-[#dfc07a] font-bold">Adjust in Settings</button>
         </div>
       </div>
@@ -3777,16 +3757,22 @@
                  out of Materials and rendered here by renderAdminRates) -->
             <div id="adminLaborRateBody" class="mb-3"></div>
 
-            <!-- Crew pay & hours (internal cost-tracking model) -->
+            <!-- Crew + time model (drives the labor cost) -->
             <div class="rounded-xl border border-slate-800 p-4 bg-slate-950/40">
-            <div class="flex items-center justify-between gap-3 mb-3">
-              <div>
-                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Crew Pay &amp; Labor Hours</h4>
-                <p class="text-[11px] text-slate-500 mt-0.5">Adds per-opening setup + mobilization on top of the per-LF rate. Tracks what you pay the crew vs. what you charge.</p>
-              </div>
+            <div class="flex items-center justify-between gap-3 mb-1">
+              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Crew &amp; Time</h4>
               <span class="text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold whitespace-nowrap">Internal</span>
             </div>
+            <p class="text-[11px] text-slate-500 mb-3">Labor cost = crew-hours &times; what the crew costs/hr. Marked up by your job margin like materials.</p>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Crew size</label>
+                <input id="adminCrewSize" type="number" step="1" min="1" max="20" placeholder="2" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
+              </div>
+              <div>
+                <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1" title="What you PAY each crew member per hour. Crew cost/hr = size × this.">Pay $/hr each</label>
+                <input id="adminCrewPayRatePerHr" type="number" step="1" min="0" placeholder="30" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
+              </div>
               <div>
                 <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1" title="Per-opening setup time: pull tools, measure, level, plumb, anchor layout, cleanup">Setup min / opening</label>
                 <input id="adminSetupMinPerOpening" type="number" step="5" min="0" max="180" placeholder="45" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
@@ -3795,18 +3781,11 @@
                 <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1" title="Per-job: load truck, drive, stage on arrival">Mobilization hrs</label>
                 <input id="adminMobilizationHours" type="number" step="0.5" min="0" max="12" placeholder="2" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
               </div>
-              <div>
-                <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Crew size</label>
-                <input id="adminCrewSize" type="number" step="1" min="1" max="20" placeholder="3" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
-              </div>
-              <div>
-                <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1" title="What you PAY each crew member per hour. Total crew cost = size × this rate">Crew pay $/hr each</label>
-                <input id="adminCrewPayRatePerHr" type="number" step="1" min="0" placeholder="35" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
-              </div>
             </div>
+            <div class="mt-3 text-[12px] text-slate-400">Crew costs you <span id="adminCrewCostReadout" class="text-[#c9a558] font-bold">—</span></div>
             <label class="mt-3 flex items-center gap-2 cursor-pointer select-none">
               <input id="adminShowLaborHoursInPDF" type="checkbox" class="rounded border-slate-700 bg-slate-900 text-[#c9a558] focus:ring-[#b58f4a]" />
-              <span class="text-[12px] text-slate-300">Show labor hours line on the customer's quote PDF <span class="text-slate-600">(default off — customer sees only the total labor charge)</span></span>
+              <span class="text-[12px] text-slate-300">Show labor hours line on the customer's quote PDF <span class="text-slate-600">(default off — customer sees only the labor total)</span></span>
             </label>
             </div>
             </section>
@@ -5083,80 +5062,59 @@ function getLaborPerLF() {
   return base * getStoriesMultiplier() * getImpactLaborMultiplier();
 }
 
-// ─── Hours-based labor breakdown (Model 4) ───────────────────────────────
-//   Returns: { setupHrs, windowInstallHrs, doorInstallHrs, mobilizationHrs,
-//              totalHrs, customerLaborTotal, crewPayTotal, marginTotal,
-//              effectivePerLF, breakdown }
-//   `breakdown` is an array of human-readable line items for the UI.
+// ─── Labor model (cost-plus, single source of truth) ─────────────────────
+//   ALL labor cost flows through here. Crew-hours is one number; labor cost
+//   is crew-hours × what the crew costs per hour. That cost goes into the
+//   breakdown like any other cost and gets marked up by the job margin —
+//   there is no separate "bill rate." Used by both calculate() (the real
+//   quote labor line) and the Labor Detail card, so they always reconcile.
 //
-//   This DOES NOT replace getLaborPerLF() — that function still feeds the
-//   existing per-LF cost calculation that drives current quotes. This is a
-//   parallel view that surfaces (a) the *real* hours, (b) what the crew is
-//   owed vs. what the customer pays, so the user can decide whether to
-//   adjust their per-LF rates or expose hours directly on the PDF.
+//   Crew-hours = wall-clock hours the crew is tied up on the job:
+//     mobilization (per job)
+//   + per-opening setup × (windows + doors)
+//   + window install  (LF × hr/LF × stories × impact, via getLaborPerLF)
+//   + door install    (door labor minutes, via computeSwingDoors)
+//
+//   Returns: { mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
+//              totalHrs, crewSize, crewPayPerHrEach, crewCostPerHr,
+//              laborCost, breakdown }
 function estimateLaborBreakdown() {
   const LM = (DATA.config && DATA.config.laborModel) || {};
   const setupMin = LM.setupMinPerOpening ?? 45;
   const mobHrs = LM.mobilizationHours ?? 2;
-  const crewSize = Math.max(1, LM.crewSize ?? 3);
-  const crewPayPerHrEach = LM.crewPayRatePerHr ?? 35;
+  const crewSize = Math.max(1, LM.crewSize ?? 2);
+  const crewPayPerHrEach = LM.crewPayRatePerHr ?? 30;
+  const crewCostPerHr = crewSize * crewPayPerHrEach;
 
-  const labor = (DATA.costItems || []).find(c => c.id === "labor") || { unitPrice: 75 };
-  const billingRate = Number(labor.unitPrice) || 75;   // what you charge the customer per hour
-
-  // Counts
   const wc = parseInt(STATE.windowCount, 10) || 0;
-  // NOTE: the LF field in STATE is named `totalLF`, NOT `lf`. Original bug
-  // had `STATE.lf` which always read undefined → windowInstallHrs was always
-  // 0 → Labor Detail only showed mobilization + setup time. Fixed in
-  // commit that ships alongside this comment.
   const lf = Number(STATE.totalLF) || 0;
-  // Door count from variants — sum quantities. Doors are already piece-rate
-  // priced via DATA.swingDoors so we count them for setup time only.
-  const doorVariants = (STATE.swingDoorVariants || []);
-  const dc = doorVariants.reduce((s, v) => s + (parseInt(v.qty, 10) || 0), 0);
+  // Doors — reuse the canonical swing-door math (count + labor minutes).
+  const sd = computeSwingDoors();
+  const dc = sd.total || 0;
 
-  // Setup overhead — every opening, window or door, costs the same setup
+  // Setup overhead — every opening (window OR door) costs the same setup
   // time (pull tools, measure, level, plumb, anchor layout, cleanup).
   const setupHrs = (wc + dc) * setupMin / 60;
-
-  // Window install — reuse the existing per-LF rate (so we don't double-count
-  // and so the existing customer-facing math stays consistent).
+  // Window install — LF × hr/LF (rate already folds in stories + impact).
   const windowInstallHrs = lf * getLaborPerLF();
-
-  // Door install — pull from swing-door config (minutes per door × qty)
-  let doorInstallHrs = 0;
-  if (DATA.swingDoors && doorVariants.length) {
-    for (const v of doorVariants) {
-      const rate = (DATA.swingDoors.rates || {})[v.type];   // 'single' | 'double'
-      if (!rate) continue;
-      const minutes = (parseInt(v.qty, 10) || 0) * (Number(rate.labor) || 0);
-      doorInstallHrs += minutes / 60;
-    }
-  }
-
-  // Mobilization — one-time per job (load truck, drive, stage on arrival)
+  // Door install — minutes per door from the swing-door config.
+  const doorInstallHrs = (sd.laborMinutes || 0) / 60;
+  // Mobilization — one-time per job.
   const mobilizationHrs = (wc + dc + lf > 0) ? mobHrs : 0;
 
   const totalHrs = setupHrs + windowInstallHrs + doorInstallHrs + mobilizationHrs;
+  const laborCost = totalHrs * crewCostPerHr;
 
-  // Money: customer pays a single hourly rate, crew earns crewSize × per-person rate
-  const customerLaborTotal = totalHrs * billingRate;
-  const crewPayTotal = totalHrs * crewSize * crewPayPerHrEach;
-  const marginTotal = customerLaborTotal - crewPayTotal;
-  const effectivePerLF = lf > 0 ? customerLaborTotal / lf : 0;
-
-  // Breakdown for the UI — order matches a typical jobsite day
+  // Breakdown rows for the UI — order matches a typical jobsite day.
   const breakdown = [];
   if (mobilizationHrs > 0) breakdown.push({ label: "Mobilization (load · drive · stage)", hrs: mobilizationHrs });
-  if (setupHrs > 0)         breakdown.push({ label: `Per-opening setup (${wc + dc} openings × ${setupMin} min)`, hrs: setupHrs });
-  if (windowInstallHrs > 0) breakdown.push({ label: `Window install (${lf} LF × ${(getLaborPerLF()*60).toFixed(1)} min/LF)`, hrs: windowInstallHrs });
-  if (doorInstallHrs > 0)   breakdown.push({ label: `Door install (${dc} doors)`, hrs: doorInstallHrs });
+  if (setupHrs > 0)         breakdown.push({ label: `Per-opening setup (${wc + dc} opening${wc + dc === 1 ? "" : "s"} × ${setupMin} min)`, hrs: setupHrs });
+  if (windowInstallHrs > 0) breakdown.push({ label: `Window install (${lf} LF × ${(getLaborPerLF() * 60).toFixed(0)} min/LF)`, hrs: windowInstallHrs });
+  if (doorInstallHrs > 0)   breakdown.push({ label: `Door install (${dc} door${dc === 1 ? "" : "s"})`, hrs: doorInstallHrs });
 
   return {
-    setupHrs, windowInstallHrs, doorInstallHrs, mobilizationHrs, totalHrs,
-    billingRate, crewSize, crewPayPerHrEach,
-    customerLaborTotal, crewPayTotal, marginTotal, effectivePerLF, breakdown,
+    mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs, totalHrs,
+    crewSize, crewPayPerHrEach, crewCostPerHr, laborCost, breakdown,
   };
 }
 
@@ -5327,6 +5285,11 @@ function calculate() {
   let totalCost = 0;
 
   DATA.costItems.forEach(item => {
+    // Labor — handled by the unified labor model below (one row covering
+    // window install + door install + per-opening setup + mobilization),
+    // so skip it in the per-LF loop.
+    if (item.id === "labor") return;
+
     // Block sealer — fixed gallons based on job LF
     if (item.id === "block_sealer") {
       const qty = getBlockSealerJobQty(lf);
@@ -5422,18 +5385,8 @@ function calculate() {
     if (sd.double > 0) partsLabel.push(`${sd.double} double`);
     const countLabel = partsLabel.join(" + ");
 
-    if (sd.laborCost > 0) {
-      rows.push({
-        id: "swing_doors_labor",
-        name: "Swing doors — labor",
-        rateLabel: `${sd.laborMinutes} min · ${countLabel}`,
-        ratePerLF: lf > 0 ? sd.laborCost / lf : 0,
-        quantity: sd.total, unit: "door", totalCost: sd.laborCost,
-        isFixed: true, isLabor: true, isSwingDoor: true
-      });
-      totalCost += sd.laborCost;
-      if (lf > 0) perLfCost += sd.laborCost / lf;
-    }
+    // (Door labor is folded into the unified Labor line below — no separate
+    //  swing-door labor row, so it isn't double-counted.)
     if (sd.materialsCost > 0) {
       rows.push({
         id: "swing_doors_materials",
@@ -5481,6 +5434,25 @@ function calculate() {
       }
       totalCost += sd.extraAnchorCost;
       if (lf > 0) perLfCost += sd.extraAnchorCost / lf;
+    }
+  }
+
+  // ---- Labor — one unified line (cost-plus) ----
+  // Crew-hours × what the crew costs per hour. Covers window install, door
+  // install, per-opening setup, and mobilization. Marked up by the job
+  // margin like every other cost (no separate bill rate).
+  {
+    const lb = estimateLaborBreakdown();
+    if (lb.laborCost > 0) {
+      rows.push({
+        id: "labor", name: "Labor (install + cleanup)", isLabor: true,
+        rateLabel: `${lb.totalHrs.toFixed(1)} crew-hrs × $${formatMoneyRaw(lb.crewCostPerHr)}/hr`,
+        ratePerLF: lf > 0 ? lb.laborCost / lf : 0,
+        quantity: Math.round(lb.totalHrs * 10) / 10, unit: "hr",
+        totalCost: lb.laborCost,
+      });
+      totalCost += lb.laborCost;
+      if (lf > 0) perLfCost += lb.laborCost / lf;
     }
   }
 
@@ -5904,25 +5876,13 @@ function render() {
     const verifyBadge = (item && item.unverified)
       ? ` <button type="button" data-verify-jump="${row.id}" title="Tap to set your real price in Settings" class="ml-1.5 text-[8px] align-middle text-amber-400 border border-amber-500/40 hover:bg-amber-500/15 hover:border-amber-400 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold whitespace-nowrap cursor-pointer transition-colors">Unverified ✎</button>`
       : "";
-    // Loss warning on the Labor line — if the crew costs more per hour than
-    // the customer is billed, this job loses money on labor. Surfaced right
-    // on the main breakdown (not just the internal Labor Detail card) so a
-    // user who never opens that card still sees it.
-    let lossBadge = "";
-    if (row.id === "labor") {
-      try {
-        const lb = estimateLaborBreakdown();
-        if (lb && lb.marginTotal < -1) {
-          lossBadge = ` <span class="ml-1.5 text-[8px] align-middle text-rose-300 border border-rose-500/50 bg-rose-500/10 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold whitespace-nowrap" title="Your crew (${lb.crewSize} × ${formatMoney(lb.crewPayPerHrEach)}/hr) costs more than you're billing (${formatMoney(lb.billingRate)}/hr). Raise your labor rate or adjust crew in Settings.">⚠ Losing ${formatMoney(Math.abs(lb.marginTotal))}</span>`;
-        }
-      } catch (_) {}
-    }
+    // (Loss-warning badge removed — under cost-plus pricing labor is a cost
+    //  that's always marked up by the job margin, so it can't run at a loss.)
+    const lossBadge = "";
     // Pencil "edit this rate" — jumps to the matching Settings input.
-    // Skip rows that aren't directly editable as a single number:
-    //   labor → composite (minutes/LF × stories × impact ×, see info tooltip)
-    //   tax   → calculated from the Tax % field in the Rates header; no per-item input
-    const editable = (item && row.id !== "labor" && row.id !== "tax")
-                  || row.isSwingDoor;
+    // Labor now jumps to the Labor section (crew cost + time model). Tax has
+    // no per-item input (set via the Materials Tax % field), so skip it.
+    const editable = (item && row.id !== "tax") || row.isSwingDoor;
     const editCell = editable
       ? `<td class="text-right py-3 px-3 sm:px-4">
            <button type="button" class="edit-rate-btn" data-edit-item="${row.id}" aria-label="Edit ${escHtml(row.name)} rate" title="Edit in Settings">
@@ -5945,8 +5905,9 @@ function render() {
     `;
   }).join("");
 
-  // Labor Detail card — hours + crew-pay vs. customer-charge breakdown.
-  // Hidden when there's nothing to estimate (no LF, no doors).
+  // Labor Detail card — the hour breakdown behind the single Labor line in
+  // the table above (cost-plus: crew-hours × crew cost). Hidden when there's
+  // nothing to estimate (no LF, no doors).
   const laborCard = document.getElementById("laborDetailCard");
   if (laborCard) {
     const lb = estimateLaborBreakdown();
@@ -5960,13 +5921,9 @@ function render() {
           closeFL?.();
           openAdmin();
           showSettingsTab("rates");
-          // Smooth-scroll the crew-pay block into view
           setTimeout(() => {
-            const target = document.getElementById("adminSetupMinPerOpening");
-            if (target) {
-              target.scrollIntoView({ behavior: "smooth", block: "center" });
-              target.focus();
-            }
+            const target = document.getElementById("rates-section-labor") || document.getElementById("adminCrewSize");
+            if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
           }, 150);
         });
       }
@@ -5977,50 +5934,9 @@ function render() {
            <div class="text-slate-300">${escHtml(b.label)}</div>
            <div class="text-slate-400 tabular-nums">${b.hrs.toFixed(1)} hr</div>
          </div>`).join("");
-      document.getElementById("laborCustomerTotal").textContent = formatMoney(lb.customerLaborTotal);
-      document.getElementById("laborCustomerRate").textContent = formatMoney(lb.billingRate);
-      document.getElementById("laborCrewTotal").textContent = formatMoney(lb.crewPayTotal);
-      document.getElementById("laborCrewRate").textContent =
-        formatMoney(lb.crewSize * lb.crewPayPerHrEach) + " (" + lb.crewSize + " × " + formatMoney(lb.crewPayPerHrEach) + ")";
-
-      // Margin — color reflects the SIGN of the number so the user sees
-      // at-a-glance whether they're making or losing money.
-      //   >  $1   → emerald (good — making money on labor)
-      //   < -$1   → rose    (bad — paying crew more than billing)
-      //   else    → amber   (break-even — risky, no margin for surprises)
-      const marginEl = document.getElementById("laborMarginTotal");
-      const pctEl    = document.getElementById("laborMarginPct");
-      const marginColor =
-        lb.marginTotal >  1 ? "text-emerald-300" :
-        lb.marginTotal < -1 ? "text-rose-400"    :
-                              "text-amber-300";
-      marginEl.classList.remove("text-emerald-300", "text-rose-400", "text-amber-300");
-      marginEl.classList.add(marginColor);
-      marginEl.textContent = formatMoney(lb.marginTotal);
-      const marginPct = lb.customerLaborTotal > 0 ? Math.round((lb.marginTotal / lb.customerLaborTotal) * 100) : 0;
-      pctEl.classList.remove("text-emerald-300", "text-rose-400", "text-amber-300", "text-slate-600");
-      pctEl.classList.add(marginColor);
-      pctEl.textContent = (marginPct > 0 ? "+" : "") + marginPct + "%";
-
-      // Per-LF comparison: existing line-item per-LF cost vs. the more-
-      // accurate hours-based effective rate. Helps the user calibrate
-      // their per-LF rate without staring at total dollars.
-      const lfForCompare = Number(STATE.totalLF) || 0;
-      const existingPerLF = (function() {
-        const item = (DATA.costItems || []).find(c => c.id === "labor");
-        if (!item || lfForCompare <= 0) return 0;
-        // Existing per-LF cost = hours/LF × $/hr unitPrice
-        return getLaborPerLF() * (Number(item.unitPrice) || 0);
-      })();
-      const eff = lb.effectivePerLF || 0;
-      const diff = eff - existingPerLF;
-      const diffStr = existingPerLF > 0
-        ? ` (${diff >= 0 ? "+" : ""}${formatMoney(diff)} vs. line-item ${formatMoney(existingPerLF)})`
-        : "";
-      const effEl = document.getElementById("laborEffPerLF");
-      effEl.textContent = formatMoney(eff);
-      const effRow = effEl.parentElement;
-      if (effRow) effRow.innerHTML = `Effective <span id="laborEffPerLF" class="text-slate-300 font-semibold">${formatMoney(eff)}</span>/LF${diffStr}`;
+      document.getElementById("laborCostTotal").textContent = formatMoney(lb.laborCost);
+      document.getElementById("laborCostRate").textContent =
+        lb.crewSize + " × " + formatMoney(lb.crewPayPerHrEach) + " = " + formatMoney(lb.crewCostPerHr) + "/hr";
     } else {
       laborCard.classList.add("hidden");
     }
@@ -8493,13 +8409,14 @@ function buildAdminUI() {
   document.getElementById("adminTax").value = DATA.config.materialsTaxRate ?? 0;
   document.getElementById("adminImpactLabor").value = DATA.config.impactLaborMultiplier ?? 1.15;
 
-  // Crew Pay & Labor Hours model (Model 4)
+  // Crew & time model
   const LM = DATA.config.laborModel || {};
   document.getElementById("adminSetupMinPerOpening").value = LM.setupMinPerOpening ?? 45;
   document.getElementById("adminMobilizationHours").value  = LM.mobilizationHours  ?? 2;
-  document.getElementById("adminCrewSize").value           = LM.crewSize           ?? 3;
-  document.getElementById("adminCrewPayRatePerHr").value   = LM.crewPayRatePerHr   ?? 35;
+  document.getElementById("adminCrewSize").value           = LM.crewSize           ?? 2;
+  document.getElementById("adminCrewPayRatePerHr").value   = LM.crewPayRatePerHr   ?? 30;
   document.getElementById("adminShowLaborHoursInPDF").checked = !!LM.showLaborHoursInPDF;
+  updateCrewCostReadout();
 
   // Swing doors — populate the editor with current rates
   const swCfg = (DATA.config.swingDoors) || {};
@@ -8596,32 +8513,24 @@ function buildAdminUI() {
     `;
   }).join("");
 
-  // Render the labor billing rate + per-LF hours into the Labor section
-  // (data-unitprice / data-item attrs preserved so saveAdmin reads them).
+  // Render the install-speed presets into the Labor section, in plain
+  // minutes/LF (stored as hr/LF — converted on display, ÷60 back on save via
+  // the data-labor-min handler in saveAdmin). No bill rate — cost-plus.
   const laborItem = DATA.costItems.find(c => c.id === "labor");
   const laborBody = document.getElementById("adminLaborRateBody");
   if (laborItem && laborBody) {
+    const RATE_LABELS = { "default": "New construction", "Block Framed": "Block", "Remodel": "Remodel" };
     const laborRateRows = Object.entries(laborItem.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 w-44 truncate">${k}</span>
-        <input data-item="labor" data-key="${k}" type="number" step="0.001" value="${v}" class="control rounded-lg px-3 py-2 w-32 text-sm text-slate-100" />
-        <span class="text-[11px] text-slate-500">${laborItem.unit}/LF</span>
+        <span class="text-xs text-slate-400 w-36 truncate">${RATE_LABELS[k] || k}</span>
+        <input data-labor-min data-key="${k}" type="number" step="1" min="0" value="${Math.round((Number(v) || 0) * 60)}" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+        <span class="text-[11px] text-slate-500">min / LF</span>
       </div>`).join("");
     laborBody.innerHTML = `
       <div class="rounded-xl border border-slate-800 p-4" id="rates-item-labor" data-rates-item>
-        <div class="flex items-center justify-between mb-3 gap-2">
-          <div>
-            <div class="text-sm font-semibold text-slate-100">${laborItem.name}</div>
-            <div class="text-[11px] text-slate-500 mt-0.5">What you bill the customer per hour</div>
-          </div>
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <span class="text-[11px] text-slate-500">Bill rate</span>
-            <input data-unitprice="labor" type="number" step="0.001" value="${laborItem.unitPrice}" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-            <span class="text-[11px] text-slate-500">$/${laborItem.unit}</span>
-          </div>
-        </div>
-        <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Install hours per LF</div>
-        <div class="grid sm:grid-cols-2 gap-2">${laborRateRows}</div>
+        <div class="text-sm font-semibold text-slate-100 mb-1">Install speed</div>
+        <div class="text-[11px] text-slate-500 mb-3">How long the crew takes per linear foot, by job type. (2-story and impact glass add time automatically.)</div>
+        <div class="grid sm:grid-cols-3 gap-2">${laborRateRows}</div>
       </div>`;
   }
 
@@ -8882,6 +8791,18 @@ function variantRowHTML(catId, unit, v, isDefault) {
   </div>`;
 }
 
+// Live "crew costs you $X/hr" readout in the Labor settings (size × pay).
+function updateCrewCostReadout() {
+  const el = document.getElementById("adminCrewCostReadout");
+  if (!el) return;
+  const size = parseInt(document.getElementById("adminCrewSize")?.value, 10) || 0;
+  const pay = parseFloat(document.getElementById("adminCrewPayRatePerHr")?.value) || 0;
+  const total = size * pay;
+  el.textContent = size && pay
+    ? `$${total.toFixed(0)}/hr  (${size} × $${pay.toFixed(0)})`
+    : "—";
+}
+
 function saveAdmin() {
   // Brand
   if (!DATA.config.brand) DATA.config.brand = {};
@@ -8942,6 +8863,12 @@ function saveAdmin() {
     const it = DATA.costItems.find(c => c.id === inp.dataset.item);
     const v = parseFloat(inp.value);
     if (it && !isNaN(v)) it.rates[inp.dataset.key] = v;
+  });
+  // Labor install-speed inputs are entered in minutes/LF — store as hr/LF.
+  document.querySelectorAll("[data-labor-min][data-key]").forEach(inp => {
+    const it = DATA.costItems.find(c => c.id === "labor");
+    const mins = parseFloat(inp.value);
+    if (it && !isNaN(mins) && mins >= 0) it.rates[inp.dataset.key] = mins / 60;
   });
   document.querySelectorAll("[data-appunitprice]").forEach(inp => {
     const it = DATA.costItems.find(c => c.id === inp.dataset.appunitprice);
@@ -11912,6 +11839,11 @@ function init() {
         !e.target.closest("#pfpMenu") && !e.target.closest("#pfpBtn")) closePfpMenu();
   });
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
+  // Live crew-cost readout in the Labor settings
+  ["adminCrewSize", "adminCrewPayRatePerHr"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", updateCrewCostReadout);
+  });
   document.getElementById("adminReset").addEventListener("click", restoreDefaults);
   document.getElementById("adminResetSetup").addEventListener("click", resetSetup);
   document.getElementById("settingsSignOut").addEventListener("click", handleSignOut);
