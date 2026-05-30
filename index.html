@@ -6947,6 +6947,13 @@ function exportCustomerPDF(mode) {
     scope.push(["Swing Doors", parts.join(", ")]);
   }
   if (STATE.permitEnabled) scope.push(["Permit", "Included"]);
+  // Optional labor-hours line — off by default, enabled in Settings → Labor
+  // ("Show labor hours line on the customer's quote PDF"). Some installers
+  // like the customer to see the on-site effort behind the price.
+  if (DATA.config && DATA.config.laborModel && DATA.config.laborModel.showLaborHoursInPDF) {
+    const lb = estimateLaborBreakdown();
+    if (lb.totalHrs > 0) scope.push(["Estimated Labor", `~${lb.totalHrs.toFixed(0)} crew-hours on site`]);
+  }
   const labelX = M, valueX = M + 130;
   scope.forEach(([label, value]) => {
     doc.setTextColor(110, 110, 110);
