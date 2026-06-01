@@ -8869,7 +8869,11 @@ function saveAdmin() {
   document.querySelectorAll("[data-item][data-key]").forEach(inp => {
     const it = DATA.costItems.find(c => c.id === inp.dataset.item);
     const v = parseFloat(inp.value);
-    if (it && !isNaN(v)) it.rates[inp.dataset.key] = v;
+    if (it && !isNaN(v)) {
+      // Editing a demo rate counts as confirming it → clear the Unverified flag.
+      if (it.unverified && v !== it.rates[inp.dataset.key]) it.unverified = false;
+      it.rates[inp.dataset.key] = v;
+    }
   });
   // Labor install-speed inputs are entered in minutes/LF — store as hr/LF.
   document.querySelectorAll("[data-labor-min][data-key]").forEach(inp => {
@@ -8897,6 +8901,12 @@ function saveAdmin() {
       const price = parseFloat(row.querySelector(".var-price").value);
       const vid = row.dataset.variantId || (item.id + "__" + crypto.randomUUID().slice(0, 8));
       const existing = (item.variants || []).find(v => v.id === row.dataset.variantId);
+      // Editing a variant's price (or adding a new variant) confirms the item
+      // → clear the Unverified flag. Fixes "Dow CPS / Dewalt show unverified
+      // no matter what I change."
+      if (item.unverified && !isNaN(price) && (!existing || price !== existing.unitPrice)) {
+        item.unverified = false;
+      }
       const proc = existing ? existing.procurement
         : clone(((item.variants || [])[0] || {}).procurement || null);
       variants.push({ id: vid, brand, unitPrice: isNaN(price) ? 0 : price, procurement: proc });
