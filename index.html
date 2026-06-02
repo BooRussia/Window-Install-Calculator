@@ -1183,6 +1183,18 @@
     box-shadow: 0 10px 24px -8px rgba(181,143,74,0.6);
     white-space: nowrap;
   }
+  /* Current-plan highlight (signed-in user's active tier) */
+  .lp-plan-card.is-current { border-color: rgba(34,197,94,0.55); box-shadow: 0 0 0 1px rgba(34,197,94,0.22) inset; }
+  .lp-plan-ribbon.current {
+    background: linear-gradient(180deg,#22c55e 0%,#16a34a 100%);
+    color: #04210f;
+    box-shadow: 0 10px 24px -8px rgba(34,197,94,0.6);
+  }
+  .lp-plan-cta.current {
+    background: rgba(34,197,94,0.12); color: #86efac;
+    border: 1px solid rgba(34,197,94,0.5);
+  }
+  .lp-plan-cta.current:hover { border-color: #22c55e; color: #bbf7d0; }
   .lp-plan-name {
     font-size: 13px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
     color: var(--gold-hi);
@@ -2759,6 +2771,17 @@
         <button id="authSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Log In</button>
         <div id="authMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
+        <!-- Social sign-in — needs the Google provider enabled in Supabase Auth -->
+        <div class="flex items-center gap-3 py-0.5">
+          <div class="flex-1 h-px bg-slate-800"></div>
+          <span class="text-[10px] uppercase tracking-[0.14em] text-slate-600 font-semibold">or</span>
+          <div class="flex-1 h-px bg-slate-800"></div>
+        </div>
+        <button id="authGoogle" type="button"
+          class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-white text-slate-800 hover:bg-slate-100 tracking-tight flex items-center justify-center gap-2.5">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+          Continue with Google
+        </button>
         <button id="authMagicLink" type="button"
           class="btn w-full text-[11px] text-slate-400 hover:text-[#c9a558] underline underline-offset-2 decoration-slate-700 hover:decoration-[#c9a558]">Or sign in with a magic link instead</button>
         <button id="authToggle" type="button"
@@ -6554,13 +6577,14 @@ function confirmSaveJob() {
   // edit-and-resave of an existing saved job. STATE.currentJobId matching a
   // non-draft entry means the user is updating, which is free. Anything else
   // (fresh save, draft promotion, brand-new) consumes one quote.
-  // In Phase 2 attemptGenerateQuote() ALWAYS returns true (preview mode), so
-  // the save itself is never blocked — the upsell modal is the only signal.
+  // LIVE ENFORCEMENT: a fresh save consumes a quote. If the user is out of
+  // entitlement, attemptGenerateQuote() shows the upsell and returns false —
+  // abort the save entirely (no job created, no doc unlocked).
   const _existing = STATE.currentJobId
     ? jobs.find(x => x.id === STATE.currentJobId && !x.isDraft)
     : null;
   if (!_existing) {
-    attemptGenerateQuote();
+    if (!attemptGenerateQuote()) { closeSaveJobModal(); return; }
   }
 
   const job = {
@@ -6639,9 +6663,9 @@ function saveAsNewVersion() {
   const base = jobs.find(x => x.id === STATE.currentJobId && !x.isDraft);
   if (!base) { toast("Original job not found"); return; }
 
-  // ENTITLEMENTS (Phase 2) — a new version creates a new saved-job entry,
-  // so it counts as a new quote. Preview-only in Phase 2: still proceeds.
-  attemptGenerateQuote();
+  // A new version creates a new saved-job entry, so it counts as a new quote.
+  // LIVE ENFORCEMENT: abort if the user is out of entitlement.
+  if (!attemptGenerateQuote()) return;
 
   // Derive the base name (strip any trailing " vN") then find the next free vN
   const rawName = base.name || base.customerName || "Job";
@@ -6819,9 +6843,23 @@ function outputPDF(doc, filename, mode) {
   toast("PDF downloaded");
 }
 
+// Gate: customer-facing documents only generate for a SAVED job. This closes
+// the "build a quote, download every doc, never save → never counts" loophole.
+// Saving is the single entitlement-checked consumption point; once a job is
+// saved, re-downloading its docs is free. The owner/admin is exempt.
+function requireSavedJobForExport() {
+  if (isAdmin()) return true;
+  const id = STATE.currentJobId;
+  if (id && loadJobs().find(x => x.id === id && !x.isDraft)) return true;
+  toast("Save this job first to generate documents");
+  openSaveJobModal();
+  return false;
+}
+
 function exportCustomerPDF(mode) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
+  if (!requireSavedJobForExport()) return;
   // Guard: don't let a customer-facing quote go out with the demo company
   // name still in place. A non-technical user could easily ship "Prime
   // Window & Door" to a real customer without noticing.
@@ -7151,6 +7189,7 @@ async function shareCustomerQuote() {
 function exportPDF(mode) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
+  if (!requireSavedJobForExport()) return;
   logQuoteEvent("cost_basis");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -7345,6 +7384,7 @@ function hasEstimatedBucking(rows) {
 function exportMaterialsPDF(mode) {
   const r = calculate();
   if (r.lf <= 0) { toast("Enter footage first"); return; }
+  if (!requireSavedJobForExport()) return;
   logQuoteEvent("materials_list");
   window.track("materials_pdf_downloaded");
 
@@ -7575,7 +7615,15 @@ function openSettingsToItem(itemId) {
 // The owner's Supabase auth UUID. The real access boundary is the RLS
 // policies in Supabase keyed to this same id — client-side hiding is cosmetic.
 const ADMIN_UID = "62ffcd5f-fb8c-4574-8942-0c273b399a17";
-function isAdmin() { return !!ADMIN_UID && !!currentUser && currentUser.id === ADMIN_UID; }
+// Email allowlist — a belt-and-suspenders backup to the UID match so the
+// owner keeps full access even if the auth UUID ever changes (re-signup, etc.).
+const ADMIN_EMAILS = ["voxeldesignedit@gmail.com"];
+function isAdmin() {
+  if (!currentUser) return false;
+  if (ADMIN_UID && currentUser.id === ADMIN_UID) return true;
+  const em = (currentUser.email || "").toLowerCase();
+  return ADMIN_EMAILS.includes(em);
+}
 
 /* ============================================================
    ADMIN ANALYTICS — quote-event logging + missing-FL# capture
@@ -9447,6 +9495,7 @@ function updateJobFilesUI() {
 function exportCutListPDF(mode) {
   const bl = STATE.buckList;
   if (!bl || !bl.boards || !bl.boards.length) { toast("Generate a cut list first"); return; }
+  if (!requireSavedJobForExport()) return;
   window.track("buck_pdf_downloaded");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -10049,6 +10098,28 @@ async function handleAuthSubmit(e) {
   }
 }
 
+// Google OAuth — redirects to Google, returns to this same URL where
+// onAuthStateChange("SIGNED_IN") drops the user into the app. Requires the
+// Google provider to be enabled in Supabase → Authentication → Providers.
+async function handleGoogleSignIn() {
+  if (!sb) { setAuthMsg("Cloud unavailable — try again online.", "error"); return; }
+  const btn = document.getElementById("authGoogle");
+  if (btn) btn.disabled = true;
+  try {
+    if (typeof window.track === "function") window.track("auth_google_start");
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+    if (error) throw error;
+    // The browser is now navigating to Google's consent screen.
+  } catch (err) {
+    setAuthMsg(err.message || "Google sign-in failed — try email instead.", "error");
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function handleSignOut() {
   try { if (sb) await sb.auth.signOut(); } catch (_) {}
   // Clear the local cache so the next account starts clean
@@ -10349,18 +10420,16 @@ function consumeQuote() {
   updateUsageBadge();
 }
 
-// Wrapper used by every "new quote" entry point. In Phase 2 this is
-// PREVIEW MODE — if blocked we still consume + return true (the action
-// proceeds) and show the upsell modal as a soft nudge. Phase 4 changes
-// the return to `false` to actually lock the action.
+// Wrapper used by every "new quote" entry point. LIVE ENFORCEMENT (Phase 4):
+// if the user is out of entitlement we show the upsell and return `false`
+// so the caller aborts the action (no save, no doc). The admin account is
+// exempt — unlimited access, and never consumes a quote.
 function attemptGenerateQuote() {
+  if (isAdmin()) return true;            // owner: unlimited, never blocked/consumed
   const check = canGenerate();
   if (!check.allowed) {
     showUpsellModal(check.reason);
-    // PHASE 2: preview mode — still consume + still allow. Phase 4
-    // removes the consumeQuote() call below and returns false instead.
-    consumeQuote();
-    return true;
+    return false;                        // LOCKDOWN: block the action, don't consume
   }
   consumeQuote();
   return true;
@@ -11009,11 +11078,19 @@ function wirePricing(ls) {
   const isMutedFeature = (s) => /^Everything in /i.test(s);
 
   function renderPlans() {
+    // Signed-in users see their active tier flagged so they remember what
+    // they're on before upgrading/downgrading. Trial users have no paid card
+    // to flag, so nothing is marked (correct).
+    let curPlan = null;
+    if (currentUser && typeof getEntitlements === "function") {
+      try { curPlan = getEntitlements().plan; } catch (_) {}
+    }
     grid.innerHTML = PLANS.map(p => {
       const featured = !!p.highlighted;
-      const ribbon = p.badge
-        ? `<span class="lp-plan-ribbon">${p.badge}</span>`
-        : "";
+      const isCurrent = !!curPlan && curPlan === p.id;
+      const ribbon = isCurrent
+        ? `<span class="lp-plan-ribbon current">&#10003; Current plan</span>`
+        : (p.badge ? `<span class="lp-plan-ribbon">${p.badge}</span>` : "");
       const priceNum = billingPeriod === "monthly" ? p.monthlyPrice : p.annualPrice;
       const per = billingPeriod === "monthly" ? "/mo" : "/yr";
       const sub = billingPeriod === "monthly"
@@ -11023,15 +11100,21 @@ function wirePricing(ls) {
         const muted = isMutedFeature(f) ? " class=\"muted\"" : "";
         return `<li${muted}>${checkSvg}<span>${f}</span></li>`;
       }).join("");
-      const btnClass = featured ? "lp-plan-cta gold" : "lp-plan-cta ghost";
+      const btnClass = isCurrent ? "lp-plan-cta current"
+        : (featured ? "lp-plan-cta gold" : "lp-plan-cta ghost");
+      const btnAttr = isCurrent ? `data-pricing-manage="1"` : `data-pricing-cta="${p.id}"`;
+      const btnLabel = isCurrent ? "Manage subscription" : p.cta;
+      const cardClass = "lp-plan-card"
+        + (featured ? " lp-plan-featured" : "")
+        + (isCurrent ? " is-current" : "");
       return `
-        <div class="lp-plan-card${featured ? " lp-plan-featured" : ""}" data-plan="${p.id}">
+        <div class="${cardClass}" data-plan="${p.id}">
           ${ribbon}
           <div class="lp-plan-name">${p.name}</div>
           <div class="lp-plan-tagline">${p.tagline}</div>
           <div class="lp-plan-price"><span class="num">${fmt(priceNum)}</span><span class="per">${per}</span></div>
           <div class="lp-plan-billing-sub">${sub}</div>
-          <button class="${btnClass}" data-pricing-cta="${p.id}">${p.cta}</button>
+          <button class="${btnClass}" ${btnAttr}>${btnLabel}</button>
           <ul class="lp-plan-features">${features}</ul>
         </div>`;
     }).join("");
@@ -11046,6 +11129,13 @@ function wirePricing(ls) {
         // Phase 3: tier CTAs go to Stripe Checkout. startStripeCheckout()
         // handles the auth gate (kicks logged-out users to signup first).
         startStripeCheckout(plan, billingPeriod);
+      });
+    });
+    // "Manage subscription" on the current-plan card → Stripe customer portal
+    grid.querySelectorAll("[data-pricing-manage]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (typeof window.track === "function") window.track("pricing_manage_click", { plan: curPlan });
+        openStripePortal();
       });
     });
   }
@@ -11136,6 +11226,8 @@ async function boot() {
     () => setAuthMode(authMode === "login" ? "signup" : "login"));
   document.getElementById("authForgotLink").addEventListener("click", () => showRecoveryForm("reset"));
   document.getElementById("authMagicLink").addEventListener("click", () => showRecoveryForm("magic"));
+  const _authGoogleBtn = document.getElementById("authGoogle");
+  if (_authGoogleBtn) _authGoogleBtn.addEventListener("click", handleGoogleSignIn);
   // Show/hide password — toggles both the password + confirm fields together
   // so the user can verify what they typed (big help for non-technical users
   // who can't tell why "passwords don't match").
