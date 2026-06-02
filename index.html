@@ -1340,6 +1340,14 @@
     transition: background .15s ease, color .15s ease;
   }
   .set-tab:hover { background: rgba(30,41,59,0.6); color: #e2e8f0; }
+  /* On mobile the tab rail is a horizontal scroller — tabs sit inline,
+     size to their label, and never wrap. */
+  @media (max-width: 1023px) {
+    .set-tab {
+      width: auto; flex: 0 0 auto; white-space: nowrap;
+      padding: 8px 12px; font-size: 12.5px;
+    }
+  }
   .set-tab.active {
     background: var(--gold-soft); color: var(--gold-hi);
     box-shadow: 0 0 0 1px rgba(181,143,74,0.3) inset;
@@ -3590,10 +3598,13 @@
       <button class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] min-h-[44px]" data-close>Done</button>
     </div>
 
-    <!-- Body: rail + content -->
-    <div class="flex-1 flex overflow-hidden">
+    <!-- Body: rail + content.
+         On <lg the rail becomes a horizontal, scrollable tab bar across the
+         top so the panels below get the full screen width (mobile). At lg+ it
+         returns to a vertical left rail. -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
       <!-- Tab rail -->
-      <nav class="w-36 sm:w-52 flex-shrink-0 border-r border-slate-800 p-2.5 sm:p-3 overflow-y-auto space-y-1">
+      <nav class="flex-shrink-0 flex lg:flex-col gap-1 overflow-x-auto lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-800 p-2 lg:p-3 lg:w-52">
         <button type="button" class="set-tab active" data-tab="brand">Brand</button>
         <button type="button" class="set-tab" data-tab="defaults">Job Defaults</button>
         <button type="button" class="set-tab" data-tab="manufacturers">Manufacturers</button>
@@ -3604,7 +3615,7 @@
       </nav>
 
       <!-- Content -->
-      <div class="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
+      <div class="flex-1 overflow-y-auto px-4 sm:px-8 py-6 min-w-0">
 
         <!-- Brand -->
         <div class="set-panel active" data-panel="brand">
@@ -8504,9 +8515,9 @@ function buildAdminUI() {
   wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor").map(item => {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 w-44 truncate">${k}</span>
-        <input data-item="${item.id}" data-key="${k}" type="number" step="0.001" value="${v}" class="control rounded-lg px-3 py-2 w-32 text-sm text-slate-100" />
-        <span class="text-[11px] text-slate-500">${item.unit}/LF</span>
+        <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${k}</span>
+        <input data-item="${item.id}" data-key="${k}" type="number" step="0.001" value="${v}" class="control rounded-lg px-3 py-2 w-24 sm:w-28 flex-shrink-0 text-sm text-slate-100" />
+        <span class="text-[11px] text-slate-500 whitespace-nowrap flex-shrink-0">${item.unit}/LF</span>
       </div>
     `).join("");
 
@@ -8547,20 +8558,20 @@ function buildAdminUI() {
     const appPriceRows = item.unitPriceByApplication
       ? Object.entries(item.unitPriceByApplication).map(([app, p]) => `
           <div class="flex items-center gap-2">
-            <span class="text-xs text-slate-400 w-44 truncate">${app} unit price</span>
-            <input data-appunitprice="${item.id}" data-app="${app}" type="number" step="0.001" value="${p}" class="control rounded-lg px-3 py-2 w-32 text-sm text-slate-100" />
-            <span class="text-[11px] text-slate-500">$/${item.unit}</span>
+            <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${app} unit price</span>
+            <input data-appunitprice="${item.id}" data-app="${app}" type="number" step="0.001" value="${p}" class="control rounded-lg px-3 py-2 w-24 sm:w-28 flex-shrink-0 text-sm text-slate-100" />
+            <span class="text-[11px] text-slate-500 whitespace-nowrap flex-shrink-0">$/${item.unit}</span>
           </div>
         `).join("")
       : "";
     return `
       <div class="rounded-xl border border-slate-800 p-4" id="rates-item-${item.id}" data-rates-item>
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <div class="text-sm font-semibold text-slate-100">${item.name}</div>
           <div class="flex items-center gap-2">
-            <span class="text-[11px] text-slate-500">Unit Price</span>
-            <input data-unitprice="${item.id}" type="number" step="0.001" value="${item.unitPrice}" class="control rounded-lg px-3 py-2 w-28 text-sm text-slate-100" />
-            <span class="text-[11px] text-slate-500">$/${item.unit}</span>
+            <span class="text-[11px] text-slate-500 whitespace-nowrap">Unit Price</span>
+            <input data-unitprice="${item.id}" type="number" step="0.001" value="${item.unitPrice}" class="control rounded-lg px-3 py-2 w-24 sm:w-28 flex-shrink-0 text-sm text-slate-100" />
+            <span class="text-[11px] text-slate-500 whitespace-nowrap flex-shrink-0">$/${item.unit}</span>
           </div>
         </div>
         <div class="grid sm:grid-cols-2 gap-2">${rateRows}${appPriceRows}</div>
@@ -8577,9 +8588,9 @@ function buildAdminUI() {
     const RATE_LABELS = { "default": "New construction", "Block Framed": "Block", "Remodel": "Remodel" };
     const laborRateRows = Object.entries(laborItem.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 w-36 truncate">${RATE_LABELS[k] || k}</span>
-        <input data-labor-min data-key="${k}" type="number" step="1" min="0" value="${Math.round((Number(v) || 0) * 60)}" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-        <span class="text-[11px] text-slate-500">min / LF</span>
+        <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${RATE_LABELS[k] || k}</span>
+        <input data-labor-min data-key="${k}" type="number" step="1" min="0" value="${Math.round((Number(v) || 0) * 60)}" class="control rounded-lg px-3 py-2 w-24 flex-shrink-0 text-sm text-slate-100" />
+        <span class="text-[11px] text-slate-500 whitespace-nowrap flex-shrink-0">min / LF</span>
       </div>`).join("");
     laborBody.innerHTML = `
       <div class="rounded-xl border border-slate-800 p-4" id="rates-item-labor" data-rates-item>
