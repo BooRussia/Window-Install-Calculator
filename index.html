@@ -4829,9 +4829,18 @@ function setupCountyCombobox(prefix) {
   const close = () => { list.classList.add("hidden"); search.setAttribute("aria-expanded", "false"); activeIdx = -1; };
   const scrollActive = () => { const el = list.querySelector(".county-combo-opt.active"); if (el) el.scrollIntoView({ block: "nearest" }); };
   const pick = (county) => {
-    setCountyValue(prefix, county);
-    hidden.dispatchEvent(new Event("change", { bubbles: true }));
+    const next = county || "";
+    const changed = hidden.value !== next;
+    setCountyValue(prefix, next);
+    if (changed) hidden.dispatchEvent(new Event("change", { bubbles: true }));
     close();
+  };
+  const reconcileTyped = () => {
+    // Keyboard users can type an exact county and Tab/Enter away; commit that
+    // value to the hidden input or restore the last valid county.
+    const typed = search.value.trim().toLowerCase();
+    const exact = counties.find(c => c.toLowerCase() === typed);
+    if (exact) pick(exact); else { setCountyValue(prefix, hidden.value); close(); }
   };
 
   search.addEventListener("focus", open);
@@ -4840,9 +4849,11 @@ function setupCountyCombobox(prefix) {
     if (list.classList.contains("hidden") && e.key !== "Escape" && e.key !== "Tab") open();
     if (e.key === "ArrowDown")      { e.preventDefault(); activeIdx = Math.min(filtered.length - 1, activeIdx + 1); render(search.value); scrollActive(); }
     else if (e.key === "ArrowUp")   { e.preventDefault(); activeIdx = Math.max(0, activeIdx - 1); render(search.value); scrollActive(); }
-    else if (e.key === "Enter" && activeIdx >= 0 && filtered[activeIdx]) { e.preventDefault(); pick(filtered[activeIdx]); }
+    else if (e.key === "Enter")     { e.preventDefault(); if (activeIdx >= 0 && filtered[activeIdx]) pick(filtered[activeIdx]); else reconcileTyped(); }
+    else if (e.key === "Tab")       { reconcileTyped(); }
     else if (e.key === "Escape")    { close(); }
   });
+  search.addEventListener("blur", reconcileTyped);
   // Keep focus on mousedown so the click registers before any close logic
   list.addEventListener("mousedown", (e) => e.preventDefault());
   list.addEventListener("click", (e) => { const b = e.target.closest("[data-county]"); if (b) pick(b.dataset.county); });
@@ -4850,10 +4861,7 @@ function setupCountyCombobox(prefix) {
   document.addEventListener("pointerdown", (e) => {
     if (list.classList.contains("hidden")) return;
     if (e.target.closest(`[data-county-prefix="${prefix}"]`)) return;
-    // Accept an exact typed match; otherwise revert the display to the last valid value
-    const typed = search.value.trim().toLowerCase();
-    const exact = counties.find(c => c.toLowerCase() === typed);
-    if (exact) pick(exact); else { setCountyValue(prefix, hidden.value); close(); }
+    reconcileTyped();
   });
 }
 
