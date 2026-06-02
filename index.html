@@ -1348,6 +1348,14 @@
   .set-panel.active { display: block; animation: fadeIn .25s ease both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
   .set-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+  /* Mobile: settings sidebar collapses into a horizontal scroll strip so the
+     content panel gets the full screen width instead of being crammed into a
+     narrow column beside the rail. */
+  @media (max-width: 639px) {
+    #settingsNav { white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    #settingsNav::-webkit-scrollbar { display: none; }
+    #settingsNav .set-tab { width: auto; flex: 0 0 auto; padding: 8px 13px; font-size: 12.5px; }
+  }
   /* Rates panel sidebar nav — active section pill */
   .rates-nav-link {
     border-left: 2px solid transparent;
@@ -3590,10 +3598,10 @@
       <button class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] min-h-[44px]" data-close>Done</button>
     </div>
 
-    <!-- Body: rail + content -->
-    <div class="flex-1 flex overflow-hidden">
-      <!-- Tab rail -->
-      <nav class="w-36 sm:w-52 flex-shrink-0 border-r border-slate-800 p-2.5 sm:p-3 overflow-y-auto space-y-1">
+    <!-- Body: rail + content (stacks to single column on mobile) -->
+    <div class="flex-1 flex flex-col sm:flex-row overflow-hidden">
+      <!-- Tab rail — horizontal scroll strip on mobile, sidebar on desktop -->
+      <nav id="settingsNav" class="flex sm:block flex-shrink-0 sm:w-52 border-b sm:border-b-0 sm:border-r border-slate-800 p-2 sm:p-3 gap-1 sm:gap-0 sm:space-y-1 overflow-x-auto sm:overflow-y-auto">
         <button type="button" class="set-tab active" data-tab="brand">Brand</button>
         <button type="button" class="set-tab" data-tab="defaults">Job Defaults</button>
         <button type="button" class="set-tab" data-tab="manufacturers">Manufacturers</button>
@@ -8504,9 +8512,9 @@ function buildAdminUI() {
   wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor").map(item => {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 w-44 truncate">${k}</span>
-        <input data-item="${item.id}" data-key="${k}" type="number" step="0.001" value="${v}" class="control rounded-lg px-3 py-2 w-32 text-sm text-slate-100" />
-        <span class="text-[11px] text-slate-500">${item.unit}/LF</span>
+        <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${k}</span>
+        <input data-item="${item.id}" data-key="${k}" type="number" step="0.001" value="${v}" class="control rounded-lg px-2.5 py-2 w-24 sm:w-32 text-sm text-slate-100 flex-shrink-0" />
+        <span class="text-[11px] text-slate-500 flex-shrink-0 whitespace-nowrap">${item.unit}/LF</span>
       </div>
     `).join("");
 
@@ -8547,9 +8555,9 @@ function buildAdminUI() {
     const appPriceRows = item.unitPriceByApplication
       ? Object.entries(item.unitPriceByApplication).map(([app, p]) => `
           <div class="flex items-center gap-2">
-            <span class="text-xs text-slate-400 w-44 truncate">${app} unit price</span>
-            <input data-appunitprice="${item.id}" data-app="${app}" type="number" step="0.001" value="${p}" class="control rounded-lg px-3 py-2 w-32 text-sm text-slate-100" />
-            <span class="text-[11px] text-slate-500">$/${item.unit}</span>
+            <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${app} unit price</span>
+            <input data-appunitprice="${item.id}" data-app="${app}" type="number" step="0.001" value="${p}" class="control rounded-lg px-2.5 py-2 w-24 sm:w-32 text-sm text-slate-100 flex-shrink-0" />
+            <span class="text-[11px] text-slate-500 flex-shrink-0 whitespace-nowrap">$/${item.unit}</span>
           </div>
         `).join("")
       : "";
