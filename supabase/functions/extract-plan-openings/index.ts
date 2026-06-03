@@ -1,22 +1,24 @@
 // extract-plan-openings
 // ─────────────────────────────────────────────────────────────────────────────
-// Replaces the manual "copy prompt → open grok.com → paste PDF → copy reply →
-// paste back" round-trip with a single server-side call.
+// One upload → one Grok call → returns the FULL takeoff in a single reply:
+//   MANUFACTURER: <name>
+//   OPENING | room | w | h | qty | type      (one line per opening)
 //
-// Request:  POST { mode: "summary"|"openings", mimeType, fileName?, fileBase64 }
-// Response: 200 { ok:true, mode, text, usage:{model} }     ← `text` is byte-
-//           compatible with the frontend's existing parsers (parseGrokResponse
-//           for "summary", parseOpenings for "openings"), so the browser feeds
-//           it straight into applyGrokResponse() / generateCutList() unchanged.
+// The browser then, from that ONE reply:
+//   • builds the buck cut list from the openings (always; pricing ignores it
+//     for stick-framed jobs),
+//   • derives window count + total LF from the same openings (so the LF and the
+//     cut list can never disagree),
+//   • sets the manufacturer.
+//
+// `text` stays byte-compatible with the existing frontend parsers
+// (parseOpenings reads the OPENING lines, parseGrokResponse reads MANUFACTURER).
 //
 // Self-contained (helpers inlined) so it deploys as a single file.
-//
-// Secrets:  XAI_API_KEY (required), XAI_MODEL (optional, default below),
-//           ADMIN_UID / ADMIN_EMAILS (optional, mirror the frontend admin gate).
+// Secrets: XAI_API_KEY (required), XAI_MODEL (default below), ADMIN_UID, ADMIN_EMAILS.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ── inlined CORS / response helpers ──────────────────────────────────────────
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -36,7 +38,6 @@ function handlePreflight(req: Request): Response | null {
   return null;
 }
 
-// ── inlined service-role admin client + profile helpers ──────────────────────
 const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -57,7 +58,6 @@ async function patchEntitlements(userId: string, patch: Record<string, unknown>)
   if (error) throw error;
 }
 
-// ── config ───────────────────────────────────────────────────────────────────
 const XAI_API_KEY = Deno.env.get("XAI_API_KEY") ?? "";
 const XAI_MODEL = Deno.env.get("XAI_MODEL") ?? "grok-4";
 const XAI_BASE = "https://api.x.ai/v1";
@@ -66,7 +66,6 @@ const ADMIN_UID = Deno.env.get("ADMIN_UID") ?? "";
 const ADMIN_EMAILS = (Deno.env.get("ADMIN_EMAILS") ?? "")
   .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
-// Per-cycle extraction caps by plan. Admin bypasses all. Tune freely.
 const AI_CAPS: Record<string, number> = {
   trial: 5,
   starter: 50,
@@ -75,55 +74,38 @@ const AI_CAPS: Record<string, number> = {
 };
 
 const MIME_ALLOW = new Set(["application/pdf", "image/png", "image/jpeg"]);
-const MAX_RAW_BYTES = 10 * 1024 * 1024; // 10 MB raw (Supabase invoke body is the tighter bound).
+const MAX_RAW_BYTES = 10 * 1024 * 1024;
 
-// ── the proven prompts, ported from index.html, hardened to "output ONLY" ────
-const SUMMARY_PROMPT = `I'm uploading a window schedule for a window installation bid. Please:
+// One combined prompt — manufacturer + every opening, in the existing dialects.
+const FULL_PROMPT = `Window Schedule — Full Takeoff
 
-1. Identify every individual window opening in the schedule. If a row lists a quantity (QTY), multiply by that quantity so the totals reflect the actual number of windows installed.
-2. For each window, find its rough opening width and height. If given as feet/inches (e.g., 3'-0" x 4'-6"), convert to inches first. If given as fractional inches (e.g., 36 1/2"), use the decimal equivalent.
-3. Calculate the PERIMETER of each window in inches: (2 x width) + (2 x height).
-4. Sum all perimeters across every window, then convert to linear feet by dividing by 12.
-5. Count the total number of window units (sum of quantities across all rows).
-6. Identify the window MANUFACTURER from the schedule. Look in the title block, header row, notes, or any "MFR" / "MANUFACTURER" column. Common manufacturers include Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows. If you cannot find one, write "Unknown".
+Read the attached window/door schedule and do BOTH of the following.
 
-Reply with ONLY these three lines and nothing else — no preamble, no explanation, no markdown:
+PART A — Manufacturer:
+Identify the window MANUFACTURER (look in the title block, header row, notes, or any "MFR" / "MANUFACTURER" column; common ones: Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows). If you cannot find one, write Unknown.
 
-WINDOW_COUNT: <integer>
-TOTAL_LF: <total linear feet, one decimal>
+PART B — Every opening:
+For EACH opening in the schedule:
+1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O — ignore frame size, unit size, and glass size). Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5.
+2. Find the quantity (QTY) — how many of that opening. If none is shown, use 1.
+3. Find the room or location name.
+4. Determine the TYPE: if it is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door"; everything else is "window".
+
+Reply with ONLY the following — the manufacturer line first, then one OPENING line per opening. No headers, totals, preamble, or commentary:
+
 MANUFACTURER: <name or Unknown>
-
-Example correct reply:
-WINDOW_COUNT: 14
-TOTAL_LF: 196.7
-MANUFACTURER: Viwinco`;
-
-const OPENINGS_PROMPT = `Window Schedule — Rough Opening Extraction
-
-I'm doing a window buck takeoff. Read the attached window/door schedule and extract every opening.
-
-For EACH opening:
-1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O). Ignore frame size, unit size, and glass size.
-2. Convert both to inches. Feet-and-inches like 3'-0" becomes 36. Fractions like 36 1/2" become 36.5.
-3. Find the quantity (QTY) — how many of that opening. If no quantity is shown, use 1.
-4. Find the room or location name.
-5. Determine the TYPE. If the opening is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door". Everything else is a "window".
-
-Reply with ONLY a list — one opening per line — in EXACTLY this format. No headers, no totals, no commentary:
-
 OPENING | room or location | width_inches | height_inches | qty | type
 
 Example reply:
+MANUFACTURER: Viwinco
 OPENING | Master Bedroom | 36 | 48 | 2 | window
 OPENING | Kitchen | 48 | 60 | 1 | window
 OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
 
-If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the OPENING lines.`;
+If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the MANUFACTURER line and the OPENING lines.`;
 
-function looksValid(mode: string, text: string): boolean {
-  if (!text) return false;
-  if (mode === "openings") return /OPENING\s*\|/i.test(text);
-  return /total[_\s-]*lf|linear\s*feet|window[_\s-]*count/i.test(text);
+function looksValid(text: string): boolean {
+  return !!text && /OPENING\s*\|/i.test(text);
 }
 
 function isAdminUser(user: { id?: string; email?: string } | null): boolean {
@@ -133,8 +115,7 @@ function isAdminUser(user: { id?: string; email?: string } | null): boolean {
   return !!em && ADMIN_EMAILS.includes(em);
 }
 
-// Pull text from an xAI /v1/responses payload defensively (handle Responses-API
-// and chat-completions shapes).
+// Pull text from an xAI /v1/responses payload defensively.
 function extractReplyText(json: any): string {
   if (!json) return "";
   if (typeof json.output_text === "string") return json.output_text.trim();
@@ -164,7 +145,7 @@ Deno.serve(async (req) => {
   if (preflight) return preflight;
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
-  // ── 1. Auth
+  // ── Auth
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return errorResponse("Missing bearer token", 401);
   const userClient = createClient(
@@ -175,14 +156,13 @@ Deno.serve(async (req) => {
   const { data: { user }, error: userErr } = await userClient.auth.getUser();
   if (userErr || !user) return errorResponse("Invalid auth", 401);
 
-  // ── 2. Body + validation
-  let body: { mode?: string; mimeType?: string; fileName?: string; fileBase64?: string };
+  // ── Body + validation
+  let body: { mimeType?: string; fileName?: string; fileBase64?: string };
   try {
     body = await req.json();
   } catch {
     return errorResponse("Invalid JSON body");
   }
-  const mode = body.mode === "openings" ? "openings" : "summary";
   const mimeType = (body.mimeType ?? "").toLowerCase();
   const fileBase64 = body.fileBase64 ?? "";
   if (!MIME_ALLOW.has(mimeType)) {
@@ -191,20 +171,14 @@ Deno.serve(async (req) => {
   if (!fileBase64) return errorResponse("No file data provided.", 400);
   const approxRawBytes = Math.floor((fileBase64.length * 3) / 4);
   if (approxRawBytes > MAX_RAW_BYTES) {
-    return errorResponse(
-      "File too large — max ~10 MB. Upload just the schedule page, or a screenshot of it.",
-      413,
-    );
+    return errorResponse("File too large — max ~10 MB. Upload just the schedule page, or a screenshot of it.", 413);
   }
 
   if (!XAI_API_KEY) {
-    return errorResponse(
-      "AI plan reading isn't configured yet. Paste your schedule into Grok manually for now.",
-      503,
-    );
+    return errorResponse("AI plan reading isn't configured yet. Paste your schedule into Grok manually for now.", 503);
   }
 
-  // ── 3. Entitlement / cost gate (admin unlimited)
+  // ── Entitlement / cost gate (admin unlimited)
   const admin = isAdminUser(user);
   let ent: any = null;
   if (!admin) {
@@ -233,7 +207,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── 4. Upload the file to xAI's Files API
+  // ── Upload the file to xAI's Files API
   let fileId = "";
   try {
     const bin = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
@@ -246,16 +220,13 @@ Deno.serve(async (req) => {
     form.append("purpose", "assistants");
     const upRes = await fetch(`${XAI_BASE}/files`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${XAI_API_KEY}` }, // FormData sets its own Content-Type
+      headers: { Authorization: `Bearer ${XAI_API_KEY}` },
       body: form,
     });
     if (!upRes.ok) {
       const t = await upRes.text();
       console.error("[extract] xai file upload failed", upRes.status, t);
-      return errorResponse(
-        "Couldn't read that file — try a clearer scan, or paste the schedule into Grok.",
-        502,
-      );
+      return errorResponse("Couldn't read that file — try a clearer scan, or paste the schedule into Grok.", 502);
     }
     const upJson = await upRes.json();
     fileId = upJson.id ?? upJson.file_id ?? "";
@@ -268,10 +239,9 @@ Deno.serve(async (req) => {
     return errorResponse("Could not process the uploaded file.", 400);
   }
 
-  // ── 5. Ask Grok to read it
+  // ── Ask Grok to read it
   let replyText = "";
   try {
-    const prompt = mode === "openings" ? OPENINGS_PROMPT : SUMMARY_PROMPT;
     const aiRes = await fetch(`${XAI_BASE}/responses`, {
       method: "POST",
       headers: {
@@ -284,7 +254,7 @@ Deno.serve(async (req) => {
           {
             role: "user",
             content: [
-              { type: "input_text", text: prompt },
+              { type: "input_text", text: FULL_PROMPT },
               { type: "input_file", file_id: fileId },
             ],
           },
@@ -308,7 +278,6 @@ Deno.serve(async (req) => {
     console.error("[extract] xai responses error", err);
     return errorResponse("AI request failed — try again shortly.", 502);
   } finally {
-    // Best-effort cleanup — don't keep customer plans on xAI.
     if (fileId) {
       fetch(`${XAI_BASE}/files/${fileId}`, {
         method: "DELETE",
@@ -317,15 +286,12 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── 6. Validate the reply is in the parser's dialect
-  if (!looksValid(mode, replyText)) {
-    return errorResponse(
-      "Couldn't read the schedule from that file — it may be a low-res photo. Try a clearer page, or paste it into Grok.",
-      422,
-    );
+  // ── Validate the reply has openings
+  if (!looksValid(replyText)) {
+    return errorResponse("Couldn't read the schedule from that file — it may be a low-res photo. Try a clearer page, or paste it into Grok.", 422);
   }
 
-  // ── 7. Charge one extraction (non-admin), only on success
+  // ── Charge one extraction (non-admin), only on success
   if (!admin && ent) {
     try {
       await patchEntitlements(user.id, {
@@ -336,5 +302,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return jsonResponse({ ok: true, mode, text: replyText, usage: { model: XAI_MODEL } });
+  return jsonResponse({ ok: true, text: replyText, usage: { model: XAI_MODEL } });
 });

@@ -3385,7 +3385,7 @@
       <!-- ⚡ AI auto-upload — primary path; the manual Grok steps below remain as a fallback -->
       <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
         <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
-        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window schedule. We pull the window count, total LF, and manufacturer and fill them in automatically — no Grok tab, no copy/paste.</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window schedule. One upload fills the window count, total LF, and manufacturer — and builds your buck cut list — automatically. No Grok tab, no copy/paste.</div>
         <input id="readPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" class="hidden" />
         <button id="readPlanUploadBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
@@ -3452,7 +3452,7 @@
       <!-- ⚡ AI auto-upload — primary path; the manual Grok steps below remain as a fallback -->
       <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
         <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
-        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window/door schedule. We extract every rough opening and build the cut list automatically — no Grok tab, no copy/paste.</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window/door schedule. One upload builds the cut list — and fills the window count, total LF, and manufacturer — automatically. No Grok tab, no copy/paste.</div>
         <input id="buckPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" class="hidden" />
         <button id="buckPlanUploadBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
@@ -9241,39 +9241,70 @@ async function invokePlanExtraction(body) {
   return { ok: true, data };
 }
 
-async function handlePlanUpload(file, mode) {
+async function handlePlanUpload(file, source) {
   if (!file) return;
   if (!sb || !currentUser) { toast("Sign in to use AI plan reading"); try { openAuth("login"); } catch (_) {} return; }
   if (file.size > 10 * 1024 * 1024) { toast("File too large — max ~10 MB. Upload just the schedule page."); return; }
-  const statusId = mode === "openings" ? "buckPlanUploadStatus" : "readPlanUploadStatus";
-  const btn = document.getElementById(mode === "openings" ? "buckPlanUploadBtn" : "readPlanUploadBtn");
+  const statusId = source === "buck" ? "buckPlanUploadStatus" : "readPlanUploadStatus";
+  const btn = document.getElementById(source === "buck" ? "buckPlanUploadBtn" : "readPlanUploadBtn");
   if (btn) btn.disabled = true;
   setPlanUploadStatus(statusId, "Reading your plan… this can take 10–30 seconds.", "busy");
   try {
     const fileBase64 = await fileToBase64(file);
-    const res = await invokePlanExtraction({ mode, mimeType: file.type, fileName: file.name, fileBase64 });
+    const res = await invokePlanExtraction({ mimeType: file.type, fileName: file.name, fileBase64 });
     if (!res.ok) {
       setPlanUploadStatus(statusId, res.msg, "error");
       toast(res.msg);
       return;
     }
     const text = (res.data && res.data.text) || "";
-    if (mode === "openings") {
-      const ta = document.getElementById("buckResponseInput");
-      ta.value = text; ta.dispatchEvent(new Event("input"));
-      generateCutList();                 // builds + renders the cut list, toasts summary
-      setPlanUploadStatus(statusId, "Done — cut list built from your plan.", "ok");
-    } else {
-      const ta = document.getElementById("grokResponseInput");
-      ta.value = text; ta.dispatchEvent(new Event("input"));
-      applyGrokResponse();               // fills count/LF/mfr, closes modal, toasts summary
+    const ok = applyFullExtraction(text, source);
+    if (!ok) {
+      setPlanUploadStatus(statusId, "Couldn't read any openings — try a clearer page, or the manual Grok steps below.", "error");
+      return;
     }
-    try { window.track("plan_ai_extracted", { mode }); } catch (_) {}
+    if (source === "buck") setPlanUploadStatus(statusId, "Done — your plan was read.", "ok");
+    try { window.track("plan_ai_extracted", { source }); } catch (_) {}
   } catch (err) {
     setPlanUploadStatus(statusId, "Something went wrong — try again, or use the manual Grok steps below.", "error");
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+// Apply ONE combined AI reply: derive window count + total LF from the openings,
+// build the buck cut list (always — pricing ignores it for stick-framed jobs),
+// and set the manufacturer. Reuses the existing parsers so the math never drifts.
+function applyFullExtraction(text, source) {
+  const openings = parseOpenings(text);
+  const { manufacturerRaw } = parseGrokResponse(text);
+  const matchedMfg = matchManufacturer(manufacturerRaw);
+  const applied = [];
+  if (openings.length) {
+    const count = openings.reduce((s, o) => s + o.qty, 0);
+    const lfInches = openings.reduce((s, o) => s + o.qty * 2 * (o.width + o.height), 0);
+    const lf = Math.round((lfInches / 12) * 10) / 10;
+    STATE.windowCount = String(count);
+    const wc = document.getElementById("windowCountInput"); if (wc) wc.value = STATE.windowCount;
+    STATE.totalLF = String(lf);
+    const lfEl = document.getElementById("totalLF"); if (lfEl) lfEl.value = STATE.totalLF;
+    STATE.buckList = optimizeCutList(openings);   // always build; pricing uses it only on block-framed
+    applied.push(`${count} opening${count === 1 ? "" : "s"}`, `${lf} LF`);
+    if (STATE.buckList && STATE.buckList.totalBoards) applied.push(`cut list (${STATE.buckList.totalBoards} boards)`);
+  }
+  if (matchedMfg != null) {
+    STATE.manufacturer = matchedMfg;
+    if (DROPDOWNS.ddManufacturer) DROPDOWNS.ddManufacturer.setValue(matchedMfg, false);
+    applied.push(matchedMfg);
+  }
+  if (!applied.length) return false;
+  if (typeof renderBuckResult === "function") renderBuckResult();
+  render();
+  // Read Plan modal closes (the toast is the glance-check summary); the Buck
+  // modal stays open so the user sees the generated cut list.
+  if (source !== "buck") { try { closeReadPlanModal(); } catch (_) {} }
+  toast(`Applied: ${applied.join(" · ")}`);
+  return true;
 }
 
 /* ============================================================
@@ -12439,13 +12470,13 @@ function init() {
   const _readUpFile = document.getElementById("readPlanFile");
   if (_readUpBtn && _readUpFile) {
     _readUpBtn.addEventListener("click", () => _readUpFile.click());
-    _readUpFile.addEventListener("change", () => { const f = _readUpFile.files && _readUpFile.files[0]; _readUpFile.value = ""; if (f) handlePlanUpload(f, "summary"); });
+    _readUpFile.addEventListener("change", () => { const f = _readUpFile.files && _readUpFile.files[0]; _readUpFile.value = ""; if (f) handlePlanUpload(f, "read"); });
   }
   const _buckUpBtn = document.getElementById("buckPlanUploadBtn");
   const _buckUpFile = document.getElementById("buckPlanFile");
   if (_buckUpBtn && _buckUpFile) {
     _buckUpBtn.addEventListener("click", () => _buckUpFile.click());
-    _buckUpFile.addEventListener("change", () => { const f = _buckUpFile.files && _buckUpFile.files[0]; _buckUpFile.value = ""; if (f) handlePlanUpload(f, "openings"); });
+    _buckUpFile.addEventListener("change", () => { const f = _buckUpFile.files && _buckUpFile.files[0]; _buckUpFile.value = ""; if (f) handlePlanUpload(f, "buck"); });
   }
   document.getElementById("buckResponseInput").addEventListener("input", e => {
     const preview = document.getElementById("buckParsedPreview");
