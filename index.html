@@ -3382,6 +3382,22 @@
       <button class="modal-close" data-close-read aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-5 overflow-y-auto">
+      <!-- ⚡ AI auto-upload — primary path; the manual Grok steps below remain as a fallback -->
+      <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
+        <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window schedule. We pull the window count, total LF, and manufacturer and fill them in automatically — no Grok tab, no copy/paste.</div>
+        <input id="readPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" class="hidden" />
+        <button id="readPlanUploadBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
+          Upload plan
+        </button>
+        <div id="readPlanUploadStatus" class="hidden mt-2 text-[11px] font-semibold"></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex-1 h-px bg-slate-800"></div>
+        <span class="text-[10px] uppercase tracking-[0.14em] text-slate-600 font-semibold">or do it manually with Grok</span>
+        <div class="flex-1 h-px bg-slate-800"></div>
+      </div>
       <ol class="space-y-5 text-sm text-slate-300">
         <li class="flex gap-3">
           <span class="flex-shrink-0 w-7 h-7 rounded-full bg-[#b58f4a] text-slate-950 text-xs font-bold flex items-center justify-center">1</span>
@@ -3433,6 +3449,22 @@
       <button class="modal-close" data-close-buck aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-5 overflow-y-auto">
+      <!-- ⚡ AI auto-upload — primary path; the manual Grok steps below remain as a fallback -->
+      <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
+        <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window/door schedule. We extract every rough opening and build the cut list automatically — no Grok tab, no copy/paste.</div>
+        <input id="buckPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" class="hidden" />
+        <button id="buckPlanUploadBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
+          Upload plan
+        </button>
+        <div id="buckPlanUploadStatus" class="hidden mt-2 text-[11px] font-semibold"></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex-1 h-px bg-slate-800"></div>
+        <span class="text-[10px] uppercase tracking-[0.14em] text-slate-600 font-semibold">or do it manually with Grok</span>
+        <div class="flex-1 h-px bg-slate-800"></div>
+      </div>
       <ol class="space-y-5 text-sm text-slate-300">
         <li class="flex gap-3">
           <span class="flex-shrink-0 w-7 h-7 rounded-full bg-[#b58f4a] text-slate-950 text-xs font-bold flex items-center justify-center">1</span>
@@ -9164,6 +9196,86 @@ function applyGrokResponse() {
   toast(`Applied: ${applied.join(" · ")}`);
 }
 
+// ── AI plan upload ──────────────────────────────────────────────────────────
+// Sends a PDF/image straight to the extract-plan-openings edge function and
+// feeds the reply into the SAME parsers the manual paste flow uses
+// (applyGrokResponse / generateCutList). No copy/paste, no Grok tab.
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result || "");
+      const i = s.indexOf(",");
+      resolve(i >= 0 ? s.slice(i + 1) : s); // strip the "data:...;base64," prefix
+    };
+    r.onerror = () => reject(r.error || new Error("Couldn't read file"));
+    r.readAsDataURL(file);
+  });
+}
+
+function setPlanUploadStatus(elId, msg, kind) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!msg) { el.classList.add("hidden"); el.textContent = ""; return; }
+  el.textContent = msg;
+  el.classList.remove("hidden", "text-slate-400", "text-rose-300", "text-emerald-300");
+  el.classList.add(kind === "error" ? "text-rose-300" : kind === "ok" ? "text-emerald-300" : "text-slate-400");
+}
+
+// Invoke the edge function and normalize Supabase's error shape (non-2xx comes
+// back as an error whose .context is the raw Response).
+async function invokePlanExtraction(body) {
+  const { data, error } = await sb.functions.invoke("extract-plan-openings", { body });
+  if (error) {
+    let status = 0, msg = "";
+    try {
+      const ctx = error.context;
+      if (ctx && typeof ctx.json === "function") {
+        status = ctx.status || 0;
+        const j = await ctx.json();
+        if (j && j.error) msg = j.error;
+      }
+    } catch (_) {}
+    return { ok: false, status, msg: msg || error.message || "Couldn't read that plan." };
+  }
+  return { ok: true, data };
+}
+
+async function handlePlanUpload(file, mode) {
+  if (!file) return;
+  if (!sb || !currentUser) { toast("Sign in to use AI plan reading"); try { openAuth("login"); } catch (_) {} return; }
+  if (file.size > 10 * 1024 * 1024) { toast("File too large — max ~10 MB. Upload just the schedule page."); return; }
+  const statusId = mode === "openings" ? "buckPlanUploadStatus" : "readPlanUploadStatus";
+  const btn = document.getElementById(mode === "openings" ? "buckPlanUploadBtn" : "readPlanUploadBtn");
+  if (btn) btn.disabled = true;
+  setPlanUploadStatus(statusId, "Reading your plan… this can take 10–30 seconds.", "busy");
+  try {
+    const fileBase64 = await fileToBase64(file);
+    const res = await invokePlanExtraction({ mode, mimeType: file.type, fileName: file.name, fileBase64 });
+    if (!res.ok) {
+      setPlanUploadStatus(statusId, res.msg, "error");
+      toast(res.msg);
+      return;
+    }
+    const text = (res.data && res.data.text) || "";
+    if (mode === "openings") {
+      const ta = document.getElementById("buckResponseInput");
+      ta.value = text; ta.dispatchEvent(new Event("input"));
+      generateCutList();                 // builds + renders the cut list, toasts summary
+      setPlanUploadStatus(statusId, "Done — cut list built from your plan.", "ok");
+    } else {
+      const ta = document.getElementById("grokResponseInput");
+      ta.value = text; ta.dispatchEvent(new Event("input"));
+      applyGrokResponse();               // fills count/LF/mfr, closes modal, toasts summary
+    }
+    try { window.track("plan_ai_extracted", { mode }); } catch (_) {}
+  } catch (err) {
+    setPlanUploadStatus(statusId, "Something went wrong — try again, or use the manual Grok steps below.", "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 /* ============================================================
    BUCK CUT LIST — Grok extracts openings, we optimize + build the PDF
    ============================================================ */
@@ -12321,6 +12433,20 @@ function init() {
   document.getElementById("buckModal").addEventListener("click", e => {
     if (e.target.dataset.closeBuck !== undefined) closeBuckModal();
   });
+
+  // AI plan upload (auto-fill) — Read Plan = summary, Buck = openings
+  const _readUpBtn = document.getElementById("readPlanUploadBtn");
+  const _readUpFile = document.getElementById("readPlanFile");
+  if (_readUpBtn && _readUpFile) {
+    _readUpBtn.addEventListener("click", () => _readUpFile.click());
+    _readUpFile.addEventListener("change", () => { const f = _readUpFile.files && _readUpFile.files[0]; _readUpFile.value = ""; if (f) handlePlanUpload(f, "summary"); });
+  }
+  const _buckUpBtn = document.getElementById("buckPlanUploadBtn");
+  const _buckUpFile = document.getElementById("buckPlanFile");
+  if (_buckUpBtn && _buckUpFile) {
+    _buckUpBtn.addEventListener("click", () => _buckUpFile.click());
+    _buckUpFile.addEventListener("change", () => { const f = _buckUpFile.files && _buckUpFile.files[0]; _buckUpFile.value = ""; if (f) handlePlanUpload(f, "openings"); });
+  }
   document.getElementById("buckResponseInput").addEventListener("input", e => {
     const preview = document.getElementById("buckParsedPreview");
     const openings = parseOpenings(e.target.value);
