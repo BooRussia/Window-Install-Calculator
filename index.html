@@ -9523,7 +9523,11 @@ async function pdfToImages(file) {
   const pdfjs = await loadPdfJs();
   const buf = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: buf }).promise;
-  const n = Math.min(pdf.numPages, 8);
+  // Render up to the whole-batch page budget. A single multi-page schedule
+  // (these run 10–14 pages) must NOT be silently cut off — that drops openings
+  // and undercounts the job. xAI imposes no image-count limit; the real bound
+  // is the byte budget enforced in the edge function (MAX_TOTAL_B64).
+  const n = Math.min(pdf.numPages, MAX_PLAN_PAGES);
   const out = [];
   for (let i = 1; i <= n; i++) {
     const page = await pdf.getPage(i);
@@ -9635,7 +9639,9 @@ function showPlanError(msg, debug) {
   if (modal) { modal.classList.remove("hidden"); modal.classList.add("flex"); }
 }
 
-const MAX_PLAN_PAGES = 10;   // total page-images sent to the AI across all files
+const MAX_PLAN_PAGES = 20;   // total page-images sent to the AI across all files
+                            // (raised from 10 — a 12-page schedule was losing
+                            //  its last ~4 pages, undercounting the windows)
 let _planUploadBusy = false;
 async function handlePlanUpload(files, source) {
   files = Array.isArray(files) ? files : (files ? [files] : []);

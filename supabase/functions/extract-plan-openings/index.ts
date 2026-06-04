@@ -64,8 +64,11 @@ const ADMIN_EMAILS = (Deno.env.get("ADMIN_EMAILS") ?? "")
 const AI_CAPS: Record<string, number> = { trial: 5, starter: 50, pro: 200, unlimited: Infinity };
 
 const MIME_ALLOW = new Set(["image/png", "image/jpeg"]);
-const MAX_IMAGES = 10;
-const MAX_TOTAL_B64 = 14 * 1024 * 1024; // ~10.5 MB of raw image data across pages
+// Multi-page schedules run long (10–14 pages is common). xAI imposes no
+// image-count limit, so the only real bound is request size. Allow up to 20
+// pages and ~15 MB of raw image bytes (~20 MB as base64) per extraction.
+const MAX_IMAGES = 20;
+const MAX_TOTAL_B64 = 20 * 1024 * 1024;
 
 const FULL_PROMPT = `Window Schedule — Full Takeoff
 
