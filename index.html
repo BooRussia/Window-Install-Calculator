@@ -414,6 +414,13 @@
     box-shadow: 0 2px 6px -2px rgba(181,143,74,0.6);
   }
   .ai-badge::before { content: "\2728"; margin-right: 3px; font-size: 8px; }
+  /* Saved-job deal-status chip (Lead / Quoted / Won / Lost) */
+  .job-status-sel {
+    font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+    border-radius: 999px; border-width: 1px; border-style: solid;
+    padding: 2px 6px; cursor: pointer; outline: none;
+  }
+  .job-status-sel option { color: #0f172a; font-weight: 700; }
   /* Job-extras pills stack full-width inside the rail */
   #jobRail .margin-pill, #jobRail .toggle-pill {
     width: 100%; justify-content: space-between;
@@ -3328,7 +3335,8 @@
 
     <!-- Saved jobs -->
     <div id="savedWrap" class="mt-10 hidden">
-      <h3 class="text-xs uppercase tracking-[0.18em] text-slate-500 text-center mb-3">Saved Jobs</h3>
+      <h3 class="text-xs uppercase tracking-[0.18em] text-slate-500 text-center mb-3">Jobs &amp; Pipeline</h3>
+      <div id="jobsDashboard" class="hidden"></div>
       <div id="savedList" class="max-w-3xl mx-auto grid gap-2"></div>
       <div id="compareBar" class="hidden mt-4 flex justify-center">
         <button id="viewCompareBtn" class="btn rounded-full px-6 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">
@@ -6175,6 +6183,63 @@ function renderMaterialsToggle() {
 
 let compareSet = new Set();
 
+// ── Deal status / pipeline ──────────────────────────────────────────────────
+const JOB_STATUSES = ["Lead", "Quoted", "Won", "Lost"];
+function jobStatus(j) { return (j && JOB_STATUSES.includes(j.status)) ? j.status : "Quoted"; }
+function statusMeta(s) {
+  return ({
+    Lead:   { cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
+    Quoted: { cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
+    Won:    { cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
+    Lost:   { cls: "text-rose-300 border-rose-500/40 bg-rose-500/10" },
+  })[s] || { cls: "text-slate-300 border-slate-600 bg-slate-700/20" };
+}
+function setJobStatus(id, status) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x.id === id);
+  if (!j || !JOB_STATUSES.includes(status)) return;
+  j.status = status;
+  saveJobs(jobs);
+  try { pushJobToCloud(j); } catch (_) {}
+  try { window.track("job_status_changed", { status }); } catch (_) {}
+  renderSavedJobs();
+}
+
+// Owner pipeline dashboard — all computed from your saved (non-draft) jobs.
+function renderJobsDashboard(list) {
+  const dash = document.getElementById("jobsDashboard");
+  if (!dash) return;
+  const real = (list || []).filter(j => !j.isDraft);
+  if (!real.length) { dash.classList.add("hidden"); dash.innerHTML = ""; return; }
+  const groups = { Lead: [], Quoted: [], Won: [], Lost: [] };
+  real.forEach(j => groups[jobStatus(j)].push(j));
+  const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
+  const openVal = sum(groups.Lead) + sum(groups.Quoted);
+  const openCount = groups.Lead.length + groups.Quoted.length;
+  const wonVal = sum(groups.Won);
+  const wonCount = groups.Won.length, lostCount = groups.Lost.length;
+  const decided = wonCount + lostCount;
+  const winRate = decided ? Math.round((wonCount / decided) * 100) : null;
+  const margins = real.map(j => Number(j.margin)).filter(m => !isNaN(m));
+  const avgMargin = margins.length ? Math.round(margins.reduce((s, m) => s + m, 0) / margins.length) : null;
+  const tiles = [
+    { label: "Open pipeline", val: formatMoney(openVal), sub: `${openCount} open`, accent: "text-[#c9a558]" },
+    { label: "Won", val: formatMoney(wonVal), sub: `${wonCount} job${wonCount === 1 ? "" : "s"}`, accent: "text-emerald-300" },
+    { label: "Win rate", val: winRate == null ? "—" : winRate + "%", sub: decided ? `${wonCount}W · ${lostCount}L` : "no decisions yet", accent: "text-slate-100" },
+    { label: "Avg margin", val: avgMargin == null ? "—" : avgMargin + "%", sub: `${real.length} job${real.length === 1 ? "" : "s"}`, accent: "text-slate-100" },
+  ];
+  dash.innerHTML =
+    `<div class="max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">` +
+    tiles.map(t => `
+      <div class="card rounded-xl px-3 py-2.5 text-center">
+        <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500 font-bold">${t.label}</div>
+        <div class="text-base sm:text-lg font-extrabold ${t.accent} mt-0.5" style="font-variant-numeric: tabular-nums;">${t.val}</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">${t.sub}</div>
+      </div>`).join("") +
+    `</div>`;
+  dash.classList.remove("hidden");
+}
+
 function renderSavedJobs() {
   const list = loadJobs();
   const wrap = document.getElementById("savedWrap");
@@ -6182,6 +6247,7 @@ function renderSavedJobs() {
   const bar = document.getElementById("compareBar");
   if (!list.length) { wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
+  renderJobsDashboard(list);
   const atCap = compareSet.size >= 2;
   el.innerHTML = list.slice().reverse().map(j => {
     const inCompare = compareSet.has(j.id);
@@ -6207,6 +6273,11 @@ function renderSavedJobs() {
     const compareTitle = capLocked
       ? `title="Remove one job from comparison first"`
       : (inCompare ? `title="Click to remove from comparison"` : `title="Add to side-by-side comparison (up to 2)"`);
+    const st = jobStatus(j);
+    const statusSel = j.isDraft ? "" :
+      `<select data-status="${j.id}" class="job-status-sel ${statusMeta(st).cls}" title="Set deal status">` +
+      JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("") +
+      `</select>`;
     return `
     <div class="${cardCls}">
       <div class="min-w-0 w-full sm:w-auto">
@@ -6214,9 +6285,10 @@ function renderSavedJobs() {
         ${j.customerAddress ? `<div class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">${j.customerAddress}</div>` : ""}
         <div class="text-[11px] text-slate-500 mt-0.5 font-medium">${details}</div>
       </div>
-      <div class="sm:text-right shrink-0">
+      <div class="shrink-0 flex flex-col items-center sm:items-end gap-1.5">
+        ${statusSel}
         <div class="text-sm font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${formatMoney(j.sellingPrice)}</div>
-        <div class="flex gap-3 justify-center sm:justify-end mt-1">
+        <div class="flex gap-3 justify-center sm:justify-end">
           <button data-load="${j.id}" class="text-[11px] text-slate-400 hover:text-slate-100 font-semibold">Load</button>
           <button data-compare="${j.id}" ${compareTitle} ${capLocked ? "aria-disabled=\"true\"" : ""} class="${compareCls}">${compareLabel}</button>
           <button data-del="${j.id}" class="text-[11px] text-slate-500 hover:text-rose-300 font-semibold">Delete</button>
@@ -6226,6 +6298,7 @@ function renderSavedJobs() {
   `}).join("");
   el.querySelectorAll("[data-load]").forEach(b => b.addEventListener("click", () => loadJob(b.dataset.load)));
   el.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => deleteJob(b.dataset.del)));
+  el.querySelectorAll("[data-status]").forEach(s => s.addEventListener("change", (e) => { e.stopPropagation(); setJobStatus(s.dataset.status, s.value); }));
   el.querySelectorAll("[data-compare]").forEach(b => b.addEventListener("click", () => {
     const id = b.dataset.compare;
     if (compareSet.has(id)) { compareSet.delete(id); }
