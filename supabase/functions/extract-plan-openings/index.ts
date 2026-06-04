@@ -69,23 +69,28 @@ const MAX_TOTAL_B64 = 14 * 1024 * 1024; // ~10.5 MB of raw image data across pag
 
 const FULL_PROMPT = `Window Schedule — Full Takeoff
 
-You are looking at one or more pages of a window/door schedule (images). Do BOTH of the following.
+You are looking at one or more pages of a window/door schedule (images). Do ALL of the following.
 
 PART A — Manufacturer & project:
 Identify the window MANUFACTURER (title block, header row, notes, or any "MFR" / "MANUFACTURER" column; common ones: Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows). Also identify the PROJECT / JOB NAME from the title block — the homeowner or project name, or the street address. Write Unknown for anything you cannot find.
 
-PART B — Every opening:
-For EACH opening in the schedule:
+PART B — Every opening (READ THE QUANTITY COLUMN — THIS IS CRITICAL):
+A window schedule almost always has a QUANTITY column, labeled QTY, QT, QNTY, COUNT, NO., or # . ONE row in the schedule usually represents MULTIPLE identical units — e.g. a "Type W1" row with QTY 4 means there are four of that window in the building. You MUST read that column for every row. Do NOT assume the quantity is 1.
+For EACH row/opening in the schedule:
 1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O — ignore frame size, unit size, and glass size). If only the unit/nominal size is shown, use it. Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5.
-2. Find the quantity (QTY) — how many of that opening. If none is shown, use 1.
+2. Read the QUANTITY (QTY) for that row straight off the schedule — the real count. Only use 1 if there is genuinely no quantity shown anywhere for that row.
 3. Find the room or location name (or the window mark/label if no room is given).
 4. Determine the TYPE: if it is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door"; everything else is "window".
 
-If multiple schedule pages are shown, include EVERY opening across ALL of them. Reply with ONLY the following — the manufacturer and project lines first, then one OPENING line per opening. No headers, totals, preamble, or commentary:
+PART C — Florida product approvals:
+Schedules frequently list a Florida Product Approval number (FL#, formatted like FL12345, FL12345.1, or FL12345-R3) and/or a Miami-Dade NOA number (formatted like 21-0119.05) for each window or door — usually in a column headed "FL #", "FL APPROVAL", "PRODUCT APPROVAL", "APPROVAL", "FBC", or "NOA", or in the schedule notes/legend. Extract EVERY product-approval number you can find, along with what it applies to (the window mark / type / series). If no approval numbers appear anywhere, skip Part C entirely.
+
+If multiple schedule pages are shown, include EVERYTHING across ALL of them. Reply with ONLY the lines below — no headers, totals, preamble, or commentary. Manufacturer and project first, then one OPENING line per opening, then one APPROVAL line per approval number:
 
 MANUFACTURER: <name or Unknown>
 PROJECT: <project name, homeowner, or address — or Unknown>
 OPENING | room or location | width_inches | height_inches | qty | type
+APPROVAL | <FL# or NOA number> | <window mark / type / series it applies to>
 
 Example reply:
 MANUFACTURER: Viwinco
@@ -93,8 +98,10 @@ PROJECT: Smith Residence
 OPENING | Master Bedroom | 36 | 48 | 2 | window
 OPENING | Kitchen | 48 | 60 | 1 | window
 OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
+APPROVAL | FL16258.3 | 7000 Series Single Hung (W1-W4)
+APPROVAL | FL22193.1 | 8000 Series Sliding Glass Door (SGD1)
 
-Read the dimensions directly off the drawing. Only if there are genuinely no openings visible at all, reply with just "MANUFACTURER: <name>". Otherwise reply with the MANUFACTURER line and one OPENING line per opening.`;
+Read the dimensions and quantities directly off the drawing. Only if there are genuinely no openings visible at all, reply with just "MANUFACTURER: <name>". Otherwise reply with the MANUFACTURER line, one OPENING line per opening, and one APPROVAL line per approval number you find.`;
 
 function looksValid(text: string): boolean {
   return !!text && /OPENING\s*\|/i.test(text);

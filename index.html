@@ -606,6 +606,25 @@
     .jf-card { flex-wrap: wrap; }
     .jf-actions { width: 100%; justify-content: flex-end; padding-top: 4px; }
   }
+  /* Florida Product Approval rows — tappable FL#/NOA chips from the schedule */
+  .plan-approval-row {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    border: 1px solid #1e293b; border-radius: 12px; background: rgba(2,6,23,0.45);
+    padding: 11px 14px; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .plan-approval-row:hover { border-color: rgba(181,143,74,0.4); background: rgba(15,23,42,0.5); }
+  .plan-approval-num {
+    font-size: 14px; font-weight: 800; color: #c9a558; letter-spacing: 0.01em;
+    flex-shrink: 0; font-variant-numeric: tabular-nums;
+  }
+  .plan-approval-applies {
+    font-size: 12px; color: #94a3b8; flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .plan-approval-cta { margin-left: auto; font-size: 12px; font-weight: 700; color: #64748b; flex-shrink: 0; }
+  .plan-approval-row:hover .plan-approval-cta { color: #c9a558; }
   .hero-input {
     background: transparent;
     border: none;
@@ -1763,6 +1782,11 @@
   [data-theme="light"] .jf-desc { color: #5b6677; }
   [data-theme="light"] .jf-btn-view { color: #475569; border-color: #cbd5e1; }
   [data-theme="light"] .jf-btn-share { color: #64748b; }
+  [data-theme="light"] .plan-approval-row { background: #f6f7f9; border-color: #e6e8ec; }
+  [data-theme="light"] .plan-approval-row:hover { background: #fbf6ec; border-color: rgba(181,143,74,0.4); }
+  [data-theme="light"] .plan-approval-num { color: #9c7a36; }
+  [data-theme="light"] .plan-approval-applies { color: #5b6677; }
+  [data-theme="light"] .plan-approval-cta { color: #94a3b8; }
 
   /* Pricing tier cards: the feature list under each plan was #cbd5e1 — nearly
      invisible on white. Darken the list text and the divider. */
@@ -3407,6 +3431,23 @@
         </div>
         <div id="materialsTotal" class="text-2xl sm:text-3xl font-extrabold accent-glow shrink-0" style="font-variant-numeric: tabular-nums;">$0.00</div>
       </div>
+    </div>
+
+    <!-- Florida Product Approvals — FL#/NOA numbers the AI read off the
+         uploaded window schedule. Hidden until an upload populates it. -->
+    <div id="planApprovalsCard" class="mt-8 card rounded-2xl overflow-hidden hidden">
+      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center gap-3">
+        <span class="flex-shrink-0 w-9 h-9 rounded-xl bg-[#b58f4a]/10 border border-[#b58f4a]/28 flex items-center justify-center text-[#c9a558]">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <div class="flex-1 min-w-0">
+          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Florida Product Approvals
+            <span class="ml-1.5 align-middle text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold">AI</span>
+          </h2>
+          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Read off your schedule — tap any number to look up its screw pattern</p>
+        </div>
+      </div>
+      <div id="planApprovalsList" class="px-5 sm:px-6 py-4 flex flex-col gap-2"></div>
     </div>
 
     <!-- Job Files — each document is its own clearly-separated card -->
@@ -5182,7 +5223,7 @@ function buildState() {
     customerName: "",
     customerAddress: "",
     customerNotes: "",
-    buckList: null,
+    buckList: null, planApprovals: [],
     variants: {},
     currentJobId: null,
     jobName: "",
@@ -6306,6 +6347,7 @@ function render() {
   // Per-job material variant toggles
   renderMaterialsToggle();
   renderJobSpecSummary();
+  renderPlanApprovals();
 
   saveState({
     manufacturer: STATE.manufacturer,
@@ -6322,7 +6364,7 @@ function render() {
     customerName: STATE.customerName,
     customerAddress: STATE.customerAddress,
     customerNotes: STATE.customerNotes,
-    buckList: STATE.buckList,
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
     variants: STATE.variants || {},
     currentJobId: STATE.currentJobId || null,
     jobName: STATE.jobName || "",
@@ -6801,7 +6843,7 @@ function resetAll() {
     customerName: "",
     customerAddress: "",
     customerNotes: "",
-    buckList: null,
+    buckList: null, planApprovals: [],
     variants: {},
     currentJobId: null,
     jobName: "",
@@ -6870,7 +6912,7 @@ function confirmSaveJob() {
     id: reuseId,
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerNotes: notes,
-    buckList: STATE.buckList,
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
     variants: clone(STATE.variants || {}),
     createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
@@ -6910,7 +6952,7 @@ function quickSaveOrPrompt() {
       const existing = jobs[idx];
       const updated = {
         ...existing,
-        buckList: STATE.buckList,
+        buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
         variants: clone(STATE.variants || {}),
         manufacturer: STATE.manufacturer, application: STATE.application,
         houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -6969,7 +7011,7 @@ function saveAsNewVersion() {
     name: newName,
     customerName: base.customerName || baseName,
     createdAt: new Date().toISOString(),
-    buckList: STATE.buckList,
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
     variants: clone(STATE.variants || {}),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -7039,7 +7081,7 @@ function writeDraftJob(r) {
     customerName: STATE.customerName || "",
     customerAddress: STATE.customerAddress || "",
     customerNotes: STATE.customerNotes || "",
-    buckList: STATE.buckList,
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
     variants: clone(STATE.variants || {}),
     createdAt: (idx >= 0 && jobs[idx].createdAt) || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -7078,6 +7120,7 @@ function loadJob(id) {
   STATE.customerAddress = j.customerAddress || "";
   STATE.customerNotes = j.customerNotes || "";
   STATE.buckList = j.buckList || null;
+  STATE.planApprovals = Array.isArray(j.planApprovals) ? j.planApprovals : [];
   STATE.variants = j.variants ? clone(j.variants) : {};
   STATE.currentJobId = j.id;
   // Swing doors — older saved jobs predate this; default to zero.
@@ -9717,6 +9760,13 @@ function applyFullExtraction(text, source) {
       applied.push(`job: ${proj}`);
     }
   }
+  // Florida product-approval numbers read off the schedule (Part C). Replace
+  // any prior list (a fresh upload supersedes it) and refresh the card.
+  const approvals = parsePlanApprovals(text);
+  STATE.planApprovals = approvals;
+  renderPlanApprovals();
+  if (approvals.length) applied.push(`${approvals.length} FL approval${approvals.length === 1 ? "" : "s"}`);
+
   if (!applied.length) return false;
   if (typeof renderBuckResult === "function") renderBuckResult();
   render();
@@ -9781,6 +9831,54 @@ function parseOpenings(text) {
     }
   }
   return openings;
+}
+
+// Parse the AI's "APPROVAL | <number> | <applies to>" lines (Florida product
+// approval / Miami-Dade NOA numbers read off the schedule) into a deduped list.
+function parsePlanApprovals(text) {
+  const out = [];
+  const seen = new Set();
+  const re = /APPROVAL\s*\|\s*([^|\r\n]+?)\s*(?:\|\s*([^\r\n]*?))?\s*$/gim;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const number = (m[1] || "").trim().replace(/[.,;]+$/, "");
+    const appliesTo = (m[2] || "").trim().replace(/[.,;]+$/, "");
+    if (!number || /^(unknown|n\/?a|none|tbd|see\b)/i.test(number)) continue;
+    if (!/\d/.test(number)) continue;           // a real approval # has digits
+    const key = number.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ number, appliesTo });
+  }
+  return out;
+}
+
+// Render the "Florida Product Approvals" card from STATE.planApprovals. Each
+// row is tappable → opens the FL Lookup pre-searched for that number.
+function renderPlanApprovals() {
+  const card = document.getElementById("planApprovalsCard");
+  const list = document.getElementById("planApprovalsList");
+  if (!card || !list) return;
+  const items = Array.isArray(STATE.planApprovals) ? STATE.planApprovals : [];
+  if (!items.length) { card.classList.add("hidden"); list.innerHTML = ""; return; }
+  card.classList.remove("hidden");
+  list.innerHTML = items.map((a) =>
+    `<button type="button" class="plan-approval-row" data-approval="${escHtml(a.number)}" title="Look up ${escHtml(a.number)} in the FL approval database">`
+    + `<span class="plan-approval-num">${escHtml(a.number)}</span>`
+    + `<span class="plan-approval-applies">${escHtml(a.appliesTo || "")}</span>`
+    + `<span class="plan-approval-cta">Look up →</span>`
+    + `</button>`
+  ).join("");
+}
+
+// Open the FL Lookup modal pre-searched for a specific approval number.
+function openFLForNumber(num) {
+  openFL();
+  if (!num) return;
+  const s = document.getElementById("flSearch");
+  if (!s) return;
+  s.value = String(num);
+  s.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 // Format inches as a jobsite-friendly fraction string (nearest 1/16")
@@ -12508,6 +12606,12 @@ function init() {
     if (verifyBtn) { e.preventDefault(); openSettingsToItem(verifyBtn.dataset.verifyJump); }
   });
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
+  // Florida Product Approvals card — tap a row to look up that FL#/NOA
+  const _approvalsList = document.getElementById("planApprovalsList");
+  if (_approvalsList) _approvalsList.addEventListener("click", (e) => {
+    const row = e.target.closest(".plan-approval-row");
+    if (row) openFLForNumber(row.dataset.approval);
+  });
   // Light / dark theme toggle — idempotent (already wired at parse for the
   // landing nav; this re-runs harmlessly and catches any late-mounted buttons).
   setupThemeToggles();
