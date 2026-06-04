@@ -401,6 +401,26 @@
     color: #cbd5e1;
     margin-bottom: 8px;
   }
+  /* AI auto-fill markers — gold "AI" pill on the label + gold ring on the input
+     so the user sees at a glance which fields the plan filled (and which are
+     still theirs to set). Cleared as soon as they edit the field. */
+  .ai-badge {
+    display: inline-flex; align-items: center;
+    margin-left: 6px; vertical-align: middle;
+    font-size: 8.5px; font-weight: 900; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #0a0a0a;
+    background: linear-gradient(180deg, var(--gold-hi, #d8b765) 0%, var(--gold, #b58f4a) 100%);
+    padding: 1px 6px; border-radius: 999px;
+    box-shadow: 0 2px 6px -2px rgba(181,143,74,0.6);
+  }
+  .ai-badge::before { content: "\2728"; margin-right: 3px; font-size: 8px; }
+  .rail-field.ai-filled .control,
+  .rail-field.ai-filled .num-input,
+  .rail-field.ai-filled input,
+  .rail-field.ai-filled .dd-trigger {
+    box-shadow: 0 0 0 1.5px rgba(201,165,88,0.6) !important;
+    border-color: rgba(201,165,88,0.6) !important;
+  }
   /* Job-extras pills stack full-width inside the rail */
   #jobRail .margin-pill, #jobRail .toggle-pill {
     width: 100%; justify-content: space-between;
@@ -6290,7 +6310,7 @@ function bindControls() {
   if (DROPDOWNS.ddManufacturer) {
     DROPDOWNS.ddManufacturer.setValue(STATE.manufacturer, false);
   } else {
-    createDropdown("ddManufacturer", DATA.manufacturers, STATE.manufacturer, v => { STATE.manufacturer = v; markCalculatorFirstInteraction(); render(); });
+    createDropdown("ddManufacturer", DATA.manufacturers, STATE.manufacturer, v => { STATE.manufacturer = v; const _mf = document.getElementById("ddManufacturer"); if (_mf && _mf.closest) clearFieldAi(_mf.closest(".rail-field")); markCalculatorFirstInteraction(); render(); });
     document.addEventListener("click", () => {
       closeAllDropdowns();
       document.querySelectorAll(".info-tip.show").forEach(t => t.classList.remove("show"));
@@ -6743,6 +6763,7 @@ function writeDraftJob(r) {
 function loadJob(id) {
   const j = loadJobs().find(x => x.id === id);
   if (!j) return;
+  clearAllAiFilled();   // a loaded job's values are the user's, not a fresh AI fill
   STATE.manufacturer = j.manufacturer;
   STATE.application = j.application;
   STATE.houseType = j.houseType;
@@ -9327,7 +9348,41 @@ async function handlePlanUpload(files, source) {
 // Apply ONE combined AI reply: derive window count + total LF from the openings,
 // build the buck cut list (always — pricing ignores it for stick-framed jobs),
 // and set the manufacturer. Reuses the existing parsers so the math never drifts.
+// ── AI auto-fill markers ────────────────────────────────────────────────────
+// Tag a rail field as "filled by the plan" with a gold AI pill; clear the tag
+// the moment the user edits that field (so it reflects only un-reviewed values).
+function markFieldAi(elId) {
+  const el = document.getElementById(elId);
+  const field = el && el.closest && el.closest(".rail-field");
+  if (!field) return;
+  field.classList.add("ai-filled");
+  const label = field.querySelector("label");
+  if (label && !label.querySelector(".ai-badge")) {
+    const b = document.createElement("span");
+    b.className = "ai-badge";
+    b.textContent = "AI";
+    b.title = "Auto-filled from your plan — double-check it";
+    label.appendChild(b);
+  }
+}
+function clearFieldAi(field) {
+  if (!field) return;
+  field.classList.remove("ai-filled");
+  field.querySelectorAll(".ai-badge").forEach((b) => b.remove());
+}
+function clearAllAiFilled() {
+  document.querySelectorAll(".rail-field.ai-filled").forEach(clearFieldAi);
+}
+// Clear the AI tag as soon as the user edits an auto-filled field.
+["input", "change"].forEach((evt) =>
+  document.addEventListener(evt, (e) => {
+    const field = e.target && e.target.closest && e.target.closest(".rail-field.ai-filled");
+    if (field) clearFieldAi(field);
+  }, true)
+);
+
 function applyFullExtraction(text, source) {
+  clearAllAiFilled();   // fresh upload → recompute which fields are AI-filled
   const openings = parseOpenings(text);
   const { manufacturerRaw } = parseGrokResponse(text);
   const matchedMfg = matchManufacturer(manufacturerRaw);
@@ -9341,12 +9396,14 @@ function applyFullExtraction(text, source) {
     STATE.totalLF = String(lf);
     const lfEl = document.getElementById("totalLF"); if (lfEl) lfEl.value = STATE.totalLF;
     STATE.buckList = optimizeCutList(openings);   // always build; pricing uses it only on block-framed
+    markFieldAi("totalLF"); markFieldAi("windowCountInput");
     applied.push(`${count} opening${count === 1 ? "" : "s"}`, `${lf} LF`);
     if (STATE.buckList && STATE.buckList.totalBoards) applied.push(`cut list (${STATE.buckList.totalBoards} boards)`);
   }
   if (matchedMfg != null) {
     STATE.manufacturer = matchedMfg;
     if (DROPDOWNS.ddManufacturer) DROPDOWNS.ddManufacturer.setValue(matchedMfg, false);
+    markFieldAi("ddManufacturer");
     applied.push(matchedMfg);
   }
   // Project / job name from the title block — only fill if the field is empty
@@ -9357,6 +9414,7 @@ function applyFullExtraction(text, source) {
     if (proj && !/^(unknown|n\/?a|none|tbd)$/i.test(proj)) {
       STATE.jobName = proj;
       const jn = document.getElementById("jobNameInput"); if (jn) jn.value = proj;
+      markFieldAi("jobNameInput");
       applied.push(`job: ${proj}`);
     }
   }
