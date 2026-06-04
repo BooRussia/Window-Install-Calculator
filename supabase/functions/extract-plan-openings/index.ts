@@ -185,6 +185,7 @@ Deno.serve(async (req) => {
     return errorResponse("Unsupported file type — upload a PDF, PNG, or JPEG.", 400);
   }
   if (!fileBase64) return errorResponse("No file data provided.", 400);
+  const isImage = mimeType === "image/png" || mimeType === "image/jpeg";
   const approxRawBytes = Math.floor((fileBase64.length * 3) / 4);
   if (approxRawBytes > MAX_RAW_BYTES) {
     return errorResponse("File too large — max ~10 MB. Upload just the schedule page, or a screenshot of it.", 413);
@@ -223,9 +224,9 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── Upload the file to xAI's Files API
+  // ── Upload the file to xAI's Files API (PDFs only; images go in as vision)
   let fileId = "";
-  try {
+  if (!isImage) try {
     const bin = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
     const form = new FormData();
     form.append(
@@ -258,6 +259,12 @@ Deno.serve(async (req) => {
 
   // ── Ask Grok to read it
   let replyText = "";
+  let rawPreview = "";
+  // Images go in as VISION (input_image data URI) — far better for a visual
+  // schedule. PDFs go in as a Files-API document (input_file = doc search).
+  const fileContent = isImage
+    ? { type: "input_image", image_url: `data:${mimeType};base64,${fileBase64}` }
+    : { type: "input_file", file_id: fileId };
   try {
     const aiRes = await fetch(`${XAI_BASE}/responses`, {
       method: "POST",
@@ -272,7 +279,7 @@ Deno.serve(async (req) => {
             role: "user",
             content: [
               { type: "input_text", text: FULL_PROMPT },
-              { type: "input_file", file_id: fileId },
+              fileContent,
             ],
           },
         ],
@@ -290,7 +297,8 @@ Deno.serve(async (req) => {
       );
     }
     const aiJson = await aiRes.json();
-    console.log("[extract] xai raw (truncated):", JSON.stringify(aiJson).slice(0, 3000));
+    rawPreview = JSON.stringify(aiJson).slice(0, 2200);
+    console.log("[extract] xai raw (truncated):", rawPreview);
     replyText = extractReplyText(aiJson);
     console.log("[extract] extracted len", replyText.length, "preview:", replyText.slice(0, 400));
   } catch (err) {
@@ -307,7 +315,13 @@ Deno.serve(async (req) => {
 
   // ── Validate the reply has openings
   if (!looksValid(replyText)) {
-    return errorResponse("Couldn't read the schedule from that file — it may be a low-res photo. Try a clearer page, or paste it into Grok.", 422);
+    const debug = admin
+      ? { mode: isImage ? "vision" : "document", fileId, model: XAI_MODEL, extracted: replyText.slice(0, 800), raw: rawPreview }
+      : undefined;
+    return jsonResponse({
+      error: "Couldn't read the schedule from that file — it may be a low-res photo. Try a clearer page, or paste it into Grok.",
+      debug,
+    }, 422);
   }
 
   // ── Charge one extraction (non-admin), only on success

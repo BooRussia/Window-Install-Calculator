@@ -9152,16 +9152,17 @@ function setPlanUploadStatus(elId, msg, kind) {
 async function invokePlanExtraction(body) {
   const { data, error } = await sb.functions.invoke("extract-plan-openings", { body });
   if (error) {
-    let status = 0, msg = "";
+    let status = 0, msg = "", debug = null;
     try {
       const ctx = error.context;
       if (ctx && typeof ctx.json === "function") {
         status = ctx.status || 0;
         const j = await ctx.json();
         if (j && j.error) msg = j.error;
+        if (j && j.debug) debug = j.debug;
       }
     } catch (_) {}
-    return { ok: false, status, msg: msg || error.message || "Couldn't read that plan." };
+    return { ok: false, status, msg: msg || error.message || "Couldn't read that plan.", debug };
   }
   return { ok: true, data };
 }
@@ -9184,6 +9185,27 @@ function setRailUploadBusy(busy, msg) {
   }
 }
 
+// Persistent error display (a fleeting toast vanished before users could read
+// it). Opens the Read Plan modal with the message + an admin diagnostics blob.
+function showPlanError(msg, debug) {
+  toast(msg);
+  const status = document.getElementById("readPlanUploadStatus");
+  if (status) {
+    status.classList.remove("hidden", "flex", "items-center", "gap-2", "text-[#c9a558]", "text-emerald-300", "text-slate-300");
+    status.classList.add("block", "text-rose-300");
+    let html = '<div class="font-semibold">' + msg + '</div>';
+    if (debug) {
+      const s = (typeof debug === "string") ? debug : JSON.stringify(debug, null, 2);
+      const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      html += '<div class="text-[10px] text-slate-500 mt-2 mb-1">Diagnostics (admin) — copy &amp; paste this to support:</div>' +
+              '<pre class="max-h-56 overflow-auto text-[10px] text-slate-400 whitespace-pre-wrap bg-slate-950/70 rounded-lg p-2 select-all">' + esc + '</pre>';
+    }
+    status.innerHTML = html;
+  }
+  const modal = document.getElementById("readPlanModal");
+  if (modal) { modal.classList.remove("hidden"); modal.classList.add("flex"); }
+}
+
 let _planUploadBusy = false;
 async function handlePlanUpload(file, source) {
   if (!file) return;
@@ -9195,14 +9217,17 @@ async function handlePlanUpload(file, source) {
   const fileInput = document.getElementById(usingRail ? "readPlanFile" : "buckPlanFile");
   if (fileInput) fileInput.disabled = true;
   const setBusy = (m) => usingRail ? setRailUploadBusy(true, m) : setPlanUploadStatus("buckPlanUploadStatus", m, "busy");
-  const setErr = (m) => usingRail ? toast(m) : setPlanUploadStatus("buckPlanUploadStatus", m, "error");
+  const setErr = (m, dbg) => {
+    if (usingRail) showPlanError(m, dbg);
+    else { setPlanUploadStatus("buckPlanUploadStatus", m, "error"); if (dbg) console.log("[plan] debug", dbg); }
+  };
   setBusy("Uploading…");
   try {
     const fileBase64 = await fileToBase64(file);
     setBusy("Reading plan…");
     if (usingRail) toast("Reading your plan with AI — this can take up to a minute…");
     const res = await invokePlanExtraction({ mimeType: file.type, fileName: file.name, fileBase64 });
-    if (!res.ok) { setErr(res.msg); return; }
+    if (!res.ok) { setErr(res.msg, res.debug); return; }
     const text = (res.data && res.data.text) || "";
     const ok = applyFullExtraction(text, source);   // fills the calc + toasts a summary
     if (!ok) { setErr("Couldn't read any openings from that file — try a clearer page."); return; }
