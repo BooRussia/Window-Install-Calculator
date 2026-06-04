@@ -2946,7 +2946,7 @@
       <div class="rail-field">
         <label>AI tools<span class="info-tip" tabindex="0" role="button" aria-label="How AI tools affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag low">Low impact</span><br>Optional helpers — scan a plan or build a buck cut list to speed up entry. They fill in the job for you but don't change the price on their own.</span></span></label>
         <div class="space-y-2">
-          <input id="readPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" class="hidden" />
+          <input id="readPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" multiple class="hidden" />
           <label for="readPlanFile" id="readFromPlanBtn" class="btn w-full rounded-lg px-3 py-2.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.12em] uppercase inline-flex items-center justify-center gap-2 cursor-pointer">
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
             Upload Window Schedule
@@ -3410,7 +3410,7 @@
       <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
         <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
         <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window/door schedule. One upload builds the cut list — and fills the window count, total LF, and manufacturer — automatically. No Grok tab, no copy/paste.</div>
-        <input id="buckPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" class="hidden" />
+        <input id="buckPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" multiple class="hidden" />
         <label for="buckPlanFile" id="buckPlanUploadBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2 cursor-pointer">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
           Choose plan file
@@ -9177,6 +9177,26 @@ async function pdfToImages(file) {
   return out;
 }
 
+// Normalise an uploaded PNG/JPEG to a JPEG base64 so every page we send (PDF
+// renders + direct images) shares one mime type. Downscales very large images.
+function imageToJpegBase64(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, 2000 / (img.width || 2000));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Couldn't read image")); };
+    img.src = url;
+  });
+}
+
 function setPlanUploadStatus(elId, msg, kind) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -9252,12 +9272,15 @@ function showPlanError(msg, debug) {
   if (modal) { modal.classList.remove("hidden"); modal.classList.add("flex"); }
 }
 
+const MAX_PLAN_PAGES = 10;   // total page-images sent to the AI across all files
 let _planUploadBusy = false;
-async function handlePlanUpload(file, source) {
-  if (!file) return;
+async function handlePlanUpload(files, source) {
+  files = Array.isArray(files) ? files : (files ? [files] : []);
+  if (!files.length) return;
   if (_planUploadBusy) return;                       // guard against any double-fire
   if (!sb || !currentUser) { toast("Sign in to use AI plan reading"); try { openAuth("login"); } catch (_) {} return; }
-  if (file.size > 10 * 1024 * 1024) { toast("File too large — max ~10 MB. Upload just the schedule page."); return; }
+  let totalSize = 0; for (const f of files) totalSize += (f.size || 0);
+  if (totalSize > 30 * 1024 * 1024) { toast("Those files are too large — upload just the schedule sheets."); return; }
   _planUploadBusy = true;
   const usingRail = source !== "buck";          // read flow = rail button; buck flow = modal status
   const fileInput = document.getElementById(usingRail ? "readPlanFile" : "buckPlanFile");
@@ -9269,27 +9292,29 @@ async function handlePlanUpload(file, source) {
   };
   setBusy("Preparing…");
   try {
-    // Convert to images so Grok reads them with VISION (its PDF text-extraction
-    // can't see a visual schedule). PDF → rendered page JPEGs; image → itself.
-    let images, imageMime;
-    if (file.type === "application/pdf") {
-      setBusy("Rendering plan pages…");
-      images = await pdfToImages(file);
-      imageMime = "image/jpeg";
-    } else {
-      images = [await fileToBase64(file)];
-      imageMime = file.type;
+    // Render everything to images (Grok reads them with VISION) and combine all
+    // pages across all files into one batch — the AI sums the openings for us.
+    let allImages = [];
+    let i = 0;
+    for (const file of files) {
+      i++;
+      setBusy(files.length > 1 ? `Rendering file ${i} of ${files.length}…` : "Rendering plan pages…");
+      if (file.type === "application/pdf") allImages.push(...await pdfToImages(file));
+      else allImages.push(await imageToJpegBase64(file));
     }
-    if (!images || !images.length) { setErr("Couldn't read that file — try a clearer copy."); return; }
-    setBusy("Reading plan with AI…");
-    if (usingRail) toast("Reading your plan with AI — this can take up to a minute…");
-    const res = await invokePlanExtraction({ images, mimeType: imageMime });
+    if (!allImages.length) { setErr("Couldn't read those files — try clearer copies."); return; }
+    let truncated = false;
+    if (allImages.length > MAX_PLAN_PAGES) { allImages = allImages.slice(0, MAX_PLAN_PAGES); truncated = true; }
+    setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
+    if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — up to a minute…");
+    const res = await invokePlanExtraction({ images: allImages, mimeType: "image/jpeg" });
     if (!res.ok) { setErr(res.msg, res.debug); return; }
     const text = (res.data && res.data.text) || "";
     const ok = applyFullExtraction(text, source);   // fills the calc + toasts a summary
-    if (!ok) { setErr("Couldn't read any openings from that file — try a clearer page."); return; }
+    if (!ok) { setErr("Couldn't read any openings — try clearer pages, or just the schedule sheets."); return; }
+    if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " pages — upload just the schedule sheets if any were missed.");
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
-    try { window.track("plan_ai_extracted", { source }); } catch (_) {}
+    try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length }); } catch (_) {}
   } catch (err) {
     setErr("Something went wrong — try again in a moment.");
   } finally {
@@ -9323,6 +9348,17 @@ function applyFullExtraction(text, source) {
     STATE.manufacturer = matchedMfg;
     if (DROPDOWNS.ddManufacturer) DROPDOWNS.ddManufacturer.setValue(matchedMfg, false);
     applied.push(matchedMfg);
+  }
+  // Project / job name from the title block — only fill if the field is empty
+  // (never overwrite a name the user already typed).
+  const projMatch = text.match(/project\s*[:=]\s*(.+)/i);
+  if (projMatch && !(STATE.jobName || "").trim()) {
+    const proj = projMatch[1].trim().replace(/[.;,\s]+$/, "");
+    if (proj && !/^(unknown|n\/?a|none|tbd)$/i.test(proj)) {
+      STATE.jobName = proj;
+      const jn = document.getElementById("jobNameInput"); if (jn) jn.value = proj;
+      applied.push(`job: ${proj}`);
+    }
   }
   if (!applied.length) return false;
   if (typeof renderBuckResult === "function") renderBuckResult();
@@ -12492,11 +12528,11 @@ function init() {
   // so it can't double-fire); the change listener runs the extraction.
   const _readUpFile = document.getElementById("readPlanFile");
   if (_readUpFile) {
-    _readUpFile.addEventListener("change", () => { const f = _readUpFile.files && _readUpFile.files[0]; _readUpFile.value = ""; if (f) handlePlanUpload(f, "read"); });
+    _readUpFile.addEventListener("change", () => { const fs = _readUpFile.files ? [..._readUpFile.files] : []; _readUpFile.value = ""; if (fs.length) handlePlanUpload(fs, "read"); });
   }
   const _buckUpFile = document.getElementById("buckPlanFile");
   if (_buckUpFile) {
-    _buckUpFile.addEventListener("change", () => { const f = _buckUpFile.files && _buckUpFile.files[0]; _buckUpFile.value = ""; if (f) handlePlanUpload(f, "buck"); });
+    _buckUpFile.addEventListener("change", () => { const fs = _buckUpFile.files ? [..._buckUpFile.files] : []; _buckUpFile.value = ""; if (fs.length) handlePlanUpload(fs, "buck"); });
   }
 
   document.addEventListener("keydown", e => {

@@ -64,15 +64,15 @@ const ADMIN_EMAILS = (Deno.env.get("ADMIN_EMAILS") ?? "")
 const AI_CAPS: Record<string, number> = { trial: 5, starter: 50, pro: 200, unlimited: Infinity };
 
 const MIME_ALLOW = new Set(["image/png", "image/jpeg"]);
-const MAX_IMAGES = 8;
+const MAX_IMAGES = 10;
 const MAX_TOTAL_B64 = 14 * 1024 * 1024; // ~10.5 MB of raw image data across pages
 
 const FULL_PROMPT = `Window Schedule — Full Takeoff
 
 You are looking at one or more pages of a window/door schedule (images). Do BOTH of the following.
 
-PART A — Manufacturer:
-Identify the window MANUFACTURER (title block, header row, notes, or any "MFR" / "MANUFACTURER" column; common ones: Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows). If you cannot find one, write Unknown.
+PART A — Manufacturer & project:
+Identify the window MANUFACTURER (title block, header row, notes, or any "MFR" / "MANUFACTURER" column; common ones: Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows). Also identify the PROJECT / JOB NAME from the title block — the homeowner or project name, or the street address. Write Unknown for anything you cannot find.
 
 PART B — Every opening:
 For EACH opening in the schedule:
@@ -81,13 +81,15 @@ For EACH opening in the schedule:
 3. Find the room or location name (or the window mark/label if no room is given).
 4. Determine the TYPE: if it is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door"; everything else is "window".
 
-Reply with ONLY the following — the manufacturer line first, then one OPENING line per opening. No headers, totals, preamble, or commentary:
+If multiple schedule pages are shown, include EVERY opening across ALL of them. Reply with ONLY the following — the manufacturer and project lines first, then one OPENING line per opening. No headers, totals, preamble, or commentary:
 
 MANUFACTURER: <name or Unknown>
+PROJECT: <project name, homeowner, or address — or Unknown>
 OPENING | room or location | width_inches | height_inches | qty | type
 
 Example reply:
 MANUFACTURER: Viwinco
+PROJECT: Smith Residence
 OPENING | Master Bedroom | 36 | 48 | 2 | window
 OPENING | Kitchen | 48 | 60 | 1 | window
 OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
