@@ -115,11 +115,13 @@ function isAdminUser(user: { id?: string; email?: string } | null): boolean {
   return !!em && ADMIN_EMAILS.includes(em);
 }
 
-// Pull text from an xAI /v1/responses payload defensively.
+// Pull text from an xAI response defensively — tries the known shapes, then
+// falls back to a deep walk that finds whichever string actually holds the
+// opening lines (covers any unexpected response envelope).
 function extractReplyText(json: any): string {
   if (!json) return "";
-  if (typeof json.output_text === "string") return json.output_text.trim();
   const parts: string[] = [];
+  if (typeof json.output_text === "string") parts.push(json.output_text);
   if (Array.isArray(json.output)) {
     for (const item of json.output) {
       const content = item?.content;
@@ -133,11 +135,25 @@ function extractReplyText(json: any): string {
       }
     }
   }
-  if (!parts.length && Array.isArray(json.choices)) {
+  if (Array.isArray(json.choices)) {
     const m = json.choices[0]?.message?.content;
     if (typeof m === "string") parts.push(m);
+    else if (Array.isArray(m)) {
+      for (const c of m) if (typeof c?.text === "string") parts.push(c.text);
+    }
   }
-  return parts.join("\n").trim();
+  let text = parts.join("\n").trim();
+  if (/OPENING\s*\|/i.test(text)) return text;
+  // Deep fallback: collect every string in the payload, prefer one with openings.
+  const all: string[] = [];
+  (function walk(o: any) {
+    if (typeof o === "string") all.push(o);
+    else if (Array.isArray(o)) o.forEach(walk);
+    else if (o && typeof o === "object") Object.values(o).forEach(walk);
+  })(json);
+  const hit = all.find((s) => /OPENING\s*\|/i.test(s)) || all.find((s) => /MANUFACTURER/i.test(s));
+  if (hit) return hit;
+  return text || all.sort((a, b) => b.length - a.length)[0] || "";
 }
 
 Deno.serve(async (req) => {
@@ -230,8 +246,9 @@ Deno.serve(async (req) => {
     }
     const upJson = await upRes.json();
     fileId = upJson.id ?? upJson.file_id ?? "";
+    console.log("[extract] xai file uploaded id:", fileId, "upload keys:", Object.keys(upJson));
     if (!fileId) {
-      console.error("[extract] no file id in upload response", upJson);
+      console.error("[extract] no file id in upload response", JSON.stringify(upJson).slice(0, 1000));
       return errorResponse("Upload succeeded but no file id returned.", 502);
     }
   } catch (err) {
@@ -263,7 +280,7 @@ Deno.serve(async (req) => {
     });
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      console.error("[extract] xai responses failed", aiRes.status, t);
+      console.error("[extract] xai responses failed", aiRes.status, t.slice(0, 1500));
       const status = aiRes.status === 429 ? 429 : 502;
       return errorResponse(
         status === 429
@@ -273,7 +290,9 @@ Deno.serve(async (req) => {
       );
     }
     const aiJson = await aiRes.json();
+    console.log("[extract] xai raw (truncated):", JSON.stringify(aiJson).slice(0, 3000));
     replyText = extractReplyText(aiJson);
+    console.log("[extract] extracted len", replyText.length, "preview:", replyText.slice(0, 400));
   } catch (err) {
     console.error("[extract] xai responses error", err);
     return errorResponse("AI request failed — try again shortly.", 502);
