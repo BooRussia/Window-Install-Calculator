@@ -1,21 +1,16 @@
-// extract-plan-openings
+// extract-plan-openings  (VISION-only)
 // ─────────────────────────────────────────────────────────────────────────────
-// One upload → one Grok call → returns the FULL takeoff in a single reply:
-//   MANUFACTURER: <name>
-//   OPENING | room | w | h | qty | type      (one line per opening)
+// The frontend renders the plan to page images (PDF → JPEGs via PDF.js, or a
+// direct PNG/JPEG) and sends them here. We pass them to Grok as input_image
+// (vision) — the same way the consumer app reads a schedule. xAI's PDF *file*
+// path only reads extracted text, which is useless for a visual drawing, so we
+// never use it.
 //
-// The browser then, from that ONE reply:
-//   • builds the buck cut list from the openings (always; pricing ignores it
-//     for stick-framed jobs),
-//   • derives window count + total LF from the same openings (so the LF and the
-//     cut list can never disagree),
-//   • sets the manufacturer.
+// Request:  POST { images: string[] (base64, no prefix), mimeType }
+// Response: 200 { ok:true, text }   ← text is byte-compatible with the existing
+//           parseOpenings / parseGrokResponse on the frontend.
 //
-// `text` stays byte-compatible with the existing frontend parsers
-// (parseOpenings reads the OPENING lines, parseGrokResponse reads MANUFACTURER).
-//
-// Self-contained (helpers inlined) so it deploys as a single file.
-// Secrets: XAI_API_KEY (required), XAI_MODEL (default below), ADMIN_UID, ADMIN_EMAILS.
+// Secrets: XAI_API_KEY (required), XAI_MODEL (default grok-4), ADMIN_UID, ADMIN_EMAILS.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -66,29 +61,24 @@ const ADMIN_UID = Deno.env.get("ADMIN_UID") ?? "";
 const ADMIN_EMAILS = (Deno.env.get("ADMIN_EMAILS") ?? "")
   .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
-const AI_CAPS: Record<string, number> = {
-  trial: 5,
-  starter: 50,
-  pro: 200,
-  unlimited: Infinity,
-};
+const AI_CAPS: Record<string, number> = { trial: 5, starter: 50, pro: 200, unlimited: Infinity };
 
-const MIME_ALLOW = new Set(["application/pdf", "image/png", "image/jpeg"]);
-const MAX_RAW_BYTES = 10 * 1024 * 1024;
+const MIME_ALLOW = new Set(["image/png", "image/jpeg"]);
+const MAX_IMAGES = 8;
+const MAX_TOTAL_B64 = 14 * 1024 * 1024; // ~10.5 MB of raw image data across pages
 
-// One combined prompt — manufacturer + every opening, in the existing dialects.
 const FULL_PROMPT = `Window Schedule — Full Takeoff
 
-Read the attached window/door schedule and do BOTH of the following.
+You are looking at one or more pages of a window/door schedule (images). Do BOTH of the following.
 
 PART A — Manufacturer:
-Identify the window MANUFACTURER (look in the title block, header row, notes, or any "MFR" / "MANUFACTURER" column; common ones: Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows). If you cannot find one, write Unknown.
+Identify the window MANUFACTURER (title block, header row, notes, or any "MFR" / "MANUFACTURER" column; common ones: Viwinco, Weathershield, Velocity, ES Window & Door, Pella, Andersen, Marvin, Jeld-Wen, PGT, MI Windows). If you cannot find one, write Unknown.
 
 PART B — Every opening:
 For EACH opening in the schedule:
-1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O — ignore frame size, unit size, and glass size). Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5.
+1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O — ignore frame size, unit size, and glass size). If only the unit/nominal size is shown, use it. Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5.
 2. Find the quantity (QTY) — how many of that opening. If none is shown, use 1.
-3. Find the room or location name.
+3. Find the room or location name (or the window mark/label if no room is given).
 4. Determine the TYPE: if it is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door"; everything else is "window".
 
 Reply with ONLY the following — the manufacturer line first, then one OPENING line per opening. No headers, totals, preamble, or commentary:
@@ -102,7 +92,7 @@ OPENING | Master Bedroom | 36 | 48 | 2 | window
 OPENING | Kitchen | 48 | 60 | 1 | window
 OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
 
-If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the MANUFACTURER line and the OPENING lines.`;
+Read the dimensions directly off the drawing. Only if there are genuinely no openings visible at all, reply with just "MANUFACTURER: <name>". Otherwise reply with the MANUFACTURER line and one OPENING line per opening.`;
 
 function looksValid(text: string): boolean {
   return !!text && /OPENING\s*\|/i.test(text);
@@ -115,9 +105,6 @@ function isAdminUser(user: { id?: string; email?: string } | null): boolean {
   return !!em && ADMIN_EMAILS.includes(em);
 }
 
-// Pull text from an xAI response defensively — tries the known shapes, then
-// falls back to a deep walk that finds whichever string actually holds the
-// opening lines (covers any unexpected response envelope).
 function extractReplyText(json: any): string {
   if (!json) return "";
   const parts: string[] = [];
@@ -144,7 +131,6 @@ function extractReplyText(json: any): string {
   }
   let text = parts.join("\n").trim();
   if (/OPENING\s*\|/i.test(text)) return text;
-  // Deep fallback: collect every string in the payload, prefer one with openings.
   const all: string[] = [];
   (function walk(o: any) {
     if (typeof o === "string") all.push(o);
@@ -173,22 +159,22 @@ Deno.serve(async (req) => {
   if (userErr || !user) return errorResponse("Invalid auth", 401);
 
   // ── Body + validation
-  let body: { mimeType?: string; fileName?: string; fileBase64?: string };
+  let body: { images?: string[]; mimeType?: string };
   try {
     body = await req.json();
   } catch {
     return errorResponse("Invalid JSON body");
   }
-  const mimeType = (body.mimeType ?? "").toLowerCase();
-  const fileBase64 = body.fileBase64 ?? "";
-  if (!MIME_ALLOW.has(mimeType)) {
-    return errorResponse("Unsupported file type — upload a PDF, PNG, or JPEG.", 400);
-  }
-  if (!fileBase64) return errorResponse("No file data provided.", 400);
-  const isImage = mimeType === "image/png" || mimeType === "image/jpeg";
-  const approxRawBytes = Math.floor((fileBase64.length * 3) / 4);
-  if (approxRawBytes > MAX_RAW_BYTES) {
-    return errorResponse("File too large — max ~10 MB. Upload just the schedule page, or a screenshot of it.", 413);
+  const mimeType = (body.mimeType ?? "image/jpeg").toLowerCase();
+  let images = Array.isArray(body.images)
+    ? body.images.filter((s) => typeof s === "string" && s.length > 0)
+    : [];
+  if (!MIME_ALLOW.has(mimeType)) return errorResponse("Unsupported image type.", 400);
+  if (!images.length) return errorResponse("No plan pages provided.", 400);
+  if (images.length > MAX_IMAGES) images = images.slice(0, MAX_IMAGES);
+  const totalB64 = images.reduce((s, im) => s + im.length, 0);
+  if (totalB64 > MAX_TOTAL_B64) {
+    return errorResponse("Plan is too large to read — upload fewer pages, or just the schedule page.", 413);
   }
 
   if (!XAI_API_KEY) {
@@ -224,47 +210,13 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── Upload the file to xAI's Files API (PDFs only; images go in as vision)
-  let fileId = "";
-  if (!isImage) try {
-    const bin = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
-    const form = new FormData();
-    form.append(
-      "file",
-      new Blob([bin], { type: mimeType }),
-      body.fileName || (mimeType === "application/pdf" ? "plan.pdf" : "plan.img"),
-    );
-    form.append("purpose", "assistants");
-    const upRes = await fetch(`${XAI_BASE}/files`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${XAI_API_KEY}` },
-      body: form,
-    });
-    if (!upRes.ok) {
-      const t = await upRes.text();
-      console.error("[extract] xai file upload failed", upRes.status, t);
-      return errorResponse("Couldn't read that file — try a clearer scan, or paste the schedule into Grok.", 502);
-    }
-    const upJson = await upRes.json();
-    fileId = upJson.id ?? upJson.file_id ?? "";
-    console.log("[extract] xai file uploaded id:", fileId, "upload keys:", Object.keys(upJson));
-    if (!fileId) {
-      console.error("[extract] no file id in upload response", JSON.stringify(upJson).slice(0, 1000));
-      return errorResponse("Upload succeeded but no file id returned.", 502);
-    }
-  } catch (err) {
-    console.error("[extract] file decode/upload error", err);
-    return errorResponse("Could not process the uploaded file.", 400);
-  }
-
-  // ── Ask Grok to read it
+  // ── Ask Grok to read the page images (vision)
   let replyText = "";
   let rawPreview = "";
-  // Images go in as VISION (input_image data URI) — far better for a visual
-  // schedule. PDFs go in as a Files-API document (input_file = doc search).
-  const fileContent = isImage
-    ? { type: "input_image", image_url: `data:${mimeType};base64,${fileBase64}` }
-    : { type: "input_file", file_id: fileId };
+  const content: any[] = [{ type: "input_text", text: FULL_PROMPT }];
+  for (const b64 of images) {
+    content.push({ type: "input_image", image_url: `data:${mimeType};base64,${b64}` });
+  }
   try {
     const aiRes = await fetch(`${XAI_BASE}/responses`, {
       method: "POST",
@@ -274,15 +226,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: XAI_MODEL,
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: FULL_PROMPT },
-              fileContent,
-            ],
-          },
-        ],
+        input: [{ role: "user", content }],
       }),
     });
     if (!aiRes.ok) {
@@ -298,28 +242,21 @@ Deno.serve(async (req) => {
     }
     const aiJson = await aiRes.json();
     rawPreview = JSON.stringify(aiJson).slice(0, 2200);
-    console.log("[extract] xai raw (truncated):", rawPreview);
+    console.log("[extract] pages:", images.length, "xai raw:", rawPreview);
     replyText = extractReplyText(aiJson);
     console.log("[extract] extracted len", replyText.length, "preview:", replyText.slice(0, 400));
   } catch (err) {
     console.error("[extract] xai responses error", err);
     return errorResponse("AI request failed — try again shortly.", 502);
-  } finally {
-    if (fileId) {
-      fetch(`${XAI_BASE}/files/${fileId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${XAI_API_KEY}` },
-      }).catch(() => {});
-    }
   }
 
   // ── Validate the reply has openings
   if (!looksValid(replyText)) {
     const debug = admin
-      ? { mode: isImage ? "vision" : "document", fileId, model: XAI_MODEL, extracted: replyText.slice(0, 800), raw: rawPreview }
+      ? { pages: images.length, model: XAI_MODEL, extracted: replyText.slice(0, 800), raw: rawPreview }
       : undefined;
     return jsonResponse({
-      error: "Couldn't read the schedule from that file — it may be a low-res photo. Try a clearer page, or paste it into Grok.",
+      error: "Couldn't read any openings from that plan — try a clearer page, or upload just the schedule sheet.",
       debug,
     }, 422);
   }
@@ -335,5 +272,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return jsonResponse({ ok: true, text: replyText, usage: { model: XAI_MODEL } });
+  return jsonResponse({ ok: true, text: replyText, usage: { model: XAI_MODEL, pages: images.length } });
 });

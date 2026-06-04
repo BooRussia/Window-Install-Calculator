@@ -9131,6 +9131,52 @@ function fileToBase64(file) {
   });
 }
 
+// Lazy-load PDF.js (only when a PDF is actually uploaded) so we can RASTERISE
+// pages to images. xAI's PDF path only reads extracted *text* — useless for a
+// visual schedule drawing — so we render each page and send it as vision.
+let _pdfjsPromise = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (_pdfjsPromise) return _pdfjsPromise;
+  _pdfjsPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload = () => {
+      try {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      } catch (_) {}
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = () => reject(new Error("Couldn't load the PDF renderer"));
+    document.head.appendChild(s);
+  });
+  return _pdfjsPromise;
+}
+
+// Render up to 8 pages of a PDF to JPEG base64 (no data: prefix). ~1700px wide
+// is enough resolution for Grok to read a dense schedule table.
+async function pdfToImages(file) {
+  const pdfjs = await loadPdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
+  const n = Math.min(pdf.numPages, 8);
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    const page = await pdf.getPage(i);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(2.5, 1700 / base.width);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    out.push(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
+  }
+  return out;
+}
+
 function setPlanUploadStatus(elId, msg, kind) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -9221,12 +9267,23 @@ async function handlePlanUpload(file, source) {
     if (usingRail) showPlanError(m, dbg);
     else { setPlanUploadStatus("buckPlanUploadStatus", m, "error"); if (dbg) console.log("[plan] debug", dbg); }
   };
-  setBusy("Uploading…");
+  setBusy("Preparing…");
   try {
-    const fileBase64 = await fileToBase64(file);
-    setBusy("Reading plan…");
+    // Convert to images so Grok reads them with VISION (its PDF text-extraction
+    // can't see a visual schedule). PDF → rendered page JPEGs; image → itself.
+    let images, imageMime;
+    if (file.type === "application/pdf") {
+      setBusy("Rendering plan pages…");
+      images = await pdfToImages(file);
+      imageMime = "image/jpeg";
+    } else {
+      images = [await fileToBase64(file)];
+      imageMime = file.type;
+    }
+    if (!images || !images.length) { setErr("Couldn't read that file — try a clearer copy."); return; }
+    setBusy("Reading plan with AI…");
     if (usingRail) toast("Reading your plan with AI — this can take up to a minute…");
-    const res = await invokePlanExtraction({ mimeType: file.type, fileName: file.name, fileBase64 });
+    const res = await invokePlanExtraction({ images, mimeType: imageMime });
     if (!res.ok) { setErr(res.msg, res.debug); return; }
     const text = (res.data && res.data.text) || "";
     const ok = applyFullExtraction(text, source);   // fills the calc + toasts a summary
