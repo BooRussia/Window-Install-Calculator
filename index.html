@@ -1836,6 +1836,44 @@
   [data-theme="light"] .lp-faq[open] { border-color: rgba(181,143,74,0.4); }
   [data-theme="light"] .lp-faq summary { color: #0f172a; }
   [data-theme="light"] .lp-faq .faq-a { color: #475569; border-top-color: #eceef1; }
+
+  /* ------- Dashboard (home base) ------- */
+  .dash-nav-btn { font-size: 13px; font-weight: 600; color: #94a3b8; padding: 8px 11px; border-radius: 9999px; background: transparent; border: 0; cursor: pointer; transition: color .15s ease; }
+  .dash-nav-btn:hover { color: #c9a558; }
+  .dash-job-card { border: 1px solid #1e293b; border-radius: 16px; background: rgba(15,23,42,0.5); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
+  .dash-job-card:hover { border-color: rgba(181,143,74,0.4); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
+  .dash-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; background: rgba(2,6,23,0.6); border: 0; cursor: pointer; padding: 0; overflow: hidden; }
+  .dash-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dash-thumb-empty { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
+  .dash-thumb:hover .dash-thumb-empty { color: #c9a558; }
+  .dash-thumb-badge { position: absolute; top: 8px; left: 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; border-radius: 9999px; padding: 2px 9px; border: 1px solid; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .dash-thumb-edit { position: absolute; top: 8px; right: 8px; width: 27px; height: 27px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: rgba(2,6,23,0.6); color: #e2e8f0; opacity: 0; transition: opacity .15s ease; }
+  .dash-thumb:hover .dash-thumb-edit { opacity: 1; }
+  .dash-card-load { font-size: 12px; font-weight: 700; border-radius: 9999px; padding: 6px 14px; cursor: pointer; background: rgba(181,143,74,0.12); color: #c9a558; border: 1px solid rgba(181,143,74,0.5); transition: all .15s ease; }
+  .dash-card-load:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
+  .dash-card-del { background: transparent; color: #64748b; border: 1px solid transparent; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
+  .dash-card-del:hover { color: #f87171; background: rgba(248,113,113,0.1); }
+  .dash-mat-table { width: 100%; border-collapse: collapse; }
+  .dash-mat-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; font-weight: 800; text-align: right; padding: 8px 10px; border-bottom: 1px solid rgba(30,41,59,0.7); white-space: nowrap; }
+  .dash-mat-table th:first-child { text-align: left; }
+  .dash-mat-table td { font-size: 13px; color: #cbd5e1; text-align: right; padding: 9px 10px; border-bottom: 1px solid rgba(30,41,59,0.5); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dash-mat-table td:first-child { text-align: left; color: #f1f5f9; font-weight: 600; white-space: normal; }
+  .dash-mat-table tr:last-child td { border-bottom: 0; }
+  .dash-mat-table tr.dash-mat-top td { background: rgba(181,143,74,0.07); }
+
+  /* Dashboard — light mode */
+  [data-theme="light"] #dashboardScreen { background: #f3f4f7 !important; }
+  [data-theme="light"] .dash-nav-btn { color: #475569; }
+  [data-theme="light"] .dash-nav-btn:hover { color: #9c7a36; }
+  [data-theme="light"] .dash-job-card { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .dash-job-card:hover { border-color: rgba(181,143,74,0.4); box-shadow: 0 16px 36px -20px rgba(15,23,42,0.18); }
+  [data-theme="light"] .dash-thumb { background: #eef0f3; }
+  [data-theme="light"] .dash-thumb-empty { color: #94a3b8; }
+  [data-theme="light"] .dash-mat-table td { color: #475569; border-bottom-color: #eceef1; }
+  [data-theme="light"] .dash-mat-table td:first-child { color: #0f172a; }
+  [data-theme="light"] .dash-mat-table th { color: #64748b; border-bottom-color: #e6e8ec; }
+  [data-theme="light"] .dash-mat-table tr.dash-mat-top td { background: #fbf6ec; }
+  [data-theme="light"] .dash-card-del { color: #94a3b8; }
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen rail-pinned">
@@ -3079,6 +3117,67 @@
 </div>
 
 <!-- Sticky app header — Anchor brand + profile menu -->
+<!-- ============================================================
+     DASHBOARD — home base for signed-in users. Pipeline + material
+     stats + job cards (with photo thumbnails). Overlays the app;
+     "Open Calculator" / "Load" close it to reveal the calculator.
+     ============================================================ -->
+<div id="dashboardScreen" class="fixed inset-0 z-[74] hidden overflow-y-auto" style="background:#020617;">
+  <nav class="lp-nav sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
+      <button id="dashHome" type="button" class="flex items-center gap-2.5 group" aria-label="Dashboard">
+        <span class="text-[#c9a558]">
+          <svg viewBox="0 0 100 100" width="25" height="25" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
+            <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
+          </svg>
+        </span>
+        <span class="text-lg font-black tracking-tightest text-slate-100">Anchor</span>
+      </button>
+      <div class="flex items-center gap-0.5 sm:gap-1">
+        <button data-theme-toggle type="button" class="btn w-9 h-9 rounded-full inline-flex items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition mr-1" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
+        <button id="dashFL" type="button" class="dash-nav-btn hidden sm:inline-flex">FL Lookup</button>
+        <button id="dashSettings" type="button" class="dash-nav-btn">Settings</button>
+        <button id="dashPricing" type="button" class="dash-nav-btn">Plan</button>
+        <button id="dashSignOut" type="button" class="dash-nav-btn hidden sm:inline-flex">Sign out</button>
+        <button id="dashOpenCalc" type="button" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-1">Open Calculator →</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
+    <!-- Hero -->
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+      <div>
+        <span class="lp-eyebrow">Dashboard</span>
+        <h1 id="dashGreeting" class="text-2xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-3">Welcome back</h1>
+        <p class="text-slate-400 mt-2 text-sm sm:text-base">Your pipeline, your jobs, and where your money's going.</p>
+      </div>
+      <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-sm font-bold px-6 py-3.5 shrink-0 inline-flex items-center gap-2">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
+        New quote
+      </button>
+    </div>
+
+    <!-- Pipeline stats -->
+    <div id="dashPipeline" class="mb-9"></div>
+
+    <!-- Material usage stats -->
+    <div id="dashMaterials" class="mb-9"></div>
+
+    <!-- Jobs -->
+    <div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
+      <h2 class="text-sm uppercase tracking-[0.18em] text-slate-400 font-bold">Your jobs <span id="dashJobsCount" class="text-slate-600 font-bold"></span></h2>
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+        <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 w-44 sm:w-64 placeholder:text-slate-600" />
+      </div>
+    </div>
+    <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <input id="dashPhotoInput" type="file" accept="image/png,image/jpeg" class="hidden" />
+  </div>
+</div>
+
 <div id="appHeader" class="lp-nav sticky top-0 z-40">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
     <div class="flex items-center gap-1.5 sm:gap-2.5">
@@ -3104,6 +3203,10 @@
         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
         FL Lookup
       </button>
+      <button id="headerDashboardBtn" type="button" class="hidden sm:inline-flex btn items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] bg-transparent text-slate-400 border border-slate-700 hover:text-[#c9a558] hover:border-[#b58f4a]/45" aria-label="Open dashboard">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>
+        Dashboard
+      </button>
       <button id="themeToggle" data-theme-toggle type="button" class="btn w-9 h-9 rounded-full inline-flex items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
       <div id="offlineIndicator" role="status" aria-live="polite" title="Your latest changes are stored on this device. They'll sync when the connection returns.">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -3122,8 +3225,8 @@
           <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
         </div>
         <button id="pfpHome" type="button" class="pfp-item">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 10 3l7 6.5"/><path d="M5 8.5V17h10V8.5"/></svg>
-          Home
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>
+          Dashboard
         </button>
         <button id="openFL" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
@@ -6847,6 +6950,303 @@ function renderSavedJobs() {
     renderSavedJobs();
   }));
   bar.classList.toggle("hidden", compareSet.size < 2);
+}
+
+/* ============================================================
+   DASHBOARD — signed-in home base: pipeline + material stats + job cards
+   ============================================================ */
+let _dashPhotoTargetId = null;
+let _dashStatusFilter = null;
+let _dashWired = false;
+
+function openDashboard() {
+  try { closePfpMenu(); } catch (_) {}
+  ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.classList.add("hidden");
+  });
+  const splash = document.getElementById("bootSplash"); if (splash) splash.classList.add("hidden");
+  const d = document.getElementById("dashboardScreen");
+  if (!d) return;
+  wireDashboard();
+  d.classList.remove("hidden");
+  d.scrollTop = 0;
+  renderDashboard();
+  try { updateThemeToggleIcon(); } catch (_) {}
+  try { window.track("dashboard_opened"); } catch (_) {}
+}
+function closeDashboard() {
+  const d = document.getElementById("dashboardScreen");
+  if (d) d.classList.add("hidden");
+}
+
+function renderDashboard() {
+  const jobs = loadJobs();
+  const brand = (DATA.config && DATA.config.brand) || {};
+  const greet = document.getElementById("dashGreeting");
+  if (greet) greet.textContent = brand.companyName ? `Welcome back, ${brand.companyName}` : "Welcome back";
+  renderDashPipeline(jobs);
+  renderDashMaterials(jobs);
+  renderDashJobs(jobs);
+}
+
+function renderDashPipeline(jobs) {
+  const wrap = document.getElementById("dashPipeline");
+  if (!wrap) return;
+  const real = (jobs || []).filter(j => !j.isDraft);
+  const groups = { Lead: [], Quoted: [], Won: [], Lost: [] };
+  real.forEach(j => groups[jobStatus(j)].push(j));
+  if (!real.length) {
+    wrap.innerHTML = `<div class="card rounded-2xl px-5 py-10 text-center text-slate-500 text-sm">No saved jobs yet — your pipeline and stats land here once you save a quote.</div>`;
+    return;
+  }
+  const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
+  const openVal = sum(groups.Lead) + sum(groups.Quoted);
+  const openCount = groups.Lead.length + groups.Quoted.length;
+  const wonVal = sum(groups.Won);
+  const wonCount = groups.Won.length, lostCount = groups.Lost.length;
+  const decided = wonCount + lostCount;
+  const winRate = decided ? Math.round((wonCount / decided) * 100) : null;
+  const margins = real.map(j => Number(j.margin)).filter(m => !isNaN(m));
+  const avgMargin = margins.length ? Math.round(margins.reduce((s, m) => s + m, 0) / margins.length) : null;
+  const tiles = [
+    { label: "Open pipeline", val: formatMoney(openVal), sub: `${openCount} open deal${openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]" },
+    { label: "Won", val: formatMoney(wonVal), sub: `${wonCount} job${wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300" },
+    { label: "Win rate", val: winRate == null ? "—" : winRate + "%", sub: decided ? `${wonCount}W · ${lostCount}L` : "no decisions yet", accent: "text-slate-100" },
+    { label: "Avg margin", val: avgMargin == null ? "—" : avgMargin + "%", sub: `${real.length} saved job${real.length === 1 ? "" : "s"}`, accent: "text-slate-100" },
+  ];
+  const tilesHtml = tiles.map(t => `
+    <div class="card rounded-2xl px-4 py-4 text-center">
+      <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">${t.label}</div>
+      <div class="text-xl sm:text-2xl font-extrabold ${t.accent} mt-1" style="font-variant-numeric: tabular-nums;">${t.val}</div>
+      <div class="text-[11px] text-slate-500 mt-0.5">${t.sub}</div>
+    </div>`).join("");
+  const badge = "text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 border";
+  const funnel = JOB_STATUSES.map(s => {
+    const arr = groups[s], cnt = arr.length, val = sum(arr);
+    const active = _dashStatusFilter === s ? "border-[#b58f4a]/60" : "";
+    return `<button type="button" data-dash-filter="${s}" class="card rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-left transition hover:border-[#b58f4a]/40 ${active}">
+      <span class="${badge} ${statusMeta(s).cls}">${s}</span>
+      <span class="ml-auto text-right">
+        <span class="block text-sm font-extrabold text-slate-100" style="font-variant-numeric:tabular-nums;">${cnt}</span>
+        <span class="block text-[10px] text-slate-500" style="font-variant-numeric:tabular-nums;">${formatMoney(val)}</span>
+      </span>
+    </button>`;
+  }).join("");
+  wrap.innerHTML =
+    `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${tilesHtml}</div>` +
+    `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">${funnel}</div>`;
+}
+
+// Aggregate material consumption across saved jobs (from each job's saved rows).
+function dashMaterialStats(jobs) {
+  const real = (jobs || []).filter(j => !j.isDraft);
+  const agg = {};
+  let totalLF = 0, jobCount = 0;
+  real.forEach(j => {
+    jobCount++;
+    totalLF += Number(j.totalLF) || 0;
+    (j.rows || []).forEach(r => {
+      if (!r || !MATERIAL_IDS.includes(r.id)) return;
+      const a = agg[r.id] || (agg[r.id] = { name: r.name, unit: r.unit, qty: 0, cost: 0, jobs: 0 });
+      a.qty += Number(r.quantity) || 0;
+      a.cost += Number(r.totalCost) || 0;
+      a.jobs += 1;
+      if (r.name) a.name = r.name;
+      if (r.unit) a.unit = r.unit;
+    });
+  });
+  const items = Object.keys(agg).map(id => {
+    const a = agg[id];
+    return {
+      id, name: a.name || id, unit: a.unit || "",
+      totalQty: a.qty, totalCost: a.cost, jobs: a.jobs,
+      avgQty: a.jobs ? a.qty / a.jobs : 0,
+      perLF: totalLF ? a.cost / totalLF : 0,
+    };
+  }).filter(m => m.totalCost > 0 || m.totalQty > 0).sort((x, y) => y.totalCost - x.totalCost);
+  const totalSpend = items.reduce((s, m) => s + m.totalCost, 0);
+  return { items, jobCount, totalLF, totalSpend };
+}
+
+function renderDashMaterials(jobs) {
+  const wrap = document.getElementById("dashMaterials");
+  if (!wrap) return;
+  const { items, jobCount, totalLF, totalSpend } = dashMaterialStats(jobs);
+  if (!items.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  const top = items[0];
+  const topPct = totalSpend ? Math.round(top.totalCost / totalSpend * 100) : 0;
+  const rows = items.map((m, i) => `
+    <tr class="${i === 0 ? "dash-mat-top" : ""}">
+      <td>${escHtml(m.name)}</td>
+      <td>${formatQty(m.avgQty)} ${escHtml(m.unit)}</td>
+      <td>${formatQty(m.totalQty)} ${escHtml(m.unit)}</td>
+      <td>$${m.perLF.toFixed(2)}</td>
+      <td class="font-bold text-slate-100">${formatMoney(m.totalCost)}</td>
+    </tr>`).join("");
+  wrap.innerHTML = `
+    <div class="card rounded-2xl overflow-hidden">
+      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Where your materials go</h2>
+          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Across ${jobCount} saved job${jobCount === 1 ? "" : "s"} · ${Math.round(totalLF)} LF total — your biggest cost drivers, ranked.</p>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top cost driver</div>
+          <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${topPct}%</div>
+        </div>
+      </div>
+      <div class="px-3 sm:px-4 py-2 overflow-x-auto">
+        <table class="dash-mat-table">
+          <thead><tr><th>Material</th><th>Avg / job</th><th>Total used</th><th>$ / LF</th><th>Total spend</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function dashJobCard(j) {
+  const st = jobStatus(j);
+  const stCls = statusMeta(st).cls;
+  const name = j.customerName || j.name || "Untitled job";
+  const sub = [j.manufacturer, j.houseType, (j.totalLF != null ? `${j.totalLF} LF` : "")].filter(Boolean).join(" · ");
+  const price = formatMoney(j.sellingPrice);
+  const marginTxt = (j.margin != null && !isNaN(j.margin)) ? `${Math.round(j.margin)}% margin` : "";
+  const draftPill = j.isDraft ? ` <span class="ml-1 inline-flex items-center text-[8px] uppercase tracking-[0.16em] font-bold text-[#c9a558]/85 border border-[#b58f4a]/45 bg-[#b58f4a]/10 rounded-full px-1.5 py-0.5 align-middle">Draft</span>` : "";
+  const editIcon = `<span class="dash-thumb-edit"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 3.5l4 4L7 17H3v-4z"/></svg></span>`;
+  const thumbInner = j.photo
+    ? `<img src="${escHtml(j.photo)}" class="dash-thumb-img" alt="">`
+    : `<span class="dash-thumb-empty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg>Add photo</span>`;
+  const badgeOverlay = `<span class="dash-thumb-badge ${stCls}">${st}</span>`;
+  const statusSel = j.isDraft
+    ? `<span class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Working draft</span>`
+    : `<select data-dash-status="${j.id}" class="job-status-sel ${stCls}" title="Set deal status">` +
+        JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("") +
+      `</select>`;
+  return `<div class="dash-job-card">
+    <button type="button" class="dash-thumb" data-dash-photo="${j.id}" title="Upload a job photo">
+      ${thumbInner}${badgeOverlay}${editIcon}
+    </button>
+    <div class="p-4 flex-1 flex flex-col">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <div class="text-sm font-bold text-slate-100 truncate">${escHtml(name)}${draftPill}</div>
+          <div class="text-[11px] text-slate-500 truncate mt-0.5 font-medium">${escHtml(sub)}</div>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="text-sm font-extrabold accent-glow" style="font-variant-numeric:tabular-nums;">${price}</div>
+          <div class="text-[10px] text-slate-500">${marginTxt}</div>
+        </div>
+      </div>
+      <div class="flex items-center justify-between gap-2 mt-auto pt-3.5">
+        ${statusSel}
+        <div class="flex items-center gap-1.5">
+          <button type="button" data-dash-load="${j.id}" class="dash-card-load">Load &rarr;</button>
+          <button type="button" data-dash-del="${j.id}" class="dash-card-del" title="Delete job">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDashJobs(jobs) {
+  const grid = document.getElementById("dashJobsGrid");
+  if (!grid) return;
+  const q = (document.getElementById("dashJobSearch")?.value || "").trim().toLowerCase();
+  let list = (jobs || loadJobs()).slice().reverse();
+  if (_dashStatusFilter) list = list.filter(j => !j.isDraft && jobStatus(j) === _dashStatusFilter);
+  if (q) list = list.filter(j => `${j.customerName || ""} ${j.name || ""} ${j.customerAddress || ""} ${j.manufacturer || ""}`.toLowerCase().includes(q));
+  const countEl = document.getElementById("dashJobsCount");
+  if (countEl) countEl.textContent = list.length ? `(${list.length})` : "";
+  if (!list.length) {
+    grid.innerHTML = `<div class="col-span-full card rounded-2xl px-6 py-12 text-center">
+      <div class="text-slate-400 text-sm font-semibold">${(q || _dashStatusFilter) ? "No jobs match." : "No saved jobs yet."}</div>
+      <div class="text-slate-600 text-xs mt-1.5">${(q || _dashStatusFilter) ? "Try a different search or filter." : "Quote a job and hit Save to see it here."}</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = list.map(dashJobCard).join("");
+}
+
+// Compress an uploaded photo to a small JPEG data URL (stored on the job).
+function compressJobPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const maxW = 640;
+      const scale = Math.min(1, maxW / (img.width || maxW));
+      const w = Math.max(1, Math.round((img.width || maxW) * scale));
+      const h = Math.max(1, Math.round((img.height || maxW) * scale));
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      try { resolve(c.toDataURL("image/jpeg", 0.72)); } catch (e) { reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
+
+function setJobPhoto(id, dataUrl) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x.id === id);
+  if (!j) return;
+  j.photo = dataUrl || "";
+  saveJobs(jobs);
+  if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
+  renderDashboard();
+}
+
+function wireDashboard() {
+  if (_dashWired) return;
+  _dashWired = true;
+  const grid = document.getElementById("dashJobsGrid");
+  if (grid) {
+    grid.addEventListener("click", (e) => {
+      const photoBtn = e.target.closest("[data-dash-photo]");
+      if (photoBtn) { _dashPhotoTargetId = photoBtn.dataset.dashPhoto; document.getElementById("dashPhotoInput")?.click(); return; }
+      const loadBtn = e.target.closest("[data-dash-load]");
+      if (loadBtn) { loadJob(loadBtn.dataset.dashLoad); closeDashboard(); return; }
+      const delBtn = e.target.closest("[data-dash-del]");
+      if (delBtn) { if (confirm("Delete this job? This can't be undone.")) { deleteJob(delBtn.dataset.dashDel); renderDashboard(); } return; }
+    });
+    grid.addEventListener("change", (e) => {
+      const sel = e.target.closest("[data-dash-status]");
+      if (sel) { setJobStatus(sel.dataset.dashStatus, sel.value); renderDashboard(); }
+    });
+  }
+  const pipe = document.getElementById("dashPipeline");
+  if (pipe) pipe.addEventListener("click", (e) => {
+    const f = e.target.closest("[data-dash-filter]");
+    if (!f) return;
+    _dashStatusFilter = (_dashStatusFilter === f.dataset.dashFilter) ? null : f.dataset.dashFilter;
+    renderDashPipeline(loadJobs());
+    renderDashJobs(loadJobs());
+  });
+  const search = document.getElementById("dashJobSearch");
+  if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
+  const photoInput = document.getElementById("dashPhotoInput");
+  if (photoInput) photoInput.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    const id = _dashPhotoTargetId; _dashPhotoTargetId = null;
+    if (!file || !id) return;
+    if (file.size > 12 * 1024 * 1024) { toast("That image is too large (max ~12MB)."); return; }
+    try { const dataUrl = await compressJobPhoto(file); setJobPhoto(id, dataUrl); toast("Photo added"); }
+    catch (_) { toast("Couldn't read that image"); }
+  });
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
+  on("dashHome", () => renderDashboard());
+  on("dashOpenCalc", () => closeDashboard());
+  on("dashNewQuote", () => { try { resetAll(); } catch (_) {} closeDashboard(); });
+  on("dashFL", () => { try { openFL(); } catch (_) {} });
+  on("dashSettings", () => { try { openAdmin(); } catch (_) {} });
+  on("dashPricing", () => { try { showPricing("dashboard"); } catch (_) {} });
+  on("dashSignOut", () => { try { handleSignOut(); } catch (_) {} });
 }
 
 /* ============================================================
@@ -11236,7 +11636,7 @@ async function handleAuthSubmit(e) {
       const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       window.track("auth_signup_completed");
-      if (data.session) { await enterApp(); return; }   // confirmation disabled
+      if (data.session) { await enterApp(); openDashboard(); return; }   // confirmation disabled
       setAuthMode("login");
       setAuthMsg("Account created. Check your email to confirm, then log in.", "ok");
     } else {
@@ -11244,6 +11644,7 @@ async function handleAuthSubmit(e) {
       if (error) throw error;
       window.track("auth_login_completed");
       await enterApp();
+      openDashboard();
       return;
     }
   } catch (err) {
@@ -12010,10 +12411,10 @@ function showLanding() {
 function closeLanding() {
   document.getElementById("landingScreen").classList.add("hidden");
 }
-// PFP menu → Home: show the landing page while signed in
+// PFP menu → Dashboard: the signed-in home base.
 function goHome() {
   closePfpMenu();
-  showLanding();
+  openDashboard();
 }
 
 // =========================================================
@@ -12080,6 +12481,7 @@ function wirePricingScreen() {
     window.track("pricing_cta_click", { plan: "nav", billing: "n/a", which: "open_app" });
     closePricing();
     document.getElementById("landingScreen").classList.add("hidden");
+    openDashboard();
   });
   // Reuse the existing pricing-section wiring (plan cards, billing toggle, CTAs, FAQ)
   wirePricing(ps);
@@ -12121,11 +12523,11 @@ function wireLanding() {
   ["lpSignup", "lpHeroSignup", "lpCtaSignup"].forEach(id =>
     document.getElementById(id).addEventListener("click", () => {
       window.track("hero_cta_click", { which: currentUser ? "open_app" : "signup" });
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) { closeLanding(); openDashboard(); } else openAuth("signup");
     }));
   document.getElementById("lpOpenApp").addEventListener("click", () => {
     window.track("hero_cta_click", { which: "open_app" });
-    closeLanding();
+    closeLanding(); openDashboard();
   });
   // Pricing nav button — opens the standalone pricing page (not a scroll)
   const lpPricingNav = document.getElementById("lpPricingNav");
@@ -12411,7 +12813,7 @@ async function boot() {
       showSetNewPasswordForm();
     } else if (event === "SIGNED_IN" && !currentUser) {
       // Magic-link return — drop straight into the app
-      enterApp().catch(() => showLanding());
+      enterApp().then(() => openDashboard()).catch(() => showLanding());
     }
   });
 
@@ -12430,10 +12832,10 @@ async function boot() {
     }, 400);
     document.getElementById("bootSplash").classList.add("hidden");
   } else if (session) {
-    // signed-in users on a refresh stay on the home page — the app
-    // is initialised behind them and they can click "Open App" to enter
+    // Signed-in users land on their dashboard (home base) — the calculator is
+    // initialised behind it, one click away via "Open Calculator".
     await enterApp();
-    showLanding();
+    openDashboard();
   } else {
     setAuthMode("login");
     showLanding();
@@ -13175,6 +13577,9 @@ function init() {
   // FL product-approval lookup
   document.getElementById("pfpHome").addEventListener("click", goHome);
   document.getElementById("openFL").addEventListener("click", openFL);
+  // Dashboard — header button (PFP "Dashboard" is wired via goHome above)
+  const _hdrDash = document.getElementById("headerDashboardBtn");
+  if (_hdrDash) _hdrDash.addEventListener("click", openDashboard);
   // County → sales-tax estimate
   document.getElementById("obCounty").addEventListener("change", updateObCountyTax);
   document.getElementById("brandCounty").addEventListener("change", e => {
