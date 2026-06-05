@@ -1860,6 +1860,18 @@
   .dash-mat-table td:first-child { text-align: left; color: #f1f5f9; font-weight: 600; white-space: normal; }
   .dash-mat-table tr:last-child td { border-bottom: 0; }
   .dash-mat-table tr.dash-mat-top td { background: rgba(181,143,74,0.07); }
+  /* Job card body (click → details) + Job Details modal */
+  .dash-card-body { cursor: pointer; transition: background .15s ease; }
+  .dash-card-body:hover { background: rgba(30,41,59,0.4); }
+  .jd-head { background: #0c1322; }
+  .jd-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #64748b; font-weight: 800; margin-bottom: 7px; }
+  .jd-photo { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: rgba(2,6,23,0.6); border: 1px solid #1e293b; cursor: pointer; padding: 0; }
+  .jd-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .jd-photo-empty { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
+  .jd-photo:hover .jd-photo-empty { color: #c9a558; }
+  .jd-doc-btn { font-size: 12px; font-weight: 700; border-radius: 10px; padding: 9px 8px; cursor: pointer; background: rgba(181,143,74,0.1); color: #c9a558; border: 1px solid rgba(181,143,74,0.4); transition: all .15s ease; }
+  .jd-doc-btn:hover { background: rgba(181,143,74,0.18); border-color: #c9a558; }
+  .jd-doc-btn:disabled { opacity: 0.4; cursor: not-allowed; color: #64748b; border-color: #334155; background: transparent; }
 
   /* Dashboard — light mode */
   [data-theme="light"] #dashboardScreen { background: #f3f4f7 !important; }
@@ -1874,6 +1886,10 @@
   [data-theme="light"] .dash-mat-table th { color: #64748b; border-bottom-color: #e6e8ec; }
   [data-theme="light"] .dash-mat-table tr.dash-mat-top td { background: #fbf6ec; }
   [data-theme="light"] .dash-card-del { color: #94a3b8; }
+  [data-theme="light"] .dash-card-body:hover { background: #f1f5f9; }
+  [data-theme="light"] .jd-head { background: #ffffff; }
+  [data-theme="light"] .jd-photo { background: #eef0f3; border-color: #e6e8ec; }
+  [data-theme="light"] .jd-photo-empty { color: #94a3b8; }
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen rail-pinned">
@@ -3168,9 +3184,15 @@
     <!-- Jobs -->
     <div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
       <h2 class="text-sm uppercase tracking-[0.18em] text-slate-400 font-bold">Your jobs <span id="dashJobsCount" class="text-slate-600 font-bold"></span></h2>
-      <div class="relative">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
-        <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 w-44 sm:w-64 placeholder:text-slate-600" />
+      <div class="flex items-center gap-2">
+        <button id="dashExportCsv" type="button" class="btn inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 border border-slate-700 hover:text-[#c9a558] hover:border-[#b58f4a]/45" title="Export your pipeline as a CSV">
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v9M6 8l4 4 4-4M4 15v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"/></svg>
+          Export CSV
+        </button>
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+          <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 w-44 sm:w-64 placeholder:text-slate-600" />
+        </div>
       </div>
     </div>
     <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -3841,6 +3863,18 @@
         <input id="saveJobAddress" type="text" placeholder="123 Main St, City, ST" autocomplete="off"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Phone <span class="text-slate-600 normal-case tracking-normal">(opt)</span></label>
+          <input id="saveJobPhone" type="tel" placeholder="(555) 123-4567" autocomplete="off"
+            class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+        </div>
+        <div>
+          <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Email <span class="text-slate-600 normal-case tracking-normal">(opt)</span></label>
+          <input id="saveJobEmail" type="email" placeholder="name@email.com" autocomplete="off"
+            class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+        </div>
+      </div>
       <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Notes <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
         <textarea id="saveJobNotes" placeholder="Any additional details…" rows="2"
@@ -3851,6 +3885,15 @@
       <button data-close-save class="btn rounded-full text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Cancel</button>
       <button id="saveJobConfirm" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save Job</button>
     </div>
+  </div>
+</div>
+
+<!-- Job Details modal — full job view from the dashboard: contact, notes,
+     specs, pricing, documents, and actions. Body is rendered dynamically. -->
+<div id="jobDetailsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[78]">
+  <div class="absolute inset-0 modal-backdrop" data-close-jd></div>
+  <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
+    <div id="jobDetailsBody" class="overflow-y-auto"></div>
   </div>
 </div>
 
@@ -5446,6 +5489,8 @@ function buildState() {
     permitEnabled: false,
     customerName: "",
     customerAddress: "",
+    customerPhone: "",
+    customerEmail: "",
     customerNotes: "",
     buckList: null, planApprovals: [], slidingDoors: [],
     variants: {},
@@ -6729,6 +6774,8 @@ function render() {
     permitEnabled: STATE.permitEnabled,
     customerName: STATE.customerName,
     customerAddress: STATE.customerAddress,
+    customerPhone: STATE.customerPhone,
+    customerEmail: STATE.customerEmail,
     customerNotes: STATE.customerNotes,
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
     variants: STATE.variants || {},
@@ -7128,16 +7175,18 @@ function dashJobCard(j) {
       ${thumbInner}${badgeOverlay}${editIcon}
     </button>
     <div class="p-4 flex-1 flex flex-col">
-      <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <div class="text-sm font-bold text-slate-100 truncate">${escHtml(name)}${draftPill}</div>
-          <div class="text-[11px] text-slate-500 truncate mt-0.5 font-medium">${escHtml(sub)}</div>
+      <button type="button" data-dash-details="${j.id}" class="dash-card-body text-left w-full -m-1 p-1 rounded-lg" title="View job details">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-sm font-bold text-slate-100 truncate">${escHtml(name)}${draftPill}</div>
+            <div class="text-[11px] text-slate-500 truncate mt-0.5 font-medium">${escHtml(sub)}</div>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="text-sm font-extrabold accent-glow" style="font-variant-numeric:tabular-nums;">${price}</div>
+            <div class="text-[10px] text-slate-500">${marginTxt}</div>
+          </div>
         </div>
-        <div class="text-right shrink-0">
-          <div class="text-sm font-extrabold accent-glow" style="font-variant-numeric:tabular-nums;">${price}</div>
-          <div class="text-[10px] text-slate-500">${marginTxt}</div>
-        </div>
-      </div>
+      </button>
       <div class="flex items-center justify-between gap-2 mt-auto pt-3.5">
         ${statusSel}
         <div class="flex items-center gap-1.5">
@@ -7199,6 +7248,7 @@ function setJobPhoto(id, dataUrl) {
   saveJobs(jobs);
   if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   renderDashboard();
+  if (_jdJobId === id) renderJobDetails(j);
 }
 
 function wireDashboard() {
@@ -7209,6 +7259,8 @@ function wireDashboard() {
     grid.addEventListener("click", (e) => {
       const photoBtn = e.target.closest("[data-dash-photo]");
       if (photoBtn) { _dashPhotoTargetId = photoBtn.dataset.dashPhoto; document.getElementById("dashPhotoInput")?.click(); return; }
+      const detailsBtn = e.target.closest("[data-dash-details]");
+      if (detailsBtn) { openJobDetails(detailsBtn.dataset.dashDetails); return; }
       const loadBtn = e.target.closest("[data-dash-load]");
       if (loadBtn) { loadJob(loadBtn.dataset.dashLoad); closeDashboard(); return; }
       const delBtn = e.target.closest("[data-dash-del]");
@@ -7247,6 +7299,208 @@ function wireDashboard() {
   on("dashSettings", () => { try { openAdmin(); } catch (_) {} });
   on("dashPricing", () => { try { showPricing("dashboard"); } catch (_) {} });
   on("dashSignOut", () => { try { handleSignOut(); } catch (_) {} });
+  on("dashExportCsv", exportPipelineCSV);
+  const jdBackdrop = document.querySelector("#jobDetailsModal .modal-backdrop");
+  if (jdBackdrop) jdBackdrop.addEventListener("click", closeJobDetails);
+}
+
+/* ----- Job Details modal + dashboard doc downloads + CSV export ----- */
+let _jdJobId = null;
+
+// Generate a saved job's PDF from the dashboard without navigating: snapshot
+// the working STATE, apply the job's values, export, then restore.
+function dashGenerateDoc(id, kind) {
+  const job = loadJobs().find(x => x.id === id);
+  if (!job) { toast("Job not found"); return; }
+  if (kind === "buck" && !job.buckList) { toast("No buck cut list on this job"); return; }
+  const snap = clone(STATE);
+  try {
+    applyJobToState(job);
+    if (kind === "customer") exportCustomerPDF("download");
+    else if (kind === "cost") exportPDF("download");
+    else if (kind === "materials") exportMaterialsPDF("download");
+    else if (kind === "buck") fileBuckAction("download");
+  } catch (e) {
+    toast("Couldn't generate that document");
+  } finally {
+    STATE = snap;
+    try { bindControls(); } catch (_) {}
+    try { renderSlidingDoors(); } catch (_) {}
+    try { render(); } catch (_) {}
+  }
+}
+
+function openJobDetails(id) {
+  const job = loadJobs().find(x => x.id === id);
+  if (!job) return;
+  _jdJobId = id;
+  renderJobDetails(job);
+  const m = document.getElementById("jobDetailsModal");
+  m.classList.remove("hidden"); m.classList.add("flex");
+}
+function closeJobDetails() {
+  const m = document.getElementById("jobDetailsModal");
+  if (m) { m.classList.add("hidden"); m.classList.remove("flex"); }
+  _jdJobId = null;
+}
+
+function saveJobDetailsEdits(id, silent) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x.id === id);
+  if (!j) return;
+  const g = (x) => (document.getElementById(x)?.value || "").trim();
+  j.customerName = g("jdName");
+  j.customerPhone = g("jdPhone");
+  j.customerEmail = g("jdEmail");
+  j.customerAddress = g("jdAddress");
+  j.customerNotes = g("jdNotes");
+  if (!j.name || j.name === "Untitled job") j.name = j.customerName || j.name;
+  saveJobs(jobs);
+  if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
+  if (STATE.currentJobId === id) {
+    STATE.customerName = j.customerName; STATE.customerPhone = j.customerPhone;
+    STATE.customerEmail = j.customerEmail; STATE.customerAddress = j.customerAddress;
+    STATE.customerNotes = j.customerNotes;
+  }
+  renderDashboard();
+  if (!silent) toast("Saved");
+}
+
+function renderJobDetails(job) {
+  const body = document.getElementById("jobDetailsBody");
+  if (!body) return;
+  const st = jobStatus(job);
+  const stCls = statusMeta(st).cls;
+  const title = job.customerName || job.name || "Untitled job";
+  const cost = Number(job.totalCost) || 0;
+  const price = Number(job.sellingPrice) || 0;
+  const margin = (job.margin != null && !isNaN(job.margin)) ? Math.round(job.margin) : null;
+  const profit = price - cost;
+  const sgd = Array.isArray(job.slidingDoors) ? job.slidingDoors : [];
+  const sgdCount = sgd.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0);
+  const sgdPanels = sgd.reduce((s, d) => s + (parseInt(d.qty, 10) || 1) * (parseInt(d.panels, 10) || 2), 0);
+  const sw = job.swingDoors || {};
+  const swTotal = (parseInt(sw.single, 10) || 0) + (parseInt(sw.double, 10) || 0);
+  const specs = [
+    ["Manufacturer", job.manufacturer], ["Construction", job.constructionType],
+    ["House type", job.houseType], ["Stories", job.stories], ["Glass", job.impact],
+    ["Linear footage", job.totalLF != null ? job.totalLF + " LF" : ""], ["Windows", job.windowCount || ""],
+  ];
+  if (swTotal > 0) specs.push(["Swing doors", String(swTotal)]);
+  if (sgdCount > 0) specs.push(["Sliding glass doors", `${sgdCount} · ${sgdPanels} panel${sgdPanels === 1 ? "" : "s"}`]);
+  const specRows = specs.filter(([, v]) => v != null && v !== "").map(([k, v]) =>
+    `<div class="flex items-center justify-between gap-3 text-[13px]"><span class="text-slate-500">${escHtml(k)}</span><span class="text-slate-200 font-semibold text-right">${escHtml(String(v))}</span></div>`).join("");
+  const approvals = Array.isArray(job.planApprovals) ? job.planApprovals : [];
+  const apprBlock = approvals.length
+    ? `<div class="jd-section"><div class="jd-section-title">FL Product Approvals</div><div class="flex flex-wrap gap-1.5">${approvals.map(a => `<span class="text-[11px] font-bold text-[#c9a558] bg-[#b58f4a]/10 border border-[#b58f4a]/30 rounded px-1.5 py-0.5">${escHtml(a.number)}</span>`).join("")}</div></div>`
+    : "";
+  const statusOpts = JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("");
+  const photo = job.photo
+    ? `<img src="${escHtml(job.photo)}" class="jd-photo-img" alt="">`
+    : `<span class="jd-photo-empty"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg>Add photo</span>`;
+  body.innerHTML = `
+    <div class="jd-head px-6 py-4 border-b border-slate-800/80 flex items-center justify-between gap-3 sticky top-0 z-10">
+      <div class="min-w-0">
+        <div class="text-base font-bold text-slate-100 truncate">${escHtml(title)}</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">${job.isDraft ? "Working draft" : "Saved job"}</div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <select id="jdStatus" class="job-status-sel ${stCls}" title="Set deal status">${statusOpts}</select>
+        <button data-close-jd class="modal-close" aria-label="Close">×</button>
+      </div>
+    </div>
+    <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div class="space-y-4">
+        <button type="button" id="jdPhoto" class="jd-photo" title="Upload a job photo">${photo}</button>
+        <div class="jd-section">
+          <div class="jd-section-title">Customer contact</div>
+          <div class="space-y-2">
+            <input id="jdName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Customer / job name" value="${escHtml(job.customerName || "")}">
+            <input id="jdPhone" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Phone" value="${escHtml(job.customerPhone || "")}">
+            <input id="jdEmail" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Email" value="${escHtml(job.customerEmail || "")}">
+            <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Address" value="${escHtml(job.customerAddress || "")}">
+          </div>
+        </div>
+        <div class="jd-section">
+          <div class="jd-section-title">Notes</div>
+          <textarea id="jdNotes" rows="3" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 resize-none" placeholder="Any details…">${escHtml(job.customerNotes || "")}</textarea>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <div class="jd-section">
+          <div class="jd-section-title">Pricing</div>
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <div class="card rounded-xl px-3 py-2.5 text-center"><div class="text-[9px] uppercase tracking-[0.14em] text-slate-500 font-bold">Selling price</div><div class="text-lg font-extrabold accent-glow" style="font-variant-numeric:tabular-nums;">${formatMoney(price)}</div></div>
+            <div class="card rounded-xl px-3 py-2.5 text-center"><div class="text-[9px] uppercase tracking-[0.14em] text-slate-500 font-bold">Margin</div><div class="text-lg font-extrabold text-slate-100">${margin == null ? "—" : margin + "%"}</div></div>
+          </div>
+          <div class="flex items-center justify-between text-[13px]"><span class="text-slate-500">Cost</span><span class="text-slate-200 font-semibold">${formatMoney(cost)}</span></div>
+          <div class="flex items-center justify-between text-[13px] mt-1"><span class="text-slate-500">Profit</span><span class="text-emerald-300 font-semibold">${formatMoney(profit)}</span></div>
+        </div>
+        <div class="jd-section">
+          <div class="jd-section-title">Specs</div>
+          <div class="space-y-1.5">${specRows}</div>
+        </div>
+        ${apprBlock}
+      </div>
+    </div>
+    <div class="px-6 pb-1">
+      <div class="jd-section-title mb-2">Documents</div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <button data-jd-doc="customer" class="jd-doc-btn">Customer Quote</button>
+        <button data-jd-doc="cost" class="jd-doc-btn">Cost Breakdown</button>
+        <button data-jd-doc="materials" class="jd-doc-btn">Materials List</button>
+        <button data-jd-doc="buck" class="jd-doc-btn"${job.buckList ? "" : " disabled"}>Buck Cut List</button>
+      </div>
+      <p class="text-[10px] text-slate-600 mt-1.5">Generated from this job's saved numbers — download to send after the customer approves.</p>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
+      <button data-jd-delete class="text-[12px] font-semibold text-slate-500 hover:text-rose-300">Delete job</button>
+      <div class="flex items-center gap-2">
+        <button id="jdSave" class="btn rounded-full px-4 py-2.5 text-sm font-semibold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]">Save changes</button>
+        <button id="jdOpenCalc" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Open in calculator →</button>
+      </div>
+    </div>`;
+  body.querySelectorAll("[data-close-jd]").forEach(b => b.addEventListener("click", closeJobDetails));
+  const status = document.getElementById("jdStatus");
+  if (status) status.addEventListener("change", () => { setJobStatus(job.id, status.value); renderDashboard(); });
+  const save = document.getElementById("jdSave");
+  if (save) save.addEventListener("click", () => saveJobDetailsEdits(job.id));
+  const openCalc = document.getElementById("jdOpenCalc");
+  if (openCalc) openCalc.addEventListener("click", () => { saveJobDetailsEdits(job.id, true); loadJob(job.id); closeJobDetails(); closeDashboard(); });
+  const del = body.querySelector("[data-jd-delete]");
+  if (del) del.addEventListener("click", () => { if (confirm("Delete this job? This can't be undone.")) { deleteJob(job.id); closeJobDetails(); renderDashboard(); } });
+  body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
+  const jdPhoto = document.getElementById("jdPhoto");
+  if (jdPhoto) jdPhoto.addEventListener("click", () => { _dashPhotoTargetId = job.id; document.getElementById("dashPhotoInput")?.click(); });
+}
+
+// Export every saved (non-draft) job as a CSV pipeline file.
+function exportPipelineCSV() {
+  const jobs = loadJobs().filter(j => !j.isDraft);
+  if (!jobs.length) { toast("No saved jobs to export"); return; }
+  const cols = ["Job/Customer", "Status", "Phone", "Email", "Address", "Manufacturer", "Construction", "House", "Stories", "Glass", "LF", "Windows", "Sliding doors", "Swing doors", "Cost", "Selling price", "Margin %", "Profit", "Created"];
+  const esc = (v) => { v = (v == null ? "" : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lines = [cols.join(",")];
+  jobs.forEach(j => {
+    const sgd = Array.isArray(j.slidingDoors) ? j.slidingDoors.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0) : 0;
+    const sw = j.swingDoors || {}; const swt = (parseInt(sw.single, 10) || 0) + (parseInt(sw.double, 10) || 0);
+    const cost = Number(j.totalCost) || 0, price = Number(j.sellingPrice) || 0;
+    lines.push([
+      j.customerName || j.name || "", jobStatus(j), j.customerPhone || "", j.customerEmail || "", j.customerAddress || "",
+      j.manufacturer || "", j.constructionType || "", j.houseType || "", j.stories || "", j.impact || "",
+      j.totalLF != null ? j.totalLF : "", j.windowCount || "", sgd || "", swt || "",
+      cost.toFixed(2), price.toFixed(2), (j.margin != null && !isNaN(j.margin) ? Math.round(j.margin) : ""), (price - cost).toFixed(2),
+      (j.createdAt ? new Date(j.createdAt).toLocaleDateString() : "")
+    ].map(esc).join(","));
+  });
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "anchor-pipeline-" + new Date().toISOString().slice(0, 10) + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast("Pipeline exported");
+  try { window.track("pipeline_csv_exported", { jobs: jobs.length }); } catch (_) {}
 }
 
 /* ============================================================
@@ -7505,6 +7759,8 @@ function resetAll() {
     permitEnabled: false,
     customerName: "",
     customerAddress: "",
+    customerPhone: "",
+    customerEmail: "",
     customerNotes: "",
     buckList: null, planApprovals: [], slidingDoors: [],
     variants: {},
@@ -7532,6 +7788,8 @@ function openSaveJobModal() {
   // the working draft name (STATE.jobName) so the user doesn't retype it.
   document.getElementById("saveJobName").value = STATE.customerName || STATE.jobName || "";
   document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
+  { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
+  { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
   document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
   const modal = document.getElementById("saveJobModal");
   modal.classList.remove("hidden");
@@ -7550,8 +7808,12 @@ function confirmSaveJob() {
   const name = document.getElementById("saveJobName").value.trim();
   const address = document.getElementById("saveJobAddress").value.trim();
   const notes = document.getElementById("saveJobNotes").value.trim();
+  const phone = (document.getElementById("saveJobPhone")?.value || "").trim();
+  const email = (document.getElementById("saveJobEmail")?.value || "").trim();
   STATE.customerName = name;
   STATE.customerAddress = address;
+  STATE.customerPhone = phone;
+  STATE.customerEmail = email;
   STATE.customerNotes = notes;
 
   const jobs = loadJobs();
@@ -7576,7 +7838,7 @@ function confirmSaveJob() {
   const job = {
     id: reuseId,
     name: name || `Job ${new Date().toLocaleDateString()}`,
-    customerName: name, customerAddress: address, customerNotes: notes,
+    customerName: name, customerAddress: address, customerPhone: phone, customerEmail: email, customerNotes: notes,
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
@@ -7745,6 +8007,8 @@ function writeDraftJob(r) {
     name: draftName,
     customerName: STATE.customerName || "",
     customerAddress: STATE.customerAddress || "",
+    customerPhone: STATE.customerPhone || "",
+    customerEmail: STATE.customerEmail || "",
     customerNotes: STATE.customerNotes || "",
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
     variants: clone(STATE.variants || {}),
@@ -7766,10 +8030,9 @@ function writeDraftJob(r) {
   renderSavedJobs();
 }
 
-function loadJob(id) {
-  const j = loadJobs().find(x => x.id === id);
-  if (!j) return;
-  clearAllAiFilled();   // a loaded job's values are the user's, not a fresh AI fill
+// Pure STATE assignment from a job object — no UI side effects. Shared by
+// loadJob (UI load) and dashGenerateDoc (silent, for dashboard doc downloads).
+function applyJobToState(j) {
   STATE.manufacturer = j.manufacturer;
   STATE.application = j.application;
   STATE.houseType = j.houseType;
@@ -7783,6 +8046,8 @@ function loadJob(id) {
   STATE.permitEnabled = j.permitEnabled || false;
   STATE.customerName = j.customerName || "";
   STATE.customerAddress = j.customerAddress || "";
+  STATE.customerPhone = j.customerPhone || "";
+  STATE.customerEmail = j.customerEmail || "";
   STATE.customerNotes = j.customerNotes || "";
   STATE.buckList = j.buckList || null;
   STATE.planApprovals = Array.isArray(j.planApprovals) ? j.planApprovals : [];
@@ -7794,6 +8059,13 @@ function loadJob(id) {
     { single: 0, double: 0, withFlashing: true },
     j.swingDoors || {}
   );
+}
+
+function loadJob(id) {
+  const j = loadJobs().find(x => x.id === id);
+  if (!j) return;
+  clearAllAiFilled();   // a loaded job's values are the user's, not a fresh AI fill
+  applyJobToState(j);
   bindControls();
   renderSlidingDoors();   // rebuild the SGD list DOM for this job
   render();
