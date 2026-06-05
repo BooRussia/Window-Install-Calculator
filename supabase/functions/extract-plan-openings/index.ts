@@ -83,7 +83,9 @@ For EACH row/opening in the schedule:
 1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O — ignore frame size, unit size, and glass size). If only the unit/nominal size is shown, use it. Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5.
 2. Read the QUANTITY (QTY) for that row straight off the schedule — the real count. Only use 1 if there is genuinely no quantity shown anywhere for that row.
 3. Find the room or location name (or the window mark/label if no room is given).
-4. Determine the TYPE: if it is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door"; everything else is "window".
+4. Determine the TYPE. A SLIDING GLASS DOOR (also called slider, SGD, patio door, XO/OX/XOX/OXO/XOXO, or shown with a panel-configuration code) is much more involved than a window and MUST be tagged separately — mark it exactly "sliding glass door". A hinged/swing/French door is NOT a sliding glass door. Everything else is "window".
+5. PANELS — for sliding glass doors only: count the PANELS (the number of glass leaves). Codes map directly: XO or OX = 2, XOX or OXO = 3, XOXO = 4, etc. If the code or a panel count is shown, use it; otherwise estimate from the width. Leave panels blank for windows.
+6. SIZE for sliding glass doors: report the OVERALL rough-opening width and height. If the schedule only gives a single PANEL size, multiply: overall width = panel width × number of panels; overall height = the panel height.
 
 PART C — Florida product approvals:
 Schedules frequently list a Florida Product Approval number (FL#, formatted like FL12345, FL12345.1, or FL12345-R3) and/or a Miami-Dade NOA number (formatted like 21-0119.05) for each window or door — usually in a column headed "FL #", "FL APPROVAL", "PRODUCT APPROVAL", "APPROVAL", "FBC", or "NOA", or in the schedule notes/legend. Extract EVERY product-approval number you can find, along with what it applies to (the window mark / type / series). If no approval numbers appear anywhere, skip Part C entirely.
@@ -92,15 +94,18 @@ If multiple schedule pages are shown, include EVERYTHING across ALL of them. Rep
 
 MANUFACTURER: <name or Unknown>
 PROJECT: <project name, homeowner, or address — or Unknown>
-OPENING | room or location | width_inches | height_inches | qty | type
+OPENING | room or location | width_inches | height_inches | qty | type | panels
 APPROVAL | <FL# or NOA number> | <window mark / type / series it applies to>
+
+The 7th field (panels) is ONLY for sliding glass doors — leave it off for windows.
 
 Example reply:
 MANUFACTURER: Viwinco
 PROJECT: Smith Residence
 OPENING | Master Bedroom | 36 | 48 | 2 | window
 OPENING | Kitchen | 48 | 60 | 1 | window
-OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
+OPENING | Living Room Patio | 144 | 80 | 1 | sliding glass door | 3
+OPENING | Family Room | 192 | 96 | 1 | sliding glass door | 4
 APPROVAL | FL16258.3 | 7000 Series Single Hung (W1-W4)
 APPROVAL | FL22193.1 | 8000 Series Sliding Glass Door (SGD1)
 

@@ -625,6 +625,20 @@
   }
   .plan-approval-cta { margin-left: auto; font-size: 12px; font-weight: 700; color: #64748b; flex-shrink: 0; }
   .plan-approval-row:hover .plan-approval-cta { color: #c9a558; }
+  /* Sliding-glass-door rail editor — one compact card per door */
+  .sgd-row { border: 1px solid #1e293b; border-radius: 12px; background: rgba(2,6,23,0.4); padding: 9px 10px; }
+  .sgd-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+  .sgd-head label { font-size: 11px; color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 6px; margin: 0; }
+  .sgd-sel { background: rgba(15,23,42,0.7); border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 3px 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .sgd-remove { color: #64748b; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 17px; line-height: 1; background: transparent; border: 0; cursor: pointer; }
+  .sgd-remove:hover { color: #f87171; background: rgba(248,113,113,0.12); }
+  .sgd-dims { display: flex; align-items: flex-end; gap: 6px; }
+  .sgd-cell { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .sgd-cell > span { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; font-weight: 700; }
+  .sgd-cell input { width: 100%; background: rgba(15,23,42,0.7); border: 1px solid #334155; color: #f1f5f9; border-radius: 8px; padding: 5px 7px; font-size: 13px; text-align: right; -moz-appearance: textfield; }
+  .sgd-cell input::-webkit-outer-spin-button, .sgd-cell input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .rail-add-btn { width: 100%; border: 1px dashed #334155; border-radius: 10px; padding: 8px; font-size: 12px; font-weight: 700; color: #94a3b8; background: transparent; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
+  .rail-add-btn:hover { border-color: rgba(181,143,74,0.5); color: #c9a558; }
   .hero-input {
     background: transparent;
     border: none;
@@ -1787,6 +1801,10 @@
   [data-theme="light"] .plan-approval-num { color: #9c7a36; }
   [data-theme="light"] .plan-approval-applies { color: #5b6677; }
   [data-theme="light"] .plan-approval-cta { color: #94a3b8; }
+  [data-theme="light"] .sgd-row { background: #f6f7f9; border-color: #e6e8ec; }
+  [data-theme="light"] .sgd-sel, [data-theme="light"] .sgd-cell input { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
+  [data-theme="light"] .rail-add-btn { border-color: #cbd5e1; color: #475569; }
+  [data-theme="light"] .rail-add-btn:hover { border-color: rgba(181,143,74,0.55); color: #9c7a36; }
 
   /* Pricing tier cards: the feature list under each plan was #cbd5e1 — nearly
      invisible on white. Darken the list text and the divider. */
@@ -3252,6 +3270,14 @@
           <div id="swingDoorsSummary" class="hidden text-[10px] tracking-[0.14em] uppercase font-bold text-slate-500 px-1" style="font-variant-numeric: tabular-nums;"></div>
         </div>
       </div>
+      <div id="slidingDoorsRailField" class="rail-field hidden">
+        <label>Sliding glass doors<span class="info-tip" tabindex="0" role="button" aria-label="How sliding glass doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Sliding glass doors price separately from windows &mdash; far more labor (4 crew-hours per panel by default) and a building-dept screw inspection that adds a return-trip day before panels &amp; snap covers go on. Their frame footage still pulls per-LF screws, caulk, shims &amp; bucking. Set panels per door; tune rates in Settings.</span></span></label>
+        <div class="space-y-2">
+          <div id="slidingDoorsList" class="space-y-2"></div>
+          <button id="addSlidingDoorBtn" type="button" class="rail-add-btn">+ Add sliding door</button>
+          <div id="slidingDoorsSummary" class="hidden text-[10px] tracking-[0.14em] uppercase font-bold text-slate-500 px-1" style="font-variant-numeric: tabular-nums;"></div>
+        </div>
+      </div>
 
       <!-- ─── EXTRAS ─── -->
       <div class="rail-section-header">Extras</div>
@@ -4120,6 +4146,81 @@
             </div>
             </section>
 
+            <!-- ═══ Section: Sliding Glass Doors ═══ -->
+            <section id="rates-section-sliders" data-rates-section data-nav-label="Sliding Glass Doors">
+            <div class="pt-2">
+            <div class="flex items-center justify-between mb-3 gap-3">
+              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Sliding Glass Doors</h4>
+              <label class="flex items-center gap-2 text-xs text-slate-400">
+                <input id="adminSgdEnabled" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+                <span>Enable in rail</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-slate-500 mb-4">Priced separately from windows. Labor scales by panel count. Frame footage still pulls per-LF screws, caulk, shims &amp; bucking automatically &mdash; only the slider-specific extras live here. Defaults are construction-shop estimates; verify against your crew &amp; suppliers.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="rounded-xl border border-slate-800 p-4">
+                <div class="text-sm font-semibold text-slate-100 mb-2.5">Labor</div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-32">Crew-hours / panel</span>
+                  <input id="adminSgdLaborHoursPerPanel" type="number" step="0.25" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">hr / panel</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">A 3-panel door = 3× this. Heavy-panel install + snap covers.</p>
+              </div>
+              <div class="rounded-xl border border-slate-800 p-4">
+                <div class="text-sm font-semibold text-slate-100 mb-2.5">Slider-only materials</div>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Sill / track flashing</span>
+                    <span class="text-[11px] text-slate-500">$</span>
+                    <input id="adminSgdSillFlashingPerLF" type="number" step="0.25" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">/ LF width</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Extra anchors</span>
+                    <input id="adminSgdExtraAnchorsPerPanel" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">each / panel</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Default panel size (fallback when only a per-panel size is on the plan) -->
+            <div class="mt-4 rounded-xl border border-slate-800 p-4">
+              <div class="text-sm font-semibold text-slate-100 mb-1">Default panel size</div>
+              <p class="text-[11px] text-slate-500 mb-3">Used as a fallback when a door has no overall size: width = panel width × panels, height = this height.</p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-24">Panel width</span>
+                  <input id="adminSgdDefaultPanelWidth" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">in</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-24">Height</span>
+                  <input id="adminSgdDefaultPanelHeight" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">in</span>
+                </div>
+              </div>
+            </div>
+            <!-- Inspection wait day -->
+            <div class="mt-4 rounded-xl border border-slate-800 p-4">
+              <div class="text-sm font-semibold text-slate-100 mb-1">Screw inspection (extra day)</div>
+              <p class="text-[11px] text-slate-500 mb-3">Sliders need a building-dept screw inspection before panels &amp; snap covers go on &mdash; almost always a return trip on another day.</p>
+              <div class="space-y-3">
+                <label class="flex items-center gap-2 text-xs text-slate-400">
+                  <input id="adminSgdInspReturnTrip" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+                  <span>Add a return-trip mobilization</span>
+                  <input id="adminSgdInspReturnHours" type="number" step="0.5" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100 ml-1" />
+                  <span class="text-[11px] text-slate-500">crew-hrs</span>
+                </label>
+                <label class="flex items-center gap-2 text-xs text-slate-400">
+                  <input id="adminSgdInspExtraLiftDay" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+                  <span>Add +1 lift / equipment day when a lift is on the job</span>
+                </label>
+              </div>
+            </div>
+            </div>
+            </section>
+
             </div><!-- /right content -->
           </div><!-- /ratesShell grid -->
         </div>
@@ -4443,7 +4544,27 @@ const DEFAULT_DATA = {
       flashingPerLF: 4.5,
       singleDoorWidthLF: 3,
       doubleDoorWidthLF: 6
+    },
+  // Sliding glass doors — a distinct category from windows AND swing doors.
+  // They're far more labor-intensive (heavy panels, snap covers) and trigger a
+  // building-dept screw inspection BEFORE panels/covers can go on, which almost
+  // always adds a return trip on another day. Labor scales by panel count
+  // (4 crew-hours per panel). Their footage still feeds the per-LF, brand-
+  // specific material engine (screws, caulk, shims, bucking); only the SGD-only
+  // extras (sill/track flashing, heavy anchors) live here.
+  slidingDoors: {
+    enabled: true,
+    laborHoursPerPanel: 4,        // crew-hours per panel (e.g. 3-panel = 12 hrs)
+    sillFlashingPerLF: 4.5,       // track/sill pan flashing $ per LF of SGD width
+    extraAnchorsPerPanel: 4,      // heavy sill/jamb anchors beyond per-LF count
+    defaultPanelWidthIn: 36,      // fallback per-panel width (overall W = this × panels)
+    defaultPanelHeightIn: 80,     // fallback SGD height
+    inspection: {
+      returnTrip: true,           // add one return-trip mobilization when ≥1 SGD
+      returnTripHours: 2,         // crew-hours for that return trip
+      extraLiftDay: true          // +1 lift/equipment day when a lift is on the job
     }
+  }
   },
   manufacturers: ["Viwinco", "Weathershield", "Velocity", "ES Window & Door", "Other"],
   // Per-manufacturer screw patterns — objective facts about each brand's window.
@@ -5223,7 +5344,7 @@ function buildState() {
     customerName: "",
     customerAddress: "",
     customerNotes: "",
-    buckList: null, planApprovals: [],
+    buckList: null, planApprovals: [], slidingDoors: [],
     variants: {},
     currentJobId: null,
     jobName: "",
@@ -5323,32 +5444,46 @@ function estimateLaborBreakdown() {
 
   const wc = parseInt(STATE.windowCount, 10) || 0;
   const lf = Number(STATE.totalLF) || 0;
-  // Doors — reuse the canonical swing-door math (count + labor minutes).
+  // Doors — swing doors (count + minutes) and sliding glass doors (panels × hrs).
   const sd = computeSwingDoors();
   const dc = sd.total || 0;
+  const sgd = computeSlidingDoors();
+  const sgdc = sgd.count || 0;
 
-  // Setup overhead — every opening (window OR door) costs the same setup
-  // time (pull tools, measure, level, plumb, anchor layout, cleanup).
-  const setupHrs = (wc + dc) * setupMin / 60;
+  // Setup overhead — every opening (window, swing door, OR sliding door) costs
+  // the same setup time (pull tools, measure, level, plumb, anchor, cleanup).
+  const setupHrs = (wc + dc + sgdc) * setupMin / 60;
   // Window install — LF × hr/LF (rate already folds in stories + impact).
   const windowInstallHrs = lf * getLaborPerLF();
-  // Door install — minutes per door from the swing-door config.
+  // Swing-door install — minutes per door from the swing-door config.
   const doorInstallHrs = (sd.laborMinutes || 0) / 60;
+  // Sliding-door install — panels × hrs/panel × impact (set heavy panels, snap
+  // covers; the inspection return trip is a separate line below).
+  const sgdInstallHrs = sgd.laborHours || 0;
+  // Inspection return trip — a second mobilization on a later day to set panels
+  // and snap covers after the building dept's screw inspection.
+  const inspectionHrs = sgd.returnTripHours || 0;
   // Mobilization — one-time per job.
-  const mobilizationHrs = (wc + dc + lf > 0) ? mobHrs : 0;
+  const mobilizationHrs = (wc + dc + sgdc + lf > 0) ? mobHrs : 0;
 
-  const totalHrs = setupHrs + windowInstallHrs + doorInstallHrs + mobilizationHrs;
+  const totalHrs = setupHrs + windowInstallHrs + doorInstallHrs
+                 + sgdInstallHrs + inspectionHrs + mobilizationHrs;
   const laborCost = totalHrs * crewCostPerHr;
+
+  const sgdHrsPerPanel = (DATA.config.slidingDoors || {}).laborHoursPerPanel ?? 4;
 
   // Breakdown rows for the UI — order matches a typical jobsite day.
   const breakdown = [];
   if (mobilizationHrs > 0) breakdown.push({ label: "Mobilization (load · drive · stage)", hrs: mobilizationHrs });
-  if (setupHrs > 0)         breakdown.push({ label: `Per-opening setup (${wc + dc} opening${wc + dc === 1 ? "" : "s"} × ${setupMin} min)`, hrs: setupHrs });
+  if (setupHrs > 0)         breakdown.push({ label: `Per-opening setup (${wc + dc + sgdc} opening${wc + dc + sgdc === 1 ? "" : "s"} × ${setupMin} min)`, hrs: setupHrs });
   if (windowInstallHrs > 0) breakdown.push({ label: `Window install (${lf} LF × ${(getLaborPerLF() * 60).toFixed(0)} min/LF)`, hrs: windowInstallHrs });
-  if (doorInstallHrs > 0)   breakdown.push({ label: `Door install (${dc} door${dc === 1 ? "" : "s"})`, hrs: doorInstallHrs });
+  if (doorInstallHrs > 0)   breakdown.push({ label: `Swing door install (${dc} door${dc === 1 ? "" : "s"})`, hrs: doorInstallHrs });
+  if (sgdInstallHrs > 0)    breakdown.push({ label: `Sliding glass door install (${sgd.panelTotal} panel${sgd.panelTotal === 1 ? "" : "s"} × ${sgdHrsPerPanel}h)`, hrs: sgdInstallHrs });
+  if (inspectionHrs > 0)    breakdown.push({ label: "Inspection return trip (screw inspection)", hrs: inspectionHrs });
 
   return {
-    mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs, totalHrs,
+    mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
+    sgdInstallHrs, inspectionHrs, totalHrs,
     crewSize, crewPayPerHrEach, crewCostPerHr, laborCost, breakdown,
   };
 }
@@ -5511,10 +5646,85 @@ function computeSwingDoors() {
   };
 }
 
+// Coerce a stored sliding-glass-door entry to {panels,width,height,qty} in
+// inches, applying the panel fallback: if no overall width is given, width =
+// per-panel width × panel count; height falls back to the configured default.
+function normalizeSlidingDoor(d) {
+  if (!d) return null;
+  const cfg = (DATA.config.slidingDoors) || {};
+  const panels = Math.max(2, Math.min(8, parseInt(d.panels, 10) || 2));
+  const qty = Math.max(1, parseInt(d.qty, 10) || 1);
+  let width = parseFloat(d.width) || 0;
+  let height = parseFloat(d.height) || 0;
+  if (width <= 0) {
+    const pw = parseFloat(d.panelWidth) || (cfg.defaultPanelWidthIn ?? 36);
+    width = pw * panels;
+  }
+  if (height <= 0) height = (cfg.defaultPanelHeightIn ?? 80);
+  return { panels, qty, width, height };
+}
+
+// Sliding glass doors — their own category. Labor scales by panel count
+// (laborHoursPerPanel × panels × impact). Their frame footage feeds the per-LF
+// brand-specific material engine (folded into the material LF in calculate),
+// so only the SGD-only extras (sill/track flashing, heavy anchors) and the
+// inspection return-trip live here. All zero when disabled or none entered.
+function computeSlidingDoors() {
+  const cfg = (DATA.config.slidingDoors) || {};
+  const enabled = cfg.enabled !== false;
+  const raw = Array.isArray(STATE.slidingDoors) ? STATE.slidingDoors : [];
+  const norm = raw.map(normalizeSlidingDoor).filter(Boolean);
+  const count = norm.reduce((s, d) => s + d.qty, 0);
+  const panelTotal = norm.reduce((s, d) => s + d.qty * d.panels, 0);
+  const zero = {
+    enabled, items: norm, count: 0, panelTotal: 0, sgdLF: 0, widthLF: 0,
+    laborHours: 0, sillFlashingLF: 0, sillFlashingCost: 0,
+    extraAnchorCount: 0, extraAnchorCost: 0, materialsExtraCost: 0,
+    returnTripHours: 0, totalCost: 0,
+  };
+  if (!enabled || count === 0) return zero;
+
+  // Footage — full perimeter (drives shared per-LF materials, same formula as
+  // windows) and the sill/track run (drives SGD-only flashing).
+  let sgdLF = 0, widthLF = 0;
+  norm.forEach(d => {
+    sgdLF   += d.qty * 2 * (d.width + d.height) / 12;
+    widthLF += d.qty * d.width / 12;
+  });
+  // Labor — panels × hrs/panel × impact multiplier (folded into Labor line).
+  const hoursPerPanel = cfg.laborHoursPerPanel ?? 4;
+  const laborHours = panelTotal * hoursPerPanel * getImpactLaborMultiplier();
+  // SGD-only sill/track flashing — per LF of door width.
+  const sillFlashingLF = widthLF;
+  const sillFlashingCost = sillFlashingLF * (cfg.sillFlashingPerLF ?? 0);
+  // Extra heavy anchors beyond the per-LF window count — per panel.
+  const anchorItem = DATA.costItems.find(c => c.id === "concrete_anchors");
+  const anchorPrice = anchorItem ? (getUnitPrice(anchorItem) || 0) : 0;
+  const extraAnchorCount = panelTotal * (cfg.extraAnchorsPerPanel || 0);
+  const extraAnchorCost = extraAnchorCount * anchorPrice;
+  // Inspection return trip — one extra mobilization per job that has any SGD.
+  const insp = cfg.inspection || {};
+  const returnTripHours = insp.returnTrip ? (insp.returnTripHours ?? 0) : 0;
+  const materialsExtraCost = sillFlashingCost + extraAnchorCost;
+  return {
+    enabled, items: norm, count, panelTotal, sgdLF, widthLF,
+    laborHours, sillFlashingLF, sillFlashingCost,
+    extraAnchorCount, extraAnchorCost, materialsExtraCost,
+    returnTripHours,
+    totalCost: materialsExtraCost, // labor lives in the unified Labor line
+  };
+}
+
 function calculate() {
-  const lf = parseFloat(STATE.totalLF) || 0;
+  const windowLF = parseFloat(STATE.totalLF) || 0;
   const wc = parseInt(STATE.windowCount) || 0;
   const sd = computeSwingDoors();
+  const sgd = computeSlidingDoors();
+  // Material footage = windows + sliding-door perimeters. SGD frames pull the
+  // same per-LF, brand-specific materials (screws, caulk, shims, bucking) as
+  // windows. Their labor is panel-based (in the unified Labor line), so SGD
+  // footage is intentionally NOT counted toward window-install labor.
+  const lf = windowLF + sgd.sgdLF;
   const rows = [];
   let perLfCost = 0;
   let totalCost = 0;
@@ -5560,12 +5770,15 @@ function calculate() {
       return;
     }
 
-    // Lift rental — fixed days, toggle-enabled, 2+ story only
+    // Lift rental — fixed days, toggle-enabled, 2+ story only. Sliding-door
+    // jobs add a day for the inspection wait (the lift sits another day).
     if (item.id === "lift_rental") {
       if (!STATE.liftEnabled || STATE.stories === "1 Story") return;
-      const days = Math.max(1, parseInt(STATE.liftDays) || 1);
+      const sgdCfg = DATA.config.slidingDoors || {};
+      const inspDay = (sgd.count > 0 && sgdCfg.inspection && sgdCfg.inspection.extraLiftDay) ? 1 : 0;
+      const days = Math.max(1, parseInt(STATE.liftDays) || 1) + inspDay;
       const cost = days * getUnitPrice(item);
-      rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${days} day${days !== 1 ? "s" : ""} fixed`,
+      rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${days} day${days !== 1 ? "s" : ""} fixed${inspDay ? " · +1 SGD inspection" : ""}`,
         ratePerLF: lf > 0 ? cost / lf : 0, quantity: days, unit: item.unit, totalCost: cost, isFixed: true });
       totalCost += cost;
       if (lf > 0) perLfCost += cost / lf;
@@ -5672,6 +5885,47 @@ function calculate() {
     }
   }
 
+  // ---- Sliding glass doors — SGD-only extras ----
+  // The per-LF screws / caulk / shims / bucking for SGD frames are already in
+  // the rows above (their footage is folded into the material LF). Here we add
+  // only the sliding-door-specific extras: sill/track flashing and the heavy
+  // sill anchors. SGD labor (panels × hrs) lives in the unified Labor line.
+  if (sgd.enabled && sgd.count > 0) {
+    const sgdLabel = `${sgd.count} door${sgd.count === 1 ? "" : "s"} · ${sgd.panelTotal} panel${sgd.panelTotal === 1 ? "" : "s"}`;
+    if (sgd.sillFlashingCost > 0) {
+      rows.push({
+        id: "sliding_doors_flashing",
+        name: "Sliding doors — sill / track flashing",
+        rateLabel: `track pan membrane · ${sgd.sillFlashingLF.toFixed(1)} LF`,
+        ratePerLF: lf > 0 ? sgd.sillFlashingCost / lf : 0,
+        quantity: Math.round(sgd.sillFlashingLF * 10) / 10, unit: "LF",
+        totalCost: sgd.sillFlashingCost, isFixed: true, isSlidingDoor: true
+      });
+      totalCost += sgd.sillFlashingCost;
+      if (lf > 0) perLfCost += sgd.sillFlashingCost / lf;
+    }
+    if (sgd.extraAnchorCost > 0) {
+      const anchorRow = rows.find(r => r.id === "concrete_anchors");
+      if (anchorRow) {
+        anchorRow.quantity += sgd.extraAnchorCount;
+        anchorRow.totalCost += sgd.extraAnchorCost;
+        anchorRow.rateLabel += ` · +${sgd.extraAnchorCount} for sliders`;
+        if (lf > 0) anchorRow.ratePerLF = anchorRow.totalCost / lf;
+      } else {
+        rows.push({
+          id: "sliding_doors_anchors",
+          name: "Sliding doors — anchors",
+          rateLabel: `${sgd.extraAnchorCount} anchors · ${sgdLabel}`,
+          ratePerLF: lf > 0 ? sgd.extraAnchorCost / lf : 0,
+          quantity: sgd.extraAnchorCount, unit: "each",
+          totalCost: sgd.extraAnchorCost, isFixed: true, isSlidingDoor: true
+        });
+      }
+      totalCost += sgd.extraAnchorCost;
+      if (lf > 0) perLfCost += sgd.extraAnchorCost / lf;
+    }
+  }
+
   // ---- Labor — one unified line (cost-plus) ----
   // Crew-hours × what the crew costs per hour. Covers window install, door
   // install, per-opening setup, and mobilization. Marked up by the job
@@ -5702,6 +5956,7 @@ function calculate() {
     const TAXABLE_IDS = new Set([
       ...MATERIAL_IDS,
       "swing_doors_materials", "swing_doors_flashing", "swing_doors_anchors",
+      "sliding_doors_flashing", "sliding_doors_anchors",
     ]);
     const factor = taxRate / 100;
     rows.forEach(r => {
@@ -5718,7 +5973,7 @@ function calculate() {
   const sellingPrice = totalCost * (1 + margin / 100);
   const profit = sellingPrice - totalCost;
 
-  return { lf, wc, rows, perLfCost, totalCost, sellingPrice, profit, margin, swingDoors: sd };
+  return { lf, windowLF, wc, rows, perLfCost, totalCost, sellingPrice, profit, margin, swingDoors: sd, slidingDoors: sgd };
 }
 
 /* ============================================================
@@ -6348,6 +6603,7 @@ function render() {
   renderMaterialsToggle();
   renderJobSpecSummary();
   renderPlanApprovals();
+  updateSlidingDoorsSummary();
 
   saveState({
     manufacturer: STATE.manufacturer,
@@ -6364,7 +6620,7 @@ function render() {
     customerName: STATE.customerName,
     customerAddress: STATE.customerAddress,
     customerNotes: STATE.customerNotes,
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
     variants: STATE.variants || {},
     currentJobId: STATE.currentJobId || null,
     jobName: STATE.jobName || "",
@@ -6843,7 +7099,7 @@ function resetAll() {
     customerName: "",
     customerAddress: "",
     customerNotes: "",
-    buckList: null, planApprovals: [],
+    buckList: null, planApprovals: [], slidingDoors: [],
     variants: {},
     currentJobId: null,
     jobName: "",
@@ -6851,6 +7107,7 @@ function resetAll() {
   };
   saveState(STATE);
   bindControls();
+  renderSlidingDoors();
   render();
   toast("Reset");
 }
@@ -6912,7 +7169,7 @@ function confirmSaveJob() {
     id: reuseId,
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerNotes: notes,
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
@@ -6952,7 +7209,7 @@ function quickSaveOrPrompt() {
       const existing = jobs[idx];
       const updated = {
         ...existing,
-        buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
+        buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
         variants: clone(STATE.variants || {}),
         manufacturer: STATE.manufacturer, application: STATE.application,
         houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -7011,7 +7268,7 @@ function saveAsNewVersion() {
     name: newName,
     customerName: base.customerName || baseName,
     createdAt: new Date().toISOString(),
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
     variants: clone(STATE.variants || {}),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -7081,7 +7338,7 @@ function writeDraftJob(r) {
     customerName: STATE.customerName || "",
     customerAddress: STATE.customerAddress || "",
     customerNotes: STATE.customerNotes || "",
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [],
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (idx >= 0 && jobs[idx].createdAt) || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -7121,6 +7378,7 @@ function loadJob(id) {
   STATE.customerNotes = j.customerNotes || "";
   STATE.buckList = j.buckList || null;
   STATE.planApprovals = Array.isArray(j.planApprovals) ? j.planApprovals : [];
+  STATE.slidingDoors = Array.isArray(j.slidingDoors) ? clone(j.slidingDoors) : [];
   STATE.variants = j.variants ? clone(j.variants) : {};
   STATE.currentJobId = j.id;
   // Swing doors — older saved jobs predate this; default to zero.
@@ -7129,6 +7387,7 @@ function loadJob(id) {
     j.swingDoors || {}
   );
   bindControls();
+  renderSlidingDoors();   // rebuild the SGD list DOM for this job
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
   window.track("job_loaded");
@@ -7307,6 +7566,15 @@ function exportCustomerPDF(mode) {
     if (r.swingDoors.double > 0) parts.push(`${r.swingDoors.double} double-leaf`);
     scope.push(["Swing Doors", parts.join(", ")]);
   }
+  // Sliding glass doors — a distinct scope item, and they affect the schedule.
+  if (r.slidingDoors && r.slidingDoors.count > 0) {
+    const sgc = r.slidingDoors.count, sgp = r.slidingDoors.panelTotal;
+    scope.push(["Sliding Glass Doors", `${sgc} door${sgc === 1 ? "" : "s"} · ${sgp} panel${sgp === 1 ? "" : "s"}`]);
+    const sgdInsp = (DATA.config.slidingDoors || {}).inspection || {};
+    if (sgdInsp.returnTrip !== false) {
+      scope.push(["Inspection", "+1 day — screw inspection before panels"]);
+    }
+  }
   if (STATE.permitEnabled) scope.push(["Permit", "Included"]);
   // Optional labor-hours line — off by default, enabled in Settings → Labor
   // ("Show labor hours line on the customer's quote PDF"). Some installers
@@ -7415,6 +7683,15 @@ async function buildCustomerSharePayload() {
     if (r.swingDoors.single > 0) parts.push(`${r.swingDoors.single} single-leaf`);
     if (r.swingDoors.double > 0) parts.push(`${r.swingDoors.double} double-leaf`);
     scope.push(["Swing Doors", parts.join(", ")]);
+  }
+  // Sliding glass doors — a distinct scope item, and they affect the schedule.
+  if (r.slidingDoors && r.slidingDoors.count > 0) {
+    const sgc = r.slidingDoors.count, sgp = r.slidingDoors.panelTotal;
+    scope.push(["Sliding Glass Doors", `${sgc} door${sgc === 1 ? "" : "s"} · ${sgp} panel${sgp === 1 ? "" : "s"}`]);
+    const sgdInsp = (DATA.config.slidingDoors || {}).inspection || {};
+    if (sgdInsp.returnTrip !== false) {
+      scope.push(["Inspection", "+1 day — screw inspection before panels"]);
+    }
   }
   if (STATE.permitEnabled) scope.push(["Permit", "Included"]);
 
@@ -7567,6 +7844,9 @@ function exportPDF(mode) {
   if (r.swingDoors && r.swingDoors.total > 0) {
     if (r.swingDoors.single > 0) details.push(["Single-leaf Doors", `${r.swingDoors.single}`]);
     if (r.swingDoors.double > 0) details.push(["Double-leaf Doors", `${r.swingDoors.double}`]);
+  }
+  if (r.slidingDoors && r.slidingDoors.count > 0) {
+    details.push(["Sliding Glass Doors", `${r.slidingDoors.count} · ${r.slidingDoors.panelTotal} panel${r.slidingDoors.panelTotal === 1 ? "" : "s"}`]);
   }
   if (STATE.permitEnabled) details.push(["Permit", "Included"]);
   if (STATE.liftEnabled && STATE.stories !== "1 Story") details.push(["Lift Rental", `${STATE.liftDays} day(s)`]);
@@ -8815,6 +9095,23 @@ function buildAdminUI() {
   setIf("adminSwingSingleWidthLF", swCfg.singleDoorWidthLF ?? 3);
   setIf("adminSwingDoubleWidthLF", swCfg.doubleDoorWidthLF ?? 6);
 
+  // Sliding glass doors — populate the editor with current rates
+  const sgCfg = (DATA.config.slidingDoors) || {};
+  const sgInsp = sgCfg.inspection || {};
+  const sgEnabled = sgCfg.enabled !== false;
+  const sgEnEl = document.getElementById("adminSgdEnabled");
+  if (sgEnEl) sgEnEl.checked = sgEnabled;
+  setIf("adminSgdLaborHoursPerPanel", sgCfg.laborHoursPerPanel ?? 4);
+  setIf("adminSgdSillFlashingPerLF", sgCfg.sillFlashingPerLF ?? 4.5);
+  setIf("adminSgdExtraAnchorsPerPanel", sgCfg.extraAnchorsPerPanel ?? 4);
+  setIf("adminSgdDefaultPanelWidth", sgCfg.defaultPanelWidthIn ?? 36);
+  setIf("adminSgdDefaultPanelHeight", sgCfg.defaultPanelHeightIn ?? 80);
+  const sgRT = document.getElementById("adminSgdInspReturnTrip");
+  if (sgRT) sgRT.checked = sgInsp.returnTrip !== false;
+  setIf("adminSgdInspReturnHours", sgInsp.returnTripHours ?? 2);
+  const sgLift = document.getElementById("adminSgdInspExtraLiftDay");
+  if (sgLift) sgLift.checked = sgInsp.extraLiftDay !== false;
+
   const wrap = document.getElementById("adminRatesBody");
   // Per-card collapsed state lives in localStorage so it survives reloads.
   // Default: collapsed when 2+ variants (cards get tall fast); expanded
@@ -9320,6 +9617,23 @@ function saveAdmin() {
   delete sw.rates.single.threshold;
   delete sw.rates.double.threshold;
 
+  // Sliding glass doors — read editor values back into config.
+  if (!DATA.config.slidingDoors) DATA.config.slidingDoors = {};
+  const sg = DATA.config.slidingDoors;
+  const sgEn = document.getElementById("adminSgdEnabled");
+  sg.enabled = !!(sgEn && sgEn.checked);
+  sg.laborHoursPerPanel = readNum("adminSgdLaborHoursPerPanel", sg.laborHoursPerPanel ?? 4);
+  sg.sillFlashingPerLF = readNum("adminSgdSillFlashingPerLF", sg.sillFlashingPerLF ?? 4.5);
+  sg.extraAnchorsPerPanel = readNum("adminSgdExtraAnchorsPerPanel", sg.extraAnchorsPerPanel ?? 4);
+  sg.defaultPanelWidthIn = readNum("adminSgdDefaultPanelWidth", sg.defaultPanelWidthIn ?? 36);
+  sg.defaultPanelHeightIn = readNum("adminSgdDefaultPanelHeight", sg.defaultPanelHeightIn ?? 80);
+  sg.inspection = sg.inspection || {};
+  const sgRT = document.getElementById("adminSgdInspReturnTrip");
+  sg.inspection.returnTrip = !!(sgRT && sgRT.checked);
+  sg.inspection.returnTripHours = readNum("adminSgdInspReturnHours", sg.inspection.returnTripHours ?? 2);
+  const sgLift = document.getElementById("adminSgdInspExtraLiftDay");
+  sg.inspection.extraLiftDay = !!(sgLift && sgLift.checked);
+
   // Saving real rates counts as customizing — clears the demo banner
   DATA.config.ratesCustomized = true;
   saveData(DATA);
@@ -9327,6 +9641,7 @@ function saveAdmin() {
   applyBrandToUI();
   bindControls();
   renderDemoBanner();
+  renderSlidingDoors();
   render();
   toast("Settings saved");
 }
@@ -9736,16 +10051,44 @@ function applyFullExtraction(text, source) {
   const matchedMfg = matchManufacturer(manufacturerRaw);
   const applied = [];
   if (openings.length) {
-    const count = openings.reduce((s, o) => s + o.qty, 0);
-    const lfInches = openings.reduce((s, o) => s + o.qty * 2 * (o.width + o.height), 0);
-    const lf = Math.round((lfInches / 12) * 10) / 10;
-    STATE.windowCount = String(count);
-    const wc = document.getElementById("windowCountInput"); if (wc) wc.value = STATE.windowCount;
-    STATE.totalLF = String(lf);
-    const lfEl = document.getElementById("totalLF"); if (lfEl) lfEl.value = STATE.totalLF;
-    STATE.buckList = optimizeCutList(openings);   // always build; pricing uses it only on block-framed
-    markFieldAi("totalLF"); markFieldAi("windowCountInput");
-    applied.push(`${count} opening${count === 1 ? "" : "s"}`, `${lf} LF`);
+    // Sliding glass doors are their own category — split them out of the window
+    // count + LF so they don't get priced as windows.
+    const windows = openings.filter(o => !o.isSlider);
+    const sliders = openings.filter(o => o.isSlider);
+
+    if (windows.length) {
+      const count = windows.reduce((s, o) => s + o.qty, 0);
+      const lfInches = windows.reduce((s, o) => s + o.qty * 2 * (o.width + o.height), 0);
+      const lf = Math.round((lfInches / 12) * 10) / 10;
+      STATE.windowCount = String(count);
+      const wc = document.getElementById("windowCountInput"); if (wc) wc.value = STATE.windowCount;
+      STATE.totalLF = String(lf);
+      const lfEl = document.getElementById("totalLF"); if (lfEl) lfEl.value = STATE.totalLF;
+      markFieldAi("totalLF"); markFieldAi("windowCountInput");
+      applied.push(`${count} window${count === 1 ? "" : "s"}`, `${lf} LF`);
+    }
+
+    // Sliding glass doors → their own bucket (panels + size). Replace any prior
+    // list (fresh upload supersedes).
+    const sgdCfg = DATA.config.slidingDoors || {};
+    const fallbackPW = sgdCfg.defaultPanelWidthIn || 36;
+    STATE.slidingDoors = sliders.map(o => ({
+      panels: o.panels || Math.max(2, Math.min(8, Math.round((o.width || 0) / fallbackPW) || 2)),
+      width: o.width, height: o.height, qty: o.qty,
+    }));
+    if (sliders.length) {
+      const sgdCount = STATE.slidingDoors.reduce((s, d) => s + d.qty, 0);
+      const panelTotal = STATE.slidingDoors.reduce((s, d) => s + d.qty * d.panels, 0);
+      if (typeof renderSlidingDoors === "function") renderSlidingDoors();
+      markFieldAi("slidingDoorsRailField");
+      applied.push(`${sgdCount} sliding glass door${sgdCount === 1 ? "" : "s"} (${panelTotal} panel${panelTotal === 1 ? "" : "s"})`);
+    } else if (typeof renderSlidingDoors === "function") {
+      renderSlidingDoors();
+    }
+
+    // Buck cut list is built from ALL openings (windows + sliders) so bucking
+    // covers the slider frames too.
+    STATE.buckList = optimizeCutList(openings);
     if (STATE.buckList && STATE.buckList.totalBoards) applied.push(`cut list (${STATE.buckList.totalBoards} boards)`);
   }
   if (matchedMfg != null) {
@@ -9818,12 +10161,13 @@ OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
 
 If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the OPENING lines.`;
 
-// Parse Grok's "OPENING | room | w | h | qty | type" lines.
-// The type field is optional (older 5-field lines still parse). A slider
-// is detected from the type text or, as a fallback, the room name.
+// Parse Grok's "OPENING | room | w | h | qty | type | panels" lines.
+// The type field is optional (older 5-field lines still parse). The 7th field
+// (panel count) is optional and only meaningful for sliders. A slider is
+// detected from the type text or, as a fallback, the room name.
 function parseOpenings(text) {
   const openings = [];
-  const re = /OPENING\s*\|\s*([^|]+?)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*(\d+)\s*(?:\|\s*([^|\r\n]*))?/gi;
+  const re = /OPENING\s*\|\s*([^|]+?)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*(\d+)\s*(?:\|\s*([^|\r\n]*?))?\s*(?:\|\s*(\d+)\s*)?(?=\r|\n|$)/gi;
   let m;
   while ((m = re.exec(text)) !== null) {
     const room = (m[1].trim() || "Opening");
@@ -9832,8 +10176,9 @@ function parseOpenings(text) {
     const qty = parseInt(m[4], 10) || 1;
     const typeText = (m[5] || "").trim();
     const isSlider = /slid|sgd|patio\s*door|glass\s*door/i.test(typeText + " " + room);
+    const panels = m[6] ? Math.max(2, Math.min(8, parseInt(m[6], 10))) : null;
     if (width > 0 && height > 0) {
-      openings.push({ room, width, height, qty, isSlider });
+      openings.push({ room, width, height, qty, isSlider, panels });
     }
   }
   return openings;
@@ -9885,6 +10230,95 @@ function openFLForNumber(num) {
   if (!s) return;
   s.value = String(num);
   s.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/* ============================================================
+   SLIDING GLASS DOORS — rail editor (separate from windows)
+   ============================================================ */
+// Full structural rebuild of the SGD rail list. Call on add/remove/AI-fill/
+// job-load/settings-change — NOT on every keystroke (that would steal focus).
+function renderSlidingDoors() {
+  const wrap = document.getElementById("slidingDoorsRailField");
+  if (!wrap) return;
+  const cfg = DATA.config.slidingDoors || {};
+  const enabled = cfg.enabled !== false;
+  wrap.classList.toggle("hidden", !enabled);
+  const list = document.getElementById("slidingDoorsList");
+  if (!enabled || !list) { if (list) list.innerHTML = ""; updateSlidingDoorsSummary(); return; }
+  const items = Array.isArray(STATE.slidingDoors) ? STATE.slidingDoors : [];
+  const pw = cfg.defaultPanelWidthIn || 36;
+  const ph = cfg.defaultPanelHeightIn || 80;
+  list.innerHTML = items.map((d, i) => {
+    const panels = Math.max(2, Math.min(8, parseInt(d.panels, 10) || 2));
+    const opts = [2,3,4,5,6,7,8].map(n => `<option value="${n}"${n === panels ? " selected" : ""}>${n}-panel</option>`).join("");
+    const w = (d.width === 0 || d.width) ? d.width : "";
+    const h = (d.height === 0 || d.height) ? d.height : "";
+    const q = (d.qty != null && d.qty !== "") ? d.qty : 1;
+    return `<div class="sgd-row" data-idx="${i}">
+      <div class="sgd-head">
+        <label>Panels <select class="sgd-sel" data-sgd="panels">${opts}</select></label>
+        <button type="button" class="sgd-remove" data-sgd="remove" aria-label="Remove sliding door">×</button>
+      </div>
+      <div class="sgd-dims">
+        <span class="sgd-cell"><span>Width in</span><input type="number" inputmode="decimal" min="0" data-sgd="width" value="${w}" placeholder="${panels * pw}"></span>
+        <span class="sgd-cell"><span>Height in</span><input type="number" inputmode="decimal" min="0" data-sgd="height" value="${h}" placeholder="${ph}"></span>
+        <span class="sgd-cell"><span>Qty</span><input type="number" inputmode="numeric" min="1" data-sgd="qty" value="${q}"></span>
+      </div>
+    </div>`;
+  }).join("");
+  updateSlidingDoorsSummary();
+}
+
+// Lightweight: refresh just the summary chip + field visibility. Safe to call
+// from render() on every keystroke (no list rebuild → focus preserved).
+function updateSlidingDoorsSummary() {
+  const wrap = document.getElementById("slidingDoorsRailField");
+  if (!wrap) return;
+  const enabled = (DATA.config.slidingDoors || {}).enabled !== false;
+  wrap.classList.toggle("hidden", !enabled);
+  const sumEl = document.getElementById("slidingDoorsSummary");
+  if (!sumEl) return;
+  const sgd = computeSlidingDoors();
+  if (sgd.count > 0) {
+    sumEl.classList.remove("hidden");
+    sumEl.textContent = `${sgd.count} door${sgd.count === 1 ? "" : "s"} · ${sgd.panelTotal} panel${sgd.panelTotal === 1 ? "" : "s"} · ${sgd.sgdLF.toFixed(0)} LF`;
+  } else {
+    sumEl.classList.add("hidden");
+  }
+}
+
+// Field input handler — updates STATE in place and recomputes totals WITHOUT
+// rebuilding the list DOM (so the input keeps focus while typing).
+function onSlidingDoorFieldInput(e) {
+  const el = e.target && e.target.closest ? e.target.closest("[data-sgd]") : null;
+  if (!el) return;
+  const field = el.getAttribute("data-sgd");
+  if (field === "remove") return;
+  const row = el.closest(".sgd-row");
+  if (!row) return;
+  const idx = parseInt(row.dataset.idx, 10);
+  if (!Array.isArray(STATE.slidingDoors) || !STATE.slidingDoors[idx]) return;
+  if (field === "panels") STATE.slidingDoors[idx].panels = Math.max(2, Math.min(8, parseInt(el.value, 10) || 2));
+  else if (field === "qty") STATE.slidingDoors[idx].qty = Math.max(1, parseInt(el.value, 10) || 1);
+  else STATE.slidingDoors[idx][field] = el.value; // width/height as typed; normalized at compute time
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  render();
+}
+
+function addSlidingDoor() {
+  if (!Array.isArray(STATE.slidingDoors)) STATE.slidingDoors = [];
+  STATE.slidingDoors.push({ panels: 3, width: "", height: "", qty: 1 });
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  renderSlidingDoors();
+  render();
+}
+
+function removeSlidingDoor(idx) {
+  if (!Array.isArray(STATE.slidingDoors)) return;
+  STATE.slidingDoors.splice(idx, 1);
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  renderSlidingDoors();
+  render();
 }
 
 // Format inches as a jobsite-friendly fraction string (nearest 1/16")
@@ -12618,6 +13052,21 @@ function init() {
     const row = e.target.closest(".plan-approval-row");
     if (row) openFLForNumber(row.dataset.approval);
   });
+  // Sliding glass doors — list editor (delegated input/change + add/remove).
+  const _sgdList = document.getElementById("slidingDoorsList");
+  if (_sgdList) {
+    _sgdList.addEventListener("input", onSlidingDoorFieldInput);
+    _sgdList.addEventListener("change", onSlidingDoorFieldInput);
+    _sgdList.addEventListener("click", (e) => {
+      const rm = e.target.closest('[data-sgd="remove"]');
+      if (!rm) return;
+      const row = rm.closest(".sgd-row");
+      if (row) removeSlidingDoor(parseInt(row.dataset.idx, 10));
+    });
+  }
+  const _sgdAdd = document.getElementById("addSlidingDoorBtn");
+  if (_sgdAdd) _sgdAdd.addEventListener("click", addSlidingDoor);
+  renderSlidingDoors();   // initial structural render (shows persisted SGDs)
   // Light / dark theme toggle — idempotent (already wired at parse for the
   // landing nav; this re-runs harmlessly and catches any late-mounted buttons).
   setupThemeToggles();
