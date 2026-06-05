@@ -5720,11 +5720,17 @@ function calculate() {
   const wc = parseInt(STATE.windowCount) || 0;
   const sd = computeSwingDoors();
   const sgd = computeSlidingDoors();
-  // Material footage = windows + sliding-door perimeters. SGD frames pull the
-  // same per-LF, brand-specific materials (screws, caulk, shims, bucking) as
-  // windows. Their labor is panel-based (in the unified Labor line), so SGD
-  // footage is intentionally NOT counted toward window-install labor.
-  const lf = windowLF + sgd.sgdLF;
+  // `lf` is the WINDOW linear footage — exactly what the user enters, what we
+  // save on the job, and what shows on the quote. It must NOT include the
+  // sliding-door footage, or that footage gets saved as window LF and then
+  // double-counted every reload (the 487 → 561 bug).
+  //
+  // Sliding-door frame footage is pulled into the per-LF, brand-specific
+  // materials (screws, caulk, shims, bucking) via `materialLF` ONLY — never
+  // into `lf`. SGD labor is panel-based (in the unified Labor line), so SGD
+  // footage never touches window-install labor either.
+  const lf = windowLF;
+  const materialLF = windowLF + sgd.sgdLF;
   const rows = [];
   let perLfCost = 0;
   let totalCost = 0;
@@ -5737,7 +5743,7 @@ function calculate() {
 
     // Block sealer — fixed gallons based on job LF
     if (item.id === "block_sealer") {
-      const qty = getBlockSealerJobQty(lf);
+      const qty = getBlockSealerJobQty(materialLF);
       const cost = qty * getUnitPrice(item);
       if (cost > 0) {
         rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${qty} ${item.unit} · 5 gal / 300 LF`,
@@ -5804,11 +5810,12 @@ function calculate() {
       // no cut list → fall through to the standard per-LF estimate
     }
 
-    // Standard per-LF items
+    // Standard per-LF items — computed on materialLF (window + sliding-door
+    // frame footage) so screws / caulk / shims / bucking cover the sliders too.
     const qtyPerLF = getQuantityPerLF(item);
     const ratePerLF = qtyPerLF * getUnitPrice(item);
-    const totalQty = qtyPerLF * lf;
-    const cost = ratePerLF * lf;
+    const totalQty = qtyPerLF * materialLF;
+    const cost = ratePerLF * materialLF;
     const isLabor = item.id === "labor";
 
     if (cost > 0 || item.id === "backer_rod") {
@@ -7114,7 +7121,8 @@ function resetAll() {
 
 // "Has something quotable" — footage OR at least one swing door.
 function hasQuoteInput(r) {
-  return (r.lf > 0) || (r.swingDoors && r.swingDoors.total > 0 && r.swingDoors.enabled);
+  return (r.lf > 0) || (r.swingDoors && r.swingDoors.total > 0 && r.swingDoors.enabled)
+    || (r.slidingDoors && r.slidingDoors.count > 0);
 }
 
 function openSaveJobModal() {
