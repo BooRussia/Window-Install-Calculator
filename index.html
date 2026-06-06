@@ -2043,6 +2043,39 @@
   .jd-detail-btn + .jd-detail-btn { border-left: 1px solid #334155; }
   .jd-detail-btn:hover { color: #cbd5e1; }
   .jd-detail-btn.active { background: rgba(181,143,74,0.16); color: #c9a558; }
+  /* E-signatures dashboard panel */
+  .esign-list { display: flex; flex-direction: column; gap: 10px; }
+  .esign-row {
+    background: rgba(15,23,42,0.55); border: 1px solid rgba(51,65,85,0.6);
+    border-radius: 14px; padding: 13px 15px;
+  }
+  .esign-row-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .esign-chip {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    border-radius: 6px; padding: 2px 7px; border: 1px solid; flex-shrink: 0; white-space: nowrap;
+  }
+  .esign-tl { margin-top: 5px; font-size: 11px; color: #64748b; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .esign-tl-sep { color: #475569; }
+  .esign-tl-done { color: #34d399; font-weight: 600; }
+  .esign-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+  .esign-act {
+    font-size: 11px; font-weight: 700; cursor: pointer;
+    border-radius: 8px; padding: 6px 11px;
+    background: rgba(2,6,23,0.4); color: #94a3b8; border: 1px solid rgba(51,65,85,0.7);
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .esign-act:hover { color: #e2e8f0; border-color: #475569; }
+  .esign-act-go { color: #34d399; border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); }
+  .esign-act-go:hover { color: #6ee7b7; border-color: rgba(16,185,129,0.6); background: rgba(16,185,129,0.14); }
+  .esign-act-danger:hover { color: #fca5a5; border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.08); }
+  .esign-audit {
+    margin-top: 11px; padding-top: 11px; border-top: 1px dashed rgba(51,65,85,0.6);
+  }
+  .esign-audit-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 18px; }
+  .esign-audit-grid > div { display: flex; flex-direction: column; min-width: 0; }
+  .esign-audit-wide { grid-column: 1 / -1; }
+  .esign-audit-k { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; font-weight: 700; }
+  .esign-audit-v { font-size: 12px; color: #cbd5e1; font-weight: 500; word-break: break-word; font-variant-numeric: tabular-nums; }
   /* Legal pages */
   .legal-prose { color: #cbd5e1; font-size: 14px; line-height: 1.7; }
   .legal-prose .legal-title { font-size: 26px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.02em; margin-bottom: 6px; }
@@ -2077,6 +2110,16 @@
   [data-theme="light"] .jd-head { background: #ffffff; }
   [data-theme="light"] .jd-photo { background: #eef0f3; border-color: #e6e8ec; }
   [data-theme="light"] .jd-photo-empty { color: #94a3b8; }
+  [data-theme="light"] .esign-row { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .esign-tl { color: #94a3b8; }
+  [data-theme="light"] .esign-tl-sep { color: #cbd5e1; }
+  [data-theme="light"] .esign-tl-done { color: #0f9d63; }
+  [data-theme="light"] .esign-act { background: #f5f6f8; color: #475569; border-color: #e2e5ea; }
+  [data-theme="light"] .esign-act:hover { color: #0f172a; border-color: #cbd5e1; }
+  [data-theme="light"] .esign-act-go { color: #0f9d63; border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.08); }
+  [data-theme="light"] .esign-audit { border-top-color: #e6e8ec; }
+  [data-theme="light"] .esign-audit-k { color: #94a3b8; }
+  [data-theme="light"] .esign-audit-v { color: #334155; }
   [data-theme="light"] #legalScreen { background: #f3f4f7 !important; }
   [data-theme="light"] .legal-prose { color: #334155; }
   [data-theme="light"] .legal-prose .legal-title,
@@ -3758,6 +3801,9 @@
 
     <!-- Material usage stats -->
     <div id="dashMaterials" class="mb-9"></div>
+
+    <!-- E-signatures (sent / viewed / signed quotes) -->
+    <div id="dashEsign" class="mb-9"></div>
 
     <!-- Jobs -->
     <div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
@@ -7674,6 +7720,182 @@ function renderDashboard() {
   renderDashPipeline(jobs);
   renderDashMaterials(jobs);
   renderDashJobs(jobs);
+  renderDashEsign();
+}
+
+/* ============================================================
+   E-SIGNATURES DASHBOARD PANEL (E-sign Phase D)
+   Surfaces every shared_quotes row the installer owns: status,
+   audit timeline (sent -> viewed -> signed), and per-quote actions
+   (copy link, void, download signed PDF). Owner reads/updates rows
+   directly under RLS — no edge function needed here.
+   ============================================================ */
+let _esignWired = false;
+function esignStatusMeta(s) {
+  return ({
+    sent:     { label: "Sent",     cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
+    viewed:   { label: "Viewed",   cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
+    signed:   { label: "Signed",   cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
+    declined: { label: "Declined", cls: "text-rose-300 border-rose-500/40 bg-rose-500/10" },
+    void:     { label: "Void",     cls: "text-slate-400 border-slate-600 bg-slate-700/20" },
+  })[s] || { label: s || "—", cls: "text-slate-400 border-slate-600 bg-slate-700/20" };
+}
+function esignDate(v, withTime) {
+  if (!v) return "";
+  const d = new Date(v); if (isNaN(d.getTime())) return "";
+  return withTime
+    ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+async function renderDashEsign() {
+  const wrap = document.getElementById("dashEsign");
+  if (!wrap) return;
+  if (!sb || !currentUser) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
+
+  let rows = [];
+  try {
+    const { data, error } = await sb.from("shared_quotes")
+      .select("id, job_id, snapshot, detail_level, status, signer_name, signer_ip, signer_user_agent, viewed_at, signed_at, created_at")
+      .eq("user_id", currentUser.id)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    rows = Array.isArray(data) ? data : [];
+  } catch (e) {
+    // Quiet failure — the panel just stays hidden if the table can't be read.
+    wrap.classList.add("hidden"); wrap.innerHTML = ""; return;
+  }
+
+  if (!rows.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
+  wrap.classList.remove("hidden");
+
+  const awaiting = rows.filter(r => r.status === "sent" || r.status === "viewed").length;
+  const signed = rows.filter(r => r.status === "signed").length;
+
+  const head =
+    `<div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
+       <h2 class="text-sm uppercase tracking-[0.18em] text-slate-400 font-bold">E-signatures</h2>
+       <div class="flex items-center gap-2 text-[11px] font-bold">
+         <span class="rounded-full px-2.5 py-1 border border-[#b58f4a]/40 bg-[#b58f4a]/10 text-[#c9a558]">${awaiting} awaiting</span>
+         <span class="rounded-full px-2.5 py-1 border border-emerald-500/40 bg-emerald-500/10 text-emerald-300">${signed} signed</span>
+       </div>
+     </div>`;
+
+  const list = rows.map(r => {
+    const s = r.snapshot || {};
+    const meta = esignStatusMeta(r.status);
+    const cust = escHtml(s.customer || "Customer");
+    const total = (typeof (s.total) === "number") ? formatMoney(s.total) : "";
+    const detail = r.detail_level === "itemized" ? "Itemized" : "Summary";
+    const canManage = r.status === "sent" || r.status === "viewed";
+    const isSigned = r.status === "signed";
+
+    // Compact timeline
+    const tl = [];
+    tl.push(`<span class="esign-tl-step">Sent ${escHtml(esignDate(r.created_at))}</span>`);
+    if (r.viewed_at) tl.push(`<span class="esign-tl-step">Viewed ${escHtml(esignDate(r.viewed_at))}</span>`);
+    if (r.signed_at) tl.push(`<span class="esign-tl-step esign-tl-done">Signed ${escHtml(esignDate(r.signed_at))}</span>`);
+
+    // Actions
+    const actions = [];
+    if (isSigned) actions.push(`<button data-esign-pdf="${r.id}" class="esign-act esign-act-go">Signed PDF</button>`);
+    if (canManage) actions.push(`<button data-esign-copy="${r.id}" class="esign-act">Copy link</button>`);
+    if (r.job_id) actions.push(`<button data-esign-job="${escHtml(r.job_id)}" class="esign-act">View job</button>`);
+    actions.push(`<button data-esign-audit="${r.id}" class="esign-act">Audit</button>`);
+    if (canManage) actions.push(`<button data-esign-void="${r.id}" class="esign-act esign-act-danger">Void</button>`);
+
+    // Audit detail (hidden until toggled)
+    const ua = r.signer_user_agent ? escHtml(String(r.signer_user_agent).slice(0, 90)) : "—";
+    const audit =
+      `<div class="esign-audit hidden" data-esign-audit-for="${r.id}">
+         <div class="esign-audit-grid">
+           <div><span class="esign-audit-k">Reference</span><span class="esign-audit-v">${escHtml(r.id)}</span></div>
+           <div><span class="esign-audit-k">Detail level</span><span class="esign-audit-v">${detail}</span></div>
+           <div><span class="esign-audit-k">Sent</span><span class="esign-audit-v">${escHtml(esignDate(r.created_at, true)) || "—"}</span></div>
+           <div><span class="esign-audit-k">Viewed</span><span class="esign-audit-v">${escHtml(esignDate(r.viewed_at, true)) || "—"}</span></div>
+           <div><span class="esign-audit-k">Signed</span><span class="esign-audit-v">${escHtml(esignDate(r.signed_at, true)) || "—"}</span></div>
+           <div><span class="esign-audit-k">Signer</span><span class="esign-audit-v">${escHtml(r.signer_name || "—")}</span></div>
+           <div><span class="esign-audit-k">Signer IP</span><span class="esign-audit-v">${escHtml(r.signer_ip || "—")}</span></div>
+           <div class="esign-audit-wide"><span class="esign-audit-k">Device</span><span class="esign-audit-v">${ua}</span></div>
+         </div>
+       </div>`;
+
+    return `
+      <div class="esign-row">
+        <div class="esign-row-main">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-[13px] font-bold text-slate-100 truncate">${cust}</span>
+              <span class="esign-chip ${meta.cls}">${meta.label}</span>
+            </div>
+            <div class="esign-tl">${tl.join('<span class="esign-tl-sep">·</span>')}</div>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            ${total ? `<span class="text-sm font-extrabold text-slate-100" style="font-variant-numeric:tabular-nums;">${total}</span>` : ""}
+          </div>
+        </div>
+        <div class="esign-actions">${actions.join("")}</div>
+        ${audit}
+      </div>`;
+  }).join("");
+
+  wrap.innerHTML = head + `<div class="esign-list">${list}</div>`;
+
+  if (!_esignWired) {
+    // Delegate all panel actions (survives re-renders since we bind once on the
+    // stable container, checking dataset on the clicked target).
+    wrap.addEventListener("click", (e) => {
+      const t = e.target.closest("[data-esign-pdf],[data-esign-copy],[data-esign-void],[data-esign-job],[data-esign-audit]");
+      if (!t) return;
+      if (t.dataset.esignPdf) { exportSignedQuoteById(t.dataset.esignPdf); }
+      else if (t.dataset.esignCopy) { copySignLink(t.dataset.esignCopy); }
+      else if (t.dataset.esignVoid) { voidSignLink(t.dataset.esignVoid); }
+      else if (t.dataset.esignJob) { openJobDetails(t.dataset.esignJob); }
+      else if (t.dataset.esignAudit) {
+        const box = wrap.querySelector(`[data-esign-audit-for="${t.dataset.esignAudit}"]`);
+        if (box) box.classList.toggle("hidden");
+      }
+    });
+    _esignWired = true;
+  }
+}
+
+function buildSignLinkURL(token) {
+  const origin = window.location.origin;
+  const path = window.location.pathname.replace(/index\.html?$/i, "");
+  return origin + path + "#/sign/" + token;
+}
+
+async function copySignLink(token) {
+  const url = buildSignLinkURL(token);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(url);
+    else {
+      const ta = document.createElement("textarea");
+      ta.value = url; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+    }
+    toast("Signing link copied");
+  } catch (e) { toast("Could not copy link"); }
+}
+
+async function voidSignLink(token) {
+  if (!sb || !currentUser) { toast("Sign in first"); return; }
+  if (!confirm("Void this signing link? The customer's link will stop working. This can't be undone.")) return;
+  try {
+    const { error } = await sb.from("shared_quotes")
+      .update({ status: "void" })
+      .eq("id", token).eq("user_id", currentUser.id)
+      .in("status", ["sent", "viewed"]); // never void an already-signed record
+    if (error) throw error;
+    try { if (typeof window.track === "function") window.track("sign_link_voided"); } catch (_) {}
+    toast("Link voided");
+    renderDashEsign();
+  } catch (e) {
+    console.warn("void failed", e);
+    toast("Couldn't void that link");
+  }
 }
 
 function renderDashPipeline(jobs) {
@@ -9653,7 +9875,30 @@ async function exportSignedQuotePDF(jobId) {
   if (!row || row.status !== "signed") {
     toast("No signed copy yet — send this quote for signature first"); return;
   }
+  renderSignedQuotePDF(row);
+}
 
+// Fetch a signed shared_quotes row by its own id and download the certificate
+// PDF. Used by the dashboard e-signatures panel — the owner can read the full
+// row (including the signature blob) directly under RLS.
+async function exportSignedQuoteById(quoteId) {
+  if (!window.jspdf) { toast("PDF engine still loading — try again"); return; }
+  if (!sb || !currentUser) { toast("Sign in to download the signed quote"); return; }
+  let row = null;
+  try {
+    const { data, error } = await sb.from("shared_quotes").select("*").eq("id", quoteId).maybeSingle();
+    if (error) throw error;
+    row = data;
+  } catch (e) {
+    console.warn("signed-quote fetch failed", e);
+    toast("Couldn't load the signed record"); return;
+  }
+  if (!row || row.status !== "signed") { toast("That quote isn't signed yet"); return; }
+  renderSignedQuotePDF(row);
+}
+
+// Build + download the countersigned certificate PDF from a shared_quotes row.
+function renderSignedQuotePDF(row) {
   const s = row.snapshot || {};
   const brand = s.brand || {};
   const fmtDate = (v) => {
