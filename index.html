@@ -23,6 +23,9 @@
      ============================================================ -->
 <script>
   window.__PUBLIC_QUOTE_ROUTE = /^#\/q\//.test(window.location.hash || "");
+  // Public customer e-signature route (#/sign/<token>). Like the quote viewer,
+  // it renders a standalone page and skips the calculator chrome + heavy libs.
+  window.__PUBLIC_SIGN_ROUTE = /^#\/sign\//.test(window.location.hash || "");
   // Apply saved theme before first paint (no flash). Dark is the default.
   try { if (localStorage.getItem("anchor_theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) {}
 </script>
@@ -33,7 +36,7 @@
   // are pure dead weight there (no PDF, no auth). Use document.write
   // while we're still parsing the head so the scripts are treated as
   // parser-inserted (block DOMContentLoaded, execute in order).
-  if (!window.__PUBLIC_QUOTE_ROUTE) {
+  if (!window.__PUBLIC_QUOTE_ROUTE && !window.__PUBLIC_SIGN_ROUTE) {
     document.write(
       '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>' +
       '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"><\/script>' +
@@ -934,6 +937,135 @@
   @media (min-width: 640px) {
     .pq-price { font-size: 72px; }
     .pq-header { padding-top: 40px; }
+  }
+
+  /* ------- Public Customer E-Signature page (#/sign/ route) -------
+     Reuses the .pq-* quote styles for the brand header + scope, and adds
+     the .sg-* signing UI below. Always renders dark (customer-facing,
+     theme-independent) like the quote viewer. */
+  body[data-public-sign] > *:not(#publicSignView):not(#toast) { display: none !important; }
+  body[data-public-sign] { background: #020617; }
+  #publicSignView { display: none; }
+  body[data-public-sign] #publicSignView { display: block; }
+  #publicSignView {
+    position: relative;
+    min-height: 100vh; min-height: 100dvh;
+    background:
+      radial-gradient(900px 500px at 50% -10%, rgba(181,143,74,0.10), transparent 60%),
+      radial-gradient(700px 420px at 100% 110%, rgba(138,106,46,0.06), transparent 60%),
+      #020617;
+    color: #e2e8f0;
+    padding: 0 0 48px;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  .sg-wrap { max-width: 560px; margin: 0 auto; padding: 0 20px; }
+  .sg-loading, .sg-error {
+    max-width: 440px; margin: 22vh auto 0; padding: 32px 24px; text-align: center;
+  }
+  .sg-error h1 { font-size: 20px; font-weight: 800; color: #f1f5f9; margin: 0 0 8px; }
+  .sg-error p { color: #94a3b8; font-size: 14px; line-height: 1.55; margin: 0; }
+  .sg-spinner {
+    width: 30px; height: 30px; margin: 0 auto 16px; border-radius: 50%;
+    border: 3px solid rgba(181,143,74,0.25); border-top-color: #c9a558;
+    animation: sg-spin 0.8s linear infinite;
+  }
+  @keyframes sg-spin { to { transform: rotate(360deg); } }
+  /* Itemized line-item rows reuse .pq-row; amounts get tabular numerals */
+  .sg-item-amt { font-variant-numeric: tabular-nums; }
+  .sg-total-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 14px; margin-top: 12px; padding-top: 14px;
+    border-top: 1px solid rgba(181,143,74,0.3);
+  }
+  .sg-total-row .lbl { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #c9a558; font-weight: 800; }
+  .sg-total-row .val { font-size: 22px; font-weight: 900; color: #f8fafc; font-variant-numeric: tabular-nums; }
+
+  /* Signing card */
+  .sg-signbox {
+    margin-top: 28px;
+    background: rgba(15,23,42,0.6);
+    border: 1px solid rgba(181,143,74,0.28);
+    border-radius: 18px;
+    padding: 22px 20px;
+  }
+  .sg-signbox-title {
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: #c9a558; font-weight: 800; margin: 0 0 4px;
+  }
+  .sg-signbox-sub { font-size: 13px; color: #94a3b8; margin: 0 0 18px; line-height: 1.5; }
+  .sg-field { margin-bottom: 16px; }
+  .sg-label { display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin: 0 0 7px; }
+  .sg-input {
+    width: 100%; box-sizing: border-box;
+    background: rgba(2,6,23,0.6); color: #f1f5f9;
+    border: 1px solid rgba(71,85,105,0.7); border-radius: 11px;
+    padding: 13px 14px; font-size: 16px; font-weight: 500;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .sg-input::placeholder { color: #64748b; }
+  .sg-input:focus { outline: none; border-color: #c9a558; box-shadow: 0 0 0 3px rgba(181,143,74,0.18); }
+  .sg-canvas-wrap {
+    position: relative;
+    background: #f8fafc; border-radius: 12px; overflow: hidden;
+    border: 1px solid rgba(71,85,105,0.7);
+    touch-action: none;
+  }
+  .sg-canvas { display: block; width: 100%; height: 168px; cursor: crosshair; }
+  .sg-canvas-base {
+    position: absolute; left: 14px; right: 14px; bottom: 40px;
+    border-bottom: 1.5px solid #cbd5e1; pointer-events: none;
+  }
+  .sg-canvas-x {
+    position: absolute; left: 16px; bottom: 42px; color: #94a3b8;
+    font-size: 18px; font-weight: 700; pointer-events: none;
+  }
+  .sg-canvas-hint {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    color: #94a3b8; font-size: 13px; font-weight: 500; pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .sg-canvas-clear {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(15,23,42,0.85); color: #e2e8f0; border: 0;
+    border-radius: 8px; padding: 6px 11px; font-size: 12px; font-weight: 700;
+    cursor: pointer;
+  }
+  .sg-canvas-clear:hover { background: rgba(15,23,42,0.95); }
+  .sg-consent {
+    display: flex; align-items: flex-start; gap: 11px;
+    margin: 4px 0 18px; cursor: pointer;
+  }
+  .sg-consent input { margin-top: 2px; width: 19px; height: 19px; accent-color: #b58f4a; flex-shrink: 0; cursor: pointer; }
+  .sg-consent span { font-size: 12.5px; color: #cbd5e1; line-height: 1.55; }
+  .sg-btn {
+    width: 100%; box-sizing: border-box;
+    background: #b58f4a; color: #0b1120;
+    border: 0; border-radius: 12px; padding: 16px;
+    font-size: 16px; font-weight: 800; letter-spacing: 0.01em;
+    cursor: pointer; transition: background .15s ease, opacity .15s ease, transform .1s ease;
+  }
+  .sg-btn:hover { background: #c9a558; }
+  .sg-btn:active { transform: scale(0.99); }
+  .sg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .sg-formerr {
+    margin: 0 0 14px; padding: 10px 13px; border-radius: 10px;
+    background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);
+    color: #fca5a5; font-size: 12.5px; font-weight: 600; line-height: 1.5;
+  }
+  .sg-legal { margin-top: 16px; font-size: 10.5px; color: #64748b; line-height: 1.6; text-align: center; }
+  /* Signed / success state */
+  .sg-done { margin-top: 26px; text-align: center; padding: 8px 0 0; }
+  .sg-done-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px;
+    background: rgba(16,185,129,0.14); border: 1px solid rgba(16,185,129,0.45);
+    color: #34d399;
+  }
+  .sg-done h2 { font-size: 22px; font-weight: 800; color: #f8fafc; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .sg-done p { font-size: 14px; color: #94a3b8; line-height: 1.55; margin: 0 auto; max-width: 380px; }
+  .sg-done .who { color: #e2e8f0; font-weight: 700; }
+  @media (min-width: 640px) {
+    .sg-canvas { height: 190px; }
   }
 
   /* Modal */
@@ -1872,6 +2004,11 @@
   .jd-doc-btn { font-size: 12px; font-weight: 700; border-radius: 10px; padding: 9px 8px; cursor: pointer; background: rgba(181,143,74,0.1); color: #c9a558; border: 1px solid rgba(181,143,74,0.4); transition: all .15s ease; }
   .jd-doc-btn:hover { background: rgba(181,143,74,0.18); border-color: #c9a558; }
   .jd-doc-btn:disabled { opacity: 0.4; cursor: not-allowed; color: #64748b; border-color: #334155; background: transparent; }
+  /* E-signature detail-level toggle (Summary / Itemized) */
+  .jd-detail-btn { font-size: 11px; font-weight: 700; padding: 5px 12px; cursor: pointer; background: transparent; color: #94a3b8; border: 0; transition: all .15s ease; }
+  .jd-detail-btn + .jd-detail-btn { border-left: 1px solid #334155; }
+  .jd-detail-btn:hover { color: #cbd5e1; }
+  .jd-detail-btn.active { background: rgba(181,143,74,0.16); color: #c9a558; }
   /* Legal pages */
   .legal-prose { color: #cbd5e1; font-size: 14px; line-height: 1.7; }
   .legal-prose .legal-title { font-size: 26px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.02em; margin-bottom: 6px; }
@@ -1929,6 +2066,18 @@
      ============================================================ -->
 <div id="publicQuoteView" role="main" aria-label="Customer Quote">
   <!-- contents rendered by renderPublicQuote() at DOMContentLoaded -->
+</div>
+
+<!-- ============================================================
+     PUBLIC CUSTOMER E-SIGNATURE VIEW (#/sign/{token})
+     Standalone, mobile-first signing page. Hidden by default; CSS
+     unhides it (and hides everything else) when the body gets
+     data-public-sign, set by the PublicSign IIFE when the URL hash
+     matches #/sign/. The snapshot is fetched from the sign-quote
+     edge function (token-gated, service-role) — not encoded in URL.
+     ============================================================ -->
+<div id="publicSignView" role="main" aria-label="Sign Quote">
+  <!-- contents rendered by PublicSign.mount() at DOMContentLoaded -->
 </div>
 
 <!-- ============================================================
@@ -2125,6 +2274,369 @@
     shrinkLogo: shrinkLogo,
     mount: mount
   };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", mount);
+  } else {
+    mount();
+  }
+})(window);
+</script>
+
+<!-- ============================================================
+     PUBLIC E-SIGNATURE PAGE (#/sign/{token}) — self-contained.
+     Fetches a frozen quote snapshot from the sign-quote edge
+     function (token-gated, service-role) and lets the customer
+     approve with a typed legal name + drawn signature. Uses plain
+     fetch only — no supabase-js / jspdf loaded on this route.
+     ============================================================ -->
+<script>
+(function (global) {
+  "use strict";
+
+  var FN_URL = "https://fzitkcvmbvyeilwzclme.supabase.co/functions/v1/sign-quote";
+  // Publishable anon key (safe to embed — same value used app-wide). The edge
+  // function is verify_jwt=false; this header just satisfies the API gateway.
+  var ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6aXRrY3ZtYnZ5ZWlsd3pjbG1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4OTAzMzgsImV4cCI6MjA5NDQ2NjMzOH0.tUZtZH1bZ80C0KTBldve961u0OsEY0_m5ZenJQX7imk";
+
+  var token = null;
+  var quote = null;          // the loaded snapshot view
+  var sigCanvas = null, sigCtx = null, sigHasInk = false, submitting = false;
+
+  function esc(v) {
+    if (v == null) return "";
+    return String(v)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function money(n) {
+    if (typeof n !== "number" || !isFinite(n)) n = 0;
+    try {
+      return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+    } catch (e) { return "$" + Math.round(n).toLocaleString(); }
+  }
+  function dateLong(ts) {
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  function host() { return document.getElementById("publicSignView"); }
+
+  function api(action, extra) {
+    var body = Object.assign({ action: action, token: token }, extra || {});
+    return fetch(FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": ANON,
+        "Authorization": "Bearer " + ANON,
+      },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      return res.json().then(function (j) { return { status: res.status, body: j }; });
+    });
+  }
+
+  // ---------- Renderers ----------
+  function brandHeaderHTML(s) {
+    var b = s.brand || {};
+    var logo = (b.logo && /^data:image\//i.test(b.logo))
+      ? '<img class="pq-logo" alt="" src="' + esc(b.logo) + '" />' : "";
+    var tagline = b.tagline ? '<div class="pq-tagline">' + esc(b.tagline) + '</div>' : "";
+    return '<div class="pq-header">' + logo +
+      '<h1 class="pq-company">' + esc(b.companyName || "Quote") + '</h1>' +
+      tagline + '<hr class="pq-rule" /></div>';
+  }
+
+  function contactHTML(s) {
+    var b = s.brand || {};
+    var items = [];
+    if (b.phone) {
+      var tel = String(b.phone).replace(/[^0-9+]/g, "");
+      items.push('<a href="tel:' + esc(tel) + '">' + esc(b.phone) + '</a>');
+    }
+    if (b.email) items.push('<a href="mailto:' + esc(b.email) + '">' + esc(b.email) + '</a>');
+    if (b.website) {
+      var href = b.website; if (!/^https?:\/\//i.test(href)) href = "https://" + href;
+      items.push('<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(b.website) + '</a>');
+    }
+    if (!items.length) return "";
+    var loc = [b.city, b.state].filter(Boolean).map(esc).join(", ");
+    return '<div class="pq-contact"><div class="pq-contact-title">Get in touch</div>' +
+      '<div class="pq-contact-list">' + items.join("") + '</div>' +
+      (loc ? '<div class="pq-meta" style="margin-top:10px;">' + loc + '</div>' : "") + '</div>';
+  }
+
+  function quoteBodyHTML(s, detail) {
+    var customer = s.customer
+      ? '<div class="pq-prepared">Prepared for <strong>' + esc(s.customer) + '</strong></div>' : "";
+
+    var itemized = "";
+    if (detail === "itemized" && Array.isArray(s.lineItems) && s.lineItems.length) {
+      var rows = s.lineItems.map(function (li) {
+        return '<div class="pq-row"><div class="pq-row-label">' + esc(li[0]) +
+          '</div><div class="pq-row-value sg-item-amt">' + money(Number(li[1]) || 0) + '</div></div>';
+      }).join("");
+      itemized = '<div class="pq-card"><h2 class="pq-card-title">Quote Breakdown</h2>' + rows +
+        '<div class="sg-total-row"><span class="lbl">Total</span><span class="val">' + money(s.total) + '</span></div></div>';
+    }
+
+    var scopeRows = (s.scope || []).map(function (pair) {
+      var label = esc(pair[0]), val = esc(pair[1]);
+      if (!label || val === "" || val == null) return "";
+      return '<div class="pq-row"><div class="pq-row-label">' + label +
+        '</div><div class="pq-row-value">' + val + '</div></div>';
+    }).join("");
+    var scope = scopeRows
+      ? '<div class="pq-card"><h2 class="pq-card-title">Scope of Work</h2>' + scopeRows + '</div>' : "";
+
+    var created = dateLong(s.createdAt || Date.now());
+    var validDays = Number(s.validDays) || 30;
+    var validUntil = dateLong((s.createdAt || Date.now()) + validDays * 86400000);
+    var meta = '<div class="pq-meta">Prepared ' + esc(created) + '<br/>' +
+      '<strong>Valid ' + validDays + ' days</strong> &mdash; through ' + esc(validUntil) + '</div>';
+
+    return '<div class="sg-wrap">' +
+      '<div class="pq-eyebrow">Window Installation Quote</div>' +
+      '<div class="pq-price">' + money(s.total) + '</div>' +
+      customer + itemized + scope + meta + contactHTML(s) + '</div>';
+  }
+
+  function signFormHTML() {
+    return '<div class="sg-wrap"><div class="sg-signbox">' +
+      '<div class="sg-signbox-title">Review &amp; Approve</div>' +
+      '<p class="sg-signbox-sub">By signing below you accept this quote and authorize the work described above. Your signature is recorded electronically.</p>' +
+      '<div id="sgFormErr" class="sg-formerr" style="display:none;"></div>' +
+      '<div class="sg-field">' +
+        '<label class="sg-label" for="sgName">Full legal name</label>' +
+        '<input id="sgName" class="sg-input" type="text" autocomplete="name" placeholder="Type your full name" maxlength="160" />' +
+      '</div>' +
+      '<div class="sg-field">' +
+        '<label class="sg-label">Signature</label>' +
+        '<div class="sg-canvas-wrap" id="sgCanvasWrap">' +
+          '<canvas id="sgCanvas" class="sg-canvas"></canvas>' +
+          '<div class="sg-canvas-base"></div>' +
+          '<div class="sg-canvas-x">×</div>' +
+          '<div class="sg-canvas-hint" id="sgHint">Draw your signature here</div>' +
+          '<button type="button" class="sg-canvas-clear" id="sgClear">Clear</button>' +
+        '</div>' +
+      '</div>' +
+      '<label class="sg-consent">' +
+        '<input type="checkbox" id="sgConsent" />' +
+        '<span>I agree to sign electronically and that my electronic signature is the legal equivalent of my handwritten signature on this quote.</span>' +
+      '</label>' +
+      '<button type="button" class="sg-btn" id="sgSubmit" disabled>Sign &amp; Approve Quote</button>' +
+      '<div class="sg-legal">Signed electronically under the U.S. E-SIGN Act and Florida law. Your name, signature, time, and device are recorded for verification.</div>' +
+    '</div></div>';
+  }
+
+  function doneHTML(name, signedAt) {
+    var when = signedAt ? dateLong(signedAt) : dateLong(Date.now());
+    return '<div class="sg-wrap"><div class="sg-done">' +
+      '<div class="sg-done-badge"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>' +
+      '<h2>Quote approved</h2>' +
+      '<p>Thank you' + (name ? ', <span class="who">' + esc(name) + '</span>' : "") + '. Your signature was recorded on ' + esc(when) + '. The contractor has been notified and will follow up with next steps.</p>' +
+      '</div></div>';
+  }
+
+  function errorHTML(title, msg) {
+    return '<div class="sg-error"><h1>' + esc(title) + '</h1><p>' + esc(msg) + '</p></div>';
+  }
+  function loadingHTML() {
+    return '<div class="sg-loading"><div class="sg-spinner"></div><p style="color:#94a3b8;font-size:14px;">Loading your quote…</p></div>';
+  }
+
+  // ---------- Signature canvas ----------
+  function initCanvas() {
+    sigCanvas = document.getElementById("sgCanvas");
+    if (!sigCanvas) return;
+    var wrap = document.getElementById("sgCanvasWrap");
+    var dpr = Math.min(global.devicePixelRatio || 1, 2);
+    var rect = wrap.getBoundingClientRect();
+    var cssW = rect.width, cssH = sigCanvas.clientHeight || 168;
+    sigCanvas.width = Math.round(cssW * dpr);
+    sigCanvas.height = Math.round(cssH * dpr);
+    sigCtx = sigCanvas.getContext("2d");
+    sigCtx.scale(dpr, dpr);
+    sigCtx.fillStyle = "#f8fafc";
+    sigCtx.fillRect(0, 0, cssW, cssH);
+    sigCtx.lineWidth = 2.4;
+    sigCtx.lineCap = "round";
+    sigCtx.lineJoin = "round";
+    sigCtx.strokeStyle = "#0b1120";
+    sigHasInk = false;
+
+    var drawing = false, lastX = 0, lastY = 0;
+    function pos(e) {
+      var r = sigCanvas.getBoundingClientRect();
+      var pt = (e.touches && e.touches[0]) ? e.touches[0] : e;
+      return { x: pt.clientX - r.left, y: pt.clientY - r.top };
+    }
+    function start(e) {
+      e.preventDefault();
+      drawing = true;
+      var p = pos(e); lastX = p.x; lastY = p.y;
+      if (!sigHasInk) {
+        sigHasInk = true;
+        var hint = document.getElementById("sgHint");
+        if (hint) hint.style.opacity = "0";
+        refreshSubmit();
+      }
+      // dot for a tap
+      sigCtx.beginPath();
+      sigCtx.arc(lastX, lastY, 1.2, 0, Math.PI * 2);
+      sigCtx.fillStyle = "#0b1120";
+      sigCtx.fill();
+    }
+    function move(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      var p = pos(e);
+      sigCtx.beginPath();
+      sigCtx.moveTo(lastX, lastY);
+      sigCtx.lineTo(p.x, p.y);
+      sigCtx.stroke();
+      lastX = p.x; lastY = p.y;
+    }
+    function end() { drawing = false; }
+
+    sigCanvas.addEventListener("pointerdown", start);
+    sigCanvas.addEventListener("pointermove", move);
+    global.addEventListener("pointerup", end);
+    // Touch fallback for browsers without Pointer Events
+    sigCanvas.addEventListener("touchstart", start, { passive: false });
+    sigCanvas.addEventListener("touchmove", move, { passive: false });
+    sigCanvas.addEventListener("touchend", end);
+
+    document.getElementById("sgClear").addEventListener("click", clearCanvas);
+  }
+
+  function clearCanvas() {
+    if (!sigCtx || !sigCanvas) return;
+    var dpr = Math.min(global.devicePixelRatio || 1, 2);
+    sigCtx.save();
+    sigCtx.setTransform(1, 0, 0, 1, 0, 0);
+    sigCtx.fillStyle = "#f8fafc";
+    sigCtx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
+    sigCtx.restore();
+    sigHasInk = false;
+    var hint = document.getElementById("sgHint");
+    if (hint) hint.style.opacity = "1";
+    refreshSubmit();
+  }
+
+  function refreshSubmit() {
+    var name = (document.getElementById("sgName") || {}).value || "";
+    var consent = !!(document.getElementById("sgConsent") || {}).checked;
+    var btn = document.getElementById("sgSubmit");
+    if (btn) btn.disabled = submitting || !(name.trim().length >= 2 && sigHasInk && consent);
+  }
+
+  function showFormError(msg) {
+    var el = document.getElementById("sgFormErr");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
+
+  function wireForm() {
+    initCanvas();
+    var name = document.getElementById("sgName");
+    var consent = document.getElementById("sgConsent");
+    if (name) name.addEventListener("input", refreshSubmit);
+    if (consent) consent.addEventListener("change", refreshSubmit);
+    var btn = document.getElementById("sgSubmit");
+    if (btn) btn.addEventListener("click", submit);
+  }
+
+  function submit() {
+    if (submitting) return;
+    var name = (document.getElementById("sgName").value || "").trim();
+    var consent = !!document.getElementById("sgConsent").checked;
+    if (name.length < 2) { showFormError("Please type your full legal name."); return; }
+    if (!sigHasInk) { showFormError("Please draw your signature in the box."); return; }
+    if (!consent) { showFormError("Please check the box to consent to electronic signing."); return; }
+    showFormError("");
+
+    var signature = "";
+    try { signature = sigCanvas.toDataURL("image/png"); } catch (e) { signature = ""; }
+    if (!/^data:image\/png/.test(signature)) { showFormError("Could not capture the signature. Please try again."); return; }
+
+    submitting = true;
+    var btn = document.getElementById("sgSubmit");
+    if (btn) { btn.disabled = true; btn.textContent = "Recording signature…"; }
+
+    api("sign", { signerName: name, signature: signature, consent: true }).then(function (r) {
+      if (r.body && r.body.ok) {
+        host().innerHTML = doneHTML(r.body.signer_name || name, r.body.signed_at);
+        try { document.title = "Approved - " + ((quote.snapshot.brand && quote.snapshot.brand.companyName) || "Quote"); } catch (e) {}
+        global.scrollTo(0, 0);
+        return;
+      }
+      var st = r.body && r.body.status;
+      if (st === "expired") { host().innerHTML = errorHTML("This link has expired", "Ask the contractor to send you an updated quote link."); return; }
+      submitting = false;
+      if (btn) { btn.textContent = "Sign & Approve Quote"; }
+      showFormError((r.body && r.body.error) || "Something went wrong recording your signature. Please try again.");
+      refreshSubmit();
+    }).catch(function () {
+      submitting = false;
+      if (btn) { btn.textContent = "Sign & Approve Quote"; }
+      showFormError("Network error — check your connection and try again.");
+      refreshSubmit();
+    });
+  }
+
+  // ---------- Mount ----------
+  function render() {
+    var s = quote.snapshot || {};
+    var detail = quote.detail_level || "summary";
+    var header = brandHeaderHTML(s);
+    var bodyHtml = quoteBodyHTML(s, detail);
+
+    if (quote.status === "signed") {
+      host().innerHTML = header + bodyHtml + doneHTML(quote.signer_name, quote.signed_at);
+      return;
+    }
+    if (quote.expired) {
+      host().innerHTML = header + errorHTML("This link has expired", "Ask the contractor to send you an updated quote link.");
+      return;
+    }
+    host().innerHTML = header + bodyHtml + signFormHTML() +
+      '<div class="pq-powered" style="margin-top:8px;">Powered by <span>Anchor</span></div>';
+    wireForm();
+  }
+
+  function mount() {
+    var m = (global.location.hash || "").match(/^#\/sign\/([0-9a-fA-F\-]{36})$/);
+    if (!m) return false;
+    token = m[1];
+    document.body.setAttribute("data-public-sign", "1");
+    if (!host()) return true;
+    document.title = "Sign Quote";
+    host().innerHTML = loadingHTML();
+
+    api("get").then(function (r) {
+      if (r.body && r.body.ok && r.body.quote) {
+        quote = r.body.quote;
+        try { document.title = (quote.status === "signed" ? "Approved - " : "Sign Quote - ") +
+          ((quote.snapshot.brand && quote.snapshot.brand.companyName) || "Quote"); } catch (e) {}
+        render();
+        return;
+      }
+      var st = r.body && r.body.status;
+      if (r.status === 404) { host().innerHTML = errorHTML("Quote not found", "This signing link is invalid. Ask whoever sent it to share an updated link."); return; }
+      if (st === "void") { host().innerHTML = errorHTML("This quote was withdrawn", "The contractor canceled this quote. Contact them for an updated one."); return; }
+      if (st === "expired") { host().innerHTML = errorHTML("This link has expired", "Ask the contractor to send you an updated quote link."); return; }
+      host().innerHTML = errorHTML("Couldn't load this quote", (r.body && r.body.error) || "Please try again in a moment.");
+    }).catch(function () {
+      host().innerHTML = errorHTML("Connection problem", "We couldn't reach the server. Check your connection and reload the page.");
+    });
+    return true;
+  }
+
+  global.PublicSign = { mount: mount };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mount);
@@ -7683,6 +8195,27 @@ function renderJobDetails(job) {
       </div>
       <p class="text-[10px] text-slate-600 mt-1.5">Generated from this job's saved numbers — download to send after the customer approves.</p>
     </div>
+    <div class="px-6 pt-4 pb-1">
+      <div class="jd-section-title mb-2">Send for e-signature</div>
+      <div class="rounded-xl border border-[#b58f4a]/25 bg-[#b58f4a]/[0.06] p-3">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="text-[11px] font-semibold text-slate-400">What the customer sees:</span>
+          <div class="jd-detail-seg inline-flex rounded-lg overflow-hidden border border-slate-700">
+            <button type="button" data-jd-detail="summary" class="jd-detail-btn active">Summary</button>
+            <button type="button" data-jd-detail="itemized" class="jd-detail-btn">Itemized</button>
+          </div>
+        </div>
+        <button id="jdSignBtn" type="button" class="btn w-full rounded-full px-4 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Create signing link</button>
+        <div id="jdSignResult" class="hidden mt-2.5">
+          <div class="flex items-center gap-2">
+            <input id="jdSignUrl" readonly class="control rounded-lg px-3 py-2 w-full text-xs text-slate-200 font-mono" value="">
+            <button id="jdSignCopy" type="button" class="btn shrink-0 rounded-lg px-3 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]">Copy</button>
+          </div>
+          <p class="text-[10px] text-emerald-300/80 mt-1.5">Link created. Text or email it to your customer — when they sign, the approval is recorded to your account.</p>
+        </div>
+        <p class="text-[10px] text-slate-600 mt-1.5">The customer reviews the quote and approves with a typed name + drawn signature. No login required for them.</p>
+      </div>
+    </div>
     <div class="px-6 py-4 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
       <button data-jd-delete class="text-[12px] font-semibold text-slate-500 hover:text-rose-300">Delete job</button>
       <div class="flex items-center gap-2">
@@ -7702,6 +8235,16 @@ function renderJobDetails(job) {
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
   const jdPhoto = document.getElementById("jdPhoto");
   if (jdPhoto) jdPhoto.addEventListener("click", () => { _dashPhotoTargetId = job.id; document.getElementById("dashPhotoInput")?.click(); });
+  // E-signature: detail-level toggle + create-link
+  let _jdSignDetail = "summary";
+  body.querySelectorAll("[data-jd-detail]").forEach(b => b.addEventListener("click", () => {
+    _jdSignDetail = b.dataset.jdDetail;
+    body.querySelectorAll("[data-jd-detail]").forEach(x => x.classList.toggle("active", x === b));
+    const res = document.getElementById("jdSignResult");
+    if (res) res.classList.add("hidden"); // a new detail level needs a fresh link
+  }));
+  const signBtn = document.getElementById("jdSignBtn");
+  if (signBtn) signBtn.addEventListener("click", () => createSignLink(job.id, _jdSignDetail));
 }
 
 // Export every saved (non-draft) job as a CSV pipeline file.
@@ -8891,6 +9434,137 @@ async function shareCustomerQuote() {
     console.warn("Clipboard write failed", e);
     toast("Could not copy link");
   }
+}
+
+/* ============================================================
+   E-SIGNATURE — sign-link generator (Phase B)
+   Builds a frozen, customer-safe snapshot of a saved job, stores it
+   server-side in shared_quotes (owner-only RLS), and hands back a
+   #/sign/<token> link. The customer opens that link and approves with
+   a typed name + drawn signature (handled by the PublicSign IIFE +
+   the sign-quote edge function).
+   ============================================================ */
+
+// Selling-side line items for the "Itemized" detail level. We never expose
+// internal cost or margin — each amount is the customer's selling-side dollar,
+// grouped into buckets, and the parts are reconciled to sum to the total.
+function buildSignLineItems(r) {
+  if (!r || !Array.isArray(r.rows)) return [];
+  const factor = 1 + (Number(r.margin) || 0) / 100;
+  const PASS_THROUGH = new Set(["permit", "disposal", "lift_rental"]);
+  let materials = 0, labor = 0, fees = 0;
+  r.rows.forEach((row) => {
+    const sell = (Number(row.totalCost) || 0) * factor;
+    if (sell <= 0) return;
+    if (row.isLabor) labor += sell;
+    else if (PASS_THROUGH.has(row.id)) fees += sell;
+    else materials += sell;
+  });
+  const items = [];
+  if (materials > 0) items.push(["Windows, materials & hardware", Math.round(materials)]);
+  if (labor > 0) items.push(["Professional installation & labor", Math.round(labor)]);
+  if (fees > 0) items.push(["Permits & inspection fees", Math.round(fees)]);
+  // Reconcile rounding so the line items sum exactly to the displayed total.
+  const target = Math.round(Number(r.sellingPrice) || 0);
+  const sum = items.reduce((a, it) => a + it[1], 0);
+  if (items.length && sum !== target) items[items.length - 1][1] += (target - sum);
+  return items;
+}
+
+// Build the full snapshot stored in shared_quotes.snapshot. Reuses the
+// customer share payload (brand, scope, total, logo) and adds the e-sign
+// extras (detail level, optional itemized line items, contact for records).
+async function buildSignSnapshot(detailLevel) {
+  const base = await buildCustomerSharePayload();
+  const r = calculate();
+  const level = detailLevel === "itemized" ? "itemized" : "summary";
+  const snap = Object.assign({}, base, {
+    detailLevel: level,
+    customerEmail: STATE.customerEmail || "",
+    jobName: STATE.customerName || "",
+  });
+  if (level === "itemized") snap.lineItems = buildSignLineItems(r);
+  return snap;
+}
+
+// Reveal the generated link inside the Job Details modal with a Copy button.
+function showSignLinkResult(url) {
+  const box = document.getElementById("jdSignResult");
+  if (!box) return;
+  box.classList.remove("hidden");
+  const input = document.getElementById("jdSignUrl");
+  if (input) input.value = url;
+  const copyBtn = document.getElementById("jdSignCopy");
+  if (copyBtn) {
+    copyBtn.onclick = async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(url);
+        else { input.select(); document.execCommand("copy"); }
+        copyBtn.textContent = "Copied";
+        setTimeout(() => { copyBtn.textContent = "Copy"; }, 1600);
+      } catch (e) { toast("Could not copy"); }
+    };
+  }
+}
+
+const _SIGN_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function createSignLink(jobId, detailLevel) {
+  if (!sb || !currentUser) { toast("Sign in to send a quote for e-signature"); return; }
+  const job = loadJobs().find((x) => x.id === jobId);
+  if (!job) { toast("Job not found"); return; }
+
+  const btn = document.getElementById("jdSignBtn");
+  const prevLabel = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Creating link…"; }
+
+  // Build the snapshot against THIS job's numbers, then restore live STATE.
+  const stateBackup = clone(STATE);
+  let snapshot = null;
+  try {
+    applyJobToState(job);
+    snapshot = await buildSignSnapshot(detailLevel);
+  } catch (e) {
+    console.warn("sign snapshot failed", e);
+    toast("Couldn't build the quote snapshot");
+  } finally {
+    STATE = stateBackup;
+    try { bindControls(); } catch (_) {}
+    try { renderSlidingDoors(); } catch (_) {}
+    try { render(); } catch (_) {}
+  }
+  if (!snapshot) { if (btn) { btn.disabled = false; btn.textContent = prevLabel; } return; }
+
+  // Persist (RLS: owner-only insert via the user's JWT).
+  let token = null;
+  try {
+    const { data, error } = await sb.from("shared_quotes").insert({
+      user_id: currentUser.id,
+      job_id: _SIGN_UUID_RE.test(String(job.id)) ? job.id : null,
+      snapshot,
+      detail_level: snapshot.detailLevel,
+    }).select("id").single();
+    if (error) throw error;
+    token = data.id;
+  } catch (e) {
+    console.warn("create sign link failed", e);
+    toast("Couldn't create the signing link");
+    if (btn) { btn.disabled = false; btn.textContent = prevLabel; }
+    return;
+  }
+
+  const origin = window.location.origin;
+  const path = window.location.pathname.replace(/index\.html?$/i, "");
+  const url = origin + path + "#/sign/" + token;
+
+  try { if (typeof window.track === "function") window.track("sign_link_created", { detail: snapshot.detailLevel }); } catch (_) {}
+
+  if (btn) { btn.disabled = false; btn.textContent = prevLabel; }
+  showSignLinkResult(url);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(url);
+    toast("Signing link copied — send it to your customer");
+  } catch (e) { toast("Signing link created"); }
 }
 
 function exportPDF(mode) {
@@ -13465,6 +14139,11 @@ async function boot() {
   // mounted by the PublicQuote IIFE. Don't touch supabase, init(),
   // or any of the calculator chrome. Done.
   if (window.__PUBLIC_QUOTE_ROUTE || /^#\/q\//.test(window.location.hash || "")) {
+    return;
+  }
+  // Public e-signature route (#/sign/...) — the PublicSign IIFE renders it.
+  // Don't init the calculator chrome, auth, or supabase client.
+  if (window.__PUBLIC_SIGN_ROUTE || /^#\/sign\//.test(window.location.hash || "")) {
     return;
   }
   injectManifest();
