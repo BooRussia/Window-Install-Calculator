@@ -7005,6 +7005,9 @@ function renderSavedJobs() {
 let _dashPhotoTargetId = null;
 let _dashStatusFilter = null;
 let _dashWired = false;
+let _dashMatChartMode = "pie";
+// Distinct, theme-friendly palette for the material charts.
+const MAT_COLORS = ["#c9a558", "#60a5fa", "#34d399", "#f472b6", "#f59e0b", "#a78bfa", "#22d3ee", "#fb7185", "#94a3b8", "#facc15"];
 
 function openDashboard() {
   try { closePfpMenu(); } catch (_) {}
@@ -7143,6 +7146,14 @@ function renderDashMaterials(jobs) {
           <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${topPct}%</div>
         </div>
       </div>
+      <div class="px-5 sm:px-6 pt-4 pb-2 border-b border-slate-800/80">
+        <div class="seg" id="dashMatSeg" style="max-width:320px;">
+          <button type="button" class="seg-btn ${_dashMatChartMode === "pie" ? "active" : ""}" data-matchart="pie">Allocation</button>
+          <button type="button" class="seg-btn ${_dashMatChartMode === "bar" ? "active" : ""}" data-matchart="bar">Bars</button>
+          <button type="button" class="seg-btn ${_dashMatChartMode === "trend" ? "active" : ""}" data-matchart="trend">Trend</button>
+        </div>
+        <div id="dashMatChart" class="mt-4"></div>
+      </div>
       <div class="px-3 sm:px-4 py-2 overflow-x-auto">
         <table class="dash-mat-table">
           <thead><tr><th>Material</th><th>Avg / job</th><th>Total used</th><th>$ / LF</th><th>Total spend</th></tr></thead>
@@ -7150,6 +7161,137 @@ function renderDashMaterials(jobs) {
         </table>
       </div>
     </div>`;
+  renderDashMatChart();
+  const seg = document.getElementById("dashMatSeg");
+  if (seg) seg.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-matchart]");
+    if (!b) return;
+    _dashMatChartMode = b.dataset.matchart;
+    seg.querySelectorAll(".seg-btn").forEach(x => x.classList.toggle("active", x.dataset.matchart === _dashMatChartMode));
+    renderDashMatChart();
+  });
+}
+
+// Render the currently-selected material chart into #dashMatChart.
+function renderDashMatChart() {
+  const el = document.getElementById("dashMatChart");
+  if (!el) return;
+  const jobs = loadJobs();
+  const { items } = dashMaterialStats(jobs);
+  if (_dashMatChartMode === "trend") el.innerHTML = matChartTrendSVG(jobs);
+  else if (_dashMatChartMode === "bar") el.innerHTML = matChartBarHTML(items);
+  else el.innerHTML = matChartPieSVG(items);
+}
+
+// Donut/pie of material cost allocation (stroke-dasharray ring technique so a
+// single 100% segment still renders cleanly).
+function matChartPieSVG(items) {
+  const total = items.reduce((s, m) => s + m.totalCost, 0);
+  if (total <= 0) return `<div class="text-center text-slate-500 text-sm py-10">No material spend yet.</div>`;
+  const cx = 120, cy = 120, R = 82, W = 34, C = 2 * Math.PI * R;
+  let off = 0;
+  const rings = items.map((m, i) => {
+    const dash = (m.totalCost / total) * C;
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${MAT_COLORS[i % MAT_COLORS.length]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    off += dash;
+    return seg;
+  }).join("");
+  const legend = items.map((m, i) => `
+    <div class="flex items-center gap-2 text-[11px]">
+      <span style="width:10px;height:10px;border-radius:2px;background:${MAT_COLORS[i % MAT_COLORS.length]};display:inline-block;flex-shrink:0;"></span>
+      <span class="flex-1 truncate" style="color:currentColor">${escHtml(m.name)}</span>
+      <span class="font-bold" style="color:currentColor">${Math.round(m.totalCost / total * 100)}%</span>
+    </div>`).join("");
+  return `<div class="flex flex-col sm:flex-row items-center gap-6 text-slate-400">
+    <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;">${rings}
+      <text x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">Total materials</text>
+      <text x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:16px;font-weight:800;">${formatMoney(total)}</text>
+    </svg>
+    <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5">${legend}</div>
+  </div>`;
+}
+
+// Horizontal bars of material cost allocation (HTML, themes via currentColor).
+function matChartBarHTML(items) {
+  const max = Math.max(...items.map(m => m.totalCost), 1);
+  const total = items.reduce((s, m) => s + m.totalCost, 0) || 1;
+  return `<div class="space-y-2.5 text-slate-400">` + items.map((m, i) => {
+    const pct = m.totalCost / max * 100;
+    const share = Math.round(m.totalCost / total * 100);
+    return `<div>
+      <div class="flex items-center justify-between text-[11px] mb-1">
+        <span class="font-semibold" style="color:currentColor">${escHtml(m.name)}</span>
+        <span style="color:currentColor">${formatMoney(m.totalCost)} · ${share}%</span>
+      </div>
+      <div style="height:10px;border-radius:6px;background:rgba(148,163,184,0.16);overflow:hidden;">
+        <div style="height:100%;width:${pct.toFixed(1)}%;border-radius:6px;background:${MAT_COLORS[i % MAT_COLORS.length]};"></div>
+      </div>
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+// Total material spend over time — monthly if 2+ months of jobs, else per-job.
+function matTimeSeries(jobs) {
+  const real = (jobs || []).filter(j => !j.isDraft);
+  const matCost = (j) => (j.rows || []).filter(r => r && MATERIAL_IDS.includes(r.id)).reduce((s, r) => s + (Number(r.totalCost) || 0), 0);
+  const byMonth = {};
+  real.forEach(j => {
+    const d = j.createdAt ? new Date(j.createdAt) : null;
+    if (!d || isNaN(d)) return;
+    const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    byMonth[key] = (byMonth[key] || 0) + matCost(j);
+  });
+  const months = Object.keys(byMonth).sort();
+  if (months.length >= 2) {
+    return { byMonth: true, points: months.map(k => {
+      const [y, mo] = k.split("-");
+      return { label: new Date(+y, +mo - 1, 1).toLocaleDateString(undefined, { month: "short", year: "2-digit" }), value: byMonth[k] };
+    }) };
+  }
+  const dated = real.filter(j => j.createdAt && !isNaN(new Date(j.createdAt)))
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  return { byMonth: false, points: dated.map(j => ({ label: new Date(j.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }), value: matCost(j) })) };
+}
+
+// Line+area trend of total material spend, with an up/down indicator.
+function matChartTrendSVG(jobs) {
+  const ts = matTimeSeries(jobs);
+  const pts = ts.points;
+  if (pts.length < 2) return `<div class="text-center text-slate-500 text-sm py-10">Save a couple more jobs ${ts.byMonth ? "across months" : "on different dates"} to chart a material-cost trend.</div>`;
+  const W = 600, H = 220, padL = 50, padR = 14, padT = 14, padB = 28;
+  const maxV = Math.max(...pts.map(p => p.value), 1);
+  const xFor = (i) => padL + (pts.length === 1 ? 0 : (i / (pts.length - 1)) * (W - padL - padR));
+  const yFor = (v) => padT + (1 - v / maxV) * (H - padT - padB);
+  const linePts = pts.map((p, i) => `${xFor(i).toFixed(1)},${yFor(p.value).toFixed(1)}`).join(" ");
+  const areaPath = `M ${xFor(0).toFixed(1)} ${(H - padB).toFixed(1)} L `
+    + pts.map((p, i) => `${xFor(i).toFixed(1)} ${yFor(p.value).toFixed(1)}`).join(" L ")
+    + ` L ${xFor(pts.length - 1).toFixed(1)} ${(H - padB).toFixed(1)} Z`;
+  const grid = [0, 0.5, 1].map(f => {
+    const y = padT + (1 - f) * (H - padT - padB);
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity="0.12"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="currentColor" style="font-size:9px;opacity:0.6;">${formatMoney(maxV * f)}</text>`;
+  }).join("");
+  const step = Math.max(1, Math.ceil(pts.length / 6));
+  const xlabels = pts.map((p, i) => (i % step === 0 || i === pts.length - 1)
+    ? `<text x="${xFor(i).toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" fill="currentColor" style="font-size:9px;opacity:0.6;">${escHtml(p.label)}</text>` : "").join("");
+  const dots = pts.map((p, i) => `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="2.6" fill="#c9a558"/>`).join("");
+  const first = pts[0].value, last = pts[pts.length - 1].value;
+  const dir = last > first ? "up" : (last < first ? "down" : "flat");
+  const pct = first > 0 ? Math.round((last - first) / first * 100) : 0;
+  const trendTxt = dir === "flat" ? "flat" : `${dir === "up" ? "▲" : "▼"} ${Math.abs(pct)}%`;
+  // Rising material cost is a watch-out (rose); falling is good (green).
+  const trendColor = dir === "up" ? "#fb7185" : (dir === "down" ? "#34d399" : "#94a3b8");
+  return `<div class="text-slate-400">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="text-[11px] font-semibold" style="color:currentColor">Total material spend ${ts.byMonth ? "/ month" : "/ job"}</span>
+      <span class="text-[11px] font-bold" style="color:${trendColor}">${trendTxt} <span style="color:currentColor;opacity:0.6;font-weight:600;">vs first</span></span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" preserveAspectRatio="none">
+      ${grid}
+      <path d="${areaPath}" fill="#c9a558" fill-opacity="0.12"/>
+      <polyline points="${linePts}" fill="none" stroke="#c9a558" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}${xlabels}
+    </svg>
+  </div>`;
 }
 
 function dashJobCard(j) {
