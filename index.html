@@ -752,6 +752,40 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 
+  /* E-sign Phase C: signed-quote alert (top-center, above all overlays) */
+  .sign-alert {
+    position: fixed; left: 50%; top: 18px; transform: translateX(-50%) translateY(-14px);
+    z-index: 95; display: flex; align-items: center; gap: 12px;
+    max-width: 460px; width: calc(100% - 32px);
+    background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(11,17,32,0.98));
+    border: 1px solid rgba(16,185,129,0.45);
+    border-radius: 14px; padding: 13px 14px;
+    box-shadow: 0 18px 48px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(16,185,129,0.08);
+    opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease;
+  }
+  .sign-alert.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .sign-alert-icon {
+    flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(16,185,129,0.16); border: 1px solid rgba(16,185,129,0.5); color: #34d399;
+  }
+  .sign-alert-body { min-width: 0; flex: 1; }
+  .sign-alert-title { font-size: 13.5px; font-weight: 600; color: #e2e8f0; line-height: 1.35; }
+  .sign-alert-title strong { color: #f8fafc; font-weight: 800; }
+  .sign-alert-sub { font-size: 11.5px; color: #94a3b8; margin-top: 1px; }
+  .sign-alert-view {
+    flex-shrink: 0; font-size: 12px; font-weight: 700; cursor: pointer;
+    color: #0b1120; background: #34d399; border: 0; border-radius: 9px; padding: 7px 12px;
+    transition: background .15s ease;
+  }
+  .sign-alert-view:hover { background: #6ee7b7; }
+  .sign-alert-x {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; border: 0;
+    background: transparent; color: #64748b; font-size: 20px; line-height: 1; cursor: pointer;
+    transition: color .15s ease, background .15s ease;
+  }
+  .sign-alert-x:hover { color: #e2e8f0; background: rgba(51,65,85,0.5); }
+
   /* ------- Public Customer Quote Viewer (#/q/ route) -------
      Mobile-first, branded read-only quote shared via URL.
      When on the public route, body[data-public-quote] hides everything
@@ -7472,14 +7506,17 @@ function renderMaterialsToggle() {
 let compareSet = new Set();
 
 // ── Deal status / pipeline ──────────────────────────────────────────────────
-const JOB_STATUSES = ["Lead", "Quoted", "Won", "Lost"];
+// "Approved" = the customer e-signed the quote (set automatically by the
+// sign-quote edge function). It sits between Quoted and Won in the funnel.
+const JOB_STATUSES = ["Lead", "Quoted", "Approved", "Won", "Lost"];
 function jobStatus(j) { return (j && JOB_STATUSES.includes(j.status)) ? j.status : "Quoted"; }
 function statusMeta(s) {
   return ({
-    Lead:   { cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
-    Quoted: { cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
-    Won:    { cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
-    Lost:   { cls: "text-rose-300 border-rose-500/40 bg-rose-500/10" },
+    Lead:     { cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
+    Quoted:   { cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
+    Approved: { cls: "text-violet-300 border-violet-500/40 bg-violet-500/10" },
+    Won:      { cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
+    Lost:     { cls: "text-rose-300 border-rose-500/40 bg-rose-500/10" },
   })[s] || { cls: "text-slate-300 border-slate-600 bg-slate-700/20" };
 }
 function setJobStatus(id, status) {
@@ -7499,7 +7536,7 @@ function renderJobsDashboard(list) {
   if (!dash) return;
   const real = (list || []).filter(j => !j.isDraft);
   if (!real.length) { dash.classList.add("hidden"); dash.innerHTML = ""; return; }
-  const groups = { Lead: [], Quoted: [], Won: [], Lost: [] };
+  const groups = {}; JOB_STATUSES.forEach(s => { groups[s] = []; });
   real.forEach(j => groups[jobStatus(j)].push(j));
   const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
   const openVal = sum(groups.Lead) + sum(groups.Quoted);
@@ -7643,7 +7680,7 @@ function renderDashPipeline(jobs) {
   const wrap = document.getElementById("dashPipeline");
   if (!wrap) return;
   const real = (jobs || []).filter(j => !j.isDraft);
-  const groups = { Lead: [], Quoted: [], Won: [], Lost: [] };
+  const groups = {}; JOB_STATUSES.forEach(s => { groups[s] = []; });
   real.forEach(j => groups[jobStatus(j)].push(j));
   if (!real.length) {
     wrap.innerHTML = `<div class="card rounded-2xl px-5 py-10 text-center text-slate-500 text-sm">No saved jobs yet — your pipeline and stats land here once you save a quote.</div>`;
@@ -7684,7 +7721,7 @@ function renderDashPipeline(jobs) {
   }).join("");
   wrap.innerHTML =
     `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${tilesHtml}</div>` +
-    `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">${funnel}</div>`;
+    `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">${funnel}</div>`;
 }
 
 // Aggregate material consumption across saved jobs (from each job's saved rows).
@@ -8113,6 +8150,23 @@ function renderJobDetails(job) {
   if (!body) return;
   const st = jobStatus(job);
   const stCls = statusMeta(st).cls;
+  const isSigned = !!(job.signedQuoteId || (st === "Approved" && job.signedAt));
+  const signedWhen = job.signedAt ? new Date(job.signedAt) : null;
+  const signedWhenStr = (signedWhen && !isNaN(signedWhen.getTime()))
+    ? signedWhen.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const signedBanner = isSigned ? `
+    <div class="rounded-xl border border-emerald-500/40 bg-emerald-500/[0.08] p-3 mb-2.5">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/45 text-emerald-300 shrink-0">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </span>
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold text-emerald-200">Approved by ${escHtml(job.signerName || job.customerName || "customer")}</div>
+          ${signedWhenStr ? `<div class="text-[10px] text-emerald-300/70">Signed ${escHtml(signedWhenStr)}</div>` : ""}
+        </div>
+      </div>
+      <button data-jd-signed-pdf type="button" class="btn w-full rounded-lg px-3 py-2 mt-2.5 text-xs font-bold bg-emerald-500 text-slate-950 hover:bg-emerald-400">Download signed quote (PDF)</button>
+    </div>` : "";
   const title = job.customerName || job.name || "Untitled job";
   const cost = Number(job.totalCost) || 0;
   const price = Number(job.sellingPrice) || 0;
@@ -8196,7 +8250,8 @@ function renderJobDetails(job) {
       <p class="text-[10px] text-slate-600 mt-1.5">Generated from this job's saved numbers — download to send after the customer approves.</p>
     </div>
     <div class="px-6 pt-4 pb-1">
-      <div class="jd-section-title mb-2">Send for e-signature</div>
+      <div class="jd-section-title mb-2">${isSigned ? "E-signature" : "Send for e-signature"}</div>
+      ${signedBanner}
       <div class="rounded-xl border border-[#b58f4a]/25 bg-[#b58f4a]/[0.06] p-3">
         <div class="flex items-center gap-2 mb-2.5">
           <span class="text-[11px] font-semibold text-slate-400">What the customer sees:</span>
@@ -8245,6 +8300,8 @@ function renderJobDetails(job) {
   }));
   const signBtn = document.getElementById("jdSignBtn");
   if (signBtn) signBtn.addEventListener("click", () => createSignLink(job.id, _jdSignDetail));
+  const signedPdfBtn = body.querySelector("[data-jd-signed-pdf]");
+  if (signedPdfBtn) signedPdfBtn.addEventListener("click", () => exportSignedQuotePDF(job.id));
 }
 
 // Export every saved (non-draft) job as a CSV pipeline file.
@@ -9565,6 +9622,182 @@ async function createSignLink(jobId, detailLevel) {
     if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(url);
     toast("Signing link copied — send it to your customer");
   } catch (e) { toast("Signing link created"); }
+}
+
+/* ============================================================
+   COUNTERSIGNED QUOTE PDF (E-sign Phase C)
+   Built from the FROZEN shared_quotes snapshot + the recorded
+   signature — i.e. exactly what the customer saw and agreed to,
+   not re-derived from live job numbers. Appends a signature
+   certificate (image, typed name, date, reference id, IP) suitable
+   for the installer's records. Owner reads the row directly (RLS).
+   ============================================================ */
+async function exportSignedQuotePDF(jobId) {
+  if (!window.jspdf) { toast("PDF engine still loading — try again"); return; }
+  if (!sb || !currentUser) { toast("Sign in to download the signed quote"); return; }
+  const job = loadJobs().find(x => x.id === jobId);
+
+  let row = null;
+  try {
+    const query = (job && job.signedQuoteId)
+      ? sb.from("shared_quotes").select("*").eq("id", job.signedQuoteId).maybeSingle()
+      : sb.from("shared_quotes").select("*").eq("job_id", jobId).eq("status", "signed")
+          .order("signed_at", { ascending: false }).limit(1).maybeSingle();
+    const { data, error } = await query;
+    if (error) throw error;
+    row = data;
+  } catch (e) {
+    console.warn("signed-quote fetch failed", e);
+    toast("Couldn't load the signed record"); return;
+  }
+  if (!row || row.status !== "signed") {
+    toast("No signed copy yet — send this quote for signature first"); return;
+  }
+
+  const s = row.snapshot || {};
+  const brand = s.brand || {};
+  const fmtDate = (v) => {
+    const d = new Date(v); if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  };
+  const fmtDateTime = (v) => {
+    const d = new Date(v); if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  };
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const M = 56;
+  let y;
+
+  // ---------- Header ----------
+  let logoDrawn = false;
+  if (brand.logo && /^data:image\//i.test(brand.logo)) {
+    try {
+      const props = doc.getImageProperties(brand.logo);
+      const maxH = 54, maxW = 240;
+      const scale = Math.min(maxW / props.width, maxH / props.height, 1);
+      const w = props.width * scale, h = props.height * scale;
+      doc.addImage(brand.logo, props.fileType || "PNG", M, M - 6, w, h);
+      y = M - 6 + h + 16; logoDrawn = true;
+    } catch (e) { /* fall through */ }
+  }
+  if (logoDrawn) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(20, 20, 20);
+    doc.text(brand.companyName || "", M, y); y += 10;
+  } else {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(20, 20, 20);
+    doc.text((brand.companyName || "").toUpperCase(), M, M + 12); y = M + 26;
+  }
+  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5); doc.line(M, y, M + 96, y); y += 22;
+  if (brand.tagline) {
+    doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(120, 120, 120);
+    doc.text(brand.tagline, M, y); y += 16;
+  }
+
+  // Approved eyebrow + dates
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(16, 122, 87);
+  doc.text("APPROVED — WINDOW INSTALLATION QUOTE", M, y); y += 16;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(90, 90, 90);
+  if (s.createdAt) { doc.text(`Quote date: ${fmtDate(s.createdAt)}`, M, y); }
+  doc.text(`Approved: ${fmtDate(row.signed_at)}`, pageW - M, y, { align: "right" }); y += 14;
+  doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5); doc.line(M, y, pageW - M, y); y += 26;
+
+  // ---------- Prepared for ----------
+  if (s.customer) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+    doc.text("PREPARED FOR", M, y); y += 15;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
+    doc.text(String(s.customer), M, y); y += 22;
+  }
+
+  // ---------- Itemized breakdown (if present) ----------
+  if (s.detailLevel === "itemized" && Array.isArray(s.lineItems) && s.lineItems.length) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+    doc.text("QUOTE BREAKDOWN", M, y); y += 16;
+    doc.setFontSize(10);
+    s.lineItems.forEach(([label, amt]) => {
+      doc.setFont("helvetica", "normal"); doc.setTextColor(70, 70, 70);
+      doc.text(String(label), M, y);
+      doc.setTextColor(20, 20, 20);
+      doc.text(formatMoney(Number(amt) || 0), pageW - M, y, { align: "right" });
+      y += 15;
+    });
+    y += 6;
+  }
+
+  // ---------- Scope of work ----------
+  if (Array.isArray(s.scope) && s.scope.length) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+    doc.text("SCOPE OF WORK", M, y); y += 16;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    const valueX = M + 140;
+    s.scope.forEach(([label, value]) => {
+      if (label == null || value == null || value === "") return;
+      doc.setTextColor(110, 110, 110); doc.text(String(label), M, y);
+      doc.setTextColor(20, 20, 20); doc.text(String(value), valueX, y);
+      y += 14;
+    });
+    y += 12;
+  }
+
+  // ---------- Total ----------
+  doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5); doc.line(M, y, pageW - M, y); y += 22;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(140, 140, 140);
+  doc.text("TOTAL INSTALLATION PRICE", M, y);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(20, 20, 20);
+  doc.text(formatMoney(Number(s.total) || 0), pageW - M, y + 2, { align: "right" }); y += 34;
+
+  // ---------- Signature certificate ----------
+  if (y > pageH - 240) { doc.addPage(); y = M; }
+  doc.setDrawColor(16, 122, 87); doc.setLineWidth(1); doc.setFillColor(244, 250, 247);
+  const boxX = M, boxW = pageW - M * 2, boxY = y, boxH = 196;
+  doc.roundedRect(boxX, boxY, boxW, boxH, 8, 8, "FD");
+  let cy = boxY + 24;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(16, 122, 87);
+  doc.text("CUSTOMER ACCEPTANCE & ELECTRONIC SIGNATURE", boxX + 18, cy); cy += 20;
+
+  // Signature image
+  let sigDrawn = false;
+  if (row.signer_signature && /^data:image\//i.test(row.signer_signature)) {
+    try {
+      const sp = doc.getImageProperties(row.signer_signature);
+      const maxW = 220, maxH = 70;
+      const scale = Math.min(maxW / sp.width, maxH / sp.height, 1);
+      const w = sp.width * scale, h = sp.height * scale;
+      doc.addImage(row.signer_signature, sp.fileType || "PNG", boxX + 18, cy, w, h);
+      doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.5);
+      doc.line(boxX + 18, cy + h + 4, boxX + 18 + Math.max(w, 180), cy + h + 4);
+      sigDrawn = true;
+    } catch (e) { /* fall through */ }
+  }
+  if (!sigDrawn) {
+    doc.setFont("helvetica", "italic"); doc.setFontSize(10); doc.setTextColor(80, 80, 80);
+    doc.text("[ signature on file ]", boxX + 18, cy + 20);
+  }
+  cy += 92;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
+  doc.text(row.signer_name || "", boxX + 18, cy); cy += 16;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+  doc.text(`Signed electronically on ${fmtDateTime(row.signed_at)}`, boxX + 18, cy); cy += 12;
+  const refBits = [`Reference: ${row.id}`];
+  if (row.signer_ip) refBits.push(`IP: ${row.signer_ip}`);
+  doc.text(refBits.join("    "), boxX + 18, cy);
+
+  // ---------- Footer ----------
+  doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+  const contactBits = [brand.phone, brand.email, brand.website].filter(Boolean).join("  ·  ");
+  doc.text(
+    "Signed electronically under the U.S. E-SIGN Act and applicable Florida law. This record reflects the quote at the time of acceptance.",
+    pageW / 2, pageH - 40, { align: "center", maxWidth: pageW - M * 2 }
+  );
+  if (contactBits) doc.text(contactBits, pageW / 2, pageH - 26, { align: "center" });
+
+  const safe = (row.signer_name || s.customer || "Quote").replace(/[^a-z0-9]/gi, "-").substring(0, 30);
+  try { if (typeof window.track === "function") window.track("signed_pdf_downloaded"); } catch (_) {}
+  outputPDF(doc, `Signed-Quote-${safe}.pdf`, "download");
 }
 
 function exportPDF(mode) {
@@ -13051,11 +13284,13 @@ async function handleGoogleSignIn() {
 }
 
 async function handleSignOut() {
+  try { if (_signRealtimeChannel && sb) { sb.removeChannel(_signRealtimeChannel); _signRealtimeChannel = null; } } catch (_) {}
   try { if (sb) await sb.auth.signOut(); } catch (_) {}
   // Clear the local cache so the next account starts clean
   localStorage.removeItem(LS_KEYS.data);
   localStorage.removeItem(LS_KEYS.state);
   localStorage.removeItem(LS_KEYS.jobs);
+  localStorage.removeItem(LS_SIGN_SEEN);
   location.reload();
 }
 
@@ -13142,6 +13377,132 @@ async function deleteJobFromCloud(id) {
   if (!sb || !currentUser) return;
   try { await trackCloud(sb.from("jobs").delete().eq("id", id)); }
   catch (e) { /* error already routed via trackCloud */ }
+}
+
+/* ============================================================
+   E-SIGN PHASE C — signed-quote notifications
+   When a customer signs, the edge function flips the source job to
+   "Approved" server-side. The installer learns about it two ways:
+   a catch-up check on app entry, and a live Realtime subscription
+   while the app is open. Both refresh jobs and pop an in-app alert.
+   ============================================================ */
+let _signRealtimeChannel = null;
+const LS_SIGN_SEEN = "anchor_signed_seen_at";
+
+// Re-pull just the jobs table into localStorage (used after a signature flips
+// a job to Approved server-side). Mirrors the jobs half of syncFromCloud.
+async function refreshJobsFromCloud() {
+  if (!sb || !currentUser) return;
+  try {
+    const { data: jobRows, error } = await sb.from("jobs")
+      .select("id,data").eq("user_id", currentUser.id);
+    if (error) throw error;
+    const jobs = (jobRows || []).map(r => ({ ...r.data, id: r.id }));
+    const drafts = loadJobs().filter(j => j.isDraft);
+    saveJobs([...jobs, ...drafts]);
+  } catch (e) { /* best-effort */ }
+}
+
+// Catch-up on app entry: surface any quotes signed since we last looked.
+async function checkForNewSignatures() {
+  if (!sb || !currentUser) return;
+  let lastSeen = 0;
+  try { lastSeen = Number(localStorage.getItem(LS_SIGN_SEEN)) || 0; } catch (_) {}
+  try {
+    const { data, error } = await sb.from("shared_quotes")
+      .select("id, job_id, signer_name, signed_at, snapshot")
+      .eq("status", "signed")
+      .order("signed_at", { ascending: false })
+      .limit(20);
+    if (error || !Array.isArray(data) || !data.length) return;
+    const ts = r => (r.signed_at ? new Date(r.signed_at).getTime() : 0);
+    const fresh = data.filter(r => ts(r) > lastSeen);
+    const newest = Math.max(...data.map(ts));
+    // First run ever (no marker): don't replay history — just set the marker.
+    if (!lastSeen) { if (newest > 0) { try { localStorage.setItem(LS_SIGN_SEEN, String(newest)); } catch (_) {} } return; }
+    if (newest > 0) { try { localStorage.setItem(LS_SIGN_SEEN, String(newest)); } catch (_) {} }
+    if (!fresh.length) return;
+    await refreshJobsFromCloud();
+    try { renderDashboard(); } catch (_) {}
+    if (fresh.length === 1) {
+      const r = fresh[0];
+      showSignedAlert(r.signer_name || (r.snapshot && r.snapshot.customer) || "Your customer",
+        r.job_id, r.snapshot && r.snapshot.total);
+    } else {
+      showSignedAlert(fresh.length + " quotes were approved", null, null, true);
+    }
+  } catch (e) { /* best-effort */ }
+}
+
+// Live subscription: a signature that lands while the app is open pops an
+// alert instantly. RLS scopes postgres_changes to this owner's rows.
+function subscribeSignedRealtime() {
+  if (!sb || !currentUser || !sb.channel) return;
+  try {
+    if (_signRealtimeChannel) { try { sb.removeChannel(_signRealtimeChannel); } catch (_) {} _signRealtimeChannel = null; }
+    _signRealtimeChannel = sb.channel("signed-quotes-" + currentUser.id)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "shared_quotes",
+        filter: "user_id=eq." + currentUser.id,
+      }, (payload) => {
+        const n = payload && payload.new;
+        if (!n || n.status !== "signed") return;
+        let lastSeen = 0;
+        try { lastSeen = Number(localStorage.getItem(LS_SIGN_SEEN)) || 0; } catch (_) {}
+        const t = n.signed_at ? new Date(n.signed_at).getTime() : Date.now();
+        if (t <= lastSeen) return; // already counted (e.g. by catch-up)
+        try { localStorage.setItem(LS_SIGN_SEEN, String(t)); } catch (_) {}
+        refreshJobsFromCloud().then(() => { try { renderDashboard(); } catch (_) {} });
+        showSignedAlert(n.signer_name || (n.snapshot && n.snapshot.customer) || "Your customer",
+          n.job_id, n.snapshot && n.snapshot.total);
+      })
+      .subscribe();
+  } catch (e) { /* realtime is best-effort; catch-up covers the gap */ }
+}
+
+function initSignNotifications() {
+  checkForNewSignatures();
+  subscribeSignedRealtime();
+}
+
+// Celebratory in-app alert when a customer approves a quote. Top-center,
+// dismissable, with a "View job" shortcut. Auto-fades after ~14s.
+function showSignedAlert(name, jobId, total, multi) {
+  try {
+    const old = document.getElementById("signAlert");
+    if (old) old.remove();
+    const el = document.createElement("div");
+    el.id = "signAlert";
+    el.className = "sign-alert";
+    const totalStr = (typeof total === "number" && isFinite(total)) ? " · " + formatMoney(total) : "";
+    const headline = multi
+      ? escHtml(String(name))
+      : `<strong>${escHtml(String(name))}</strong> approved their quote`;
+    const sub = multi ? "Open your dashboard to review them." : ("Marked Approved in your pipeline" + totalStr);
+    const viewBtn = (!multi && jobId)
+      ? `<button type="button" class="sign-alert-view" data-sa-view>View job</button>` : "";
+    el.innerHTML =
+      `<div class="sign-alert-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+       <div class="sign-alert-body">
+         <div class="sign-alert-title">${headline}</div>
+         <div class="sign-alert-sub">${escHtml(sub)}</div>
+       </div>
+       ${viewBtn}
+       <button type="button" class="sign-alert-x" data-sa-close aria-label="Dismiss">×</button>`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add("show"));
+    const close = () => { el.classList.remove("show"); setTimeout(() => el.remove(), 250); };
+    el.querySelector("[data-sa-close]").addEventListener("click", close);
+    const vb = el.querySelector("[data-sa-view]");
+    if (vb) vb.addEventListener("click", () => {
+      close();
+      try { openDashboard(); } catch (_) {}
+      try { openJobDetails(jobId); } catch (_) {}
+    });
+    clearTimeout(showSignedAlert._t);
+    showSignedAlert._t = setTimeout(close, 14000);
+    try { if (typeof window.track === "function") window.track("quote_signed_alert"); } catch (_) {}
+  } catch (e) { /* never let an alert crash the app */ }
 }
 
 /* ---- Landing page + auth modal ---- */
@@ -14250,6 +14611,10 @@ async function enterApp() {
   // redirect target), surface a toast + force-refresh entitlements. Fire-
   // and-forget — the toast/sync can take a second or two without blocking.
   handleStripeReturn();
+
+  // E-sign Phase C: catch up on any quotes signed while away + subscribe for
+  // live signature alerts. Fire-and-forget; never blocks app entry.
+  try { initSignNotifications(); } catch (_) {}
 }
 
 /* ============================================================

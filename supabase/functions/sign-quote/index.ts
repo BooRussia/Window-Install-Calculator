@@ -133,6 +133,7 @@ Deno.serve(async (req) => {
     const fwd = req.headers.get("x-forwarded-for") || "";
     const ip = fwd.split(",")[0].trim() || null;
     const ua = req.headers.get("user-agent") || null;
+    const nowIso = new Date().toISOString();
 
     const { data: signed, error: signErr } = await admin
       .from("shared_quotes")
@@ -142,13 +143,35 @@ Deno.serve(async (req) => {
         signer_signature: signature,
         signer_ip: ip,
         signer_user_agent: ua,
-        signed_at: new Date().toISOString(),
+        signed_at: nowIso,
       })
       .eq("id", token)
       .neq("status", "signed") // race guard: don't overwrite an existing signature
       .select("status, signed_at, signer_name")
       .maybeSingle();
     if (signErr) return err("Could not record signature", 500);
+
+    // Best-effort: flip the source job to "Approved" so it surfaces in the
+    // installer's pipeline immediately. The job lives in jobs.data (jsonb),
+    // scoped to the quote owner. A failure here must NOT fail the signature —
+    // the signature record in shared_quotes is the source of truth.
+    if (signed && row.job_id) {
+      try {
+        const { data: jobRow } = await admin
+          .from("jobs").select("data")
+          .eq("id", row.job_id).eq("user_id", row.user_id).maybeSingle();
+        if (jobRow && jobRow.data && typeof jobRow.data === "object") {
+          const d = jobRow.data as Record<string, unknown>;
+          d.status = "Approved";
+          d.signedAt = nowIso;
+          d.signerName = signerName;
+          d.signedQuoteId = token;
+          await admin.from("jobs").update({ data: d })
+            .eq("id", row.job_id).eq("user_id", row.user_id);
+        }
+      } catch (_) { /* best-effort — never block the signature on this */ }
+    }
+
     if (!signed) {
       // Lost the race — someone signed between our read and write. Treat as done.
       const { data: now } = await admin
