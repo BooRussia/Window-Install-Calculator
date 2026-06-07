@@ -8222,8 +8222,8 @@ function dashJobCard(j) {
   const marginTxt = (j.margin != null && !isNaN(j.margin)) ? `${Math.round(j.margin)}% margin` : "";
   const draftPill = j.isDraft ? ` <span class="ml-1 inline-flex items-center text-[8px] uppercase tracking-[0.16em] font-bold text-[#c9a558]/85 border border-[#b58f4a]/45 bg-[#b58f4a]/10 rounded-full px-1.5 py-0.5 align-middle">Draft</span>` : "";
   const editIcon = `<span class="dash-thumb-edit"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 3.5l4 4L7 17H3v-4z"/></svg></span>`;
-  const thumbInner = j.photo
-    ? `<img src="${escHtml(j.photo)}" class="dash-thumb-img" alt="">`
+  const thumbInner = (j.photoPath || j.photo)
+    ? jobPhotoImgHTML(j, "dash-thumb-img")
     : `<span class="dash-thumb-empty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg>Add photo</span>`;
   const badgeOverlay = `<span class="dash-thumb-badge ${stCls}">${st}</span>`;
   const statusSel = j.isDraft
@@ -8278,6 +8278,7 @@ function renderDashJobs(jobs) {
     return;
   }
   grid.innerHTML = list.map(dashJobCard).join("");
+  hydratePhotoThumbs(grid);
 }
 
 // Compress an uploaded photo to a small JPEG data URL (stored on the job).
@@ -8301,15 +8302,105 @@ function compressJobPhoto(file) {
   });
 }
 
-function setJobPhoto(id, dataUrl) {
+/* ============================================================
+   JOB PHOTOS → Supabase Storage (private bucket "job-photos").
+   Photos used to be base64 inside the job row, which bloated every
+   job + localStorage. Now we upload to job-photos/<user_id>/<job_id>.jpg
+   and store only the path; the image is shown via a short-lived signed
+   URL. Legacy base64 photos still render and are migrated in the
+   background. Offline / draft / non-uuid jobs fall back to base64.
+   ============================================================ */
+const PHOTO_BUCKET = "job-photos";
+const _photoUrlCache = {}; // path -> { url, exp }
+
+function dataURLToBlob(dataUrl) {
+  const parts = String(dataUrl).split(",");
+  const mime = (parts[0].match(/data:([^;]+)/) || [, "image/jpeg"])[1];
+  const bin = atob(parts[1] || "");
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// Resolve (and cache) a signed URL for a private job photo. Cached ~50 min
+// (signed for 60) so we don't re-sign on every render.
+async function resolveSignedPhotoURL(path) {
+  if (!path || !sb || !sb.storage) return "";
+  const now = Date.now();
+  const c = _photoUrlCache[path];
+  if (c && c.exp > now) return c.url;
+  try {
+    const { data, error } = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
+    if (error || !data || !data.signedUrl) return "";
+    _photoUrlCache[path] = { url: data.signedUrl, exp: now + 50 * 60 * 1000 };
+    return data.signedUrl;
+  } catch (e) { return ""; }
+}
+
+// Fill the src of any <img data-photo-path> placeholders after a render.
+function hydratePhotoThumbs(root) {
+  const scope = root || document;
+  scope.querySelectorAll("img[data-photo-path]:not([data-photo-done])").forEach((img) => {
+    img.setAttribute("data-photo-done", "1");
+    resolveSignedPhotoURL(img.dataset.photoPath).then((url) => {
+      if (url) img.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "v=" + (img.dataset.photoV || "0");
+    });
+  });
+}
+
+// <img> markup for a job photo — storage path (async-hydrated) or legacy base64.
+function jobPhotoImgHTML(j, cls) {
+  if (j.photoPath) return `<img data-photo-path="${escHtml(j.photoPath)}" data-photo-v="${j.photoUpdatedAt || 0}" class="${cls}" alt="">`;
+  if (j.photo) return `<img src="${escHtml(j.photo)}" class="${cls}" alt="">`;
+  return "";
+}
+
+// Upload a compressed photo for a job. Uses Storage when signed-in with a
+// real (uuid) job; otherwise stores base64 locally as a fallback.
+async function saveJobPhoto(id, dataUrl) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j) return;
-  j.photo = dataUrl || "";
+  let uploaded = false;
+  if (dataUrl && sb && sb.storage && currentUser && isUuid(j.id)) {
+    try {
+      const path = currentUser.id + "/" + j.id + ".jpg";
+      const blob = dataURLToBlob(dataUrl);
+      const { error } = await sb.storage.from(PHOTO_BUCKET)
+        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+      if (error) throw error;
+      j.photoPath = path; j.photo = ""; j.photoUpdatedAt = Date.now();
+      delete _photoUrlCache[path];
+      uploaded = true;
+    } catch (e) { console.warn("photo upload failed, keeping local", e); }
+  }
+  if (!uploaded) { j.photo = dataUrl || ""; j.photoPath = ""; }
   saveJobs(jobs);
   if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   renderDashboard();
   if (_jdJobId === id) renderJobDetails(j);
+}
+
+// One-time background migration: push any remaining base64 photos into Storage.
+async function migrateBase64Photos() {
+  if (!sb || !sb.storage || !currentUser) return;
+  const jobs = loadJobs();
+  let changed = false;
+  for (const j of jobs) {
+    if (j.isDraft || !isUuid(j.id) || j.photoPath) continue;
+    if (!j.photo || !/^data:image\//.test(j.photo)) continue;
+    try {
+      const path = currentUser.id + "/" + j.id + ".jpg";
+      const blob = dataURLToBlob(j.photo);
+      const { error } = await sb.storage.from(PHOTO_BUCKET)
+        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+      if (error) throw error;
+      j.photoPath = path; j.photo = ""; j.photoUpdatedAt = Date.now();
+      changed = true;
+      try { await pushJobToCloud(j); } catch (_) {}
+    } catch (e) { /* leave base64 in place; retry next login */ }
+  }
+  if (changed) { saveJobs(jobs); try { renderDashboard(); } catch (_) {} }
 }
 
 function wireDashboard() {
@@ -8349,7 +8440,7 @@ function wireDashboard() {
     const id = _dashPhotoTargetId; _dashPhotoTargetId = null;
     if (!file || !id) return;
     if (file.size > 12 * 1024 * 1024) { toast("That image is too large (max ~12MB)."); return; }
-    try { const dataUrl = await compressJobPhoto(file); setJobPhoto(id, dataUrl); toast("Photo added"); }
+    try { const dataUrl = await compressJobPhoto(file); await saveJobPhoto(id, dataUrl); toast("Photo added"); }
     catch (_) { toast("Couldn't read that image"); }
   });
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
@@ -8475,8 +8566,8 @@ function renderJobDetails(job) {
     ? `<div class="jd-section"><div class="jd-section-title">FL Product Approvals</div><div class="flex flex-wrap gap-1.5">${approvals.map(a => `<span class="text-[11px] font-bold text-[#c9a558] bg-[#b58f4a]/10 border border-[#b58f4a]/30 rounded px-1.5 py-0.5">${escHtml(a.number)}</span>`).join("")}</div></div>`
     : "";
   const statusOpts = JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("");
-  const photo = job.photo
-    ? `<img src="${escHtml(job.photo)}" class="jd-photo-img" alt="">`
+  const photo = (job.photoPath || job.photo)
+    ? jobPhotoImgHTML(job, "jd-photo-img")
     : `<span class="jd-photo-empty"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg>Add photo</span>`;
   body.innerHTML = `
     <div class="jd-head px-6 py-4 border-b border-slate-800/80 flex items-center justify-between gap-3 sticky top-0 z-10">
@@ -8604,6 +8695,7 @@ function renderJobDetails(job) {
   if (signBtn) signBtn.addEventListener("click", () => createSignLink(job.id, _jdSignDetail));
   const signedPdfBtn = body.querySelector("[data-jd-signed-pdf]");
   if (signedPdfBtn) signedPdfBtn.addEventListener("click", () => exportSignedQuotePDF(job.id));
+  hydratePhotoThumbs(body);
 }
 
 // Export every saved (non-draft) job as a CSV pipeline file.
@@ -9404,7 +9496,13 @@ function loadJob(id) {
 }
 
 function deleteJob(id) {
-  const jobs = loadJobs().filter(x => x.id !== id);
+  const all = loadJobs();
+  const target = all.find(x => x.id === id);
+  // Best-effort: remove the job's photo from Storage so we don't orphan it.
+  if (target && target.photoPath && sb && sb.storage) {
+    try { sb.storage.from(PHOTO_BUCKET).remove([target.photoPath]); delete _photoUrlCache[target.photoPath]; } catch (_) {}
+  }
+  const jobs = all.filter(x => x.id !== id);
   saveJobs(jobs);
   deleteJobFromCloud(id);   // best-effort cloud sync
   if (STATE.currentJobId === id) STATE.currentJobId = null;
@@ -15028,6 +15126,8 @@ async function enterApp() {
   // E-sign Phase C: catch up on any quotes signed while away + subscribe for
   // live signature alerts. Fire-and-forget; never blocks app entry.
   try { initSignNotifications(); } catch (_) {}
+  // Move any remaining base64 job photos into Storage in the background.
+  try { migrateBase64Photos(); } catch (_) {}
 }
 
 /* ============================================================
