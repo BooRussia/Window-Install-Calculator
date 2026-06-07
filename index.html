@@ -2037,13 +2037,35 @@
   @media (max-width: 480px) { .dash-nav-btn { font-size: 12.5px; padding: 8px 6px; } }
   .dash-job-card { border: 1px solid #1e293b; border-radius: 16px; background: rgba(15,23,42,0.5); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
   .dash-job-card:hover { border-color: rgba(181,143,74,0.4); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
-  .dash-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; background: rgba(2,6,23,0.6); border: 0; cursor: pointer; padding: 0; overflow: hidden; }
+  .dash-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; background: rgba(2,6,23,0.6); border: 0; padding: 0; overflow: hidden; }
   .dash-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .dash-thumb-empty { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
   .dash-thumb:hover .dash-thumb-empty { color: #c9a558; }
-  .dash-thumb-badge { position: absolute; top: 8px; left: 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; border-radius: 9999px; padding: 2px 9px; border: 1px solid; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-  .dash-thumb-edit { position: absolute; top: 8px; right: 8px; width: 27px; height: 27px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: rgba(2,6,23,0.6); color: #e2e8f0; opacity: 0; transition: opacity .15s ease; }
-  .dash-thumb:hover .dash-thumb-edit { opacity: 1; }
+  .dash-thumb-badge { position: absolute; top: 8px; left: 8px; z-index: 2; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; border-radius: 9999px; padding: 2px 9px; border: 1px solid; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  /* hover overlay with the two photo actions */
+  .dash-thumb-actions {
+    position: absolute; inset: 0; z-index: 3;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 12px;
+    background: rgba(2,6,23,0.62); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    opacity: 0; transition: opacity .18s ease; pointer-events: none;
+  }
+  .dash-thumb:hover .dash-thumb-actions { opacity: 1; pointer-events: auto; }
+  .dash-thumb-act {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    width: 78%; max-width: 210px; cursor: pointer;
+    font-size: 12px; font-weight: 800; border: 0; border-radius: 9px; padding: 9px 12px;
+    background: rgba(255,255,255,0.94); color: #0b1120;
+    transition: background .12s ease, transform .08s ease;
+  }
+  .dash-thumb-act:hover { background: #ffffff; }
+  .dash-thumb-act:active { transform: scale(0.97); }
+  .dash-thumb-act-ai { background: linear-gradient(180deg,#d8b96a,#b58f4a); color: #0b1120; }
+  .dash-thumb-act-ai:hover { background: linear-gradient(180deg,#e6c878,#c9a558); }
+  /* touch devices have no hover — pin the actions as a bottom bar so they stay reachable without covering the photo */
+  @media (hover: none) {
+    .dash-thumb-actions { opacity: 1; pointer-events: auto; flex-direction: row; align-items: flex-end; justify-content: center; gap: 6px; padding: 8px; background: linear-gradient(transparent 45%, rgba(2,6,23,0.8)); }
+    .dash-thumb-act { width: auto; font-size: 10px; padding: 6px 9px; }
+  }
   .dash-card-load { font-size: 12px; font-weight: 700; border-radius: 9999px; padding: 6px 14px; cursor: pointer; background: rgba(181,143,74,0.12); color: #c9a558; border: 1px solid rgba(181,143,74,0.5); transition: all .15s ease; }
   .dash-card-load:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
   .dash-card-del { background: transparent; color: #64748b; border: 1px solid transparent; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
@@ -8210,7 +8232,6 @@ function dashJobCard(j) {
   const price = formatMoney(j.sellingPrice);
   const marginTxt = (j.margin != null && !isNaN(j.margin)) ? `${Math.round(j.margin)}% margin` : "";
   const draftPill = j.isDraft ? ` <span class="ml-1 inline-flex items-center text-[8px] uppercase tracking-[0.16em] font-bold text-[#c9a558]/85 border border-[#b58f4a]/45 bg-[#b58f4a]/10 rounded-full px-1.5 py-0.5 align-middle">Draft</span>` : "";
-  const editIcon = `<span class="dash-thumb-edit"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 3.5l4 4L7 17H3v-4z"/></svg></span>`;
   const thumbInner = (j.photoPath || j.photo)
     ? jobPhotoImgHTML(j, "dash-thumb-img")
     : `<span class="dash-thumb-empty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg>Add photo</span>`;
@@ -8221,9 +8242,16 @@ function dashJobCard(j) {
         JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("") +
       `</select>`;
   return `<div class="dash-job-card">
-    <button type="button" class="dash-thumb" data-dash-photo="${j.id}" title="Upload a job photo">
-      ${thumbInner}${badgeOverlay}${editIcon}
-    </button>
+    <div class="dash-thumb">
+      ${thumbInner}${badgeOverlay}
+      <div class="dash-thumb-actions">
+        <button type="button" class="dash-thumb-act" data-dash-photo="${j.id}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+          Upload photo
+        </button>
+        <button type="button" class="dash-thumb-act dash-thumb-act-ai" data-dash-genthumb="${j.id}">✨ Generate with Grok</button>
+      </div>
+    </div>
     <div class="p-4 flex-1 flex flex-col">
       <button type="button" data-dash-details="${j.id}" class="dash-card-body text-left w-full -m-1 p-1 rounded-lg" title="View job details">
         <div class="flex items-start justify-between gap-2">
@@ -8474,6 +8502,7 @@ async function generateJobThumbnail(jobId, btn) {
   if (!job) { toast("Job not found"); return; }
   const prev = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
+  toast("Generating thumbnail… (~20s)");
   try {
     const { data, error } = await sb.functions.invoke("generate-house-image", { body: {} });
     if (error) throw error;
@@ -8499,6 +8528,8 @@ function wireDashboard() {
     grid.addEventListener("click", (e) => {
       const photoBtn = e.target.closest("[data-dash-photo]");
       if (photoBtn) { _dashPhotoTargetId = photoBtn.dataset.dashPhoto; document.getElementById("dashPhotoInput")?.click(); return; }
+      const genThumbBtn = e.target.closest("[data-dash-genthumb]");
+      if (genThumbBtn) { generateJobThumbnail(genThumbBtn.dataset.dashGenthumb, genThumbBtn); return; }
       const detailsBtn = e.target.closest("[data-dash-details]");
       if (detailsBtn) { openJobDetails(detailsBtn.dataset.dashDetails); return; }
       const loadBtn = e.target.closest("[data-dash-load]");
