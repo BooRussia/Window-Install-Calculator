@@ -1236,6 +1236,30 @@
   .lp-card:hover { border-color: rgba(181,143,74,0.35); transform: translateY(-3px); }
   .lp-feature-card { transition: border-color .25s ease, transform .3s ease; }
   .lp-feature-card:hover { border-color: rgba(181,143,74,0.35); transform: scale(1.05); }
+  /* "How it works" step number badge */
+  .lp-step-num {
+    width: 38px; height: 38px; border-radius: 11px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 17px; color: #0b1120;
+    background: linear-gradient(180deg, #d8b96a, #b58f4a);
+    box-shadow: 0 6px 18px -6px rgba(181,143,74,0.7);
+  }
+  /* Interactive hero price-teaser slider */
+  .lp-range {
+    -webkit-appearance: none; appearance: none;
+    height: 6px; border-radius: 999px; cursor: pointer; outline: none;
+    background: rgba(148,163,184,0.25); accent-color: #b58f4a;
+  }
+  .lp-range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #d8b96a; border: 2px solid #0b1120;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5); cursor: pointer;
+  }
+  .lp-range::-moz-range-thumb {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #d8b96a; border: 2px solid #0b1120; cursor: pointer;
+  }
 
   /* ------- Scroll-driven anchor dive ------- */
   #anchorDive {
@@ -2773,7 +2797,7 @@
       </div>
       <div class="flex items-center gap-0.5 sm:gap-1">
         <button id="lpPricingNav" type="button" class="btn inline-flex text-sm font-bold text-[#c9a558] hover:text-[#dfc07a] px-2 sm:px-3 py-2">Pricing</button>
-        <button class="lp-scroll btn hidden sm:block text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpFeatures">Features</button>
+        <button class="lp-scroll btn hidden sm:block text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpHow">How it works</button>
         <button class="lp-scroll btn text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpFL">FL Lookup</button>
         <button id="lpLogin" class="btn text-sm font-medium text-slate-400 hover:text-[#c9a558] px-3 py-2">Log In</button>
         <button id="lpSignup" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-2">Get Started</button>
@@ -2833,25 +2857,29 @@
     <h1 class="lp-reveal text-[2.65rem] leading-[1.03] sm:text-7xl font-black tracking-tightest mt-6 text-slate-100">
       Anchor your profit.<br><span class="gold-glow">Reel in your time.</span>
     </h1>
-    <p class="lp-reveal text-slate-400 text-base sm:text-lg max-w-xl mx-auto mt-6 leading-relaxed">
-      Linear-footage costing, Florida product-approval lookup, and instant customer quotes — built for the people doing the install.
+    <p class="lp-reveal text-slate-300 text-base sm:text-lg max-w-xl mx-auto mt-6 leading-relaxed">
+      Price a whole window or door job in under a minute — materials, labor, and your margin — then hand the homeowner a clean quote and your crew the cut list. <span class="text-slate-500">Built for Florida installers.</span>
     </p>
     <div class="lp-reveal flex flex-wrap items-center justify-center gap-3 mt-8">
       <button id="lpHeroSignup" class="lp-btn-gold btn rounded-full text-sm font-bold px-7 py-3.5">Get Started Free</button>
       <button class="lp-scroll btn rounded-full text-sm font-bold px-7 py-3.5 bg-transparent text-slate-200 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]" data-scroll="lpFL">Try FL Lookup</button>
     </div>
     <!-- Product preview mocks -->
-    <div class="lp-reveal mt-20 sm:mt-24 grid sm:grid-cols-2 gap-6 sm:gap-7 max-w-3xl mx-auto">
+    <p class="lp-reveal text-[11px] uppercase tracking-[0.2em] text-slate-500 font-bold text-center mt-20 sm:mt-24">Try it — drag to your job size</p>
+    <div class="lp-reveal mt-4 grid sm:grid-cols-2 gap-6 sm:gap-7 max-w-3xl mx-auto">
       <div class="flex flex-col">
         <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">Estimated job</h3>
         <div class="lp-card rounded-3xl flex-1 px-7 py-8 text-left">
-          <div class="price-glow text-4xl sm:text-5xl font-black tracking-tightest">$18,420</div>
-          <div class="text-xs text-slate-500 mt-1.5 font-medium">240 LF · Block framed · Impact glass · 2 story</div>
-          <div class="border-t border-slate-800 mt-4 pt-3 space-y-2">
-            <div class="flex justify-between text-[13px]"><span class="text-slate-500">Materials</span><span class="text-slate-300 font-semibold">$6,140</span></div>
-            <div class="flex justify-between text-[13px]"><span class="text-slate-500">Labor</span><span class="text-slate-300 font-semibold">$7,500</span></div>
-            <div class="flex justify-between text-[13px]"><span class="text-slate-500">Margin (35%)</span><span class="text-[#c9a558] font-semibold">+ $4,780</span></div>
+          <div class="price-glow text-4xl sm:text-5xl font-black tracking-tightest"><span id="lpCalcTotal">$18,419</span></div>
+          <div class="text-xs text-slate-500 mt-1.5 font-medium"><span id="lpCalcLF">240</span> LF · Block framed · Impact glass · 2 story</div>
+          <input id="lpCalcRange" type="range" min="20" max="600" step="10" value="240" class="lp-range w-full mt-5" aria-label="Linear footage of the job">
+          <div class="flex justify-between text-[9px] text-slate-600 font-bold -mt-0.5"><span>20 LF</span><span>600 LF</span></div>
+          <div class="border-t border-slate-800 mt-3 pt-3 space-y-2">
+            <div class="flex justify-between text-[13px]"><span class="text-slate-500">Materials</span><span id="lpCalcMat" class="text-slate-300 font-semibold">$6,144</span></div>
+            <div class="flex justify-between text-[13px]"><span class="text-slate-500">Labor</span><span id="lpCalcLabor" class="text-slate-300 font-semibold">$7,500</span></div>
+            <div class="flex justify-between text-[13px]"><span class="text-slate-500">Margin (35%)</span><span id="lpCalcMargin" class="text-[#c9a558] font-semibold">+ $4,775</span></div>
           </div>
+          <div class="text-[10px] text-slate-600 mt-3">Ballpark at sample rates — your own rates make it exact.</div>
         </div>
       </div>
 
@@ -2881,6 +2909,33 @@
           <div class="gold-glow text-2xl font-black tracking-tight">$18,192.12</div>
         </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works — three plain steps so a first-time visitor instantly gets
+       what the product does: enter the job, get pricing + approvals, send the
+       quote / hand off the cut list. -->
+  <section id="lpHow" class="scroll-mt-20 max-w-5xl mx-auto px-5 sm:px-6 py-20 sm:py-28">
+    <div class="lp-reveal text-center mb-12 sm:mb-16">
+      <span class="lp-eyebrow">How it works</span>
+      <h2 class="text-3xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-5">From measurements to money in three steps.</h2>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-5 sm:gap-6">
+      <div class="lp-reveal lp-card rounded-2xl p-6 sm:p-7">
+        <div class="lp-step-num">1</div>
+        <h3 class="text-lg font-black tracking-tight text-slate-100 mt-4">Enter the openings</h3>
+        <p class="text-sm text-slate-400 mt-2 leading-relaxed">Type the linear footage, or snap a photo of the window schedule and let the AI read the counts and sizes for you.</p>
+      </div>
+      <div class="lp-reveal lp-card rounded-2xl p-6 sm:p-7">
+        <div class="lp-step-num">2</div>
+        <h3 class="text-lg font-black tracking-tight text-slate-100 mt-4">Get instant pricing &amp; approvals</h3>
+        <p class="text-sm text-slate-400 mt-2 leading-relaxed">Materials, labor, and your margin — calculated to the foot. Plus the matching Florida product approval and its screw pattern, no digging required.</p>
+      </div>
+      <div class="lp-reveal lp-card rounded-2xl p-6 sm:p-7">
+        <div class="lp-step-num">3</div>
+        <h3 class="text-lg font-black tracking-tight text-slate-100 mt-4">Send the quote, hand off the cut list</h3>
+        <p class="text-sm text-slate-400 mt-2 leading-relaxed">The homeowner gets a clean, branded quote to sign. Your crew gets the buck cut list and materials list — the same job, every document.</p>
       </div>
     </div>
   </section>
@@ -3007,76 +3062,6 @@
               <span>Your data, your account</span>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section id="lpFeatures" class="scroll-mt-20 max-w-5xl mx-auto px-5 sm:px-6 py-24 sm:py-36">
-    <h2 class="lp-reveal text-center text-3xl sm:text-4xl font-black tracking-tightest text-slate-100">Everything the job needs, in one place.</h2>
-    <p class="lp-reveal text-center text-slate-400 mt-3 max-w-lg mx-auto">From the first measurement to the customer's signature.</p>
-    <div class="grid sm:grid-cols-3 gap-5 sm:gap-6 mt-14">
-      <div class="lp-reveal">
-        <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">Instant cost calculator</h3>
-        <div class="lp-card lp-feature-card rounded-2xl p-6 flex flex-col">
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <div class="text-[9px] uppercase tracking-[0.16em] text-slate-500 font-bold">Linear footage</div>
-          <div class="flex items-baseline justify-between mt-1">
-            <div class="text-lg font-black text-slate-100">240 LF</div>
-            <div class="text-[9px] text-slate-600">Block · Impact · 2 story</div>
-          </div>
-          <div class="border-t border-slate-800 mt-3 pt-3 space-y-1.5">
-            <div class="flex justify-between text-[10px]"><span class="text-slate-500">Materials</span><span class="text-slate-300 font-semibold">$6,140</span></div>
-            <div class="flex justify-between text-[10px]"><span class="text-slate-500">Labor</span><span class="text-slate-300 font-semibold">$7,500</span></div>
-          </div>
-          <div class="border-t border-slate-700 mt-2 pt-2.5 flex items-baseline justify-between">
-            <div class="text-[9px] uppercase tracking-[0.16em] text-slate-500 font-bold">Job total</div>
-            <div class="price-glow text-2xl font-black tracking-tightest">$18,420</div>
-          </div>
-        </div>
-        </div>
-      </div>
-      <div class="lp-reveal">
-        <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">FL approval lookup</h3>
-        <div class="lp-card lp-feature-card rounded-2xl p-6 flex flex-col">
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <div class="relative">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
-            <div class="control rounded-lg pl-8 pr-2 py-2.5 text-[12px] text-slate-300 font-medium">FL11920</div>
-          </div>
-          <div class="mt-3 rounded-lg border border-[#b58f4a]/30 bg-[#b58f4a]/[0.06] px-3.5 py-3.5">
-            <div class="text-[12px] font-bold text-slate-200">FL11920 · Series 5500</div>
-            <div class="text-[9px] text-slate-600 mt-0.5">Screw pattern · on center</div>
-            <div class="border-t border-slate-800 mt-2.5 pt-2.5 space-y-2">
-              <div class="flex justify-between text-[11px]"><span class="text-slate-500">Concrete</span><span class="text-[#c9a558] font-semibold">6" O.C.</span></div>
-              <div class="flex justify-between text-[11px]"><span class="text-slate-500">Hollow block</span><span class="text-[#c9a558] font-semibold">5" O.C.</span></div>
-              <div class="flex justify-between text-[11px]"><span class="text-slate-500">Wood buck</span><span class="text-[#c9a558] font-semibold">4" O.C.</span></div>
-            </div>
-          </div>
-        </div>
-        </div>
-      </div>
-      <div class="lp-reveal">
-        <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">Customer-ready quotes</h3>
-        <div class="lp-card lp-feature-card rounded-2xl p-6 flex flex-col">
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 relative overflow-hidden">
-          <div class="absolute top-0 left-0 right-0 h-0.5" style="background:linear-gradient(90deg,#b58f4a,#dfc07a)"></div>
-          <div class="flex items-center gap-2 mt-0.5">
-            <div class="w-6 h-6 rounded bg-[#b58f4a]/15 border border-[#b58f4a]/30 flex items-center justify-center text-[#c9a558] text-[9px] font-black">YC</div>
-            <div>
-              <div class="text-[10px] font-bold text-slate-200">Your Company</div>
-              <div class="text-[8px] text-slate-500 uppercase tracking-wider">Window &amp; Door Installation</div>
-            </div>
-          </div>
-          <div class="text-[9px] uppercase tracking-[0.16em] text-slate-500 font-bold mt-3.5">Project quote</div>
-          <div class="price-glow text-2xl font-black tracking-tightest mt-0.5">$18,420</div>
-          <div class="text-[9px] text-slate-500 mt-0.5">Prepared for — Smith Residence</div>
-          <div class="border-t border-slate-800 mt-3 pt-2.5 flex items-end justify-between">
-            <div><div class="h-px w-16 bg-slate-700"></div><div class="text-[8px] text-slate-600 mt-1">Signature</div></div>
-            <div class="text-[8px] text-slate-600">Valid 30 days</div>
-          </div>
-        </div>
         </div>
       </div>
     </div>
@@ -16541,6 +16526,39 @@ function init() {
   }, { passive: true });
   recalcTarget();
   requestAnimationFrame(frame);
+})();
+
+// ----- Interactive hero price teaser -----
+// A standalone "drag to your job size" estimate so a first-time visitor
+// instantly sees the product do its one job. Uses representative per-LF rates
+// (NOT the full engine) — the copy says "ballpark", their real rates make it
+// exact once they sign up.
+(function () {
+  if (window.__PUBLIC_QUOTE_ROUTE || window.__PUBLIC_SIGN_ROUTE) return;
+  const r = document.getElementById("lpCalcRange");
+  if (!r) return;
+  const elT = document.getElementById("lpCalcTotal"),
+        elLF = document.getElementById("lpCalcLF"),
+        elM = document.getElementById("lpCalcMat"),
+        elL = document.getElementById("lpCalcLabor"),
+        elG = document.getElementById("lpCalcMargin");
+  const MAT_PER_LF = 25.6, LABOR_PER_LF = 31.25, MARGIN = 0.35;
+  const fmt = (n) => {
+    try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n); }
+    catch (e) { return "$" + Math.round(n).toLocaleString(); }
+  };
+  function update() {
+    const lf = +r.value;
+    const mat = lf * MAT_PER_LF, lab = lf * LABOR_PER_LF;
+    const cost = mat + lab, margin = cost * MARGIN, total = cost + margin;
+    if (elLF) elLF.textContent = lf;
+    if (elM) elM.textContent = fmt(mat);
+    if (elL) elL.textContent = fmt(lab);
+    if (elG) elG.textContent = "+ " + fmt(margin);
+    if (elT) elT.textContent = fmt(total);
+  }
+  r.addEventListener("input", update);
+  update();
 })();
 
 // ----- Procedural sand grain texture for the footer -----
