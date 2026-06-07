@@ -8392,6 +8392,105 @@ async function migrateBase64Photos() {
   if (changed) { saveJobs(jobs); try { renderDashboard(); } catch (_) {} }
 }
 
+/* ============================================================
+   AI JOB THUMBNAIL — a randomized Florida house (Grok Imagine,
+   via the generate-house-image edge fn), blurred on a canvas with
+   the job name overlaid bold + centered, then saved as the job's
+   photo. Gives every job a clean branded thumbnail with one click.
+   ============================================================ */
+
+// Composite a blurred background image + a bold, centered, wrapped title
+// (and optional subtitle) into a 16:10 JPEG data URL.
+function composeJobThumbnail(bgDataUrl, title, subtitle) {
+  return new Promise((resolve, reject) => {
+    const W = 800, H = 500;
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const ctx = c.getContext("2d");
+    const img = new Image();
+    img.onload = () => {
+      try {
+        // cover-fit with overscan so the blur's soft edges still fill the frame
+        const over = 44;
+        const s = Math.max((W + over * 2) / img.width, (H + over * 2) / img.height);
+        const dw = img.width * s, dh = img.height * s;
+        ctx.filter = "blur(7px)";
+        ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+        ctx.filter = "none";
+        // darken for legibility: flat wash + center-out vignette
+        ctx.fillStyle = "rgba(2,6,23,0.46)"; ctx.fillRect(0, 0, W, H);
+        const g = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W * 0.72);
+        g.addColorStop(0, "rgba(2,6,23,0.12)"); g.addColorStop(1, "rgba(2,6,23,0.6)");
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        const maxW = W * 0.86;
+        const words = String(title || "Window Job").trim().split(/\s+/);
+        const layout = (fs) => {
+          ctx.font = `800 ${fs}px Inter, Arial, sans-serif`;
+          const lines = []; let cur = "";
+          for (const w of words) {
+            const t = cur ? cur + " " + w : w;
+            if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+          }
+          if (cur) lines.push(cur);
+          return lines;
+        };
+        let size = 66, lines = layout(size);
+        while ((lines.length > 2 || lines.some(l => ctx.measureText(l).width > maxW)) && size > 26) {
+          size -= 4; lines = layout(size);
+        }
+        if (lines.length > 2) lines = lines.slice(0, 2);
+        ctx.font = `800 ${size}px Inter, Arial, sans-serif`;
+        const lh = size * 1.15;
+        const startY = H / 2 - (lines.length - 1) * lh / 2 - (subtitle ? 12 : 0);
+        ctx.shadowColor = "rgba(0,0,0,0.65)"; ctx.shadowBlur = 14;
+        ctx.fillStyle = "#ffffff";
+        lines.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lh));
+        ctx.shadowBlur = 0;
+        // gold accent rule under the title
+        const ruleY = startY + (lines.length - 1) * lh + lh * 0.72;
+        ctx.fillStyle = "#c9a558"; ctx.fillRect(W / 2 - 44, ruleY, 88, 4);
+        if (subtitle) {
+          ctx.font = "600 22px Inter, Arial, sans-serif";
+          ctx.fillStyle = "rgba(226,232,240,0.92)";
+          ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 8;
+          ctx.fillText(String(subtitle), W / 2, ruleY + 30);
+          ctx.shadowBlur = 0;
+        }
+        resolve(c.toDataURL("image/jpeg", 0.82));
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => reject(new Error("background image failed to load"));
+    img.src = bgDataUrl;
+  });
+}
+
+// Generate a house image via the edge fn, composite the job name on it, and
+// save it as the job's thumbnail (stored in Storage like an uploaded photo).
+async function generateJobThumbnail(jobId, btn) {
+  if (!sb || !currentUser) { toast("Sign in to generate a thumbnail"); return; }
+  const job = loadJobs().find(x => x.id === jobId);
+  if (!job) { toast("Job not found"); return; }
+  const prev = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
+  try {
+    const { data, error } = await sb.functions.invoke("generate-house-image", { body: {} });
+    if (error) throw error;
+    if (!data || !data.ok || !data.image) throw new Error((data && data.error) || "generation failed");
+    const title = job.customerName || job.name || "Window Job";
+    const subtitle = (job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "";
+    const thumb = await composeJobThumbnail(data.image, title, subtitle);
+    await saveJobPhoto(jobId, thumb);   // uploads to Storage + re-renders
+    try { if (typeof window.track === "function") window.track("ai_thumbnail_generated"); } catch (_) {}
+    toast("Thumbnail generated");
+  } catch (e) {
+    console.warn("thumbnail generation failed", e);
+    toast("Couldn't generate a thumbnail — try again");
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
+  }
+}
+
 function wireDashboard() {
   if (_dashWired) return;
   _dashWired = true;
@@ -8572,6 +8671,7 @@ function renderJobDetails(job) {
     <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
       <div class="space-y-4">
         <button type="button" id="jdPhoto" class="jd-photo" title="Upload a job photo">${photo}</button>
+        <button type="button" id="jdGenThumb" class="btn w-full rounded-lg px-3 py-2 text-[11px] font-bold text-[#c9a558] border border-[#b58f4a]/40 bg-[#b58f4a]/[0.07] hover:bg-[#b58f4a]/[0.14] hover:border-[#b58f4a]/70 inline-flex items-center justify-center gap-1.5">✨ Generate AI thumbnail</button>
         <div class="jd-section">
           <div class="jd-section-title">Customer contact</div>
           <div class="space-y-2">
@@ -8659,6 +8759,8 @@ function renderJobDetails(job) {
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
   const jdPhoto = document.getElementById("jdPhoto");
   if (jdPhoto) jdPhoto.addEventListener("click", () => { _dashPhotoTargetId = job.id; document.getElementById("dashPhotoInput")?.click(); });
+  const jdGen = document.getElementById("jdGenThumb");
+  if (jdGen) jdGen.addEventListener("click", () => generateJobThumbnail(job.id, jdGen));
   // E-signature: detail-level toggle + customize + create-link
   _jdSignDetail = "summary";
   _jdSignExclude = new Set();
