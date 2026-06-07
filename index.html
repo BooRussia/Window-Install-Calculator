@@ -16197,6 +16197,9 @@ function init() {
   let displayRingY = 0, prevDisplayRingY = 0;   // smoothed rope-end target + previous frame for velocity
   let ringSpringVel = 0;   // velocity of the rope-end spring for proper momentum/overshoot
   let prevTs = 0;          // for frame-rate-independent dt
+  // pointer interaction — you can shove the anchor around and it swings back
+  // to taut-vertical like a real anchor settling in water.
+  let mx = -9999, my = -9999, lastPointerTs = -1e9, heroLeftLocal = 9999;
 
   function initPts() {
     pts = [];
@@ -16209,6 +16212,11 @@ function init() {
   function recalcTarget() {
     const max = ls.scrollHeight - ls.clientHeight;
     targetP = max > 0 ? Math.min(1, Math.max(0, ls.scrollTop / max)) : 0;
+    // left edge of the hero text in the anchor's local space (the column is
+    // pinned at viewport x=16). The anchor never drifts right of this, so it
+    // can roam the left margin without ever crossing into the headline.
+    const hero = ls.querySelector("section h1");
+    heroLeftLocal = hero ? (hero.getBoundingClientRect().left - 16) : 9999;
   }
 
   function spawnBubble(x, y) {
@@ -16410,8 +16418,8 @@ function init() {
       // bottom segment doesn't lag while last.x is drifting back to centre.
       // Numbers are tuned for ~2-3 second exponential decay, no instant snap.
       if (tension > 0.01) {
-        const blend = tension * 0.06;
-        const killVel = tension * 0.18;
+        const blend = tension * 0.05;
+        const killVel = tension * 0.04;   // keep momentum so it swings back like water, not a snap
         // last itself pulls toward CX so the line target eventually becomes
         // vertical, but the mid-joints are biased toward the CURRENT line
         last.x += (CX - last.x) * blend;
@@ -16432,10 +16440,35 @@ function init() {
       // tugs pts[N-2] sideways via the distance constraint, producing the
       // exact corner-near-the-knot the user reported. Sync py to y.
       last.py = last.y;
+      // ---- cursor play: shove the anchor sideways when the pointer is near ----
+      // Adds to last.x without touching last.px, so velocity (and momentum)
+      // builds through the verlet step — release and it swings, then the
+      // softened tension pull + water drag glide it back to vertical.
+      if (!reduce) {
+        const sinceMove = ts - lastPointerTs;
+        if (sinceMove < 1400) {
+          const adx = mx - last.x, ady = my - last.y;
+          const adist = Math.hypot(adx, ady);
+          const R = 180;                       // grab radius (px)
+          if (adist < R) {
+            let grab = 1 - adist / R; grab *= grab;   // soft radial falloff
+            idleFrames = 0;                            // stay loose & lively (suppress taut-pull)
+            last.x += adx * grab * 0.16 * dt;          // lateral pull; rope tension self-limits reach
+          }
+        }
+      }
+      // settle micro-jitter once fully taut & centred (X counterpart of the
+      // ringY rest-snap) so the gentler killVel can't leave a sub-pixel wobble
+      if (tension > 0.985 && Math.abs(last.x - CX) < 0.5 && Math.abs(last.x - last.px) < 0.04) {
+        last.x = CX; last.px = CX;
+      }
+
       // keep the anchor on screen and zero its X-velocity when it hits the
-      // wall (avoids a synthetic kick on the next verlet step)
+      // wall (avoids a synthetic kick on the next verlet step). The right wall
+      // also stops the anchor short of the hero text.
       const minLastX = 56;
-      const maxLastX = 56 + Math.max(0, window.innerWidth - 130 - 16);
+      const maxLastX = Math.max(minLastX,
+        Math.min(56 + Math.max(0, window.innerWidth - 130 - 16), heroLeftLocal - 80));
       if (last.x < minLastX)      { last.x = minLastX; last.px = minLastX; }
       else if (last.x > maxLastX) { last.x = maxLastX; last.px = maxLastX; }
 
@@ -16490,6 +16523,12 @@ function init() {
 
   ls.addEventListener("scroll", () => { recalcTarget(); idleFrames = 0; }, { passive: true });
   window.addEventListener("resize", recalcTarget);
+  // Track the cursor (in the anchor's local space) so the frame loop can let
+  // you push the anchor around. e.timeStamp shares rAF's clock.
+  window.addEventListener("pointermove", (e) => {
+    mx = e.clientX - 16; my = e.clientY; lastPointerTs = e.timeStamp;
+  }, { passive: true });
+  window.addEventListener("blur", () => { lastPointerTs = -1e9; });
   ls.addEventListener("wheel", e => {
     const max = ls.scrollHeight - ls.clientHeight;
     const atBottomOfPage = max > 0 && (max - ls.scrollTop) < 4;
