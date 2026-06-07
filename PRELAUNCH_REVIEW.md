@@ -51,7 +51,7 @@ legal/business step, and performance optimizations for scale.
    and have an attorney review before you take paying customers. (See item under
    "Heads-up" about crew GPS tracking — it changes the privacy policy if launched.)
 
-## 🟡 Heads-up — dormant crew/GPS schema in the database
+## 🟡 Heads-up — shared crew/GPS schema (separate job-tracker app)
 
 The project contains a full **crew / organization / GPS-tracking / time-tracking**
 schema that the deployed calculator does **not** use:
@@ -59,14 +59,23 @@ schema that the deployed calculator does **not** use:
 job_crew_assignments, job_sites, member_profiles, member_field_settings,
 member_locations, location_pings, trips, time_sessions`.
 
-- It is **RLS-protected** (membership-based), so it is not a data-leak risk today.
+**Confirmed intentional:** this backs a separate **job-tracker app** (crew GPS +
+time tracking) that will be bundled with — and eventually import jobs + material
+lists from — the calculator, sharing this same Supabase project.
+
+- It is **RLS-protected** (membership-based), so it is not a data-leak risk.
 - The 3 remaining "SECURITY DEFINER callable" advisor warnings
-  (`is_org_admin`, `user_org_role`, `user_org_ids`) come from this schema and are
-  **intentional** RLS helpers — leave them.
-- **Action:** confirm this is intentional (a planned feature or a separate app
-  sharing the project). If you ever launch the location/time-tracking part,
-  `member_locations` / `location_pings` / `trips` store **employee GPS data** —
-  that requires explicit employee consent and specific privacy-policy language.
+  (`is_org_admin`, `user_org_role`, `user_org_ids`) are this app's RLS helpers —
+  **leave them**.
+- **When the tracker app launches:** `member_locations` / `location_pings` /
+  `trips` store **employee GPS data**, which requires explicit employee consent
+  and specific privacy-policy / employee-handbook language. Florida is a
+  one-party state but employee location tracking still warrants written consent —
+  flag this for the attorney review.
+- **For the eventual calculator → tracker import:** the calculator's `jobs.data`
+  (jsonb) already carries the material `rows`, scope, and totals, so importing a
+  job + its material list into `job_sites` / `job_crew_assignments` is a clean
+  mapping when you build that bridge.
 
 ## 🟢 Performance — address as you grow (not blockers)
 
