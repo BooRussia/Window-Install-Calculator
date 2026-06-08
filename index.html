@@ -2912,26 +2912,17 @@
         <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">Full breakdown</h3>
         <div class="lp-card rounded-3xl flex-1 px-7 py-7 text-left">
         <div class="flex items-baseline justify-end">
-          <div class="text-xs text-slate-500 font-semibold">$39.98 / LF</div>
+          <div id="lpBkPerLf" class="text-xs text-slate-500 font-semibold">$76.75 / LF</div>
         </div>
         <div class="flex items-center text-[9px] uppercase tracking-wider text-slate-600 font-bold mt-4 mb-1">
           <div class="flex-1">Item</div>
           <div class="w-14 text-right">/ LF</div>
           <div class="w-20 text-right">Total</div>
         </div>
-        <div class="divide-y divide-slate-800/70">
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Caulking</div><div class="w-14 text-right text-slate-500">$1.30</div><div class="w-20 text-right text-slate-200 font-semibold">$591.86</div></div>
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Shims</div><div class="w-14 text-right text-slate-500">$0.09</div><div class="w-20 text-right text-slate-200 font-semibold">$42.46</div></div>
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Backer Rod</div><div class="w-14 text-right text-slate-500">$0.28</div><div class="w-20 text-right text-slate-200 font-semibold">$127.40</div></div>
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Wood Bucking</div><div class="w-14 text-right text-slate-500">$1.19</div><div class="w-20 text-right text-slate-200 font-semibold">$540.31</div></div>
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Block Sealer</div><div class="w-14 text-right text-slate-600 italic">fixed</div><div class="w-20 text-right text-slate-200 font-semibold">$400.00</div></div>
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Nail-Fin Screws</div><div class="w-14 text-right text-slate-500">$0.10</div><div class="w-20 text-right text-slate-200 font-semibold">$46.23</div></div>
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Concrete Anchors</div><div class="w-14 text-right text-slate-500">$0.20</div><div class="w-20 text-right text-slate-200 font-semibold">$91.00</div></div>
-          <div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">Labor</div><div class="w-14 text-right text-slate-500">$35.94</div><div class="w-20 text-right text-slate-200 font-semibold">$16,352.87</div></div>
-        </div>
+        <div class="divide-y divide-slate-800/70" id="lpBkRows"></div>
         <div class="flex items-center justify-between border-t border-slate-700 mt-2 pt-3">
           <div class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Grand total</div>
-          <div class="gold-glow text-2xl font-black tracking-tight">$18,192.12</div>
+          <div id="lpBkTotal" class="gold-glow text-2xl font-black tracking-tight">$18,419.40</div>
         </div>
         </div>
       </div>
@@ -16683,6 +16674,54 @@ function init() {
     try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n); }
     catch (e) { return "$" + Math.round(n).toLocaleString(); }
   };
+  const fmt2 = (n) => {
+    try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); }
+    catch (e) { return "$" + Number(n).toFixed(2); }
+  };
+
+  // Full-breakdown card — the same drag drives a live itemized table that sums
+  // to EXACTLY the same grand total as the estimated-job card (same job, two
+  // views). The consumable lines scale per-LF (block sealer is a flat job cost);
+  // the Labor line is the balancer so the column always reconciles to the price.
+  const bkRows = document.getElementById("lpBkRows"),
+        bkPerLf = document.getElementById("lpBkPerLf"),
+        bkTotal = document.getElementById("lpBkTotal");
+  const BK_MATERIALS = [
+    { name: "Caulking",         rate: 2.4661 },
+    { name: "Shims",            rate: 0.1769 },
+    { name: "Backer Rod",       rate: 0.5308 },
+    { name: "Wood Bucking",     rate: 2.2513 },
+    { name: "Block Sealer",     fixed: 400 },
+    { name: "Nail-Fin Screws",  rate: 0.1926 },
+    { name: "Concrete Anchors", rate: 0.3792 },
+  ];
+  function bkRow(name, lfCellHtml, lineTotal) {
+    return (
+      '<div class="flex items-center py-1.5 text-[12px]"><div class="flex-1 text-slate-300">' +
+      name + "</div>" + lfCellHtml +
+      '<div class="w-20 text-right text-slate-200 font-semibold">' + fmt2(lineTotal) + "</div></div>"
+    );
+  }
+  function renderBreakdown(lf, grandTotal) {
+    if (!bkRows) return;
+    let matSum = 0, html = "";
+    for (const it of BK_MATERIALS) {
+      const lineTotal = it.fixed != null ? it.fixed : it.rate * lf;
+      matSum += lineTotal;
+      const lfCell = it.fixed != null
+        ? '<div class="w-14 text-right text-slate-600 italic">fixed</div>'
+        : '<div class="w-14 text-right text-slate-500">' + fmt2(it.rate) + "</div>";
+      html += bkRow(it.name, lfCell, lineTotal);
+    }
+    // Labor absorbs the remainder so the itemized list reconciles to the price.
+    const labor = Math.max(0, grandTotal - matSum);
+    const laborLfCell = '<div class="w-14 text-right text-slate-500">' + fmt2(lf > 0 ? labor / lf : 0) + "</div>";
+    html += bkRow("Labor", laborLfCell, labor);
+    bkRows.innerHTML = html;
+    if (bkPerLf) bkPerLf.textContent = fmt2(lf > 0 ? grandTotal / lf : 0) + " / LF";
+    if (bkTotal) bkTotal.textContent = fmt2(grandTotal);
+  }
+
   function update() {
     const lf = +r.value;
     const mat = lf * MAT_PER_LF, lab = lf * LABOR_PER_LF;
@@ -16692,6 +16731,7 @@ function init() {
     if (elL) elL.textContent = fmt(lab);
     if (elG) elG.textContent = "+ " + fmt(margin);
     if (elT) elT.textContent = fmt(total);
+    renderBreakdown(lf, total);
   }
   r.addEventListener("input", update);
   update();
