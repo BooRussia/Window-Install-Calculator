@@ -11367,7 +11367,7 @@ function renderFLInto(containerId, source, query, readOnly) {
   wrap.innerHTML = html;
 }
 function renderFLList(query) { renderFLInto("flList", DATA.flApprovals, query, false); }
-// Public landing catalog — searches the full FBC database (3,435 approvals).
+// Public landing catalog — searches the full FBC database (3,436 approvals).
 // Lazy-loads on first query.
 function renderPublicFL(query) {
   const list = document.getElementById("flPublicList");
@@ -11415,18 +11415,23 @@ function deleteFLEntry(mfr, idx) {
 }
 
 /* ============================================================
-   FBC OFFICIAL DATABASE — lazy-loaded from Supabase Storage
+   FBC OFFICIAL DATABASE — lazy-loaded, same-origin
    ─────────────────────────────────────────────────────────────
-   3,435 active Windows + Exterior Doors approvals scraped from
+   3,436 active Windows + Exterior Doors approvals scraped from
    floridabuilding.org. Each record has product variants (DP,
    impact, HVHZ) + a direct URL to the installation PDF.
+
+   Served straight from the repo's /data/fl-approvals/ folder (Netlify
+   publishes it same-origin). This means a data refresh is just a git
+   push — no separate Storage upload step — and there's no cross-origin
+   dependency. Root-relative paths so hash routing can't shift the base.
 
    • Lazy-load on first FL Lookup open (modal or landing search)
    • Try gzipped fetch first (DecompressionStream) → raw .json fallback
    • Cache in module-level memory for the session
    ============================================================ */
-const FBC_INDEX_URL_GZ  = "https://fzitkcvmbvyeilwzclme.supabase.co/storage/v1/object/public/fl-approvals/fl-index.json.gz";
-const FBC_INDEX_URL_RAW = "https://fzitkcvmbvyeilwzclme.supabase.co/storage/v1/object/public/fl-approvals/fl-index.json";
+const FBC_INDEX_URL_GZ  = "/data/fl-approvals/fl-index.json.gz";
+const FBC_INDEX_URL_RAW = "/data/fl-approvals/fl-index.json";
 
 let _fbcCache = null;        // { scrapedAt, approvals: [...] }
 let _fbcLoadPromise = null;  // dedupes concurrent loads
@@ -11657,7 +11662,7 @@ async function renderFbcInto(containerId, query, opts = {}) {
   }
   const results = searchFbc(q, opts.limit ?? 100);
   if (!results.length) {
-    wrap.innerHTML = `<div class="text-center text-slate-600 text-xs py-6">No matches in 3,435 official approvals for "<span class="text-slate-400">${escHtml(q)}</span>".</div>`;
+    wrap.innerHTML = `<div class="text-center text-slate-600 text-xs py-6">No matches in 3,436 official approvals for "<span class="text-slate-400">${escHtml(q)}</span>".</div>`;
     return;
   }
   const showing = results.length;
