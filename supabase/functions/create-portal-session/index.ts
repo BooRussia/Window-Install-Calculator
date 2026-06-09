@@ -16,6 +16,7 @@ import {
   errorResponse,
   handlePreflight,
   jsonResponse,
+  safeReturnUrl,
 } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
@@ -54,10 +55,10 @@ Deno.serve(async (req) => {
     );
   }
 
-  // ── Parse body for returnUrl
+  // ── Parse body for returnUrl (allowlisted — may not redirect off-origin)
   let body: { returnUrl?: string } = {};
   try { body = await req.json(); } catch { /* empty body is fine */ }
-  const returnUrl = body.returnUrl ?? req.headers.get("origin") ?? "";
+  const returnUrl = safeReturnUrl(body.returnUrl ?? req.headers.get("origin"));
 
   try {
     // If you've created a custom Portal configuration in Stripe (recommended

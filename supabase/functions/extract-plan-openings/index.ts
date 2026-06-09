@@ -44,13 +44,17 @@ async function getProfile(userId: string) {
   if (error) throw error;
   return data;
 }
-async function patchEntitlements(userId: string, patch: Record<string, unknown>) {
-  const profile = await getProfile(userId);
-  const data: any = profile.data ?? {};
-  data.config = data.config ?? {};
-  data.config.entitlements = { ...(data.config.entitlements ?? {}), ...patch };
-  const { error } = await supabaseAdmin.from("profiles").update({ data }).eq("id", userId);
-  if (error) throw error;
+// Atomic usage accounting (consume_ai_credit / refund_ai_credit RPCs).
+// The debit happens BEFORE the paid xAI call — a single UPDATE with the cap in
+// its WHERE clause, so parallel requests serialize on the row lock and can't
+// blow through the plan cap. On upstream failure we refund the credit.
+const EXTRACT_KEY = "aiExtractionsUsedThisCycle";
+async function refundExtraction(userId: string) {
+  try {
+    await supabaseAdmin.rpc("refund_ai_credit", { p_user: userId, p_key: EXTRACT_KEY });
+  } catch (e) {
+    console.warn("[extract] refund failed", e);
+  }
 }
 
 const XAI_API_KEY = Deno.env.get("XAI_API_KEY") ?? "";
@@ -201,6 +205,7 @@ Deno.serve(async (req) => {
   // ── Entitlement / cost gate (admin unlimited)
   const admin = isAdminUser(user);
   let ent: any = null;
+  let debited = false;
   if (!admin) {
     let profile: any;
     try {
@@ -221,9 +226,19 @@ Deno.serve(async (req) => {
       return errorResponse("Your subscription isn't active.", 403);
     }
     const cap = AI_CAPS[ent.plan] ?? 0;
-    const used = ent.aiExtractionsUsedThisCycle ?? 0;
-    if (used >= cap) {
-      return errorResponse("You've used all your AI plan reads for this billing cycle.", 429);
+    if (cap !== Infinity) {
+      // Atomic pre-debit (race-safe). Refunded on any failure path below.
+      const { data: okDebit, error: debitErr } = await supabaseAdmin.rpc("consume_ai_credit", {
+        p_user: user.id, p_key: EXTRACT_KEY, p_cap: cap,
+      });
+      if (debitErr) {
+        console.error("[extract] debit failed", debitErr);
+        return errorResponse("Usage check failed — try again.", 500);
+      }
+      if (!okDebit) {
+        return errorResponse("You've used all your AI plan reads for this billing cycle.", 429);
+      }
+      debited = true;
     }
   }
 
@@ -245,10 +260,12 @@ Deno.serve(async (req) => {
         model: XAI_MODEL,
         input: [{ role: "user", content }],
       }),
+      signal: AbortSignal.timeout(120_000),
     });
     if (!aiRes.ok) {
       const t = await aiRes.text();
       console.error("[extract] xai responses failed", aiRes.status, t.slice(0, 1500));
+      if (debited) await refundExtraction(user.id);
       const status = aiRes.status === 429 ? 429 : 502;
       return errorResponse(
         status === 429
@@ -264,11 +281,18 @@ Deno.serve(async (req) => {
     console.log("[extract] extracted len", replyText.length, "preview:", replyText.slice(0, 400));
   } catch (err) {
     console.error("[extract] xai responses error", err);
-    return errorResponse("AI request failed — try again shortly.", 502);
+    if (debited) await refundExtraction(user.id);
+    const timedOut = err instanceof DOMException && err.name === "TimeoutError";
+    return errorResponse(
+      timedOut ? "The AI took too long — try again shortly." : "AI request failed — try again shortly.",
+      timedOut ? 504 : 502,
+    );
   }
 
-  // ── Validate the reply has openings
+  // ── Validate the reply has openings (an unreadable plan doesn't count
+  // against the user's cycle cap — refund the pre-debited credit)
   if (!looksValid(replyText)) {
+    if (debited) await refundExtraction(user.id);
     const debug = admin
       ? { pages: images.length, model: XAI_MODEL, extracted: replyText.slice(0, 800), raw: rawPreview }
       : undefined;
@@ -276,17 +300,6 @@ Deno.serve(async (req) => {
       error: "Couldn't read any openings from that plan — try a clearer page, or upload just the schedule sheet.",
       debug,
     }, 422);
-  }
-
-  // ── Charge one extraction (non-admin), only on success
-  if (!admin && ent) {
-    try {
-      await patchEntitlements(user.id, {
-        aiExtractionsUsedThisCycle: (ent.aiExtractionsUsedThisCycle ?? 0) + 1,
-      });
-    } catch (err) {
-      console.warn("[extract] couldn't increment extraction counter", err);
-    }
   }
 
   return jsonResponse({ ok: true, text: replyText, usage: { model: XAI_MODEL, pages: images.length } });

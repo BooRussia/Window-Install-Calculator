@@ -26,6 +26,7 @@ import {
   errorResponse,
   handlePreflight,
   jsonResponse,
+  safeReturnUrl,
 } from "../_shared/cors.ts";
 
 const VALID_PLANS: Plan[] = ["starter", "pro", "unlimited"];
@@ -114,7 +115,8 @@ Deno.serve(async (req) => {
   // ── 4. Create the Checkout Session
   // returnUrl is the page to send the user back to. We append ?checkout=success
   // or ?checkout=canceled so the frontend can show a toast + refresh.
-  const returnUrl = body.returnUrl ?? req.headers.get("origin") ?? "";
+  // Allowlisted: a client-supplied value may not redirect off our origins.
+  const returnUrl = safeReturnUrl(body.returnUrl ?? req.headers.get("origin"));
   const successUrl = `${returnUrl}?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl  = `${returnUrl}?checkout=canceled`;
 

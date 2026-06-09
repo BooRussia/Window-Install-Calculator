@@ -2,6 +2,48 @@
 
 _Reviewed: 2026-06-07 · Supabase project `fzitkcvmbvyeilwzclme` · deployed via Netlify from `main`._
 
+---
+
+## 🔒 Security audit round 2 — 2026-06-09 (fixed + deployed)
+
+Full multi-surface pass (client XSS/data, edge functions, migrations/RLS, headers).
+No critical/data-leak issues. One HIGH and several MEDIUM/LOW found and fixed:
+
+- **HIGH — `generate-house-image` anon-key bypass.** `verify_jwt=true` accepts the
+  public anon key (it's a project-signed JWT), so anyone could loop the paid xAI
+  image API for free. Added `auth.getUser()` (real-user check) + an **atomic
+  per-plan cycle cap** (`consume_ai_credit` RPC, debit-before-call, refund-on-fail).
+  Verified live: anon-key call now returns `401 Invalid auth`.
+- **MED — AI extraction cap was a TOCTOU race** (read-then-write let parallel
+  requests blow the cap). Same atomic debit/refund applied.
+- **MED — `config.toml` drift.** Declared `extract-plan-openings` + `proxy-fbc-pdf`.
+- **MED — CDN scripts unpinned / no SRI.** Pinned exact versions + added
+  Subresource Integrity to jspdf, jspdf-autotable, supabase-js (2.108.0), pdf.js;
+  pinned Tailwind Play CDN to 3.4.16. A swapped CDN file now refuses to execute.
+- **MED — CSV formula injection** in pipeline export (`= + - @` cells) → neutralized.
+- **MED — stored-DOM-XSS via AI/customer fields** in the legacy saved-jobs list +
+  comparison modal (`escHtml` was missing where `dashJobCard` already had it).
+  Also escaped pfp logo, cost-row/settings item names, plan-error text.
+- **LOW — sign-quote hardening:** `Content-Length` cap before buffering, base64
+  **magic-byte** check on the signature, `.in('status',['sent','viewed'])` race
+  guard (a signature can't overwrite a void/decline), expired links return a
+  redacted snapshot (revoked read capability).
+- **LOW — Stripe `returnUrl` open-redirect:** allowlisted to our origins.
+- **LOW — proxy-fbc-pdf:** `redirect: "error"` (whitelist was initial-URL only) +
+  generic error text + 60s timeout. **LOW — fetch timeouts** on all paid AI calls.
+- **LOW — analytics/PII:** `quote_shared` now sends a size **band**, not the dollar
+  total (matches the stated analytics contract). Auth tokens scrubbed from the URL
+  hash immediately on recovery/magic-link via `history.replaceState`.
+- **Headers:** added `_headers` (X-Frame-Options SAMEORIGIN, nosniff,
+  Referrer-Policy, Permissions-Policy).
+- **search_path:** pinned `''` on `profiles_block_stripe_customer_id_update`.
+
+Remaining advisor WARNs are unchanged and expected: the 3 `is_org_admin` /
+`user_org_*` SECURITY DEFINER helpers (the separate tracker app's RLS — leave
+them) + leaked-password protection (1-click toggle, you-only, below).
+
+---
+
 **Bottom line:** No critical (data-leak / secret-exposure) issues. The app is in
 good launch shape. Remaining items are a few **you-only** account toggles, a
 legal/business step, and performance optimizations for scale.

@@ -30,17 +30,22 @@
   try { if (localStorage.getItem("anchor_theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) {}
 </script>
 
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- Tailwind Play CDN, version-pinned so an upstream release can't change our
+     markup's meaning. (No SRI: the Play CDN is a generator script and doesn't
+     guarantee byte-stable output.) -->
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
 <script>
   // Only the public viewer is rendered on #/q/ — jspdf and supabase
   // are pure dead weight there (no PDF, no auth). Use document.write
   // while we're still parsing the head so the scripts are treated as
   // parser-inserted (block DOMContentLoaded, execute in order).
+  // All three are exact-version-pinned with Subresource Integrity: a
+  // compromised or swapped CDN file refuses to execute in our auth context.
   if (!window.__PUBLIC_QUOTE_ROUTE && !window.__PUBLIC_SIGN_ROUTE) {
     document.write(
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>' +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"><\/script>' +
-      '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>'
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"><\/script>' +
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" integrity="sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" crossorigin="anonymous"><\/script>' +
+      '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.0/dist/umd/supabase.min.js" integrity="sha384-p3ppjAbdEPObbT9B8J3Jc/6aBp2Gl54cFACgyZjDVLaR3+KwIc+eeU9V6vqHa/Ml" crossorigin="anonymous"><\/script>'
     );
   }
 </script>
@@ -2384,7 +2389,12 @@
           '<strong>Valid ' + validDays + ' days</strong> &mdash; through ' + esc(validUntil) +
         '</div>' +
         contactHTML +
-        '<div class="pq-powered">Powered by <span>Anchor</span></div>' +
+        // Provenance note: this page renders entirely from the link's payload
+        // (no server record), so make clear it was authored by an Anchor user —
+        // a crafted link must not read as if anchorquoting.com vouches for it.
+        '<div class="pq-powered">Powered by <span>Anchor</span> &middot; ' +
+          'Estimate prepared by the sender, not by AnchorQuoting &mdash; verify you know who sent this link.' +
+        '</div>' +
       '</div>';
   }
 
@@ -7014,8 +7024,9 @@ function renderPfp() {
   const inner = document.getElementById("pfpInner");
   if (!inner) return;
   const b = (DATA && DATA.config && DATA.config.brand) || {};
-  if (b.logo) {
-    inner.innerHTML = `<img src="${b.logo}" alt="" class="w-full h-full object-cover">`;
+  // Same gate as the public renderers: only data:image/* URLs, escaped.
+  if (b.logo && /^data:image\//i.test(b.logo)) {
+    inner.innerHTML = `<img src="${escHtml(b.logo)}" alt="" class="w-full h-full object-cover">`;
   } else {
     const name = (b.companyName || "").trim();
     const initials = name
@@ -7283,7 +7294,7 @@ function render() {
       : `<td></td>`;
     return `
       <tr class="row-alt fade-in">
-        <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center flex-wrap gap-y-1">${row.name}${infoIcon}${verifyBadge}${lossBadge}</span></td>
+        <td class="py-3 px-5 sm:px-6 text-slate-200"><span class="inline-flex items-center flex-wrap gap-y-1">${escHtml(row.name)}${infoIcon}${verifyBadge}${lossBadge}</span></td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${rateStr}</td>
         <td class="text-right py-3 px-3 text-slate-400">${qtyStr}</td>
         <td class="hidden sm:table-cell text-right py-3 px-3 text-slate-400">${caseStr}</td>
@@ -7377,7 +7388,7 @@ function render() {
         return `
           <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
             <div class="min-w-0">
-              <div class="text-sm text-slate-100 font-bold truncate">${row.name}
+              <div class="text-sm text-slate-100 font-bold truncate">${escHtml(row.name)}
                 <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">AI Cut List</span>
               </div>
               <div class="text-[11px] text-slate-500 mt-1 font-medium" style="font-variant-numeric: tabular-nums;">${breakdown}${waste}</div>
@@ -7406,7 +7417,7 @@ function render() {
       return `
         <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
           <div class="min-w-0">
-            <div class="text-sm text-slate-100 font-bold truncate">${row.name}</div>
+            <div class="text-sm text-slate-100 font-bold truncate">${escHtml(row.name)}</div>
             <div class="text-[11px] text-slate-500 mt-0.5 font-medium" style="font-variant-numeric: tabular-nums;">${detail}</div>
           </div>
           <div class="text-right shrink-0 leading-none">
@@ -7672,9 +7683,9 @@ function renderSavedJobs() {
     return `
     <div class="${cardCls}">
       <div class="min-w-0 w-full sm:w-auto">
-        <div class="text-sm text-slate-100 font-bold truncate">${j.customerName || j.name || "Untitled Job"}${draftPill}</div>
-        ${j.customerAddress ? `<div class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">${j.customerAddress}</div>` : ""}
-        <div class="text-[11px] text-slate-500 mt-0.5 font-medium">${details}</div>
+        <div class="text-sm text-slate-100 font-bold truncate">${escHtml(j.customerName || j.name || "Untitled Job")}${draftPill}</div>
+        ${j.customerAddress ? `<div class="text-[11px] text-slate-400 mt-0.5 font-medium truncate">${escHtml(j.customerAddress)}</div>` : ""}
+        <div class="text-[11px] text-slate-500 mt-0.5 font-medium">${escHtml(details)}</div>
       </div>
       <div class="shrink-0 flex flex-col items-center sm:items-end gap-1.5">
         ${statusSel}
@@ -8816,7 +8827,14 @@ function exportPipelineCSV() {
   const jobs = loadJobs().filter(j => !j.isDraft);
   if (!jobs.length) { toast("No saved jobs to export"); return; }
   const cols = ["Job/Customer", "Status", "Phone", "Email", "Address", "Manufacturer", "Construction", "House", "Stories", "Glass", "LF", "Windows", "Sliding doors", "Swing doors", "Cost", "Selling price", "Margin %", "Profit", "Created"];
-  const esc = (v) => { v = (v == null ? "" : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const esc = (v) => {
+    v = (v == null ? "" : String(v));
+    // CSV formula-injection guard: a cell starting with = + - @ (or tab/CR)
+    // executes as a formula in Excel/Sheets. Prefix with ' to neutralize —
+    // but leave plain numbers (e.g. a negative profit) untouched.
+    if (/^[=+\-@\t\r]/.test(v) && !/^-?\d+(\.\d+)?$/.test(v)) v = "'" + v;
+    return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  };
   const lines = [cols.join(",")];
   jobs.forEach(j => {
     const sgd = Array.isArray(j.slidingDoors) ? j.slidingDoors.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0) : 0;
@@ -9961,8 +9979,12 @@ async function shareCustomerQuote() {
   // Track first — if share is canceled we still want the intent recorded.
   try {
     if (typeof window.track === "function") {
+      // Coarse size band only — the analytics contract says dollar amounts
+      // are never sent, so don't ship the exact total.
+      const t = Number(payload.total) || 0;
+      const totalBand = t < 5000 ? "<5k" : t < 10000 ? "5k-10k" : t < 25000 ? "10k-25k" : t < 50000 ? "25k-50k" : "50k+";
       window.track("quote_shared", {
-        total: payload.total,
+        total_band: totalBand,
         url_length: url.length,
         has_logo: !!payload.brand.logo,
         has_customer: !!payload.customer,
@@ -11860,7 +11882,7 @@ function buildAdminUI() {
     return `
       <div class="rounded-xl border border-slate-800 p-4" id="rates-item-${item.id}" data-rates-item>
         <div class="flex items-center justify-between mb-3">
-          <div class="text-sm font-semibold text-slate-100">${item.name}</div>
+          <div class="text-sm font-semibold text-slate-100">${escHtml(item.name)}</div>
           <div class="flex items-center gap-2">
             <span class="text-[11px] text-slate-500">Unit Price</span>
             <input data-unitprice="${item.id}" type="number" step="0.001" value="${item.unitPrice}" class="control rounded-lg px-3 py-2 w-28 text-sm text-slate-100" />
@@ -12503,6 +12525,10 @@ function loadPdfJs() {
   _pdfjsPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    // SRI on the main lib (the worker is fetched by pdf.js itself — worker
+    // loads don't support integrity attributes).
+    s.integrity = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
+    s.crossOrigin = "anonymous";
     s.onload = () => {
       try {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -12574,7 +12600,7 @@ function setPlanUploadStatus(elId, msg, kind) {
     : kind === "error"
     ? '<svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="14" y2="14"/><line x1="14" y1="6" x2="6" y2="14"/></svg>'
     : "";
-  el.innerHTML = icon + "<span>" + msg + "</span>";
+  el.innerHTML = icon + "<span>" + escHtml(msg) + "</span>";
   el.classList.remove("hidden", "text-slate-300", "text-rose-300", "text-emerald-300", "text-[#c9a558]");
   el.classList.add(kind === "error" ? "text-rose-300" : kind === "ok" ? "text-emerald-300" : kind === "busy" ? "text-[#c9a558]" : "text-slate-300");
 }
@@ -12625,7 +12651,7 @@ function showPlanError(msg, debug) {
   if (status) {
     status.classList.remove("hidden", "flex", "items-center", "gap-2", "text-[#c9a558]", "text-emerald-300", "text-slate-300");
     status.classList.add("block", "text-rose-300");
-    let html = '<div class="font-semibold">' + msg + '</div>';
+    let html = '<div class="font-semibold">' + escHtml(msg) + '</div>';
     if (debug) {
       const s = (typeof debug === "string") ? debug : JSON.stringify(debug, null, 2);
       const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -13438,12 +13464,12 @@ function renderComparisonModal(jobA, jobB) {
   body.innerHTML = `
     <div class="grid grid-cols-2 gap-3 mb-6">
       <div class="card rounded-xl p-4">
-        <div class="text-sm font-bold text-slate-100 truncate">${jobA.name || "Job A"}</div>
-        <div class="text-[11px] text-slate-500 mt-1 leading-relaxed">${jobDetail(jobA)}</div>
+        <div class="text-sm font-bold text-slate-100 truncate">${escHtml(jobA.name || "Job A")}</div>
+        <div class="text-[11px] text-slate-500 mt-1 leading-relaxed">${escHtml(jobDetail(jobA))}</div>
       </div>
       <div class="card rounded-xl p-4">
-        <div class="text-sm font-bold text-slate-100 truncate">${jobB.name || "Job B"}</div>
-        <div class="text-[11px] text-slate-500 mt-1 leading-relaxed">${jobDetail(jobB)}</div>
+        <div class="text-sm font-bold text-slate-100 truncate">${escHtml(jobB.name || "Job B")}</div>
+        <div class="text-[11px] text-slate-500 mt-1 leading-relaxed">${escHtml(jobDetail(jobB))}</div>
       </div>
     </div>
     <div class="overflow-x-auto">
@@ -13451,8 +13477,8 @@ function renderComparisonModal(jobA, jobB) {
         <thead>
           <tr class="text-[11px] uppercase tracking-[0.14em] text-slate-500 border-b border-slate-800">
             <th class="text-left font-medium py-3 pr-4 pl-1">Item</th>
-            <th class="text-right font-medium py-3 px-3">${jobA.name || "Job A"}</th>
-            <th class="text-right font-medium py-3 pl-3">${jobB.name || "Job B"}</th>
+            <th class="text-right font-medium py-3 px-3">${escHtml(jobA.name || "Job A")}</th>
+            <th class="text-right font-medium py-3 pl-3">${escHtml(jobB.name || "Job B")}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-800/60">
@@ -13461,7 +13487,7 @@ function renderComparisonModal(jobA, jobB) {
             const rB = getRow(jobB, id);
             const name = rA?.name || rB?.name || id;
             return `<tr class="row-alt">
-              <td class="py-3 pr-4 pl-1 text-slate-300">${name}</td>
+              <td class="py-3 pr-4 pl-1 text-slate-300">${escHtml(name)}</td>
               <td class="text-right py-3 px-3 ${rA ? "text-slate-100" : "text-slate-700"}">${rA ? formatMoney(rA.totalCost) : "—"}</td>
               <td class="text-right py-3 pl-3 ${rB ? "text-slate-100" : "text-slate-700"}">${rB ? formatMoney(rB.totalCost) : "—"}</td>
             </tr>`;
@@ -15176,10 +15202,22 @@ async function boot() {
 
   // React to auth-state changes (magic-link return, multi-tab sign-out, etc.)
   // — "PASSWORD_RECOVERY" fires when the user lands via a reset link.
+  // Once Supabase has consumed the tokens from the URL hash, scrub them
+  // immediately: live access/refresh tokens must not linger in the address
+  // bar or browser history while (or after) the form is shown.
+  const scrubAuthHash = () => {
+    try {
+      if (/access_token|refresh_token|type=recovery|type=magiclink/.test(location.hash)) {
+        history.replaceState(null, "", location.pathname + location.search);
+      }
+    } catch (_) {}
+  };
   sb.auth.onAuthStateChange((event, session) => {
     if (event === "PASSWORD_RECOVERY") {
+      scrubAuthHash();
       showSetNewPasswordForm();
     } else if (event === "SIGNED_IN" && !currentUser) {
+      scrubAuthHash();
       // Magic-link return — drop straight into the app
       enterApp().then(() => openDashboard()).catch(() => showLanding());
     }

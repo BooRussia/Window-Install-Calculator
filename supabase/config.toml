@@ -18,4 +18,17 @@ verify_jwt = false
 [functions.generate-house-image]
 # AI job-thumbnail generator (xAI Grok Imagine). Logged-in users only —
 # every call hits the paid image API, so it must require a valid JWT.
+# NOTE: verify_jwt alone accepts the public anon key; the function ALSO
+# resolves a real user via auth.getUser() and debits a per-plan cycle cap.
 verify_jwt = true
+
+[functions.extract-plan-openings]
+# AI window-schedule reader (xAI Grok vision). The function re-verifies the
+# caller in code via auth.getUser() and debits the plan cap atomically.
+verify_jwt = true
+
+[functions.proxy-fbc-pdf]
+# Bare-GET reverse proxy for floridabuilding.org PDFs (PDF.js can't fetch them
+# cross-origin). Public by design: the client embeds the URL with no auth
+# header. Locked to www.floridabuilding.org/upload/PR_* with redirects refused.
+verify_jwt = false

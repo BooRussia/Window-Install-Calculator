@@ -1,0 +1,16 @@
+# Netlify security headers (vulnerability audit 2026-06-09).
+# Netlify already sends Strict-Transport-Security on the custom domain.
+#
+# X-Frame-Options SAMEORIGIN: nothing legitimately frames anchorquoting.com
+#   (the in-app PDF viewer frames the Supabase proxy URL, not our origin), so
+#   deny embedding to kill clickjacking — incl. overlay tricks on the e-sign page.
+# nosniff: never MIME-sniff responses (we serve JSON/PDF/data files from /data/).
+# Referrer-Policy: don't leak full URLs (sign/share tokens live in fragments,
+#   which are never sent in Referer anyway — this tightens the rest).
+# Permissions-Policy: the app never uses camera/mic/geolocation/payment APIs.
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()

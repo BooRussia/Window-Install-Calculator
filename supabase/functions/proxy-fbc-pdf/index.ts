@@ -41,10 +41,14 @@ Deno.serve(async (req) => {
   try {
     upstream = await fetch(target, {
       headers: { "User-Agent": "Mozilla/5.0 (Anchor proxy)" },
+      // The whitelist above is checked on the INITIAL url only — refuse to
+      // follow redirects so upstream can't bounce us to an arbitrary host.
+      redirect: "error",
+      signal: AbortSignal.timeout(60_000),
     });
   } catch (err) {
-    return new Response("Upstream fetch failed: " + (err instanceof Error ? err.message : String(err)),
-      { status: 502, headers: corsHeaders });
+    console.error("[fbc-proxy] upstream fetch failed", err);
+    return new Response("Upstream fetch failed", { status: 502, headers: corsHeaders });
   }
 
   if (!upstream.ok) {

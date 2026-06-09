@@ -69,6 +69,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return err("Method not allowed", 405);
 
+  // Reject oversized payloads BEFORE buffering the body (the signature image
+  // is capped at ~600 KB; 1 MB leaves headroom for the JSON envelope).
+  const contentLength = parseInt(req.headers.get("content-length") ?? "0", 10);
+  if (contentLength > 1_000_000) return err("Payload too large", 413);
+
   let body: any;
   try { body = await req.json(); }
   catch { return err("Invalid JSON body", 400); }
@@ -92,6 +97,25 @@ Deno.serve(async (req) => {
 
   // -------------------------------------------------------- GET
   if (action === "get") {
+    // An expired, unsigned link is a revoked read capability: return only the
+    // brand block (so the page can still say who to ask for a fresh link) and
+    // strip the quote body — customer name/address, line items, and totals
+    // should not be readable forever once the link lapses. Signed quotes stay
+    // viewable: the signer is a party to that record.
+    if (expired && row.status !== "signed") {
+      return json({
+        ok: true,
+        quote: {
+          status: row.status,
+          detail_level: row.detail_level,
+          snapshot: { brand: (row.snapshot && row.snapshot.brand) || null },
+          signer_name: null,
+          signed_at: null,
+          expires_at: row.expires_at ?? null,
+          expired: true,
+        },
+      });
+    }
     if (row.status === "sent" && !expired) {
       const { data: upd } = await admin
         .from("shared_quotes")
@@ -124,9 +148,22 @@ Deno.serve(async (req) => {
       return err("A typed legal name is required.", 422);
     if (!/^data:image\/(png|jpeg);base64,/.test(signature))
       return err("A drawn signature is required.", 422);
-    const sigBytes = Math.floor((signature.split(",")[1] || "").length * 0.75);
+    const sigB64 = signature.split(",")[1] || "";
+    const sigBytes = Math.floor(sigB64.length * 0.75);
     if (sigBytes > MAX_SIG_BYTES)
       return err("Signature image is too large.", 413);
+    // Verify the payload actually IS a PNG/JPEG, not 600 KB of arbitrary text
+    // wearing a data-URL prefix: decode the head and check the magic bytes.
+    let sigHead: Uint8Array;
+    try {
+      sigHead = Uint8Array.from(atob(sigB64.slice(0, 16)), (c) => c.charCodeAt(0));
+    } catch {
+      return err("A drawn signature is required.", 422);
+    }
+    const isPng = sigHead[0] === 0x89 && sigHead[1] === 0x50 && sigHead[2] === 0x4e && sigHead[3] === 0x47;
+    const isJpeg = sigHead[0] === 0xff && sigHead[1] === 0xd8 && sigHead[2] === 0xff;
+    if (!isPng && !isJpeg)
+      return err("A drawn signature is required.", 422);
     if (!consent)
       return err("Consent to sign electronically is required.", 422);
 
@@ -146,7 +183,10 @@ Deno.serve(async (req) => {
         signed_at: nowIso,
       })
       .eq("id", token)
-      .neq("status", "signed") // race guard: don't overwrite an existing signature
+      // Race guard: only the valid source states may transition to signed.
+      // (.neq("signed") alone would let a signature overwrite a void/decline
+      // that landed between our read and this write.)
+      .in("status", ["sent", "viewed"])
       .select("status, signed_at, signer_name")
       .maybeSingle();
     if (signErr) return err("Could not record signature", 500);
@@ -173,16 +213,22 @@ Deno.serve(async (req) => {
     }
 
     if (!signed) {
-      // Lost the race — someone signed between our read and write. Treat as done.
+      // Lost the race — the row left sent/viewed between our read and write.
+      // Report what actually happened instead of assuming "signed".
       const { data: now } = await admin
         .from("shared_quotes")
-        .select("signed_at, signer_name")
+        .select("status, signed_at, signer_name")
         .eq("id", token)
         .maybeSingle();
-      return json({
-        ok: true, alreadySigned: true,
-        signed_at: now?.signed_at ?? null, signer_name: now?.signer_name ?? null,
-      });
+      if (now?.status === "signed") {
+        return json({
+          ok: true, alreadySigned: true,
+          signed_at: now.signed_at ?? null, signer_name: now.signer_name ?? null,
+        });
+      }
+      if (now?.status === "void") return json({ ok: false, status: "void" }, 410);
+      if (now?.status === "declined") return json({ ok: false, status: "declined" }, 409);
+      return err("Could not record signature", 500);
     }
     return json({ ok: true, signed_at: signed.signed_at, signer_name: signed.signer_name });
   }
