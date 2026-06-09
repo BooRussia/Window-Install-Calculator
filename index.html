@@ -756,7 +756,9 @@
     background: rgba(15,23,42,0.95); border: 1px solid rgba(181,143,74,0.5);
     color: #fdf6e3; padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 600;
     opacity: 0; transition: opacity .2s ease, transform .2s ease;
-    pointer-events: none; z-index: 60;
+    /* Above every overlay (dashboard 74, legal 80, auth 90, Settings 79) so a
+       toast like "Settings saved" is never hidden behind an open screen. */
+    pointer-events: none; z-index: 95;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 
@@ -4667,7 +4669,10 @@
 </div>
 
 <!-- Admin Rates Modal -->
-<div id="adminModal" class="fixed inset-0 hidden z-50" style="background:#020617;">
+<!-- z-[79]: Settings is reachable from the dashboard (z-74), pricing (z-76) and
+     job-details (z-78), so it must sit ABOVE them — but below legal (z-80) and
+     the auth gate (z-90). At z-50 it opened invisibly behind the dashboard. -->
+<div id="adminModal" class="fixed inset-0 hidden z-[79]" style="background:#020617;">
   <div class="h-full max-w-6xl mx-auto flex flex-col">
 
     <!-- Header -->
