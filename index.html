@@ -4119,6 +4119,14 @@
           <div id="slidingDoorsSummary" class="hidden text-[10px] tracking-[0.14em] uppercase font-bold text-slate-500 px-1" style="font-variant-numeric: tabular-nums;"></div>
         </div>
       </div>
+      <div id="bifoldDoorsRailField" class="rail-field hidden">
+        <label>Bifold doors<span class="info-tip" tabindex="0" role="button" aria-label="How bifold doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Bifold / folding glass walls price separately from windows &mdash; the most labor-intensive opening (each folding leaf is hinged, leveled &amp; aligned; 5 crew-hours per panel by default) plus a screw-inspection return trip. Like sliders, their frame footage pulls per-LF screws, caulk, shims &amp; bucking but is never added to your window LF. Set panels per door; tune rates in Settings.</span></span></label>
+        <div class="space-y-2">
+          <div id="bifoldDoorsList" class="space-y-2"></div>
+          <button id="addBifoldDoorBtn" type="button" class="rail-add-btn">+ Add bifold door</button>
+          <div id="bifoldDoorsSummary" class="hidden text-[10px] tracking-[0.14em] uppercase font-bold text-slate-500 px-1" style="font-variant-numeric: tabular-nums;"></div>
+        </div>
+      </div>
 
       <!-- ─── EXTRAS ─── -->
       <div class="rail-section-header">Extras</div>
@@ -5086,6 +5094,79 @@
             </div>
             </section>
 
+            <!-- ═══ Section: Bifold Doors ═══ -->
+            <section id="rates-section-bifold" data-rates-section data-nav-label="Bifold Doors">
+            <div class="pt-2">
+            <div class="flex items-center justify-between mb-3 gap-3">
+              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Bifold Doors</h4>
+              <label class="flex items-center gap-2 text-xs text-slate-400">
+                <input id="adminBfEnabled" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+                <span>Enable in rail</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-slate-500 mb-4">Bifold / folding glass walls, priced separately from windows. The most labor-intensive opening &mdash; labor scales by folding leaf. Frame footage pulls per-LF screws, caulk, shims &amp; bucking automatically but is never added to your window LF; only the bifold-specific extras live here. Defaults are construction-shop estimates; verify against your crew &amp; suppliers.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="rounded-xl border border-slate-800 p-4">
+                <div class="text-sm font-semibold text-slate-100 mb-2.5">Labor</div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-32">Crew-hours / panel</span>
+                  <input id="adminBfLaborHoursPerPanel" type="number" step="0.25" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">hr / panel</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">A 4-leaf door = 4× this. Each folding leaf is hinged, leveled &amp; aligned.</p>
+              </div>
+              <div class="rounded-xl border border-slate-800 p-4">
+                <div class="text-sm font-semibold text-slate-100 mb-2.5">Bifold-only materials</div>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Sill / track flashing</span>
+                    <span class="text-[11px] text-slate-500">$</span>
+                    <input id="adminBfSillFlashingPerLF" type="number" step="0.25" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">/ LF width</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 w-32">Extra anchors</span>
+                    <input id="adminBfExtraAnchorsPerPanel" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                    <span class="text-[11px] text-slate-500">each / panel</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 rounded-xl border border-slate-800 p-4">
+              <div class="text-sm font-semibold text-slate-100 mb-1">Default panel size</div>
+              <p class="text-[11px] text-slate-500 mb-3">Used as a fallback when a door has no overall size: width = panel width × panels, height = this height.</p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-24">Panel width</span>
+                  <input id="adminBfDefaultPanelWidth" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">in</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400 w-24">Height</span>
+                  <input id="adminBfDefaultPanelHeight" type="number" step="1" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100" />
+                  <span class="text-[11px] text-slate-500">in</span>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 rounded-xl border border-slate-800 p-4">
+              <div class="text-sm font-semibold text-slate-100 mb-1">Screw inspection (extra day)</div>
+              <p class="text-[11px] text-slate-500 mb-3">Bifolds need a building-dept screw inspection before panels &amp; snap covers go on &mdash; almost always a return trip on another day.</p>
+              <div class="space-y-3">
+                <label class="flex items-center gap-2 text-xs text-slate-400">
+                  <input id="adminBfInspReturnTrip" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+                  <span>Add a return-trip mobilization</span>
+                  <input id="adminBfInspReturnHours" type="number" step="0.5" min="0" class="control rounded-lg px-3 py-2 w-20 text-sm text-slate-100 ml-1" />
+                  <span class="text-[11px] text-slate-500">crew-hrs</span>
+                </label>
+                <label class="flex items-center gap-2 text-xs text-slate-400">
+                  <input id="adminBfInspExtraLiftDay" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+                  <span>Add +1 lift / equipment day when a lift is on the job</span>
+                </label>
+              </div>
+            </div>
+            </div>
+            </section>
+
             </div><!-- /right content -->
           </div><!-- /ratesShell grid -->
         </div>
@@ -5428,6 +5509,24 @@ const DEFAULT_DATA = {
     defaultPanelHeightIn: 80,     // fallback SGD height
     inspection: {
       returnTrip: true,           // add one return-trip mobilization when ≥1 SGD
+      returnTripHours: 2,         // crew-hours for that return trip
+      extraLiftDay: true          // +1 lift/equipment day when a lift is on the job
+    }
+  },
+  // Bifold / folding glass walls — same structure as sliding glass doors but
+  // even more labor per leaf (each panel is hinged, leveled and aligned to the
+  // track). Their frame footage feeds the per-LF material engine just like
+  // SGDs — it is NEVER added to the window linear-footage total. All defaults
+  // are tunable in Settings → Rates.
+  bifoldDoors: {
+    enabled: true,
+    laborHoursPerPanel: 5,        // crew-hours per folding leaf (more than an SGD panel)
+    sillFlashingPerLF: 5,         // track/sill pan flashing $ per LF of opening width
+    extraAnchorsPerPanel: 4,      // heavy sill/jamb anchors beyond per-LF count
+    defaultPanelWidthIn: 32,      // fallback per-leaf width (overall W = this × panels)
+    defaultPanelHeightIn: 96,     // fallback bifold height (folding walls run tall)
+    inspection: {
+      returnTrip: true,           // add one return-trip mobilization when ≥1 bifold
       returnTripHours: 2,         // crew-hours for that return trip
       extraLiftDay: true          // +1 lift/equipment day when a lift is on the job
     }
@@ -6213,7 +6312,7 @@ function buildState() {
     customerPhone: "",
     customerEmail: "",
     customerNotes: "",
-    buckList: null, planApprovals: [], slidingDoors: [],
+    buckList: null, planApprovals: [], slidingDoors: [], bifoldDoors: [],
     variants: {},
     currentJobId: null,
     jobName: "",
@@ -6318,10 +6417,14 @@ function estimateLaborBreakdown() {
   const dc = sd.total || 0;
   const sgd = computeSlidingDoors();
   const sgdc = sgd.count || 0;
+  const bifold = computeBifoldDoors();
+  const bfc = bifold.count || 0;
 
-  // Setup overhead — every opening (window, swing door, OR sliding door) costs
-  // the same setup time (pull tools, measure, level, plumb, anchor, cleanup).
-  const setupHrs = (wc + dc + sgdc) * setupMin / 60;
+  // Setup overhead — every opening (window, swing door, sliding door, OR
+  // bifold) costs the same setup time (pull tools, measure, level, plumb,
+  // anchor, cleanup).
+  const openingCount = wc + dc + sgdc + bfc;
+  const setupHrs = openingCount * setupMin / 60;
   // Window install — LF × hr/LF (rate already folds in stories + impact).
   const windowInstallHrs = lf * getLaborPerLF();
   // Swing-door install — minutes per door from the swing-door config.
@@ -6329,30 +6432,35 @@ function estimateLaborBreakdown() {
   // Sliding-door install — panels × hrs/panel × impact (set heavy panels, snap
   // covers; the inspection return trip is a separate line below).
   const sgdInstallHrs = sgd.laborHours || 0;
+  // Bifold install — panels × hrs/panel × impact (hinge/align each leaf).
+  const bifoldInstallHrs = bifold.laborHours || 0;
   // Inspection return trip — a second mobilization on a later day to set panels
-  // and snap covers after the building dept's screw inspection.
-  const inspectionHrs = sgd.returnTripHours || 0;
+  // and snap covers after the building dept's screw inspection. SGD and bifold
+  // can share the one return trip, so take the larger of the two (not the sum).
+  const inspectionHrs = Math.max(sgd.returnTripHours || 0, bifold.returnTripHours || 0);
   // Mobilization — one-time per job.
-  const mobilizationHrs = (wc + dc + sgdc + lf > 0) ? mobHrs : 0;
+  const mobilizationHrs = (openingCount + lf > 0) ? mobHrs : 0;
 
   const totalHrs = setupHrs + windowInstallHrs + doorInstallHrs
-                 + sgdInstallHrs + inspectionHrs + mobilizationHrs;
+                 + sgdInstallHrs + bifoldInstallHrs + inspectionHrs + mobilizationHrs;
   const laborCost = totalHrs * crewCostPerHr;
 
   const sgdHrsPerPanel = (DATA.config.slidingDoors || {}).laborHoursPerPanel ?? 4;
+  const bfHrsPerPanel = (DATA.config.bifoldDoors || {}).laborHoursPerPanel ?? 5;
 
   // Breakdown rows for the UI — order matches a typical jobsite day.
   const breakdown = [];
   if (mobilizationHrs > 0) breakdown.push({ label: "Mobilization (load · drive · stage)", hrs: mobilizationHrs });
-  if (setupHrs > 0)         breakdown.push({ label: `Per-opening setup (${wc + dc + sgdc} opening${wc + dc + sgdc === 1 ? "" : "s"} × ${setupMin} min)`, hrs: setupHrs });
+  if (setupHrs > 0)         breakdown.push({ label: `Per-opening setup (${openingCount} opening${openingCount === 1 ? "" : "s"} × ${setupMin} min)`, hrs: setupHrs });
   if (windowInstallHrs > 0) breakdown.push({ label: `Window install (${lf} LF × ${(getLaborPerLF() * 60).toFixed(0)} min/LF)`, hrs: windowInstallHrs });
   if (doorInstallHrs > 0)   breakdown.push({ label: `Swing door install (${dc} door${dc === 1 ? "" : "s"})`, hrs: doorInstallHrs });
   if (sgdInstallHrs > 0)    breakdown.push({ label: `Sliding glass door install (${sgd.panelTotal} panel${sgd.panelTotal === 1 ? "" : "s"} × ${sgdHrsPerPanel}h)`, hrs: sgdInstallHrs });
+  if (bifoldInstallHrs > 0) breakdown.push({ label: `Bifold door install (${bifold.panelTotal} panel${bifold.panelTotal === 1 ? "" : "s"} × ${bfHrsPerPanel}h)`, hrs: bifoldInstallHrs });
   if (inspectionHrs > 0)    breakdown.push({ label: "Inspection return trip (screw inspection)", hrs: inspectionHrs });
 
   return {
     mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
-    sgdInstallHrs, inspectionHrs, totalHrs,
+    sgdInstallHrs, bifoldInstallHrs, inspectionHrs, totalHrs,
     crewSize, crewPayPerHrEach, crewCostPerHr, laborCost, breakdown,
   };
 }
@@ -6584,22 +6692,84 @@ function computeSlidingDoors() {
   };
 }
 
+// Bifold / folding glass walls — same shape as a sliding glass door (panels,
+// size, qty) so the editor + extraction reuse the SGD logic. Same separation:
+// the frame footage feeds the per-LF material engine via `bifoldLF`, never the
+// window LF total; labor is panel-based and folds into the unified Labor line.
+function normalizeBifoldDoor(d) {
+  if (!d) return null;
+  const cfg = (DATA.config.bifoldDoors) || {};
+  const panels = Math.max(2, Math.min(10, parseInt(d.panels, 10) || 3));
+  const qty = Math.max(1, parseInt(d.qty, 10) || 1);
+  let width = parseFloat(d.width) || 0;
+  let height = parseFloat(d.height) || 0;
+  if (width <= 0) {
+    const pw = parseFloat(d.panelWidth) || (cfg.defaultPanelWidthIn ?? 32);
+    width = pw * panels;
+  }
+  if (height <= 0) height = (cfg.defaultPanelHeightIn ?? 96);
+  return { panels, qty, width, height };
+}
+
+function computeBifoldDoors() {
+  const cfg = (DATA.config.bifoldDoors) || {};
+  const enabled = cfg.enabled !== false;
+  const raw = Array.isArray(STATE.bifoldDoors) ? STATE.bifoldDoors : [];
+  const norm = raw.map(normalizeBifoldDoor).filter(Boolean);
+  const count = norm.reduce((s, d) => s + d.qty, 0);
+  const panelTotal = norm.reduce((s, d) => s + d.qty * d.panels, 0);
+  const zero = {
+    enabled, items: norm, count: 0, panelTotal: 0, bifoldLF: 0, widthLF: 0,
+    laborHours: 0, sillFlashingLF: 0, sillFlashingCost: 0,
+    extraAnchorCount: 0, extraAnchorCost: 0, materialsExtraCost: 0,
+    returnTripHours: 0, totalCost: 0,
+  };
+  if (!enabled || count === 0) return zero;
+
+  // Footage — full perimeter feeds shared per-LF materials; the width run drives
+  // bifold-only track flashing. NEVER added to the window LF total.
+  let bifoldLF = 0, widthLF = 0;
+  norm.forEach(d => {
+    bifoldLF += d.qty * 2 * (d.width + d.height) / 12;
+    widthLF  += d.qty * d.width / 12;
+  });
+  const hoursPerPanel = cfg.laborHoursPerPanel ?? 5;
+  const laborHours = panelTotal * hoursPerPanel * getImpactLaborMultiplier();
+  const sillFlashingLF = widthLF;
+  const sillFlashingCost = sillFlashingLF * (cfg.sillFlashingPerLF ?? 0);
+  const anchorItem = DATA.costItems.find(c => c.id === "concrete_anchors");
+  const anchorPrice = anchorItem ? (getUnitPrice(anchorItem) || 0) : 0;
+  const extraAnchorCount = panelTotal * (cfg.extraAnchorsPerPanel || 0);
+  const extraAnchorCost = extraAnchorCount * anchorPrice;
+  const insp = cfg.inspection || {};
+  const returnTripHours = insp.returnTrip ? (insp.returnTripHours ?? 0) : 0;
+  const materialsExtraCost = sillFlashingCost + extraAnchorCost;
+  return {
+    enabled, items: norm, count, panelTotal, bifoldLF, widthLF,
+    laborHours, sillFlashingLF, sillFlashingCost,
+    extraAnchorCount, extraAnchorCost, materialsExtraCost,
+    returnTripHours,
+    totalCost: materialsExtraCost, // labor lives in the unified Labor line
+  };
+}
+
 function calculate() {
   const windowLF = parseFloat(STATE.totalLF) || 0;
   const wc = parseInt(STATE.windowCount) || 0;
   const sd = computeSwingDoors();
   const sgd = computeSlidingDoors();
+  const bifold = computeBifoldDoors();
   // `lf` is the WINDOW linear footage — exactly what the user enters, what we
   // save on the job, and what shows on the quote. It must NOT include the
-  // sliding-door footage, or that footage gets saved as window LF and then
-  // double-counted every reload (the 487 → 561 bug).
+  // sliding-door OR bifold footage, or that footage gets saved as window LF and
+  // then double-counted every reload (the 487 → 561 bug).
   //
-  // Sliding-door frame footage is pulled into the per-LF, brand-specific
-  // materials (screws, caulk, shims, bucking) via `materialLF` ONLY — never
-  // into `lf`. SGD labor is panel-based (in the unified Labor line), so SGD
-  // footage never touches window-install labor either.
+  // Sliding-door + bifold frame footage is pulled into the per-LF, brand-
+  // specific materials (screws, caulk, shims, bucking) via `materialLF` ONLY —
+  // never into `lf`. Their labor is panel-based (in the unified Labor line), so
+  // their footage never touches window-install labor either.
   const lf = windowLF;
-  const materialLF = windowLF + sgd.sgdLF;
+  const materialLF = windowLF + sgd.sgdLF + bifold.bifoldLF;
   const rows = [];
   let perLfCost = 0;
   let totalCost = 0;
@@ -6650,10 +6820,15 @@ function calculate() {
     if (item.id === "lift_rental") {
       if (!STATE.liftEnabled || STATE.stories === "1 Story") return;
       const sgdCfg = DATA.config.slidingDoors || {};
-      const inspDay = (sgd.count > 0 && sgdCfg.inspection && sgdCfg.inspection.extraLiftDay) ? 1 : 0;
+      const bfCfg = DATA.config.bifoldDoors || {};
+      const sgdInspDay = (sgd.count > 0 && sgdCfg.inspection && sgdCfg.inspection.extraLiftDay) ? 1 : 0;
+      const bfInspDay = (bifold.count > 0 && bfCfg.inspection && bfCfg.inspection.extraLiftDay) ? 1 : 0;
+      // One extra lift day covers the inspection wait whether it's an SGD, a
+      // bifold, or both on the same job (the crew returns once).
+      const inspDay = Math.max(sgdInspDay, bfInspDay);
       const days = Math.max(1, parseInt(STATE.liftDays) || 1) + inspDay;
       const cost = days * getUnitPrice(item);
-      rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${days} day${days !== 1 ? "s" : ""} fixed${inspDay ? " · +1 SGD inspection" : ""}`,
+      rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${days} day${days !== 1 ? "s" : ""} fixed${inspDay ? " · +1 inspection" : ""}`,
         ratePerLF: lf > 0 ? cost / lf : 0, quantity: days, unit: item.unit, totalCost: cost, isFixed: true });
       totalCost += cost;
       if (lf > 0) perLfCost += cost / lf;
@@ -6802,6 +6977,46 @@ function calculate() {
     }
   }
 
+  // Bifold / folding-glass-wall extras — same as the SGD block above: the per-LF
+  // screws/caulk/shims/bucking for their frames are already in the rows (folded
+  // into materialLF); here we add only the bifold-specific track flashing + heavy
+  // anchors. Bifold labor (panels × hrs) lives in the unified Labor line.
+  if (bifold.enabled && bifold.count > 0) {
+    const bfLabel = `${bifold.count} door${bifold.count === 1 ? "" : "s"} · ${bifold.panelTotal} panel${bifold.panelTotal === 1 ? "" : "s"}`;
+    if (bifold.sillFlashingCost > 0) {
+      rows.push({
+        id: "bifold_doors_flashing",
+        name: "Bifold doors — sill / track flashing",
+        rateLabel: `track pan membrane · ${bifold.sillFlashingLF.toFixed(1)} LF`,
+        ratePerLF: lf > 0 ? bifold.sillFlashingCost / lf : 0,
+        quantity: Math.round(bifold.sillFlashingLF * 10) / 10, unit: "LF",
+        totalCost: bifold.sillFlashingCost, isFixed: true, isBifoldDoor: true
+      });
+      totalCost += bifold.sillFlashingCost;
+      if (lf > 0) perLfCost += bifold.sillFlashingCost / lf;
+    }
+    if (bifold.extraAnchorCost > 0) {
+      const anchorRow = rows.find(r => r.id === "concrete_anchors");
+      if (anchorRow) {
+        anchorRow.quantity += bifold.extraAnchorCount;
+        anchorRow.totalCost += bifold.extraAnchorCost;
+        anchorRow.rateLabel += ` · +${bifold.extraAnchorCount} for bifolds`;
+        if (lf > 0) anchorRow.ratePerLF = anchorRow.totalCost / lf;
+      } else {
+        rows.push({
+          id: "bifold_doors_anchors",
+          name: "Bifold doors — anchors",
+          rateLabel: `${bifold.extraAnchorCount} anchors · ${bfLabel}`,
+          ratePerLF: lf > 0 ? bifold.extraAnchorCost / lf : 0,
+          quantity: bifold.extraAnchorCount, unit: "each",
+          totalCost: bifold.extraAnchorCost, isFixed: true, isBifoldDoor: true
+        });
+      }
+      totalCost += bifold.extraAnchorCost;
+      if (lf > 0) perLfCost += bifold.extraAnchorCost / lf;
+    }
+  }
+
   // ---- Labor — one unified line (cost-plus) ----
   // Crew-hours × what the crew costs per hour. Covers window install, door
   // install, per-opening setup, and mobilization. Marked up by the job
@@ -6833,6 +7048,7 @@ function calculate() {
       ...MATERIAL_IDS,
       "swing_doors_materials", "swing_doors_flashing", "swing_doors_anchors",
       "sliding_doors_flashing", "sliding_doors_anchors",
+      "bifold_doors_flashing", "bifold_doors_anchors",
     ]);
     const factor = taxRate / 100;
     rows.forEach(r => {
@@ -6849,7 +7065,7 @@ function calculate() {
   const sellingPrice = totalCost * (1 + margin / 100);
   const profit = sellingPrice - totalCost;
 
-  return { lf, windowLF, wc, rows, perLfCost, totalCost, sellingPrice, profit, margin, swingDoors: sd, slidingDoors: sgd };
+  return { lf, windowLF, wc, rows, perLfCost, totalCost, sellingPrice, profit, margin, swingDoors: sd, slidingDoors: sgd, bifoldDoors: bifold };
 }
 
 /* ============================================================
@@ -7481,6 +7697,7 @@ function render() {
   renderJobSpecSummary();
   renderPlanApprovals();
   updateSlidingDoorsSummary();
+  updateBifoldDoorsSummary();
 
   saveState({
     manufacturer: STATE.manufacturer,
@@ -7499,7 +7716,7 @@ function render() {
     customerPhone: STATE.customerPhone,
     customerEmail: STATE.customerEmail,
     customerNotes: STATE.customerNotes,
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: STATE.variants || {},
     currentJobId: STATE.currentJobId || null,
     jobName: STATE.jobName || "",
@@ -8612,6 +8829,7 @@ function dashGenerateDoc(id, kind) {
     STATE = snap;
     try { bindControls(); } catch (_) {}
     try { renderSlidingDoors(); } catch (_) {}
+    try { renderBifoldDoors(); } catch (_) {}
     try { render(); } catch (_) {}
   }
 }
@@ -8682,6 +8900,9 @@ function renderJobDetails(job) {
   const sgd = Array.isArray(job.slidingDoors) ? job.slidingDoors : [];
   const sgdCount = sgd.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0);
   const sgdPanels = sgd.reduce((s, d) => s + (parseInt(d.qty, 10) || 1) * (parseInt(d.panels, 10) || 2), 0);
+  const bf = Array.isArray(job.bifoldDoors) ? job.bifoldDoors : [];
+  const bfCount = bf.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0);
+  const bfPanels = bf.reduce((s, d) => s + (parseInt(d.qty, 10) || 1) * (parseInt(d.panels, 10) || 3), 0);
   const sw = job.swingDoors || {};
   const swTotal = (parseInt(sw.single, 10) || 0) + (parseInt(sw.double, 10) || 0);
   const specs = [
@@ -8691,6 +8912,7 @@ function renderJobDetails(job) {
   ];
   if (swTotal > 0) specs.push(["Swing doors", String(swTotal)]);
   if (sgdCount > 0) specs.push(["Sliding glass doors", `${sgdCount} · ${sgdPanels} panel${sgdPanels === 1 ? "" : "s"}`]);
+  if (bfCount > 0) specs.push(["Bifold doors", `${bfCount} · ${bfPanels} panel${bfPanels === 1 ? "" : "s"}`]);
   const specRows = specs.filter(([, v]) => v != null && v !== "").map(([k, v]) =>
     `<div class="flex items-center justify-between gap-3 text-[13px]"><span class="text-slate-500">${escHtml(k)}</span><span class="text-slate-200 font-semibold text-right">${escHtml(String(v))}</span></div>`).join("");
   const approvals = Array.isArray(job.planApprovals) ? job.planApprovals : [];
@@ -8837,7 +9059,7 @@ function renderJobDetails(job) {
 function exportPipelineCSV() {
   const jobs = loadJobs().filter(j => !j.isDraft);
   if (!jobs.length) { toast("No saved jobs to export"); return; }
-  const cols = ["Job/Customer", "Status", "Phone", "Email", "Address", "Manufacturer", "Construction", "House", "Stories", "Glass", "LF", "Windows", "Sliding doors", "Swing doors", "Cost", "Selling price", "Margin %", "Profit", "Created"];
+  const cols = ["Job/Customer", "Status", "Phone", "Email", "Address", "Manufacturer", "Construction", "House", "Stories", "Glass", "LF", "Windows", "Sliding doors", "Bifold doors", "Swing doors", "Cost", "Selling price", "Margin %", "Profit", "Created"];
   const esc = (v) => {
     v = (v == null ? "" : String(v));
     // CSV formula-injection guard: a cell starting with = + - @ (or tab/CR)
@@ -8849,12 +9071,13 @@ function exportPipelineCSV() {
   const lines = [cols.join(",")];
   jobs.forEach(j => {
     const sgd = Array.isArray(j.slidingDoors) ? j.slidingDoors.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0) : 0;
+    const bfd = Array.isArray(j.bifoldDoors) ? j.bifoldDoors.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0) : 0;
     const sw = j.swingDoors || {}; const swt = (parseInt(sw.single, 10) || 0) + (parseInt(sw.double, 10) || 0);
     const cost = Number(j.totalCost) || 0, price = Number(j.sellingPrice) || 0;
     lines.push([
       j.customerName || j.name || "", jobStatus(j), j.customerPhone || "", j.customerEmail || "", j.customerAddress || "",
       j.manufacturer || "", j.constructionType || "", j.houseType || "", j.stories || "", j.impact || "",
-      j.totalLF != null ? j.totalLF : "", j.windowCount || "", sgd || "", swt || "",
+      j.totalLF != null ? j.totalLF : "", j.windowCount || "", sgd || "", bfd || "", swt || "",
       cost.toFixed(2), price.toFixed(2), (j.margin != null && !isNaN(j.margin) ? Math.round(j.margin) : ""), (price - cost).toFixed(2),
       (j.createdAt ? new Date(j.createdAt).toLocaleDateString() : "")
     ].map(esc).join(","));
@@ -9325,7 +9548,7 @@ function resetAll() {
     customerPhone: "",
     customerEmail: "",
     customerNotes: "",
-    buckList: null, planApprovals: [], slidingDoors: [],
+    buckList: null, planApprovals: [], slidingDoors: [], bifoldDoors: [],
     variants: {},
     currentJobId: null,
     jobName: "",
@@ -9334,6 +9557,7 @@ function resetAll() {
   saveState(STATE);
   bindControls();
   renderSlidingDoors();
+  renderBifoldDoors();
   render();
   toast("Reset");
 }
@@ -9341,7 +9565,8 @@ function resetAll() {
 // "Has something quotable" — footage OR at least one swing door.
 function hasQuoteInput(r) {
   return (r.lf > 0) || (r.swingDoors && r.swingDoors.total > 0 && r.swingDoors.enabled)
-    || (r.slidingDoors && r.slidingDoors.count > 0);
+    || (r.slidingDoors && r.slidingDoors.count > 0)
+    || (r.bifoldDoors && r.bifoldDoors.count > 0);
 }
 
 function openSaveJobModal() {
@@ -9402,7 +9627,7 @@ function confirmSaveJob() {
     id: reuseId,
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerPhone: phone, customerEmail: email, customerNotes: notes,
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
@@ -9442,7 +9667,7 @@ function quickSaveOrPrompt() {
       const existing = jobs[idx];
       const updated = {
         ...existing,
-        buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
+        buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
         variants: clone(STATE.variants || {}),
         manufacturer: STATE.manufacturer, application: STATE.application,
         houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -9501,7 +9726,7 @@ function saveAsNewVersion() {
     name: newName,
     customerName: base.customerName || baseName,
     createdAt: new Date().toISOString(),
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -9573,7 +9798,7 @@ function writeDraftJob(r) {
     customerPhone: STATE.customerPhone || "",
     customerEmail: STATE.customerEmail || "",
     customerNotes: STATE.customerNotes || "",
-    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []),
+    buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (idx >= 0 && jobs[idx].createdAt) || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -9615,6 +9840,7 @@ function applyJobToState(j) {
   STATE.buckList = j.buckList || null;
   STATE.planApprovals = Array.isArray(j.planApprovals) ? j.planApprovals : [];
   STATE.slidingDoors = Array.isArray(j.slidingDoors) ? clone(j.slidingDoors) : [];
+  STATE.bifoldDoors = Array.isArray(j.bifoldDoors) ? clone(j.bifoldDoors) : [];
   STATE.variants = j.variants ? clone(j.variants) : {};
   STATE.currentJobId = j.id;
   // Swing doors — older saved jobs predate this; default to zero.
@@ -9631,6 +9857,7 @@ function loadJob(id) {
   applyJobToState(j);
   bindControls();
   renderSlidingDoors();   // rebuild the SGD list DOM for this job
+  renderBifoldDoors();    // rebuild the bifold list DOM for this job
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
   window.track("job_loaded");
@@ -9816,11 +10043,22 @@ function exportCustomerPDF(mode) {
     scope.push(["Swing Doors", parts.join(", ")]);
   }
   // Sliding glass doors — a distinct scope item, and they affect the schedule.
+  let inspectionNoted = false;
   if (r.slidingDoors && r.slidingDoors.count > 0) {
     const sgc = r.slidingDoors.count, sgp = r.slidingDoors.panelTotal;
     scope.push(["Sliding Glass Doors", `${sgc} door${sgc === 1 ? "" : "s"} · ${sgp} panel${sgp === 1 ? "" : "s"}`]);
     const sgdInsp = (DATA.config.slidingDoors || {}).inspection || {};
     if (sgdInsp.returnTrip !== false) {
+      scope.push(["Inspection", "+1 day — screw inspection before panels"]);
+      inspectionNoted = true;
+    }
+  }
+  // Bifold / folding glass walls — same: a distinct scope item that adds a day.
+  if (r.bifoldDoors && r.bifoldDoors.count > 0) {
+    const bfc = r.bifoldDoors.count, bfp = r.bifoldDoors.panelTotal;
+    scope.push(["Bifold Doors", `${bfc} door${bfc === 1 ? "" : "s"} · ${bfp} panel${bfp === 1 ? "" : "s"}`]);
+    const bfInsp = (DATA.config.bifoldDoors || {}).inspection || {};
+    if (!inspectionNoted && bfInsp.returnTrip !== false) {
       scope.push(["Inspection", "+1 day — screw inspection before panels"]);
     }
   }
@@ -9934,11 +10172,22 @@ async function buildCustomerSharePayload() {
     scope.push(["Swing Doors", parts.join(", ")]);
   }
   // Sliding glass doors — a distinct scope item, and they affect the schedule.
+  let inspectionNoted = false;
   if (r.slidingDoors && r.slidingDoors.count > 0) {
     const sgc = r.slidingDoors.count, sgp = r.slidingDoors.panelTotal;
     scope.push(["Sliding Glass Doors", `${sgc} door${sgc === 1 ? "" : "s"} · ${sgp} panel${sgp === 1 ? "" : "s"}`]);
     const sgdInsp = (DATA.config.slidingDoors || {}).inspection || {};
     if (sgdInsp.returnTrip !== false) {
+      scope.push(["Inspection", "+1 day — screw inspection before panels"]);
+      inspectionNoted = true;
+    }
+  }
+  // Bifold / folding glass walls — same: a distinct scope item that adds a day.
+  if (r.bifoldDoors && r.bifoldDoors.count > 0) {
+    const bfc = r.bifoldDoors.count, bfp = r.bifoldDoors.panelTotal;
+    scope.push(["Bifold Doors", `${bfc} door${bfc === 1 ? "" : "s"} · ${bfp} panel${bfp === 1 ? "" : "s"}`]);
+    const bfInsp = (DATA.config.bifoldDoors || {}).inspection || {};
+    if (!inspectionNoted && bfInsp.returnTrip !== false) {
       scope.push(["Inspection", "+1 day — screw inspection before panels"]);
     }
   }
@@ -10107,6 +10356,7 @@ async function buildSignSnapshotForJob(jobId, detailLevel) {
     STATE = stateBackup;
     try { bindControls(); } catch (_) {}
     try { renderSlidingDoors(); } catch (_) {}
+    try { renderBifoldDoors(); } catch (_) {}
     try { render(); } catch (_) {}
   }
   return snap;
@@ -11829,6 +12079,22 @@ function buildAdminUI() {
   const sgLift = document.getElementById("adminSgdInspExtraLiftDay");
   if (sgLift) sgLift.checked = sgInsp.extraLiftDay !== false;
 
+  // Bifold doors — populate the editor with current rates
+  const bfCfg = (DATA.config.bifoldDoors) || {};
+  const bfInsp = bfCfg.inspection || {};
+  const bfEnEl = document.getElementById("adminBfEnabled");
+  if (bfEnEl) bfEnEl.checked = bfCfg.enabled !== false;
+  setIf("adminBfLaborHoursPerPanel", bfCfg.laborHoursPerPanel ?? 5);
+  setIf("adminBfSillFlashingPerLF", bfCfg.sillFlashingPerLF ?? 5);
+  setIf("adminBfExtraAnchorsPerPanel", bfCfg.extraAnchorsPerPanel ?? 4);
+  setIf("adminBfDefaultPanelWidth", bfCfg.defaultPanelWidthIn ?? 32);
+  setIf("adminBfDefaultPanelHeight", bfCfg.defaultPanelHeightIn ?? 96);
+  const bfRT = document.getElementById("adminBfInspReturnTrip");
+  if (bfRT) bfRT.checked = bfInsp.returnTrip !== false;
+  setIf("adminBfInspReturnHours", bfInsp.returnTripHours ?? 2);
+  const bfLift = document.getElementById("adminBfInspExtraLiftDay");
+  if (bfLift) bfLift.checked = bfInsp.extraLiftDay !== false;
+
   const wrap = document.getElementById("adminRatesBody");
   // Per-card collapsed state lives in localStorage so it survives reloads.
   // Default: collapsed when 2+ variants (cards get tall fast); expanded
@@ -12351,6 +12617,23 @@ function saveAdmin() {
   const sgLift = document.getElementById("adminSgdInspExtraLiftDay");
   sg.inspection.extraLiftDay = !!(sgLift && sgLift.checked);
 
+  // Bifold doors — read editor values back into config.
+  if (!DATA.config.bifoldDoors) DATA.config.bifoldDoors = {};
+  const bf = DATA.config.bifoldDoors;
+  const bfEn = document.getElementById("adminBfEnabled");
+  bf.enabled = !!(bfEn && bfEn.checked);
+  bf.laborHoursPerPanel = readNum("adminBfLaborHoursPerPanel", bf.laborHoursPerPanel ?? 5);
+  bf.sillFlashingPerLF = readNum("adminBfSillFlashingPerLF", bf.sillFlashingPerLF ?? 5);
+  bf.extraAnchorsPerPanel = readNum("adminBfExtraAnchorsPerPanel", bf.extraAnchorsPerPanel ?? 4);
+  bf.defaultPanelWidthIn = readNum("adminBfDefaultPanelWidth", bf.defaultPanelWidthIn ?? 32);
+  bf.defaultPanelHeightIn = readNum("adminBfDefaultPanelHeight", bf.defaultPanelHeightIn ?? 96);
+  bf.inspection = bf.inspection || {};
+  const bfRT = document.getElementById("adminBfInspReturnTrip");
+  bf.inspection.returnTrip = !!(bfRT && bfRT.checked);
+  bf.inspection.returnTripHours = readNum("adminBfInspReturnHours", bf.inspection.returnTripHours ?? 2);
+  const bfLift = document.getElementById("adminBfInspExtraLiftDay");
+  bf.inspection.extraLiftDay = !!(bfLift && bfLift.checked);
+
   // Saving real rates counts as customizing — clears the demo banner
   DATA.config.ratesCustomized = true;
   saveData(DATA);
@@ -12359,6 +12642,7 @@ function saveAdmin() {
   bindControls();
   renderDemoBanner();
   renderSlidingDoors();
+  renderBifoldDoors();
   render();
   toast("Settings saved");
 }
@@ -12772,10 +13056,12 @@ function applyFullExtraction(text, source) {
   const matchedMfg = matchManufacturer(manufacturerRaw);
   const applied = [];
   if (openings.length) {
-    // Sliding glass doors are their own category — split them out of the window
-    // count + LF so they don't get priced as windows.
-    const windows = openings.filter(o => !o.isSlider);
+    // Sliding glass doors AND bifold doors are their own categories — split them
+    // out of the window count + LF so they don't get priced (or counted) as
+    // windows. Bifolds also never touch the window LF total.
+    const windows = openings.filter(o => !o.isSlider && !o.isBifold);
     const sliders = openings.filter(o => o.isSlider);
+    const bifolds = openings.filter(o => o.isBifold);
 
     if (windows.length) {
       const count = windows.reduce((s, o) => s + o.qty, 0);
@@ -12807,8 +13093,25 @@ function applyFullExtraction(text, source) {
       renderSlidingDoors();
     }
 
-    // Buck cut list is built from ALL openings (windows + sliders) so bucking
-    // covers the slider frames too.
+    // Bifold doors → their own bucket (panels + size), same as sliders.
+    const bfCfg = DATA.config.bifoldDoors || {};
+    const bfFallbackPW = bfCfg.defaultPanelWidthIn || 32;
+    STATE.bifoldDoors = bifolds.map(o => ({
+      panels: o.panels || Math.max(2, Math.min(10, Math.round((o.width || 0) / bfFallbackPW) || 3)),
+      width: o.width, height: o.height, qty: o.qty,
+    }));
+    if (bifolds.length) {
+      const bfCount = STATE.bifoldDoors.reduce((s, d) => s + d.qty, 0);
+      const bfPanels = STATE.bifoldDoors.reduce((s, d) => s + d.qty * d.panels, 0);
+      if (typeof renderBifoldDoors === "function") renderBifoldDoors();
+      markFieldAi("bifoldDoorsRailField");
+      applied.push(`${bfCount} bifold door${bfCount === 1 ? "" : "s"} (${bfPanels} panel${bfPanels === 1 ? "" : "s"})`);
+    } else if (typeof renderBifoldDoors === "function") {
+      renderBifoldDoors();
+    }
+
+    // Buck cut list is built from ALL openings (windows + sliders + bifolds) so
+    // bucking covers every frame.
     STATE.buckList = optimizeCutList(openings);
     if (STATE.buckList && STATE.buckList.totalBoards) applied.push(`cut list (${STATE.buckList.totalBoards} boards)`);
   }
@@ -12869,7 +13172,7 @@ For EACH opening:
 2. Convert both to inches. Feet-and-inches like 3'-0" becomes 36. Fractions like 36 1/2" become 36.5.
 3. Find the quantity (QTY) — how many of that opening. If no quantity is shown, use 1.
 4. Find the room or location name.
-5. Determine the TYPE. If the opening is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door". Everything else is a "window".
+5. Determine the TYPE. If the opening is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door". If it is a bifold, bi-fold, folding glass wall, accordion door, or multi-leaf folding door, mark it "bifold door". Everything else is a "window".
 
 Reply with ONLY a list — one opening per line — in EXACTLY this format. No headers, no totals, no commentary:
 
@@ -12879,6 +13182,7 @@ Example reply:
 OPENING | Master Bedroom | 36 | 48 | 2 | window
 OPENING | Kitchen | 48 | 60 | 1 | window
 OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
+OPENING | Great Room Rear | 144 | 96 | 1 | bifold door
 
 If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the OPENING lines.`;
 
@@ -12896,10 +13200,14 @@ function parseOpenings(text) {
     const height = parseFloat(m[3]);
     const qty = parseInt(m[4], 10) || 1;
     const typeText = (m[5] || "").trim();
-    const isSlider = /slid|sgd|patio\s*door|glass\s*door/i.test(typeText + " " + room);
-    const panels = m[6] ? Math.max(2, Math.min(8, parseInt(m[6], 10))) : null;
+    const hay = typeText + " " + room;
+    // Bifold detection takes precedence — a "bifold glass door" must not be
+    // mis-bucketed as a slider just because it contains "glass door".
+    const isBifold = /bi[\s-]*fold|folding|accordion|fgw|folding\s*glass\s*wall/i.test(hay);
+    const isSlider = !isBifold && /slid|sgd|patio\s*door|glass\s*door/i.test(hay);
+    const panels = m[6] ? Math.max(2, Math.min(10, parseInt(m[6], 10))) : null;
     if (width > 0 && height > 0) {
-      openings.push({ room, width, height, qty, isSlider, panels });
+      openings.push({ room, width, height, qty, isSlider, isBifold, panels });
     }
   }
   return openings;
@@ -13042,6 +13350,90 @@ function removeSlidingDoor(idx) {
   render();
 }
 
+/* ============================================================
+   BIFOLD / FOLDING GLASS WALLS — rail editor (mirrors the SGD editor;
+   reuses the .sgd-* row styling, uses data-bifold hooks + .bifold-row)
+   ============================================================ */
+function renderBifoldDoors() {
+  const wrap = document.getElementById("bifoldDoorsRailField");
+  if (!wrap) return;
+  const cfg = DATA.config.bifoldDoors || {};
+  const enabled = cfg.enabled !== false;
+  wrap.classList.toggle("hidden", !enabled);
+  const list = document.getElementById("bifoldDoorsList");
+  if (!enabled || !list) { if (list) list.innerHTML = ""; updateBifoldDoorsSummary(); return; }
+  const items = Array.isArray(STATE.bifoldDoors) ? STATE.bifoldDoors : [];
+  const pw = cfg.defaultPanelWidthIn || 32;
+  const ph = cfg.defaultPanelHeightIn || 96;
+  list.innerHTML = items.map((d, i) => {
+    const panels = Math.max(2, Math.min(10, parseInt(d.panels, 10) || 3));
+    const opts = [2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === panels ? " selected" : ""}>${n}-panel</option>`).join("");
+    const w = (d.width === 0 || d.width) ? d.width : "";
+    const h = (d.height === 0 || d.height) ? d.height : "";
+    const q = (d.qty != null && d.qty !== "") ? d.qty : 1;
+    return `<div class="sgd-row bifold-row" data-idx="${i}">
+      <div class="sgd-head">
+        <label>Panels <select class="sgd-sel" data-bifold="panels">${opts}</select></label>
+        <button type="button" class="sgd-remove" data-bifold="remove" aria-label="Remove bifold door">×</button>
+      </div>
+      <div class="sgd-dims">
+        <span class="sgd-cell"><span>Width in</span><input type="number" inputmode="decimal" min="0" data-bifold="width" value="${w}" placeholder="${panels * pw}"></span>
+        <span class="sgd-cell"><span>Height in</span><input type="number" inputmode="decimal" min="0" data-bifold="height" value="${h}" placeholder="${ph}"></span>
+        <span class="sgd-cell"><span>Qty</span><input type="number" inputmode="numeric" min="1" data-bifold="qty" value="${q}"></span>
+      </div>
+    </div>`;
+  }).join("");
+  updateBifoldDoorsSummary();
+}
+
+function updateBifoldDoorsSummary() {
+  const wrap = document.getElementById("bifoldDoorsRailField");
+  if (!wrap) return;
+  const enabled = (DATA.config.bifoldDoors || {}).enabled !== false;
+  wrap.classList.toggle("hidden", !enabled);
+  const sumEl = document.getElementById("bifoldDoorsSummary");
+  if (!sumEl) return;
+  const bf = computeBifoldDoors();
+  if (bf.count > 0) {
+    sumEl.classList.remove("hidden");
+    sumEl.textContent = `${bf.count} door${bf.count === 1 ? "" : "s"} · ${bf.panelTotal} panel${bf.panelTotal === 1 ? "" : "s"} · ${bf.bifoldLF.toFixed(0)} LF`;
+  } else {
+    sumEl.classList.add("hidden");
+  }
+}
+
+function onBifoldDoorFieldInput(e) {
+  const el = e.target && e.target.closest ? e.target.closest("[data-bifold]") : null;
+  if (!el) return;
+  const field = el.getAttribute("data-bifold");
+  if (field === "remove") return;
+  const row = el.closest(".bifold-row");
+  if (!row) return;
+  const idx = parseInt(row.dataset.idx, 10);
+  if (!Array.isArray(STATE.bifoldDoors) || !STATE.bifoldDoors[idx]) return;
+  if (field === "panels") STATE.bifoldDoors[idx].panels = Math.max(2, Math.min(10, parseInt(el.value, 10) || 3));
+  else if (field === "qty") STATE.bifoldDoors[idx].qty = Math.max(1, parseInt(el.value, 10) || 1);
+  else STATE.bifoldDoors[idx][field] = el.value;
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  render();
+}
+
+function addBifoldDoor() {
+  if (!Array.isArray(STATE.bifoldDoors)) STATE.bifoldDoors = [];
+  STATE.bifoldDoors.push({ panels: 3, width: "", height: "", qty: 1 });
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  renderBifoldDoors();
+  render();
+}
+
+function removeBifoldDoor(idx) {
+  if (!Array.isArray(STATE.bifoldDoors)) return;
+  STATE.bifoldDoors.splice(idx, 1);
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  renderBifoldDoors();
+  render();
+}
+
 // Format inches as a jobsite-friendly fraction string (nearest 1/16")
 function formatInches(n) {
   if (!isFinite(n)) return "0\"";
@@ -13065,13 +13457,13 @@ function optimizeCutList(openings) {
   const stockAsc = stockIn.slice().sort((a, b) => a - b);
 
   // 1. Each opening becomes 4 pieces per unit (head, sill, 2 jambs).
-  //    Sliding glass doors get NO sill — head + 2 jambs only (3 pieces).
+  //    Sliding glass doors AND bifold doors get NO sill — head + 2 jambs only.
   let pieces = [];
   openings.forEach((op, idx) => {
     const opId = "Op" + String(idx + 1).padStart(2, "0");
     for (let q = 0; q < op.qty; q++) {
       pieces.push({ opId, room: op.room, type: "Head",  length: op.width + headSillAdd });
-      if (!op.isSlider) {
+      if (!op.isSlider && !op.isBifold) {
         pieces.push({ opId, room: op.room, type: "Sill", length: op.width + headSillAdd });
       }
       pieces.push({ opId, room: op.room, type: "Jamb L", length: op.height });
@@ -15943,6 +16335,22 @@ function init() {
   const _sgdAdd = document.getElementById("addSlidingDoorBtn");
   if (_sgdAdd) _sgdAdd.addEventListener("click", addSlidingDoor);
   renderSlidingDoors();   // initial structural render (shows persisted SGDs)
+
+  // Bifold doors — same wiring as the SGD list (data-bifold hooks).
+  const _bfList = document.getElementById("bifoldDoorsList");
+  if (_bfList) {
+    _bfList.addEventListener("input", onBifoldDoorFieldInput);
+    _bfList.addEventListener("change", onBifoldDoorFieldInput);
+    _bfList.addEventListener("click", (e) => {
+      const rm = e.target.closest('[data-bifold="remove"]');
+      if (!rm) return;
+      const row = rm.closest(".bifold-row");
+      if (row) removeBifoldDoor(parseInt(row.dataset.idx, 10));
+    });
+  }
+  const _bfAdd = document.getElementById("addBifoldDoorBtn");
+  if (_bfAdd) _bfAdd.addEventListener("click", addBifoldDoor);
+  renderBifoldDoors();   // initial structural render (shows persisted bifolds)
   // Light / dark theme toggle — idempotent (already wired at parse for the
   // landing nav; this re-runs harmlessly and catches any late-mounted buttons).
   setupThemeToggles();
