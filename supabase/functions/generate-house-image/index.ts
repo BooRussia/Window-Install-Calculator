@@ -49,7 +49,7 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 
 // Thumbnails are cheaper than vision plan-reads, so caps are more generous
 // than AI_CAPS in extract-plan-openings — but still bounded per cycle.
-const THUMB_CAPS: Record<string, number> = { trial: 10, starter: 100, pro: 300, unlimited: Infinity };
+const THUMB_CAPS: Record<string, number> = { trial: 10, starter: 10, pro: 100, unlimited: Infinity };
 const THUMB_KEY = "aiThumbnailsUsedThisCycle";
 
 const STYLES = [

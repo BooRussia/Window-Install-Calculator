@@ -65,7 +65,10 @@ const ADMIN_UID = Deno.env.get("ADMIN_UID") ?? "";
 const ADMIN_EMAILS = (Deno.env.get("ADMIN_EMAILS") ?? "")
   .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
-const AI_CAPS: Record<string, number> = { trial: 5, starter: 50, pro: 200, unlimited: Infinity };
+// AI plan-read caps per cycle (2026 repricing). The trial gives a generous
+// taste (5); Solo deliberately allows only 2/mo so frequent users feel the
+// upgrade pull to Pro; Pro is effectively unconstrained for normal use.
+const AI_CAPS: Record<string, number> = { trial: 5, starter: 2, pro: 100, unlimited: Infinity };
 
 const MIME_ALLOW = new Set(["image/png", "image/jpeg"]);
 // Multi-page schedules run long (10–14 pages is common). xAI imposes no
