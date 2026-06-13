@@ -5372,6 +5372,62 @@
   const HISTORY_CAP = 100;
   window.__trackHistory = [];
 
+  // ---- Cloud persistence (usage_events) for the owner admin panel ----
+  // Events queue here and flush to Supabase in batches once a user session
+  // exists. Best-effort, never blocking, coarse props only (no customer names
+  // or dollar amounts — that's the analytics contract). Skipped entirely on the
+  // public #/q/ and #/sign/ routes (no authed user there).
+  const QUEUE_CAP = 300;
+  window.__usageQueue = [];
+
+  // Strip anything that isn't a small primitive so a stray object/PII can never
+  // ride along. Caps string length and total key count.
+  function sanitizeProps(p) {
+    const out = {};
+    if (!p || typeof p !== "object") return out;
+    let n = 0;
+    for (const k in p) {
+      if (!Object.prototype.hasOwnProperty.call(p, k) || n >= 12) continue;
+      const v = p[k];
+      const t = typeof v;
+      if (t === "number" && isFinite(v)) { out[k] = v; n++; }
+      else if (t === "boolean") { out[k] = v; n++; }
+      else if (t === "string") { out[k] = v.slice(0, 64); n++; }
+    }
+    return out;
+  }
+
+  let _flushing = false;
+  async function flushUsage() {
+    try {
+      if (_flushing) return;
+      if (window.__PUBLIC_QUOTE_ROUTE || window.__PUBLIC_SIGN_ROUTE) return;
+      if (typeof sb === "undefined" || !sb || typeof currentUser === "undefined" || !currentUser) return;
+      if (!window.__usageQueue.length) return;
+      _flushing = true;
+      const batch = window.__usageQueue.splice(0, 50);
+      const rows = batch.map(e => ({
+        user_id: currentUser.id,
+        user_email: currentUser.email || null,
+        event: e.name,
+        props: e.props,
+        created_at: e.t,
+      }));
+      const { error } = await sb.from("usage_events").insert(rows);
+      if (error) {
+        // On a transient failure, re-queue (capped) so we retry next tick.
+        window.__usageQueue = batch.concat(window.__usageQueue).slice(0, QUEUE_CAP);
+      }
+    } catch (_) { /* never throw from analytics */ }
+    finally { _flushing = false; }
+  }
+  window.__flushUsage = flushUsage;
+  // Periodic flush + flush-on-hide (catch the tab close).
+  try {
+    setInterval(flushUsage, 15000);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushUsage(); });
+  } catch (_) {}
+
   window.track = function (name, props) {
     if (!name || typeof name !== "string") return;
     const safeProps = (props && typeof props === "object") ? props : {};
@@ -5384,6 +5440,16 @@
       });
       if (window.__trackHistory.length > HISTORY_CAP) {
         window.__trackHistory.splice(0, window.__trackHistory.length - HISTORY_CAP);
+      }
+    } catch (_) { /* never throw from analytics */ }
+
+    // Queue for cloud persistence (authed routes only)
+    try {
+      if (!window.__PUBLIC_QUOTE_ROUTE && !window.__PUBLIC_SIGN_ROUTE) {
+        window.__usageQueue.push({ name: name.slice(0, 80), props: sanitizeProps(safeProps), t: new Date().toISOString() });
+        if (window.__usageQueue.length > QUEUE_CAP) {
+          window.__usageQueue.splice(0, window.__usageQueue.length - QUEUE_CAP);
+        }
       }
     } catch (_) { /* never throw from analytics */ }
 
@@ -11231,7 +11297,55 @@ function scheduleFLMissingCheck(query, source) {
 }
 
 /* ---- Admin panel UI ---- */
-let adminView = "dashboard";
+let adminView = "overview";
+let _adminCache = null;
+const ADMIN_PLAN_NAME = { starter: "Solo", pro: "Pro", unlimited: "Shop", trial: "Trial" };
+
+function relTime(ts) {
+  const d = Date.now() - new Date(ts).getTime();
+  if (!isFinite(d)) return "—";
+  const s = Math.floor(d / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return m + "m ago";
+  const h = Math.floor(m / 60); if (h < 24) return h + "h ago";
+  const dd = Math.floor(h / 24); if (dd < 30) return dd + "d ago";
+  const mo = Math.floor(dd / 30); if (mo < 12) return mo + "mo ago";
+  return Math.floor(mo / 12) + "y ago";
+}
+
+// One fetch powers every admin tab. quote_events + usage_events + profiles
+// (profiles is admin-read; tolerate failure so the rest still renders).
+async function loadAdminData(force) {
+  if (_adminCache && !force) return _adminCache;
+  const [qe, ue, pr] = await Promise.all([
+    sb.from("quote_events").select("*").order("created_at", { ascending: false }).limit(2000),
+    sb.from("usage_events").select("user_id,user_email,event,props,created_at").order("created_at", { ascending: false }).limit(8000),
+    sb.from("profiles").select("id,data,stripe_customer_id"),
+  ]);
+  if (qe.error) throw qe.error;
+  if (ue.error) throw ue.error;
+  _adminCache = { quotes: qe.data || [], usage: ue.data || [], profiles: pr.error ? [] : (pr.data || []) };
+  markCloudOk();
+  return _adminCache;
+}
+
+// Per-user rollup across usage + quote events, enriched with plan from profiles.
+function adminUserRollup(c) {
+  const m = new Map();
+  const touch = (uid, email, ts) => {
+    if (!uid) return null;
+    let u = m.get(uid);
+    if (!u) { u = { uid, email: email || "—", plan: "trial", first: ts, last: ts, events: 0, quotes: new Set(), aiReads: 0 }; m.set(uid, u); }
+    if (email && u.email === "—") u.email = email;
+    if (ts) { if (!u.first || ts < u.first) u.first = ts; if (!u.last || ts > u.last) u.last = ts; }
+    return u;
+  };
+  c.usage.forEach(e => { const u = touch(e.user_id, e.user_email, e.created_at); if (u) { u.events++; if (e.event === "plan_ai_extracted") u.aiReads++; } });
+  c.quotes.forEach(e => { const u = touch(e.user_id, e.user_email, e.created_at); if (u && e.quote_id) u.quotes.add(e.quote_id); });
+  const byId = {}; c.profiles.forEach(p => { byId[p.id] = p; });
+  m.forEach(u => { const ent = byId[u.uid] && byId[u.uid].data && byId[u.uid].data.config && byId[u.uid].data.config.entitlements; if (ent && ent.plan) u.plan = ent.plan; });
+  return [...m.values()];
+}
 
 function renderAdminPanel() {
   const body = document.getElementById("adminPanelBody");
@@ -11240,14 +11354,18 @@ function renderAdminPanel() {
     body.innerHTML = `<div class="text-slate-600 text-sm py-8">Admin access isn't configured for this account.</div>`;
     return;
   }
-  const tab = v => `<button type="button" data-adminview="${v}" class="set-tab ${adminView === v ? "active" : ""}" style="width:auto;display:inline-block">${v === "dashboard" ? "Dashboard" : "FL# Queue"}</button>`;
+  const TABS = [["overview", "Overview"], ["usage", "Feature usage"], ["accounts", "Accounts"], ["sticking", "Sticking points"], ["queue", "FL# Queue"]];
+  const tab = ([v, label]) => `<button type="button" data-adminview="${v}" class="set-tab ${adminView === v ? "active" : ""}" style="width:auto;display:inline-block">${label}</button>`;
   body.innerHTML = `
-    <div class="flex gap-1.5 mb-5">${tab("dashboard")}${tab("queue")}</div>
+    <div class="flex flex-wrap items-center gap-1.5 mb-5">${TABS.map(tab).join("")}
+      <button type="button" id="adminRefresh" class="ml-auto text-[10px] uppercase tracking-[0.12em] font-bold text-slate-500 hover:text-[#c9a558]" title="Reload analytics">↻ Refresh</button></div>
     <div id="adminViewBody"><div class="text-slate-600 text-sm py-10 text-center">Loading…</div></div>`;
   body.querySelectorAll("[data-adminview]").forEach(b =>
     b.addEventListener("click", () => { adminView = b.dataset.adminview; renderAdminPanel(); }));
-  if (adminView === "dashboard") renderAdminDashboard();
-  else renderAdminQueue();
+  const rf = body.querySelector("#adminRefresh");
+  if (rf) rf.addEventListener("click", () => { _adminCache = null; renderAdminPanel(); });
+  const map = { overview: renderAdminOverview, usage: renderAdminUsage, accounts: renderAdminAccounts, sticking: renderAdminSticking, queue: renderAdminQueue };
+  (map[adminView] || renderAdminOverview)();
 }
 
 function adminErr(el, msg) {
@@ -11256,16 +11374,19 @@ function adminErr(el, msg) {
     <div class="text-[11px] text-slate-500 mt-2 font-mono break-all">${escHtml(msg)}</div></div>`;
 }
 
-async function renderAdminDashboard() {
+async function renderAdminOverview() {
   const el = document.getElementById("adminViewBody");
-  let events;
-  try {
-    const { data, error } = await sb.from("quote_events")
-      .select("*").order("created_at", { ascending: false }).limit(1000);
-    if (error) throw error;
-    events = data || [];
-    markCloudOk();
-  } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
+  let c;
+  try { c = await loadAdminData(); } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
+  const events = c.quotes;
+  const usersAll = adminUserRollup(c);
+  const now = Date.now();
+  const active7 = usersAll.filter(u => u.last && (now - new Date(u.last).getTime()) <= 7 * 86400e3).length;
+  const active30 = usersAll.filter(u => u.last && (now - new Date(u.last).getTime()) <= 30 * 86400e3).length;
+  const paid = usersAll.filter(u => u.plan && u.plan !== "trial").length;
+  // Plan mix across all known users.
+  const mix = { trial: 0, starter: 0, pro: 0, unlimited: 0 };
+  usersAll.forEach(u => { mix[u.plan] = (mix[u.plan] || 0) + 1; });
 
   const kpiCard = (label, value, sub) => `
     <div class="card rounded-xl px-4 py-3.5">
@@ -11334,10 +11455,17 @@ async function renderAdminDashboard() {
 
   el.innerHTML = `
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      ${kpiCard("Quotes generated", quotes.length, "distinct quotes")}
-      ${kpiCard("Actions completed", events.length, "saves + PDF exports")}
-      ${kpiCard("People quoting", people, "distinct users")}
-      ${kpiCard("Avg quote", avg ? formatMoney(avg) : "—", "per quote")}
+      ${kpiCard("Active · 7d", active7, active7 === 1 ? "user" : "users")}
+      ${kpiCard("Active · 30d", active30, "of " + usersAll.length + " total")}
+      ${kpiCard("Paid", paid, paid && usersAll.length ? Math.round(paid / usersAll.length * 100) + "% of users" : "subscribers")}
+      ${kpiCard("Quotes", quotes.length, avg ? "avg " + formatMoney(avg) : "distinct")}
+    </div>
+    <div class="card rounded-xl p-4 mt-4">
+      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-2.5">Plan mix</div>
+      <div class="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+        ${[["unlimited", "#c9a558"], ["pro", "#c9a558"], ["starter", "#94a3b8"], ["trial", "#64748b"]].map(([k, col]) =>
+          `<span class="flex items-center gap-1.5"><span style="width:8px;height:8px;border-radius:99px;background:${col};display:inline-block"></span><span class="text-slate-300 font-semibold">${mix[k] || 0}</span> <span class="text-slate-500 text-xs">${ADMIN_PLAN_NAME[k]}</span></span>`).join("")}
+      </div>
     </div>
     <div class="card rounded-xl p-4 mt-4">
       <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-3">Quotes — last 14 days</div>
@@ -11368,15 +11496,143 @@ async function renderAdminDashboard() {
     if (!confirm(`Delete ${n} selected quote${n === 1 ? "" : "s"}? This removes ${ids.length} logged action${ids.length === 1 ? "" : "s"} and can't be undone.`)) return;
     try { await deleteQuoteEvents(ids); } catch (e) { toast("Delete failed — check admin permissions"); return; }
     toast("Quotes deleted");
-    renderAdminDashboard();
+    _adminCache = null; renderAdminOverview();
   });
   const purgeBtn = el.querySelector("#qPurgeAll");
   if (purgeBtn) purgeBtn.addEventListener("click", async () => {
     if (!confirm("Purge ALL quote history? Every logged quote and action is permanently deleted. This can't be undone.")) return;
     try { await purgeQuoteEvents(); } catch (e) { toast("Purge failed — check admin permissions"); return; }
     toast("Quote history purged");
-    renderAdminDashboard();
+    _adminCache = null; renderAdminOverview();
   });
+}
+
+// ── Feature usage — how often each tracked action happens ──────────────────
+async function renderAdminUsage() {
+  const el = document.getElementById("adminViewBody");
+  let c;
+  try { c = await loadAdminData(); } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
+  const sevenAgo = Date.now() - 7 * 86400e3;
+  const agg = {};
+  c.usage.forEach(e => {
+    const a = agg[e.event] || (agg[e.event] = { count: 0, users: new Set(), last7: 0 });
+    a.count++; if (e.user_id) a.users.add(e.user_id);
+    if (new Date(e.created_at).getTime() >= sevenAgo) a.last7++;
+  });
+  const rows = Object.entries(agg).map(([ev, a]) => ({ ev, count: a.count, users: a.users.size, last7: a.last7 }))
+    .sort((x, y) => y.count - x.count);
+  const max = Math.max(1, ...rows.map(r => r.count));
+  const pretty = s => s.replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase());
+  const bars = rows.map(r => `
+    <div class="py-2 border-t border-slate-800/60 first:border-t-0">
+      <div class="flex items-center justify-between gap-3 text-[12px] mb-1">
+        <span class="text-slate-200 font-semibold truncate">${escHtml(pretty(r.ev))}</span>
+        <span class="text-slate-500 flex-shrink-0 tabular-nums">${r.count} · ${r.users} user${r.users === 1 ? "" : "s"}${r.last7 ? ` · <span class="text-[#c9a558]">${r.last7} this wk</span>` : ""}</span>
+      </div>
+      <div class="h-2 rounded-full bg-slate-800/70 overflow-hidden"><div class="h-full rounded-full" style="width:${Math.max(3, r.count / max * 100)}%;background:linear-gradient(90deg,#8a6a2e,#c9a558)"></div></div>
+    </div>`).join("");
+  el.innerHTML = `
+    <div class="text-[11px] text-slate-500 mb-3">Every tracked action across all users. Count · distinct users · last 7 days. Data starts the moment this deploys.</div>
+    <div class="card rounded-xl p-4">${bars || `<div class="text-slate-600 text-sm py-8 text-center">No usage events yet — they'll appear here as people use the app.</div>`}</div>`;
+}
+
+// ── Accounts — per-user activity, flags dormant / at-risk ──────────────────
+async function renderAdminAccounts() {
+  const el = document.getElementById("adminViewBody");
+  let c;
+  try { c = await loadAdminData(); } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
+  const users = adminUserRollup(c).sort((a, b) => String(b.last).localeCompare(String(a.last)));
+  const now = Date.now();
+  const planPill = p => {
+    const paid = p && p !== "trial";
+    return `<span class="text-[10px] font-bold rounded-full px-2 py-0.5 ${paid ? "text-[#c9a558] bg-[#b58f4a]/12 border border-[#b58f4a]/30" : "text-slate-400 bg-slate-800 border border-slate-700"}">${ADMIN_PLAN_NAME[p] || p}</span>`;
+  };
+  const rows = users.map(u => {
+    const dormant = u.last && (now - new Date(u.last).getTime()) > 14 * 86400e3;
+    return `<div class="flex items-center gap-3 py-2.5 border-t border-slate-800/60 first:border-t-0">
+      <span style="width:7px;height:7px;border-radius:99px;flex-shrink:0;background:${dormant ? "#64748b" : "#22c55e"}" title="${dormant ? "Dormant 14d+" : "Active"}"></span>
+      <div class="min-w-0 flex-1">
+        <div class="text-xs font-semibold text-slate-200 truncate">${escHtml(u.email)}</div>
+        <div class="text-[10px] text-slate-500">joined ${relTime(u.first)} · last ${relTime(u.last)}</div>
+      </div>
+      <div class="text-right flex-shrink-0 text-[11px] text-slate-400 tabular-nums leading-tight">
+        <div>${u.quotes.size} quote${u.quotes.size === 1 ? "" : "s"} · ${u.aiReads} AI</div>
+        <div class="text-slate-600">${u.events} actions</div>
+      </div>
+      <div class="flex-shrink-0">${planPill(u.plan)}</div>
+    </div>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="text-[11px] text-slate-500 mb-3">${users.length} known account${users.length === 1 ? "" : "s"}. Green = active, grey = dormant 14+ days. Sorted by last activity.</div>
+    <div class="card rounded-xl p-4">${rows || `<div class="text-slate-600 text-sm py-8 text-center">No accounts with activity yet.</div>`}</div>`;
+}
+
+// ── Sticking points — onboarding funnel + friction flags ───────────────────
+async function renderAdminSticking() {
+  const el = document.getElementById("adminViewBody");
+  let c;
+  try { c = await loadAdminData(); } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
+  // distinct users who reached each funnel stage
+  const usersWith = (pred) => { const s = new Set(); c.usage.forEach(e => { if (pred(e)) s.add(e.user_id); }); return s; };
+  const quoteUsers = new Set(); c.quotes.forEach(e => { if (e.user_id) quoteUsers.add(e.user_id); });
+  const stages = [
+    { label: "Signed up", set: usersWith(e => e.event === "auth_signup_completed") },
+    { label: "Started a quote", set: usersWith(e => e.event === "calculator_first_interaction" || e.event === "job_saved") },
+    { label: "Saved a job", set: usersWith(e => e.event === "job_saved") },
+    { label: "Shared / sent", set: usersWith(e => e.event === "quote_shared" || e.event === "sign_link_created") },
+    { label: "Subscribed", set: usersWith(e => e.event === "checkout_success") },
+  ];
+  // fall back signup count to total users if signup events predate analytics
+  const totalUsers = adminUserRollup(c).length;
+  const top = Math.max(stages[0].set.size, totalUsers, 1);
+  const funnel = stages.map((st, i) => {
+    const n = st.set.size;
+    const prev = i === 0 ? top : Math.max(1, stages[i - 1].set.size || top);
+    const stepPct = i === 0 ? 100 : Math.round(n / prev * 100);
+    return `<div class="py-2">
+      <div class="flex items-center justify-between text-[12px] mb-1">
+        <span class="text-slate-200 font-semibold">${st.label}</span>
+        <span class="text-slate-500 tabular-nums">${n}${i > 0 ? ` · <span class="${stepPct < 50 ? "text-rose-300" : "text-slate-400"}">${stepPct}%</span>` : ""}</span>
+      </div>
+      <div class="h-2.5 rounded-full bg-slate-800/70 overflow-hidden"><div class="h-full rounded-full" style="width:${Math.max(3, n / top * 100)}%;background:linear-gradient(90deg,#8a6a2e,#c9a558)"></div></div>
+    </div>`;
+  }).join("");
+
+  // friction flags
+  const byReason = {}; let limitHits = 0;
+  const byStatus = {}; let aiFails = 0;
+  c.usage.forEach(e => {
+    if (e.event === "limit_hit") { limitHits++; const r = (e.props && e.props.reason) || "?"; byReason[r] = (byReason[r] || 0) + 1; }
+    if (e.event === "plan_ai_failed") { aiFails++; const s = (e.props && e.props.status) || "?"; byStatus[s] = (byStatus[s] || 0) + 1; }
+  });
+  // trials expiring within 3 days
+  const soon = c.profiles.map(p => {
+    const ent = p.data && p.data.config && p.data.config.entitlements;
+    if (!ent || ent.plan !== "trial" || !ent.cycleResetAt) return null;
+    const days = (ent.cycleResetAt - Date.now()) / 86400e3;
+    return (days >= 0 && days <= 3) ? { id: p.id, days } : null;
+  }).filter(Boolean);
+  const chip = (label, n, tone) => `<div class="card rounded-xl px-4 py-3">
+    <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">${label}</div>
+    <div class="text-2xl font-black tracking-tight mt-1 ${n ? (tone || "text-amber-300") : "text-slate-600"}">${n}</div></div>`;
+  const reasonLine = Object.entries(byReason).sort((a, b) => b[1] - a[1]).map(([r, n]) => `${escHtml(r.replace(/_/g, " "))} ${n}`).join(" · ");
+  const statusLine = Object.entries(byStatus).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s === "429" ? "cap" : s === "422" ? "unreadable" : s} ${n}`).join(" · ");
+
+  el.innerHTML = `
+    <div class="card rounded-xl p-4">
+      <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-2">Onboarding funnel</div>
+      <div class="text-[11px] text-slate-600 mb-2">Distinct users who reached each step. A big drop between two steps is your sticking point.</div>
+      ${funnel}
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+      ${chip("Paywall hits", limitHits, "text-amber-300")}
+      ${chip("AI read fails", aiFails, "text-rose-300")}
+      ${chip("Trials expiring ≤3d", soon.length, "text-amber-300")}
+    </div>
+    ${(reasonLine || statusLine) ? `<div class="card rounded-xl p-4 mt-3 text-[11px] text-slate-500 space-y-1">
+      ${reasonLine ? `<div><span class="text-slate-400 font-semibold">Paywall reasons:</span> ${reasonLine}</div>` : ""}
+      ${statusLine ? `<div><span class="text-slate-400 font-semibold">AI failures:</span> ${statusLine}</div>` : ""}
+    </div>` : ""}`;
 }
 
 // Delete specific quote_events rows by id (chunked for safety).
@@ -12915,6 +13171,9 @@ async function invokePlanExtraction(body) {
         if (j && j.debug) debug = j.debug;
       }
     } catch (_) {}
+    // Friction signal: the AI plan read failed (status tells us why — 429 cap,
+    // 422 unreadable, 502/504 upstream). Feeds the admin Sticking-Points view.
+    try { if (typeof window.track === "function") window.track("plan_ai_failed", { status }); } catch (_) {}
     return { ok: false, status, msg: msg || error.message || "Couldn't read that plan.", debug };
   }
   return { ok: true, data };
@@ -14941,6 +15200,8 @@ function showUpsellModal(reason) {
   const modal = document.getElementById("upsellModal");
   if (!modal) return;
   const r = (reason && UPSELL_COPY[reason]) ? reason : "limit_reached";
+  // Friction signal for the admin Sticking-Points view: a wall was hit.
+  try { if (typeof window.track === "function") window.track("limit_hit", { reason: r }); } catch (_) {}
   const e = getEntitlements();
   const copy = UPSELL_COPY[r];
 
