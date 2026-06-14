@@ -313,11 +313,17 @@
   }
   #jobSummaryBar #jobSpecSummary {
     flex: 1 1 auto; min-width: 0;
-    font-size: 12px; font-weight: 600;
-    color: #cbd5e1; line-height: 1.25;
-    text-align: left;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: flex; flex-direction: column; gap: 1px;
+    text-align: left; line-height: 1.25;
     -webkit-tap-highlight-color: transparent;
+  }
+  #jobSummaryBar #jobSpecSummary .jss-size {
+    font-size: 13px; font-weight: 700; color: #f1f5f9;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #jobSummaryBar #jobSpecSummary .jss-spec {
+    font-size: 11px; font-weight: 500; color: #8b97a8;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   #jobSummaryBar #jobSpecSummary.is-empty {
     color: #c9a558; font-weight: 700;
@@ -561,15 +567,15 @@
   }
   /* Live-recap band in the main panel — replaces the old big LF input */
   #liveRecap {
+    display: none;            /* mobile uses the sticky #jobSummaryBar; desktop only */
     text-align: center;
-    color: #94a3b8;
-    font-size: 13px;
-    font-weight: 600;
     letter-spacing: 0.06em;
     min-height: 1.5em;
   }
-  #liveRecap.is-empty { color: #475569; font-weight: 500; }
-  #liveRecap .recap-dot { color: #475569; margin: 0 6px; }
+  @media (min-width: 1024px) { #liveRecap { display: block; } }
+  #liveRecap .recap-size { display: block; color: #cbd5e1; font-size: 13px; font-weight: 600; }
+  #liveRecap .recap-spec { display: block; color: #64748b; font-size: 12px; font-weight: 500; margin-top: 1px; }
+  #liveRecap.is-empty { color: #475569; font-weight: 500; font-size: 13px; }
 
   /* ------- AI button hover tooltip + collapse animation ------- */
   .ai-btn-wrap { position: relative; display: inline-flex; max-width: 400px; }
@@ -7840,55 +7846,62 @@ function render() {
   fitAll();
 }
 
-// Live recap band — the one-line spec preview that sits where the big
-// hero LF input used to live (the input itself moved into the rail).
-// Reads STATE and stitches together "240 LF · Block · Impact · 2-story · 12 windows · 2 doors".
+// Job summary — TWO tiers, shared by the sticky mobile bar (#jobSpecSummary)
+// and the desktop recap band (#liveRecap), so the spec is described once:
+//   SIZE → "480 LF · 27 windows · 3-story · 2 doors"  (the scope of the job)
+//   SPEC → "New · Block · Impact · Viwinco · Nail-fin" (the build details)
+// Deduped (nothing repeats across tiers) and footage rounded to ≤1 decimal.
+function cleanLF(v) { const n = parseFloat(v); return isFinite(n) ? Math.round(n * 10) / 10 : 0; }
+function jobSummaryTiers() {
+  const lf = cleanLF(STATE.totalLF);
+  const wc = parseInt(STATE.windowCount, 10) || 0;
+  const sd = STATE.swingDoors || {};
+  const doors = (parseInt(sd.single, 10) || 0) + (parseInt(sd.double, 10) || 0)
+    + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
+  const size = [];
+  if (lf > 0) size.push(`${lf} LF`);
+  if (wc > 0) size.push(`${wc} window${wc === 1 ? "" : "s"}`);
+  if (STATE.stories) { const m = String(STATE.stories).match(/(\d+)/); size.push(m ? `${m[1]}-story` : STATE.stories); }
+  if (doors > 0) size.push(`${doors} door${doors === 1 ? "" : "s"}`);
+  const abbr = { "New Construction": "New", "Block Framed": "Block", "Stick Framed": "Stick" };
+  const spec = [];
+  if (STATE.constructionType) spec.push(abbr[STATE.constructionType] || STATE.constructionType);
+  if (STATE.houseType) spec.push(abbr[STATE.houseType] || STATE.houseType);
+  if (STATE.impact) spec.push(STATE.impact);
+  if (STATE.manufacturer) spec.push(STATE.manufacturer);
+  if (STATE.application) spec.push(STATE.application);
+  return { size, spec };
+}
+// Desktop recap band (centered, under the header).
 function renderLiveRecap() {
   const el = document.getElementById("liveRecap");
   if (!el) return;
-  const lf = parseFloat(STATE.totalLF) || 0;
-  const wc = parseInt(STATE.windowCount, 10) || 0;
-  const sd = STATE.swingDoors || {};
-  const doors = (parseInt(sd.single, 10) || 0) + (parseInt(sd.double, 10) || 0);
-  const parts = [];
-  if (lf > 0) parts.push(`${lf} LF`);
-  if (STATE.houseType) {
-    parts.push(STATE.houseType === "Block Framed" ? "Block" : "Stick");
-  }
-  if (STATE.impact) parts.push(STATE.impact);
-  if (STATE.stories) {
-    const m = String(STATE.stories).match(/(\d+)/);
-    parts.push(m ? `${m[1]}-story` : STATE.stories);
-  }
-  if (wc > 0) parts.push(`${wc} window${wc === 1 ? "" : "s"}`);
-  if (doors > 0) parts.push(`${doors} door${doors === 1 ? "" : "s"}`);
-
-  if (lf <= 0 && doors <= 0) {
+  const { size, spec } = jobSummaryTiers();
+  if (!size.length && !spec.length) {
     el.classList.add("is-empty");
     el.textContent = "Set linear footage in the panel to start";
     return;
   }
   el.classList.remove("is-empty");
-  el.innerHTML = parts
-    .map(p => `<span>${escHtml(p)}</span>`)
-    .join('<span class="recap-dot">·</span>');
+  el.innerHTML =
+    `<span class="recap-size">${escHtml(size.join("  ·  ") || "—")}</span>` +
+    (spec.length ? `<span class="recap-spec">${escHtml(spec.join("  ·  "))}</span>` : "");
 }
-
-// The collapsed Job Spec line — reads the current spec like a sentence.
-// When nothing is selected we flip to a gold "Set up your job →" CTA so the
-// sticky mobile bar is useful even on a brand-new quote.
+// Sticky mobile/tablet bar — the same two tiers, left-aligned, with the Edit pill.
+// When nothing is set we flip to a gold "Set up your job →" CTA.
 function renderJobSpecSummary() {
   const el = document.getElementById("jobSpecSummary");
   if (!el) return;
-  const parts = [STATE.manufacturer, STATE.constructionType, STATE.houseType,
-    STATE.application, STATE.impact, STATE.stories].filter(Boolean);
-  if (parts.length) {
-    el.textContent = parts.join("  ·  ");
-    el.classList.remove("is-empty");
-  } else {
+  const { size, spec } = jobSummaryTiers();
+  if (!size.length && !spec.length) {
     el.innerHTML = 'Set up your job <span aria-hidden="true">&rarr;</span>';
     el.classList.add("is-empty");
+    return;
   }
+  el.classList.remove("is-empty");
+  el.innerHTML =
+    `<span class="jss-size">${escHtml(size.join("  ·  ") || "—")}</span>` +
+    (spec.length ? `<span class="jss-spec">${escHtml(spec.join("  ·  "))}</span>` : "");
 }
 
 // Per-job material variant toggles — one segmented control per category
@@ -9937,7 +9950,7 @@ function applyJobToState(j) {
   STATE.constructionType = j.constructionType;
   STATE.impact = j.impact || "Impact";
   STATE.stories = j.stories || "1 Story";
-  STATE.totalLF = String(j.totalLF);
+  STATE.totalLF = (j.totalLF === "" || j.totalLF == null) ? "" : String(cleanLF(j.totalLF));
   STATE.windowCount = j.windowCount ? String(j.windowCount) : "";
   STATE.liftEnabled = j.liftEnabled || false;
   STATE.liftDays = j.liftDays || "1";
@@ -13079,9 +13092,9 @@ function applyGrokResponse() {
     applied.push(`${count} windows`);
   }
   if (lf != null) {
-    STATE.totalLF = String(lf);
+    STATE.totalLF = String(cleanLF(lf));
     document.getElementById("totalLF").value = STATE.totalLF;
-    applied.push(`${lf} LF`);
+    applied.push(`${cleanLF(lf)} LF`);
   }
   if (matchedMfg != null) {
     STATE.manufacturer = matchedMfg;
