@@ -516,7 +516,9 @@
     body.rail-tidy #jobRail .seg-btn { min-height: 42px; }   /* comfortable thumb target */
   }
   @media (min-width: 1024px) {
-    body.rail-tidy #jobRail .rail-field.rail-inline { display: flex; align-items: center; gap: 10px; }
+    body.rail-tidy #jobRail { width: 21rem; }                      /* wider so names + pills breathe */
+    body.rail-tidy.rail-pinned #appBody { padding-left: 21rem; }
+    body.rail-tidy #jobRail .rail-field.rail-inline { display: flex; align-items: center; gap: 12px; }
     body.rail-tidy #jobRail .rail-field.rail-inline > label { margin-bottom: 0; flex-shrink: 0; }
     body.rail-tidy #jobRail .rail-field.rail-inline > .seg { flex: 1; min-width: 0; }
   }
@@ -7640,6 +7642,9 @@ function render() {
   empty.classList.toggle("hidden", hasInput);
   // The recap band sits above results/empty and should always reflect STATE.
   renderLiveRecap();
+  // Wire the accordion + open a section BEFORE the empty-job early-return below,
+  // or a fresh job would have every section sealed shut and the headers dead.
+  initRailAccordion();
   if (!hasInput) { fitAll(); return; }
 
   document.getElementById("sellingPrice").textContent = formatMoney(r.sellingPrice);
@@ -7884,7 +7889,7 @@ function render() {
   // Per-job material variant toggles
   renderMaterialsToggle();
   renderJobSpecSummary();
-  initRailAccordion();          // wires once; keeps section summaries live
+  renderRailAccSummaries();     // refresh collapsed-card recaps after a full render
   renderPlanApprovals();
   updateSlidingDoorsSummary();
   updateBifoldDoorsSummary();
