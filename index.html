@@ -418,15 +418,43 @@
      so the user sees at a glance which fields the plan filled (and which are
      still theirs to set). Cleared as soon as they edit the field. */
   .ai-badge {
+    position: relative;
     display: inline-flex; align-items: center;
     margin-left: 6px; vertical-align: middle;
     font-size: 8.5px; font-weight: 900; letter-spacing: 0.1em;
-    text-transform: uppercase; color: #0a0a0a;
+    text-transform: uppercase; color: #1a1206;
     background: linear-gradient(180deg, var(--gold-hi, #d8b765) 0%, var(--gold, #b58f4a) 100%);
-    padding: 1px 6px; border-radius: 999px;
+    padding: 1px 7px 1px 6px; border-radius: 999px;
     box-shadow: 0 2px 6px -2px rgba(181,143,74,0.6);
+    cursor: help; outline: none;
+    transition: transform .12s ease, box-shadow .15s ease;
   }
+  .ai-badge:hover, .ai-badge:focus { transform: translateY(-1px); box-shadow: 0 4px 10px -3px rgba(181,143,74,0.75); }
   .ai-badge::before { content: "\2728"; margin-right: 3px; font-size: 8px; }
+  /* Subtle gold ring on the AI-filled control so the fill reads even before hover */
+  .rail-field.ai-filled .num-input,
+  .rail-field.ai-filled .control,
+  .rail-field.ai-filled .dd-trigger { box-shadow: 0 0 0 1px rgba(181,143,74,0.45); }
+  /* Hover/focus explainer card — mirrors .info-pop so it feels native */
+  .ai-pop {
+    position: absolute; bottom: calc(100% + 9px); left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: rgba(2,6,23,0.98);
+    border: 1px solid rgba(181,143,74,0.45);
+    border-radius: 10px; padding: 8px 11px;
+    font-size: 11px; line-height: 1.45; font-weight: 500;
+    text-transform: none; letter-spacing: normal;
+    color: #e2e8f0;
+    width: max-content; max-width: min(220px, 70vw); text-align: left;
+    opacity: 0; pointer-events: none; z-index: 46;
+    transition: opacity .18s ease, transform .22s cubic-bezier(0.16,1,0.3,1);
+    box-shadow: 0 14px 28px -10px rgba(0,0,0,0.7);
+  }
+  .ai-pop b { color: var(--gold-pale, #dfc07a); font-weight: 700; }
+  .ai-badge:hover .ai-pop, .ai-badge:focus .ai-pop, .ai-badge:focus-within .ai-pop {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+  [data-theme="light"] .ai-pop { background: #ffffff; color: #334155; border-color: rgba(181,143,74,0.5); }
   /* Saved-job deal-status chip (Lead / Quoted / Won / Lost) */
   .job-status-sel {
     font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
@@ -456,13 +484,18 @@
   .rail-section-header.first {
     padding-top: 4px; margin-top: 0;
   }
-  /* High-impact star — sits to the LEFT of the label as a leading marker */
-  .rail-field > label .impact-star {
-    display: inline-block; margin-right: 6px;
-    color: #c9a558;
-    font-size: 10px; line-height: 1;
-    vertical-align: 1px;
+  /* Impact level — a color-coded underline on the title text only (not the ?
+     icon). Reuses the exact tooltip tokens so underline + tip-tag agree:
+     high = rose, medium = gold, low = faint dotted slate. */
+  .rail-field > label .lbl-impact {
+    border-bottom: 2px solid transparent;
+    padding-bottom: 2px;
+    transition: border-color .15s ease;
   }
+  .rail-field > label .lbl-impact.high { border-bottom-color: #f43f5e; }
+  .rail-field > label .lbl-impact.med  { border-bottom-color: var(--gold, #b58f4a); }
+  .rail-field > label .lbl-impact.low  { border-bottom: 1px dotted rgba(148,163,184,0.4); padding-bottom: 3px; }
+  [data-theme="light"] .rail-field > label .lbl-impact.low { border-bottom-color: rgba(100,116,139,0.55); }
   /* Reset-job pill at the bottom of the rail */
   .rail-reset-btn {
     width: 100%;
@@ -4037,7 +4070,7 @@
 
       <!-- ─── QUICK START ─── -->
       <div class="rail-field">
-        <label>AI tools<span class="info-tip" tabindex="0" role="button" aria-label="How AI tools affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag low">Low impact</span><br>Optional helpers — scan a plan or build a buck cut list to speed up entry. They fill in the job for you but don't change the price on their own.</span></span></label>
+        <label><span class="lbl-impact low">AI tools</span><span class="info-tip" tabindex="0" role="button" aria-label="How AI tools affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag low">Low impact</span><br>Optional helpers — scan a plan or build a buck cut list to speed up entry. They fill in the job for you but don't change the price on their own.</span></span></label>
         <div class="space-y-2">
           <input id="readPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" multiple class="hidden" />
           <label for="readPlanFile" id="readFromPlanBtn" class="btn w-full rounded-lg px-3 py-2.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.12em] uppercase inline-flex items-center justify-center gap-2 cursor-pointer">
@@ -4049,14 +4082,14 @@
 
       <!-- ─── THE JOB ─── -->
       <div class="rail-section-header first">The Job</div>
-      <div class="rail-field"><label><span class="impact-star" aria-hidden="true">&#9733;</span>Construction<span class="info-tip" tabindex="0" role="button" aria-label="How construction type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>New Construction vs. Remodel swings labor the most — roughly 10 min/LF for stick-framed new work vs. 40 min/LF on a remodel.</span></span></label>
+      <div class="rail-field"><label><span class="lbl-impact high">Construction</span><span class="info-tip" tabindex="0" role="button" aria-label="How construction type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>New Construction vs. Remodel swings labor the most — roughly 10 min/LF for stick-framed new work vs. 40 min/LF on a remodel.</span></span></label>
         <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div></div>
-      <div class="rail-field"><label><span class="impact-star" aria-hidden="true">&#9733;</span>House<span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
+      <div class="rail-field"><label><span class="lbl-impact high">House</span><span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
         <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
-      <div class="rail-field"><label><span class="impact-star" aria-hidden="true">&#9733;</span>Stories<span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
+      <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
         <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div></div>
       <div class="rail-field">
-        <label>Manufacturer<span class="info-tip" tabindex="0" role="button" aria-label="How manufacturer affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Sets the brand's screw pattern and any brand-specific unit pricing — which changes anchor counts and material totals.</span></span></label>
+        <label><span class="lbl-impact med">Manufacturer</span><span class="info-tip" tabindex="0" role="button" aria-label="How manufacturer affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Sets the brand's screw pattern and any brand-specific unit pricing — which changes anchor counts and material totals.</span></span></label>
         <div id="ddManufacturer" class="dd w-full">
           <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
             <span class="dd-label"></span>
@@ -4085,19 +4118,19 @@
         </div>
         <div id="lfPerWindowHint" class="hidden mt-2 text-slate-500 text-[10px] tracking-[0.16em] uppercase font-semibold" style="font-variant-numeric: tabular-nums;"></div>
       </div>
-      <div class="rail-field"><label>Application<span class="info-tip" tabindex="0" role="button" aria-label="How application affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>The install detail (nail-fin vs. leg) can carry its own per-LF unit pricing for some brands. Match it to the actual opening.</span></span></label>
+      <div class="rail-field"><label><span class="lbl-impact med">Application</span><span class="info-tip" tabindex="0" role="button" aria-label="How application affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>The install detail (nail-fin vs. leg) can carry its own per-LF unit pricing for some brands. Match it to the actual opening.</span></span></label>
         <div id="segApplication" class="seg flex-wrap" role="tablist" aria-label="Application"></div></div>
-      <div class="rail-field"><label><span class="impact-star" aria-hidden="true">&#9733;</span>Glass<span class="info-tip" tabindex="0" role="button" aria-label="How glass type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Impact glass uses a denser screw pattern and adds a labor multiplier. Getting this wrong over- or under-prices the whole job.</span></span></label>
+      <div class="rail-field"><label><span class="lbl-impact high">Glass</span><span class="info-tip" tabindex="0" role="button" aria-label="How glass type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Impact glass uses a denser screw pattern and adds a labor multiplier. Getting this wrong over- or under-prices the whole job.</span></span></label>
         <div id="segImpact" class="seg" role="tablist" aria-label="Impact glass"></div></div>
       <div class="rail-field">
-        <label>Windows count<span class="info-tip" tabindex="0" role="button" aria-label="How window count affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Window count drives caulk tubes, screw boxes, and (on a remodel) disposal cost — useful for accurate take-offs.</span></span></label>
+        <label><span class="lbl-impact med">Windows count</span><span class="info-tip" tabindex="0" role="button" aria-label="How window count affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Window count drives caulk tubes, screw boxes, and (on a remodel) disposal cost — useful for accurate take-offs.</span></span></label>
         <label class="margin-pill" style="cursor:text">
           <span class="lbl">Windows</span>
           <input id="windowCountInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
         </label>
       </div>
       <div id="swingDoorsRailField" class="rail-field hidden">
-        <label>Swing doors<span class="info-tip" tabindex="0" role="button" aria-label="How swing doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Swing doors price per door, not per LF. Threshold hardware is included. Toggle sill flashing on/off &mdash; usually on for new construction over concrete. Tune rates in Settings.</span></span></label>
+        <label><span class="lbl-impact med">Swing doors</span><span class="info-tip" tabindex="0" role="button" aria-label="How swing doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Swing doors price per door, not per LF. Threshold hardware is included. Toggle sill flashing on/off &mdash; usually on for new construction over concrete. Tune rates in Settings.</span></span></label>
         <div class="space-y-2">
           <label class="margin-pill" style="cursor:text">
             <span class="lbl">Single-leaf</span>
@@ -4112,7 +4145,7 @@
         </div>
       </div>
       <div id="slidingDoorsRailField" class="rail-field hidden">
-        <label>Sliding glass doors<span class="info-tip" tabindex="0" role="button" aria-label="How sliding glass doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Sliding glass doors price separately from windows &mdash; far more labor (4 crew-hours per panel by default) and a building-dept screw inspection that adds a return-trip day before panels &amp; snap covers go on. Their frame footage still pulls per-LF screws, caulk, shims &amp; bucking. Set panels per door; tune rates in Settings.</span></span></label>
+        <label><span class="lbl-impact high">Sliding glass doors</span><span class="info-tip" tabindex="0" role="button" aria-label="How sliding glass doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Sliding glass doors price separately from windows &mdash; far more labor (4 crew-hours per panel by default) and a building-dept screw inspection that adds a return-trip day before panels &amp; snap covers go on. Their frame footage still pulls per-LF screws, caulk, shims &amp; bucking. Set panels per door; tune rates in Settings.</span></span></label>
         <div class="space-y-2">
           <div id="slidingDoorsList" class="space-y-2"></div>
           <button id="addSlidingDoorBtn" type="button" class="rail-add-btn">+ Add sliding door</button>
@@ -4120,7 +4153,7 @@
         </div>
       </div>
       <div id="bifoldDoorsRailField" class="rail-field hidden">
-        <label>Bifold doors<span class="info-tip" tabindex="0" role="button" aria-label="How bifold doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Bifold / folding glass walls price separately from windows &mdash; the most labor-intensive opening (each folding leaf is hinged, leveled &amp; aligned; 5 crew-hours per panel by default) plus a screw-inspection return trip. Like sliders, their frame footage pulls per-LF screws, caulk, shims &amp; bucking but is never added to your window LF. Set panels per door; tune rates in Settings.</span></span></label>
+        <label><span class="lbl-impact high">Bifold doors</span><span class="info-tip" tabindex="0" role="button" aria-label="How bifold doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Bifold / folding glass walls price separately from windows &mdash; the most labor-intensive opening (each folding leaf is hinged, leveled &amp; aligned; 5 crew-hours per panel by default) plus a screw-inspection return trip. Like sliders, their frame footage pulls per-LF screws, caulk, shims &amp; bucking but is never added to your window LF. Set panels per door; tune rates in Settings.</span></span></label>
         <div class="space-y-2">
           <div id="bifoldDoorsList" class="space-y-2"></div>
           <button id="addBifoldDoorBtn" type="button" class="rail-add-btn">+ Add bifold door</button>
@@ -4131,11 +4164,11 @@
       <!-- ─── EXTRAS ─── -->
       <div class="rail-section-header">Extras</div>
       <div class="rail-field">
-        <label>Permit<span class="info-tip" tabindex="0" role="button" aria-label="How permit affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>A flat add-on for the permit fee. Toggle on if you're pulling the permit; rate is tunable in Settings.</span></span></label>
+        <label><span class="lbl-impact med">Permit</span><span class="info-tip" tabindex="0" role="button" aria-label="How permit affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>A flat add-on for the permit fee. Toggle on if you're pulling the permit; rate is tunable in Settings.</span></span></label>
         <button id="permitToggleBtn" type="button" class="toggle-pill"><span class="lbl">Permit</span><span class="val">Off</span></button>
       </div>
       <div id="liftRailField" class="rail-field hidden">
-        <label>Lift<span class="info-tip" tabindex="0" role="button" aria-label="How a lift affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Boom-lift rental for multi-story work. Only shows on 2+ story jobs. Daily rate is tunable in Settings.</span></span></label>
+        <label><span class="lbl-impact med">Lift</span><span class="info-tip" tabindex="0" role="button" aria-label="How a lift affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Boom-lift rental for multi-story work. Only shows on 2+ story jobs. Daily rate is tunable in Settings.</span></span></label>
         <div class="space-y-2">
           <button id="liftToggleBtn" type="button" class="toggle-pill"><span class="lbl">Lift</span><span class="val">Off</span></button>
           <label id="liftDaysWrap" class="margin-pill hidden" style="cursor:text">
@@ -9621,6 +9654,7 @@ function resetAll() {
     swingDoors: { single: 0, double: 0, withFlashing: true },
   };
   saveState(STATE);
+  clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
   bindControls();
   renderSlidingDoors();
   renderBifoldDoors();
@@ -13287,8 +13321,14 @@ function markFieldAi(elId) {
   if (label && !label.querySelector(".ai-badge")) {
     const b = document.createElement("span");
     b.className = "ai-badge";
+    b.tabIndex = 0;
+    b.setAttribute("role", "note");
+    b.setAttribute("aria-label", "Auto-filled by AI from your plan. Double-check it.");
     b.textContent = "AI";
-    b.title = "Auto-filled from your plan — double-check it";
+    const pop = document.createElement("span");
+    pop.className = "ai-pop";
+    pop.innerHTML = "<b>✨ Auto-filled by AI</b><br>We read this from your plan. Double-check it before you bid.";
+    b.appendChild(pop);
     label.appendChild(b);
   }
 }
@@ -13299,6 +13339,15 @@ function clearFieldAi(field) {
 }
 function clearAllAiFilled() {
   document.querySelectorAll(".rail-field.ai-filled").forEach(clearFieldAi);
+}
+// Clear the AI badge for a control that doesn't emit a native input/change the
+// capture listener can catch (the custom manufacturer dropdown, the door
+// add/remove buttons). Call only from USER-initiated handlers — never from a
+// render path, or an AI fill that re-renders would erase its own badge.
+function clearFieldAiById(elId) {
+  const el = document.getElementById(elId);
+  const field = el && el.closest && el.closest(".rail-field");
+  if (field && field.classList.contains("ai-filled")) clearFieldAi(field);
 }
 // Clear the AI tag as soon as the user edits an auto-filled field.
 ["input", "change"].forEach((evt) =>
@@ -13597,6 +13646,7 @@ function addSlidingDoor() {
   if (!Array.isArray(STATE.slidingDoors)) STATE.slidingDoors = [];
   STATE.slidingDoors.push({ panels: 3, width: "", height: "", qty: 1 });
   if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  clearFieldAiById("slidingDoorsRailField");   // user edited the AI result
   renderSlidingDoors();
   render();
 }
@@ -13605,6 +13655,7 @@ function removeSlidingDoor(idx) {
   if (!Array.isArray(STATE.slidingDoors)) return;
   STATE.slidingDoors.splice(idx, 1);
   if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  clearFieldAiById("slidingDoorsRailField");   // user edited the AI result
   renderSlidingDoors();
   render();
 }
@@ -13681,6 +13732,7 @@ function addBifoldDoor() {
   if (!Array.isArray(STATE.bifoldDoors)) STATE.bifoldDoors = [];
   STATE.bifoldDoors.push({ panels: 3, width: "", height: "", qty: 1 });
   if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  clearFieldAiById("bifoldDoorsRailField");   // user edited the AI result
   renderBifoldDoors();
   render();
 }
@@ -13689,6 +13741,7 @@ function removeBifoldDoor(idx) {
   if (!Array.isArray(STATE.bifoldDoors)) return;
   STATE.bifoldDoors.splice(idx, 1);
   if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  clearFieldAiById("bifoldDoorsRailField");   // user edited the AI result
   renderBifoldDoors();
   render();
 }
