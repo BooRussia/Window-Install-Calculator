@@ -562,6 +562,15 @@
     transition: max-height .32s cubic-bezier(0.16,1,0.3,1), padding .2s ease;
   }
   body.rail-tidy #jobRail .rail-acc.open .rail-acc-body { max-height: 4000px; padding: 2px 15px 16px; }
+  /* Expand all / Collapse all — only meaningful in accordion mode */
+  #jobRail .rail-expand-row { display: none; }
+  body.rail-tidy #jobRail .rail-expand-row { display: flex; justify-content: flex-end; margin-top: -2px; }
+  body.rail-tidy #jobRail .rail-expand-all {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #8b97a8; background: transparent; border: 0; cursor: pointer; padding: 2px 4px;
+    -webkit-tap-highlight-color: transparent; transition: color .15s ease;
+  }
+  body.rail-tidy #jobRail .rail-expand-all:hover { color: #c9a558; }
   /* Impact level — tint ONLY the "?" help icon so the cue is glanceable but
      stays out of the title text. High = rose, medium = gold; low/neutral fields
      keep the default slate icon (no marker). The tint is the icon's RESTING
@@ -4159,6 +4168,7 @@
         </div>
       </div>
 
+      <div class="rail-expand-row"><button id="railExpandAllBtn" type="button" class="rail-expand-all">Expand all</button></div>
       <!-- ─── SITE & BUILD (accordion) ─── -->
       <div class="rail-acc" data-acc="site">
         <button type="button" class="rail-acc-head">
@@ -4923,10 +4933,18 @@
               <select id="defaultStories" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
             </div>
           </div>
-          <div class="mt-6 pt-5 border-t border-slate-800 max-w-2xl">
+          <div class="mt-6 pt-5 border-t border-slate-800 max-w-2xl space-y-2.5">
             <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
               <input id="adminSwingEnabledDefault" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
               <span>Enable swing doors in The Job rail <span class="text-slate-600">&middot; rates live in Rates &amp; Pricing</span></span>
+            </label>
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+              <input id="adminSgdEnabledDefault" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+              <span>Enable sliding glass doors in The Job rail <span class="text-slate-600">&middot; rates live in Rates &amp; Pricing</span></span>
+            </label>
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+              <input id="adminBfEnabledDefault" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
+              <span>Enable bifold / folding doors in The Job rail <span class="text-slate-600">&middot; rates live in Rates &amp; Pricing</span></span>
             </label>
           </div>
         </div>
@@ -8008,6 +8026,17 @@ function renderRailAccSummaries() {
   });
 }
 // One section open at a time. Wires once; default-opens the first section once.
+function setAllAccordions(open) {
+  document.querySelectorAll("#jobRail .rail-acc").forEach(a => a.classList.toggle("open", open));
+  updateExpandAllBtn();
+}
+function updateExpandAllBtn() {
+  const btn = document.getElementById("railExpandAllBtn");
+  if (!btn) return;
+  const accs = [...document.querySelectorAll("#jobRail .rail-acc")];
+  const allOpen = accs.length > 0 && accs.every(a => a.classList.contains("open"));
+  btn.textContent = allOpen ? "Collapse all" : "Expand all";
+}
 function initRailAccordion() {
   const accs = document.querySelectorAll("#jobRail .rail-acc");
   if (!accs.length) return;
@@ -8019,15 +8048,26 @@ function initRailAccordion() {
         const wasOpen = acc.classList.contains("open");
         accs.forEach(a => a.classList.remove("open"));
         if (!wasOpen) acc.classList.add("open");
+        updateExpandAllBtn();
       });
       head._accWired = true;
     }
   });
+  const exp = document.getElementById("railExpandAllBtn");
+  if (exp && !exp._wired) {
+    exp.addEventListener("click", () => {
+      const list = [...document.querySelectorAll("#jobRail .rail-acc")];
+      const allOpen = list.length > 0 && list.every(a => a.classList.contains("open"));
+      setAllAccordions(!allOpen);   // expand all, or collapse all if already fully open
+    });
+    exp._wired = true;
+  }
   if (!initRailAccordion._didDefault) {
     if (![...accs].some(a => a.classList.contains("open"))) accs[0].classList.add("open");
     initRailAccordion._didDefault = true;
   }
   renderRailAccSummaries();
+  updateExpandAllBtn();
 }
 
 // Per-job material variant toggles — one segmented control per category
@@ -12490,6 +12530,8 @@ function buildAdminUI() {
   const sgEnabled = sgCfg.enabled !== false;
   const sgEnEl = document.getElementById("adminSgdEnabled");
   if (sgEnEl) sgEnEl.checked = sgEnabled;
+  const sgEnDef = document.getElementById("adminSgdEnabledDefault");
+  if (sgEnDef) sgEnDef.checked = sgEnabled;
   setIf("adminSgdLaborHoursPerPanel", sgCfg.laborHoursPerPanel ?? 4);
   setIf("adminSgdSillFlashingPerLF", sgCfg.sillFlashingPerLF ?? 4.5);
   setIf("adminSgdExtraAnchorsPerPanel", sgCfg.extraAnchorsPerPanel ?? 4);
@@ -12506,6 +12548,8 @@ function buildAdminUI() {
   const bfInsp = bfCfg.inspection || {};
   const bfEnEl = document.getElementById("adminBfEnabled");
   if (bfEnEl) bfEnEl.checked = bfCfg.enabled !== false;
+  const bfEnDef = document.getElementById("adminBfEnabledDefault");
+  if (bfEnDef) bfEnDef.checked = bfCfg.enabled !== false;
   setIf("adminBfLaborHoursPerPanel", bfCfg.laborHoursPerPanel ?? 5);
   setIf("adminBfSillFlashingPerLF", bfCfg.sillFlashingPerLF ?? 5);
   setIf("adminBfExtraAnchorsPerPanel", bfCfg.extraAnchorsPerPanel ?? 4);
@@ -17176,6 +17220,13 @@ function init() {
   if (swEnDef) swEnDef.addEventListener("change", () => {
     if (swEnRates) swEnRates.checked = swEnDef.checked;
     if (swEnDef.checked) window.track("swing_doors_enabled");
+  });
+  // Sliding glass + bifold — keep their Rates-tab and Defaults-tab "Enable" checkboxes in sync
+  [["adminSgdEnabled", "adminSgdEnabledDefault"], ["adminBfEnabled", "adminBfEnabledDefault"]].forEach(([rId, dId]) => {
+    const rEl = document.getElementById(rId);
+    const dEl = document.getElementById(dId);
+    if (rEl) rEl.addEventListener("change", () => { if (dEl) dEl.checked = rEl.checked; });
+    if (dEl) dEl.addEventListener("change", () => { if (rEl) rEl.checked = dEl.checked; });
   });
   adminModal.addEventListener("click", e => { if (e.target.dataset.close !== undefined) closeAdmin(); });
   document.querySelectorAll("#jobRail .info-tip").forEach(tip => {
