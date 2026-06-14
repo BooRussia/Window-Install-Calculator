@@ -431,12 +431,23 @@
   }
   .ai-badge:hover, .ai-badge:focus { transform: translateY(-1px); box-shadow: 0 4px 10px -3px rgba(181,143,74,0.75); }
   .ai-badge::before { content: "\2728"; margin-right: 3px; font-size: 8px; }
-  /* The old hard rectangular ring is replaced by the .ai-circle SVG ellipse
-     (drawn around the VALUE) for numeric fields; non-numeric AI fields now show
-     only the .ai-badge pill. Reset the cascade explicitly. */
-  .rail-field.ai-filled .num-input,
-  .rail-field.ai-filled .control,
-  .rail-field.ai-filled .dd-trigger { box-shadow: none; }
+  /* AI auto-fill marker: recolor the field's bounding box from gray to a clean
+     light gold so the fill reads at a glance (paired with the .ai-badge pill).
+     The gold is cleared the moment the user edits the field. */
+  .rail-field.ai-filled .rail-lf-input-wrap,
+  .rail-field.ai-filled .margin-pill,
+  .rail-field.ai-filled .dd-trigger,
+  .rail-field.ai-filled .control {
+    border-color: var(--gold-hi, #c9a558);
+  }
+  /* Neutralize any legacy hard ring on the inner input. */
+  .rail-field.ai-filled .num-input { box-shadow: none; }
+  [data-theme="light"] .rail-field.ai-filled .rail-lf-input-wrap,
+  [data-theme="light"] .rail-field.ai-filled .margin-pill,
+  [data-theme="light"] .rail-field.ai-filled .dd-trigger,
+  [data-theme="light"] .rail-field.ai-filled .control {
+    border-color: #b58f4a;
+  }
   /* Hover/focus explainer card — mirrors .info-pop so it feels native */
   .ai-pop {
     position: absolute; bottom: calc(100% + 9px); left: 50%;
@@ -457,53 +468,6 @@
     opacity: 1; transform: translateX(-50%) translateY(0);
   }
   [data-theme="light"] .ai-pop { background: #ffffff; color: #334155; border-color: rgba(181,143,74,0.5); }
-
-  /* AI "hand-circled value" overlay — a gold pen ellipse that hugs the digits
-     of an AI-filled NUMBER (replaces the old hard rectangular ring). Geometry is
-     sized to the rendered value + positioned by JS (drawAiCircle); visuals here. */
-  .rail-lf-input-wrap { position: relative; }
-  .margin-pill        { position: relative; }
-  .ai-circle {
-    position: absolute;
-    top: 0; left: 0;               /* JS overwrites left/top/width/height inline */
-    pointer-events: none;          /* never block the input or caret */
-    overflow: visible;             /* let the glow + tilt spill past the viewBox */
-    z-index: 3;                    /* above input text, below .ai-pop (z 46) */
-    transform: rotate(-1.5deg);    /* barely-there hand-circled tilt */
-    transform-origin: 50% 50%;
-    opacity: 0;
-    animation: aiCircleFade .18s ease forwards;
-    /* CSS-var-driven gold so light/dark needs ZERO JS branching. */
-    --aic-1: var(--gold-hi, #c9a558);
-    --aic-2: var(--gold-pale, #dfc07a);
-    --aic-3: var(--gold, #b58f4a);
-    --aic-glow: rgba(181,143,74,0.45);
-  }
-  .ai-circle .ai-circle-ell {
-    fill: none;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-dasharray: 100;         /* pathLength normalized to 100 → size-independent */
-    stroke-dashoffset: 100;
-    filter: drop-shadow(0 0 5px var(--aic-glow));
-    animation: aiCircleDraw .62s cubic-bezier(.22,.61,.36,1) .04s forwards;
-  }
-  .ai-circle .ai-circle-grad-1 { stop-color: var(--aic-1); }
-  .ai-circle .ai-circle-grad-2 { stop-color: var(--aic-2); }
-  .ai-circle .ai-circle-grad-3 { stop-color: var(--aic-3); }
-  @keyframes aiCircleFade { to { opacity: 1; } }
-  @keyframes aiCircleDraw { to { stroke-dashoffset: 0; } }
-  /* Light mode: wraps go white, so use deeper golds + a softer glow. */
-  [data-theme="light"] .ai-circle {
-    --aic-1: #b58f4a;
-    --aic-2: #97772e;
-    --aic-3: #b58f4a;
-    --aic-glow: rgba(138,106,46,0.34);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .ai-circle { animation: none; opacity: 1; }
-    .ai-circle .ai-circle-ell { animation: none; stroke-dashoffset: 0; }
-  }
   /* Saved-job deal-status chip (Lead / Quoted / Won / Lost) */
   .job-status-sel {
     font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
@@ -13358,136 +13322,6 @@ async function handlePlanUpload(files, source) {
 // Apply ONE combined AI reply: derive window count + total LF from the openings,
 // build the buck cut list (always — pricing ignores it for stick-framed jobs),
 // and set the manufacturer. Reuses the existing parsers so the math never drifts.
-// ── AI "hand-circled value" overlay ─────────────────────────────────────────
-// A gold pen ellipse, sized to the rendered digits, drawn around an AI-filled
-// NUMBER. Only the two numeric fields below get it; every other AI field shows
-// just the .ai-badge pill.
-const AI_CIRCLE_FIELDS = {
-  totalLF:          { padX: 8, padY: 9 },   // big, left-aligned LF hero value
-  windowCountInput: { padX: 6, padY: 7 },   // tiny, right-aligned count
-};
-// One reusable canvas for measuring rendered text width (cheap, GC-friendly).
-let _aiMeasureCtx = null;
-function _aiMeasureText(str, cs) {
-  if (!_aiMeasureCtx) _aiMeasureCtx = document.createElement("canvas").getContext("2d");
-  _aiMeasureCtx.font =
-    `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily}`;
-  return _aiMeasureCtx.measureText(str).width;
-}
-// Draw (or re-draw, e.g. on resize) the gold ellipse hugging an input's VALUE.
-// Positions correctly for BOTH the left-aligned hero and the right-aligned pill.
-function drawAiCircle(input) {
-  if (!input) return;
-  const cfg = AI_CIRCLE_FIELDS[input.id] || { padX: 7, padY: 8 };
-  // Host = the bordered box that already hugs the value (made position:relative
-  // in CSS, so the overlay anchors to it).
-  const host = input.closest(".rail-lf-input-wrap, .margin-pill");
-  if (!host) return;
-
-  const cs    = getComputedStyle(input);
-  const value = (input.value != null ? String(input.value) : "").trim();
-  if (!value) { removeAiCircle(input); return; }
-
-  const textW = _aiMeasureText(value, cs);
-  if (textW <= 0) { removeAiCircle(input); return; }
-  const fontPx = parseFloat(cs.fontSize) || 16;
-  const glyphH = fontPx * 0.92;                 // cap/ascent box proxy
-
-  // Locate the value inside the host (all coords relative to host box).
-  const hostRect = host.getBoundingClientRect();
-  const inRect   = input.getBoundingClientRect();
-  const inLeft   = inRect.left - hostRect.left;
-  const inTop    = inRect.top  - hostRect.top;
-  const padL     = parseFloat(cs.paddingLeft)  || 0;
-  const padR     = parseFloat(cs.paddingRight) || 0;
-
-  let glyphLeft;
-  if (cs.textAlign === "right" || cs.textAlign === "end") {
-    glyphLeft = (inLeft + inRect.width - padR) - textW;   // flush right (Windows)
-  } else if (cs.textAlign === "center") {
-    glyphLeft = inLeft + (inRect.width - textW) / 2;
-  } else {
-    glyphLeft = inLeft + padL;                            // flush left (LF hero)
-  }
-  const cx = glyphLeft + textW / 2;
-  const cy = inTop + inRect.height / 2;
-
-  const rx = textW  / 2 + cfg.padX;
-  const ry = glyphH / 2 + cfg.padY;
-
-  const M = 6;                                  // margin so glow + tilt never clip
-  const boxW = (rx + M) * 2;
-  const boxH = (ry + M) * 2;
-  const boxLeft = cx - rx - M;
-  const boxTop  = cy - ry - M;
-
-  let svg = input._aiCircleEl;
-  if (!svg) {
-    const NS  = "http://www.w3.org/2000/svg";
-    const gid = "aiCircleGrad-" + input.id;     // per-instance: no shared-id risk
-    svg = document.createElementNS(NS, "svg");
-    svg.setAttribute("class", "ai-circle");
-    svg.setAttribute("aria-hidden", "true");
-
-    const defs = document.createElementNS(NS, "defs");
-    const grad = document.createElementNS(NS, "linearGradient");
-    grad.setAttribute("id", gid);
-    grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0");
-    grad.setAttribute("x2", "1"); grad.setAttribute("y2", "1");
-    [["0%", "ai-circle-grad-1"], ["55%", "ai-circle-grad-2"], ["100%", "ai-circle-grad-3"]]
-      .forEach(([off, cls]) => {
-        const s = document.createElementNS(NS, "stop");
-        s.setAttribute("offset", off);
-        s.setAttribute("class", cls);            // stop-color from CSS vars (theme-aware)
-        grad.appendChild(s);
-      });
-    defs.appendChild(grad);
-    svg.appendChild(defs);
-
-    const ell = document.createElementNS(NS, "ellipse");
-    ell.setAttribute("class", "ai-circle-ell");
-    ell.setAttribute("pathLength", "100");       // normalize dash draw-on
-    ell.style.stroke = `url(#${gid})`;           // point stroke at THIS instance
-    svg.appendChild(ell);
-
-    host.appendChild(svg);
-    input._aiCircleEl = svg;
-  }
-
-  svg.style.left   = boxLeft + "px";
-  svg.style.top    = boxTop  + "px";
-  svg.style.width  = boxW + "px";
-  svg.style.height = boxH + "px";
-  svg.setAttribute("viewBox", `0 0 ${boxW} ${boxH}`);
-  const ell = svg.querySelector(".ai-circle-ell");
-  ell.setAttribute("cx", boxW / 2);
-  ell.setAttribute("cy", boxH / 2);
-  ell.setAttribute("rx", rx);
-  ell.setAttribute("ry", ry);
-}
-function removeAiCircle(input) {
-  if (input && input._aiCircleEl) {
-    input._aiCircleEl.remove();
-    input._aiCircleEl = null;
-  }
-}
-// Reposition every live overlay (resize / orientation / fonts ready).
-function repositionAiCircles() {
-  Object.keys(AI_CIRCLE_FIELDS).forEach((id) => {
-    const el = document.getElementById(id);
-    if (el && el._aiCircleEl) drawAiCircle(el);
-  });
-}
-let _aiResizeRaf = 0;
-window.addEventListener("resize", () => {
-  if (_aiResizeRaf) return;
-  _aiResizeRaf = requestAnimationFrame(() => { _aiResizeRaf = 0; repositionAiCircles(); });
-});
-window.addEventListener("orientationchange", repositionAiCircles);
-if (document.fonts && document.fonts.ready) {
-  document.fonts.ready.then(repositionAiCircles).catch(() => {});
-}
-
 // ── AI auto-fill markers ────────────────────────────────────────────────────
 // Tag a rail field as "filled by the plan" with a gold AI pill; clear the tag
 // the moment the user edits that field (so it reflects only un-reviewed values).
@@ -13510,19 +13344,11 @@ function markFieldAi(elId) {
     b.appendChild(pop);
     label.appendChild(b);
   }
-  // Numeric fields also get a hand-circled gold ellipse around the VALUE.
-  // rAF: let the input's value/layout settle (the AI flow re-renders the rail
-  // in the same tick) before we measure the rendered text.
-  if (AI_CIRCLE_FIELDS[elId]) {
-    requestAnimationFrame(() => drawAiCircle(document.getElementById(elId)));
-  }
 }
 function clearFieldAi(field) {
   if (!field) return;
   field.classList.remove("ai-filled");
   field.querySelectorAll(".ai-badge").forEach((b) => b.remove());
-  // Remove the value-circle overlay for whichever numeric input lives here.
-  field.querySelectorAll("#totalLF, #windowCountInput").forEach(removeAiCircle);
 }
 function clearAllAiFilled() {
   document.querySelectorAll(".rail-field.ai-filled").forEach(clearFieldAi);
