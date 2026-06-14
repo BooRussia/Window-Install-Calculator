@@ -497,18 +497,15 @@
   .rail-section-header.first {
     padding-top: 4px; margin-top: 0;
   }
-  /* Impact level — a color-coded underline on the title text only (not the ?
-     icon). Reuses the exact tooltip tokens so underline + tip-tag agree:
-     high = rose, medium = gold, low = faint dotted slate. */
-  .rail-field > label .lbl-impact {
-    border-bottom: 2px solid transparent;
-    padding-bottom: 2px;
-    transition: border-color .15s ease;
-  }
-  .rail-field > label .lbl-impact.high { border-bottom-color: #f43f5e; }
-  .rail-field > label .lbl-impact.med  { border-bottom-color: var(--gold, #b58f4a); }
-  .rail-field > label .lbl-impact.low  { border-bottom: 1px dotted rgba(148,163,184,0.4); padding-bottom: 3px; }
-  [data-theme="light"] .rail-field > label .lbl-impact.low { border-bottom-color: rgba(100,116,139,0.55); }
+  /* Impact level — tint ONLY the "?" help icon so the cue is glanceable but
+     stays out of the title text. High = rose, medium = gold; low/neutral fields
+     keep the default slate icon (no marker). The tint is the icon's RESTING
+     color via --tip-color; hover still brightens via --tip-hover (see .info-tip).
+     Matches the tooltip's tip-tag tokens so icon + tip agree. */
+  .rail-field > label .lbl-impact.high + .info-tip { --tip-color: #f43f5e; --tip-hover: #fb7185; }
+  .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: var(--gold-hi, #c9a558); --tip-hover: var(--gold-pale, #dfc07a); }
+  [data-theme="light"] .rail-field > label .lbl-impact.high + .info-tip { --tip-color: #e11d48; --tip-hover: #be123c; }
+  [data-theme="light"] .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #97772e; --tip-hover: #b58f4a; }
   /* Reset-job pill at the bottom of the rail */
   .rail-reset-btn {
     width: 100%;
@@ -1186,10 +1183,10 @@
   .info-tip {
     position: relative; display: inline-flex; align-items: center; justify-content: center;
     margin-left: 8px; cursor: help; vertical-align: middle;
-    color: #64748b; transition: color .15s ease, transform .15s ease;
+    color: var(--tip-color, #64748b); transition: color .15s ease, transform .15s ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .info-tip:hover, .info-tip:focus, .info-tip.show { color: var(--gold-hi); outline: none; }
+  .info-tip:hover, .info-tip:focus, .info-tip.show { color: var(--tip-hover, var(--gold-hi)); outline: none; }
   .info-tip:active { transform: scale(0.92); }
   .info-pop {
     position: absolute;
