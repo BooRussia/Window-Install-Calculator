@@ -752,6 +752,10 @@
   .sgd-remove { color: #64748b; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 17px; line-height: 1; background: transparent; border: 0; cursor: pointer; }
   .sgd-remove:hover { color: #f87171; background: rgba(248,113,113,0.12); }
   .sgd-dims { display: flex; align-items: flex-end; gap: 6px; }
+  /* Swing-door "sill flashing" per-door checkbox row (inside .sgd-row) */
+  .swing-flash { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; cursor: pointer; user-select: none; }
+  .swing-flash input { width: 15px; height: 15px; accent-color: var(--gold-hi, #c9a558); cursor: pointer; flex-shrink: 0; }
+  [data-theme="light"] .swing-flash { color: #334155; }
   .sgd-cell { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .sgd-cell > span { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; font-weight: 700; }
   .sgd-cell input { width: 100%; background: rgba(15,23,42,0.7); border: 1px solid #334155; color: #f1f5f9; border-radius: 8px; padding: 5px 7px; font-size: 13px; text-align: right; -moz-appearance: textfield; }
@@ -4221,15 +4225,8 @@
       <div id="swingDoorsRailField" class="rail-field hidden">
         <label><span class="lbl-impact med">Swing doors</span><span class="info-tip" tabindex="0" role="button" aria-label="How swing doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Swing doors price per door, not per LF. Threshold hardware is included. Toggle sill flashing on/off &mdash; usually on for new construction over concrete. Tune rates in Settings.</span></span></label>
         <div class="space-y-2">
-          <label class="margin-pill" style="cursor:text">
-            <span class="lbl">Single-leaf</span>
-            <input id="swingSingleInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-          </label>
-          <label class="margin-pill" style="cursor:text">
-            <span class="lbl">Double-leaf</span>
-            <input id="swingDoubleInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-          </label>
-          <button id="swingFlashingToggleBtn" type="button" class="toggle-pill"><span class="lbl">Sill flashing</span><span class="val">Off</span></button>
+          <div id="swingDoorsList" class="space-y-2"></div>
+          <button id="addSwingDoorBtn" type="button" class="rail-add-btn">+ Add swing door</button>
           <div id="swingDoorsSummary" class="hidden text-[10px] tracking-[0.14em] uppercase font-bold text-slate-500 px-1" style="font-variant-numeric: tabular-nums;"></div>
         </div>
       </div>
@@ -6479,11 +6476,9 @@ let DATA = loadData();
 function buildState() {
   const jd = DATA.config.jobDefaults || {};
   const persisted = loadState();
-  // Old saved states may not have swingDoors — guard with a default
-  const swingDoors = Object.assign(
-    { single: 0, double: 0, withFlashing: true },
-    persisted.swingDoors || {}
-  );
+  // Old saved states may store swingDoors as the legacy {single,double,withFlashing}
+  // object — normalize to the per-door array form (migrates transparently).
+  const swingDoors = normalizeSwingDoors(persisted.swingDoors);
   return {
     manufacturer: jd.manufacturer || DATA.manufacturers[0],
     application: jd.application || DATA.applicationTypes[0],
@@ -6765,16 +6760,38 @@ function buckListBoardCount(bl) {
 
 // Swing-door totals — returns per-leaf counts and contributory dollars/minutes.
 // All zero when the feature is disabled or no doors are entered.
+// Swing doors are stored as a LIST of per-door entries {leaf:"single"|"double",
+// flashing:bool} — mirroring sliding/bifold. normalizeSwingDoors() accepts either
+// the new array OR the legacy {single,double,withFlashing} object and returns the
+// array form, so old saved jobs migrate transparently (flashing carried per door).
+function normalizeSwingDoors(v) {
+  if (Array.isArray(v)) {
+    return v.map(d => ({
+      leaf: (d && d.leaf === "double") ? "double" : "single",
+      flashing: !(d && d.flashing === false),
+    }));
+  }
+  const o = v || {};
+  const single = Math.max(0, parseInt(o.single, 10) || 0);
+  const double = Math.max(0, parseInt(o.double, 10) || 0);
+  const flashing = o.withFlashing !== false;
+  const out = [];
+  for (let i = 0; i < single; i++) out.push({ leaf: "single", flashing });
+  for (let i = 0; i < double; i++) out.push({ leaf: "double", flashing });
+  return out;
+}
+function swingDoorCount() { return normalizeSwingDoors(STATE.swingDoors).length; }
+
 function computeSwingDoors() {
-  const sd = STATE.swingDoors || { single: 0, double: 0, withFlashing: true };
-  const single = Math.max(0, parseInt(sd.single, 10) || 0);
-  const double = Math.max(0, parseInt(sd.double, 10) || 0);
+  const doors = normalizeSwingDoors(STATE.swingDoors);
+  const single = doors.filter(d => d.leaf === "single").length;
+  const double = doors.filter(d => d.leaf === "double").length;
   const cfg = (DATA.config.swingDoors) || {};
   const rates = cfg.rates || {};
   const sR = rates.single || {};
   const dR = rates.double || {};
   const enabled = cfg.enabled !== false; // default true if missing
-  if (!enabled || (single === 0 && double === 0)) {
+  if (!enabled || doors.length === 0) {
     return { single, double, total: single + double, enabled,
       laborCost: 0, materialsCost: 0, flashingLF: 0, flashingCost: 0,
       extraAnchorCount: 0, extraAnchorCost: 0, totalCost: 0,
@@ -6790,13 +6807,13 @@ function computeSwingDoors() {
   const laborMinutes = single * sLaborMin + double * dLaborMin;
   const laborCost = (laborMinutes / 60) * hourly * getImpactLaborMultiplier();
   const materialsCost = single * sMat + double * dMat;
-  // Sill flashing — LF based on total door widths
+  // Sill flashing — now PER DOOR: only doors flagged with flashing add their width.
   const singleW = cfg.singleDoorWidthLF != null ? cfg.singleDoorWidthLF : 3;
   const doubleW = cfg.doubleDoorWidthLF != null ? cfg.doubleDoorWidthLF : 6;
   const flashRate = cfg.flashingPerLF != null ? cfg.flashingPerLF : 0;
-  const withFlash = sd.withFlashing !== false;
-  const flashingLF = withFlash ? (single * singleW + double * doubleW) : 0;
-  const flashingCost = withFlash ? flashingLF * flashRate : 0;
+  let flashingLF = 0;
+  doors.forEach(d => { if (d.flashing) flashingLF += (d.leaf === "double" ? doubleW : singleW); });
+  const flashingCost = flashingLF * flashRate;
   // Extra anchors above the per-LF window math
   const anchorItem = DATA.costItems.find(c => c.id === "concrete_anchors");
   const anchorPrice = anchorItem ? (getUnitPrice(anchorItem) || 0) : 0;
@@ -7601,29 +7618,7 @@ function updateSwingDoorsUI() {
   const enabled = (DATA.config.swingDoors && DATA.config.swingDoors.enabled !== false) ? true : false;
   wrap.classList.toggle("hidden", !enabled);
   if (!enabled) return;
-  const summary = document.getElementById("swingDoorsSummary");
-  const sd = STATE.swingDoors || { single: 0, double: 0, withFlashing: true };
-  const single = Math.max(0, parseInt(sd.single, 10) || 0);
-  const double = Math.max(0, parseInt(sd.double, 10) || 0);
-  const total = single + double;
-  if (summary) {
-    if (total > 0) {
-      const dollars = computeSwingDoors().totalCost;
-      summary.textContent = `${total} door${total === 1 ? "" : "s"} · ${formatMoney(dollars)}`;
-      summary.classList.remove("hidden");
-    } else {
-      summary.classList.add("hidden");
-      summary.textContent = "";
-    }
-  }
-  // Sync sill-flashing toggle pill UI
-  const fBtn = document.getElementById("swingFlashingToggleBtn");
-  if (fBtn) {
-    const on = sd.withFlashing !== false;
-    fBtn.classList.toggle("active", on);
-    const v = fBtn.querySelector(".val");
-    if (v) v.textContent = on ? "On" : "Off";
-  }
+  updateSwingDoorsSummary();   // lightweight: chip + visibility only (no list rebuild)
 }
 
 function render() {
@@ -7915,7 +7910,7 @@ function render() {
     variants: STATE.variants || {},
     currentJobId: STATE.currentJobId || null,
     jobName: STATE.jobName || "",
-    swingDoors: STATE.swingDoors || { single: 0, double: 0, withFlashing: true },
+    swingDoors: normalizeSwingDoors(STATE.swingDoors),
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -7935,8 +7930,7 @@ function cleanLF(v) { const n = parseFloat(v); return isFinite(n) ? Math.round(n
 function jobSummaryTiers() {
   const lf = cleanLF(STATE.totalLF);
   const wc = parseInt(STATE.windowCount, 10) || 0;
-  const sd = STATE.swingDoors || {};
-  const doors = (parseInt(sd.single, 10) || 0) + (parseInt(sd.double, 10) || 0)
+  const doors = swingDoorCount()
     + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
   const size = [];
   if (lf > 0) size.push(`${lf} LF`);
@@ -7993,8 +7987,7 @@ function renderRailAccSummaries() {
   const abbr = { "New Construction": "New", "Block Framed": "Block", "Stick Framed": "Stick" };
   const lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
   const wc = parseInt(STATE.windowCount, 10) || 0;
-  const sd = STATE.swingDoors || {};
-  const doors = (parseInt(sd.single, 10) || 0) + (parseInt(sd.double, 10) || 0)
+  const doors = swingDoorCount()
     + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
   let storyTxt = "";
   if (STATE.stories) { const m = String(STATE.stories).match(/(\d+)/); storyTxt = m ? m[1] + "-story" : STATE.stories; }
@@ -9159,8 +9152,7 @@ function renderJobDetails(job) {
   const bf = Array.isArray(job.bifoldDoors) ? job.bifoldDoors : [];
   const bfCount = bf.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0);
   const bfPanels = bf.reduce((s, d) => s + (parseInt(d.qty, 10) || 1) * (parseInt(d.panels, 10) || 3), 0);
-  const sw = job.swingDoors || {};
-  const swTotal = (parseInt(sw.single, 10) || 0) + (parseInt(sw.double, 10) || 0);
+  const swTotal = normalizeSwingDoors(job.swingDoors).length;
   const specs = [
     ["Manufacturer", job.manufacturer], ["Construction", job.constructionType],
     ["House type", job.houseType], ["Stories", job.stories], ["Glass", job.impact],
@@ -9328,7 +9320,7 @@ function exportPipelineCSV() {
   jobs.forEach(j => {
     const sgd = Array.isArray(j.slidingDoors) ? j.slidingDoors.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0) : 0;
     const bfd = Array.isArray(j.bifoldDoors) ? j.bifoldDoors.reduce((s, d) => s + (parseInt(d.qty, 10) || 1), 0) : 0;
-    const sw = j.swingDoors || {}; const swt = (parseInt(sw.single, 10) || 0) + (parseInt(sw.double, 10) || 0);
+    const swt = normalizeSwingDoors(j.swingDoors).length;
     const cost = Number(j.totalCost) || 0, price = Number(j.sellingPrice) || 0;
     lines.push([
       j.customerName || j.name || "", jobStatus(j), j.customerPhone || "", j.customerEmail || "", j.customerAddress || "",
@@ -9563,8 +9555,7 @@ function markCalculatorFirstInteraction() {
 let _swingDoorsAddedTracked = false;
 function maybeTrackSwingDoorsAdded() {
   if (_swingDoorsAddedTracked) return;
-  const sd = STATE.swingDoors || {};
-  if ((sd.single || 0) > 0 || (sd.double || 0) > 0) {
+  if (swingDoorCount() > 0) {
     _swingDoorsAddedTracked = true;
     window.track("swing_doors_added_to_job");
   }
@@ -9722,42 +9713,22 @@ function bindControls() {
   updatePermitToggleUI();
   updateJobExtrasSummary();
 
-  // ---- Swing Doors rail wiring ----
-  STATE.swingDoors = STATE.swingDoors || { single: 0, double: 0, withFlashing: true };
-  const swSingle = document.getElementById("swingSingleInput");
-  const swDouble = document.getElementById("swingDoubleInput");
-  const swFlash = document.getElementById("swingFlashingToggleBtn");
-  if (swSingle) {
-    swSingle.value = (STATE.swingDoors.single > 0) ? STATE.swingDoors.single : "";
-    if (!swSingle._wired) {
-      swSingle.addEventListener("input", e => {
-        STATE.swingDoors.single = Math.max(0, parseInt(e.target.value, 10) || 0);
-        maybeTrackSwingDoorsAdded();
-        markCalculatorFirstInteraction();
-        render();
-      });
-      swSingle._wired = true;
-    }
-  }
-  if (swDouble) {
-    swDouble.value = (STATE.swingDoors.double > 0) ? STATE.swingDoors.double : "";
-    if (!swDouble._wired) {
-      swDouble.addEventListener("input", e => {
-        STATE.swingDoors.double = Math.max(0, parseInt(e.target.value, 10) || 0);
-        maybeTrackSwingDoorsAdded();
-        markCalculatorFirstInteraction();
-        render();
-      });
-      swDouble._wired = true;
-    }
-  }
-  if (swFlash && !swFlash._wired) {
-    swFlash.addEventListener("click", () => {
-      STATE.swingDoors.withFlashing = !(STATE.swingDoors.withFlashing !== false);
-      render();
+  // ---- Swing Doors rail wiring (list editor; mirrors sliding doors) ----
+  const swList = document.getElementById("swingDoorsList");
+  if (swList && !swList._wired) {
+    swList.addEventListener("input", onSwingDoorFieldInput);
+    swList.addEventListener("change", onSwingDoorFieldInput);
+    swList.addEventListener("click", (e) => {
+      const rm = e.target.closest('[data-sw="remove"]');
+      if (!rm) return;
+      const row = rm.closest(".sgd-row");
+      if (row) removeSwingDoor(parseInt(row.dataset.idx, 10));
     });
-    swFlash._wired = true;
+    swList._wired = true;
   }
+  const swAdd = document.getElementById("addSwingDoorBtn");
+  if (swAdd && !swAdd._wired) { swAdd.addEventListener("click", addSwingDoor); swAdd._wired = true; }
+  renderSwingDoors();
   updateSwingDoorsUI();
 
   setTimeout(() => { try { lf.focus({ preventScroll: true }); } catch {} }, 60);
@@ -9815,7 +9786,7 @@ function resetAll() {
     variants: {},
     currentJobId: null,
     jobName: "",
-    swingDoors: { single: 0, double: 0, withFlashing: true },
+    swingDoors: [],
   };
   saveState(STATE);
   clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
@@ -9899,7 +9870,7 @@ function confirmSaveJob() {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
-    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
+    swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
     // note: no isDraft flag — this is an explicit save
@@ -9938,7 +9909,7 @@ function quickSaveOrPrompt() {
         impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
         liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
         permitEnabled: STATE.permitEnabled,
-        swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
+        swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
         totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
         profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows,
         updatedAt: new Date().toISOString()
@@ -9997,7 +9968,7 @@ function saveAsNewVersion() {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
-    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
+    swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -10071,7 +10042,7 @@ function writeDraftJob(r) {
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
-    swingDoors: clone(STATE.swingDoors || { single: 0, double: 0, withFlashing: true }),
+    swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -10107,11 +10078,8 @@ function applyJobToState(j) {
   STATE.bifoldDoors = Array.isArray(j.bifoldDoors) ? clone(j.bifoldDoors) : [];
   STATE.variants = j.variants ? clone(j.variants) : {};
   STATE.currentJobId = j.id;
-  // Swing doors — older saved jobs predate this; default to zero.
-  STATE.swingDoors = Object.assign(
-    { single: 0, double: 0, withFlashing: true },
-    j.swingDoors || {}
-  );
+  // Swing doors — migrate legacy {single,double,withFlashing} → per-door array.
+  STATE.swingDoors = normalizeSwingDoors(j.swingDoors);
 }
 
 function loadJob(id) {
@@ -13821,6 +13789,82 @@ function removeSlidingDoor(idx) {
   if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
   clearFieldAiById("slidingDoorsRailField");   // user edited the AI result
   renderSlidingDoors();
+  render();
+}
+
+/* ============================================================
+   SWING DOORS — list editor (mirrors the SGD editor; reuses .sgd-* styling).
+   Each door: pick leaf (single/double) + sill flashing on/off. Stored as an
+   array of {leaf, flashing}; computeSwingDoors() prices it (flashing per door).
+   ============================================================ */
+function renderSwingDoors() {
+  const wrap = document.getElementById("swingDoorsRailField");
+  if (!wrap) return;
+  const enabled = (DATA.config.swingDoors || {}).enabled !== false;
+  wrap.classList.toggle("hidden", !enabled);
+  const list = document.getElementById("swingDoorsList");
+  if (!enabled || !list) { if (list) list.innerHTML = ""; updateSwingDoorsSummary(); return; }
+  const items = normalizeSwingDoors(STATE.swingDoors);
+  STATE.swingDoors = items;   // upgrade legacy object → array in place
+  list.innerHTML = items.map((d, i) => {
+    const leaf = d.leaf === "double" ? "double" : "single";
+    return `<div class="sgd-row" data-idx="${i}">
+      <div class="sgd-head">
+        <label>Leaf <select class="sgd-sel" data-sw="leaf">
+          <option value="single"${leaf === "single" ? " selected" : ""}>Single-leaf</option>
+          <option value="double"${leaf === "double" ? " selected" : ""}>Double-leaf</option>
+        </select></label>
+        <button type="button" class="sgd-remove" data-sw="remove" aria-label="Remove swing door">×</button>
+      </div>
+      <label class="swing-flash"><input type="checkbox" data-sw="flashing"${d.flashing ? " checked" : ""}><span>Sill flashing</span></label>
+    </div>`;
+  }).join("");
+  updateSwingDoorsSummary();
+}
+function updateSwingDoorsSummary() {
+  const wrap = document.getElementById("swingDoorsRailField");
+  if (!wrap) return;
+  const enabled = (DATA.config.swingDoors || {}).enabled !== false;
+  wrap.classList.toggle("hidden", !enabled);
+  const sumEl = document.getElementById("swingDoorsSummary");
+  if (!sumEl) return;
+  const sd = computeSwingDoors();
+  if (sd.total > 0) {
+    sumEl.classList.remove("hidden");
+    sumEl.textContent = `${sd.total} door${sd.total === 1 ? "" : "s"} · ${formatMoney(sd.totalCost)}`;
+  } else {
+    sumEl.classList.add("hidden");
+    sumEl.textContent = "";
+  }
+}
+function onSwingDoorFieldInput(e) {
+  const el = e.target && e.target.closest ? e.target.closest("[data-sw]") : null;
+  if (!el) return;
+  const field = el.getAttribute("data-sw");
+  if (field === "remove") return;
+  const row = el.closest(".sgd-row");
+  if (!row) return;
+  const idx = parseInt(row.dataset.idx, 10);
+  STATE.swingDoors = normalizeSwingDoors(STATE.swingDoors);
+  if (!STATE.swingDoors[idx]) return;
+  if (field === "leaf") STATE.swingDoors[idx].leaf = el.value === "double" ? "double" : "single";
+  else if (field === "flashing") STATE.swingDoors[idx].flashing = !!el.checked;
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  render();
+}
+function addSwingDoor() {
+  STATE.swingDoors = normalizeSwingDoors(STATE.swingDoors);
+  STATE.swingDoors.push({ leaf: "single", flashing: true });
+  maybeTrackSwingDoorsAdded();
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  renderSwingDoors();
+  render();
+}
+function removeSwingDoor(idx) {
+  STATE.swingDoors = normalizeSwingDoors(STATE.swingDoors);
+  STATE.swingDoors.splice(idx, 1);
+  if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
+  renderSwingDoors();
   render();
 }
 
