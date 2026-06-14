@@ -520,6 +520,46 @@
     body.rail-tidy #jobRail .rail-field.rail-inline > label { margin-bottom: 0; flex-shrink: 0; }
     body.rail-tidy #jobRail .rail-field.rail-inline > .seg { flex: 1; min-width: 0; }
   }
+  /* ── Rail accordion (zen focus) — one section open at a time; collapsed cards
+     show a one-line summary so nothing is hidden, just at rest. Active only in
+     rail-tidy mode; without it the cards degrade to flat always-open sections. */
+  #jobRail .rail-acc-title {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
+    color: #c9a558; flex-shrink: 0;
+  }
+  #jobRail .rail-acc-head {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    background: transparent; border: 0; cursor: pointer; text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #jobRail .rail-acc-sum, #jobRail .rail-acc-chev { display: none; }
+  body.rail-tidy #jobRail .rail-acc {
+    background: rgba(13,21,38,0.55);
+    border: 0.5px solid rgba(148,163,184,0.12);
+    border-radius: 14px; overflow: hidden;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  body.rail-tidy #jobRail .rail-acc.open {
+    background: rgba(14,24,48,0.92);
+    border-color: rgba(201,165,88,0.32);
+  }
+  body.rail-tidy #jobRail .rail-acc-head { padding: 14px 15px; }
+  body.rail-tidy #jobRail .rail-acc-sum {
+    display: block; flex: 1; min-width: 0; text-align: right;
+    font-size: 12px; font-weight: 500; letter-spacing: normal; text-transform: none;
+    color: #8b97a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  body.rail-tidy #jobRail .rail-acc.open .rail-acc-sum { display: none; }
+  body.rail-tidy #jobRail .rail-acc-chev {
+    display: block; flex-shrink: 0; color: #5b6678;
+    transition: transform .25s ease, color .2s ease;
+  }
+  body.rail-tidy #jobRail .rail-acc.open .rail-acc-chev { transform: rotate(180deg); color: #c9a558; }
+  body.rail-tidy #jobRail .rail-acc-body {
+    max-height: 0; overflow: hidden; padding: 0 15px;
+    transition: max-height .32s cubic-bezier(0.16,1,0.3,1), padding .2s ease;
+  }
+  body.rail-tidy #jobRail .rail-acc.open .rail-acc-body { max-height: 4000px; padding: 2px 15px 16px; }
   /* Impact level — tint ONLY the "?" help icon so the cue is glanceable but
      stays out of the title text. High = rose, medium = gold; low/neutral fields
      keep the default slate icon (no marker). The tint is the icon's RESTING
@@ -4113,8 +4153,14 @@
         </div>
       </div>
 
-      <!-- ─── THE JOB ─── -->
-      <div class="rail-section-header first">The Job</div>
+      <!-- ─── SITE & BUILD (accordion) ─── -->
+      <div class="rail-acc" data-acc="site">
+        <button type="button" class="rail-acc-head">
+          <span class="rail-acc-title">Site &amp; build</span>
+          <span class="rail-acc-sum"></span>
+          <svg class="rail-acc-chev" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+        </button>
+        <div class="rail-acc-body space-y-3">
       <div class="rail-field rail-inline"><label><span class="lbl-impact high">Construction</span><span class="info-tip" tabindex="0" role="button" aria-label="How construction type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>New Construction vs. Remodel swings labor the most — roughly 10 min/LF for stick-framed new work vs. 40 min/LF on a remodel.</span></span></label>
         <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div></div>
       <div class="rail-field rail-inline"><label><span class="lbl-impact high">House</span><span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
@@ -4132,8 +4178,16 @@
         </div>
       </div>
 
-      <!-- ─── OPENINGS ─── -->
-      <div class="rail-section-header">Openings</div>
+        </div>
+      </div>
+      <!-- ─── OPENINGS (accordion) ─── -->
+      <div class="rail-acc" data-acc="openings">
+        <button type="button" class="rail-acc-head">
+          <span class="rail-acc-title">Openings</span>
+          <span class="rail-acc-sum"></span>
+          <svg class="rail-acc-chev" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+        </button>
+        <div class="rail-acc-body space-y-3">
       <div class="rail-field">
         <label for="totalLF">Linear footage</label>
         <div class="rail-lf-input-wrap">
@@ -4194,8 +4248,16 @@
         </div>
       </div>
 
-      <!-- ─── EXTRAS ─── -->
-      <div class="rail-section-header">Extras</div>
+        </div>
+      </div>
+      <!-- ─── EXTRAS (accordion) ─── -->
+      <div class="rail-acc" data-acc="extras">
+        <button type="button" class="rail-acc-head">
+          <span class="rail-acc-title">Extras</span>
+          <span class="rail-acc-sum"></span>
+          <svg class="rail-acc-chev" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+        </button>
+        <div class="rail-acc-body space-y-3">
       <div class="rail-field">
         <label><span class="lbl-impact med">Permit</span><span class="info-tip" tabindex="0" role="button" aria-label="How permit affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>A flat add-on for the permit fee. Toggle on if you're pulling the permit; rate is tunable in Settings.</span></span></label>
         <button id="permitToggleBtn" type="button" class="toggle-pill"><span class="lbl">Permit</span><span class="val">Off</span></button>
@@ -4211,6 +4273,9 @@
         </div>
       </div>
 
+        </div>
+      </div>
+      <!-- /accordion -->
       <div id="remodelNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
         ↑ Enter window count to include disposal cost
       </div>
@@ -7819,6 +7884,7 @@ function render() {
   // Per-job material variant toggles
   renderMaterialsToggle();
   renderJobSpecSummary();
+  initRailAccordion();          // wires once; keeps section summaries live
   renderPlanApprovals();
   updateSlidingDoorsSummary();
   updateBifoldDoorsSummary();
@@ -7911,6 +7977,59 @@ function renderJobSpecSummary() {
   el.innerHTML =
     `<span class="jss-size">${escHtml(size.join("  ·  ") || "—")}</span>` +
     (spec.length ? `<span class="jss-spec">${escHtml(spec.join("  ·  "))}</span>` : "");
+}
+
+// ── Rail accordion (zen focus) — collapsed sections show a one-line recap.
+// Fills each section's .rail-acc-sum from STATE so a closed card still tells
+// you what's set. Called from render() so summaries stay live.
+function renderRailAccSummaries() {
+  const accs = document.querySelectorAll("#jobRail .rail-acc");
+  if (!accs.length) return;
+  const abbr = { "New Construction": "New", "Block Framed": "Block", "Stick Framed": "Stick" };
+  const lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
+  const wc = parseInt(STATE.windowCount, 10) || 0;
+  const sd = STATE.swingDoors || {};
+  const doors = (parseInt(sd.single, 10) || 0) + (parseInt(sd.double, 10) || 0)
+    + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
+  let storyTxt = "";
+  if (STATE.stories) { const m = String(STATE.stories).match(/(\d+)/); storyTxt = m ? m[1] + "-story" : STATE.stories; }
+  const sums = {
+    site: [STATE.constructionType, STATE.houseType, STATE.stories, STATE.manufacturer].some(Boolean)
+      ? [abbr[STATE.constructionType] || STATE.constructionType, abbr[STATE.houseType] || STATE.houseType, storyTxt, STATE.manufacturer].filter(Boolean).join(" · ")
+      : "Tap to set",
+    openings: lf > 0
+      ? [lf + " LF", wc ? wc + " win" : "", STATE.impact, doors ? doors + " door" + (doors === 1 ? "" : "s") : ""].filter(Boolean).join(" · ")
+      : "Set linear footage",
+    extras: [STATE.permitEnabled ? "Permit on" : "Permit off"]
+      .concat(STATE.liftEnabled ? ["Lift " + (STATE.liftDays || "1") + "d"] : []).join(" · "),
+  };
+  accs.forEach(acc => {
+    const s = acc.querySelector(".rail-acc-sum");
+    const k = acc.dataset.acc;
+    if (s && sums[k] != null) s.textContent = sums[k];
+  });
+}
+// One section open at a time. Wires once; default-opens the first section once.
+function initRailAccordion() {
+  const accs = document.querySelectorAll("#jobRail .rail-acc");
+  if (!accs.length) return;
+  accs.forEach(acc => {
+    const head = acc.querySelector(".rail-acc-head");
+    if (head && !head._accWired) {
+      head.addEventListener("click", () => {
+        if (!document.body.classList.contains("rail-tidy")) return;  // flat mode: no toggle
+        const wasOpen = acc.classList.contains("open");
+        accs.forEach(a => a.classList.remove("open"));
+        if (!wasOpen) acc.classList.add("open");
+      });
+      head._accWired = true;
+    }
+  });
+  if (!initRailAccordion._didDefault) {
+    if (![...accs].some(a => a.classList.contains("open"))) accs[0].classList.add("open");
+    initRailAccordion._didDefault = true;
+  }
+  renderRailAccSummaries();
 }
 
 // Per-job material variant toggles — one segmented control per category
