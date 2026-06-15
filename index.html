@@ -773,7 +773,10 @@
     border-radius: 12px; padding: 6px; box-shadow: 0 16px 32px -12px rgba(0,0,0,0.75);
   }
   .jf-ic.open .jf-menu { display: block; }
-  @media (hover: hover) { .jf-ic:hover .jf-menu { display: block; } }
+  /* Invisible bridge spanning the 6px icon→menu gap so the cursor never crosses
+     dead space on the way to the menu. Desktop hover is JS-driven (.open) with a
+     close grace timer; touch uses tap. (Pure-CSS :hover removed — it gave 0 grace.) */
+  .jf-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }
   .jf-menu-name { font-size: 11px; font-weight: 700; color: #c9a558; letter-spacing: 0.04em; padding: 5px 9px 6px; border-bottom: 1px solid rgba(51,65,85,0.6); margin-bottom: 4px; white-space: nowrap; }
   .jf-menu button { width: 100%; display: flex; align-items: center; gap: 9px; text-align: left; font-size: 13px; font-weight: 600; color: #e2e8f0; background: transparent; border: 0; border-radius: 8px; padding: 8px 9px; cursor: pointer; }
   .jf-menu button:hover { background: rgba(181,143,74,0.12); color: #dfc07a; }
@@ -12147,23 +12150,32 @@ function renderJobFileIcons() {
     </div>`;
   }).join("");
 }
+// Desktop hover-grace: keep a file menu open briefly after the cursor leaves so
+// there's time to move onto it and click. Touch devices skip this (tap drives .open).
+let _jfCloseTimer = null;
+const _jfCanHover = !!(window.matchMedia && window.matchMedia("(hover: hover)").matches);
+function _jfCancelClose() { if (_jfCloseTimer) { clearTimeout(_jfCloseTimer); _jfCloseTimer = null; } }
+function _jfCloseAll() { document.querySelectorAll("#jobFilesIcons .jf-ic.open").forEach(x => x.classList.remove("open")); }
+function _jfScheduleClose() { _jfCancelClose(); _jfCloseTimer = setTimeout(() => { _jfCloseTimer = null; _jfCloseAll(); }, 550); }
 function jfMenuAction(fileKey, act) {
   const f = JOB_FILES.find(x => x.key === fileKey);
   if (!f) return;
+  _jfCancelClose();
   if (act === "sign") {
     copySigningLinkFromFiles();
-    document.querySelectorAll("#jobFilesIcons .jf-ic.open").forEach(x => x.classList.remove("open"));
+    _jfCloseAll();
     return;
   }
   const id = act === "view" ? f.view : act === "download" ? f.dl : act === "share" ? f.share : null;
   if (id) { const b = document.getElementById(id); if (b) b.click(); }
-  document.querySelectorAll("#jobFilesIcons .jf-ic.open").forEach(x => x.classList.remove("open"));
+  _jfCloseAll();
 }
 (function wireJobFileIcons() {
   const wrap = document.getElementById("jobFilesIcons");
   if (!wrap) return;
   wrap.addEventListener("click", e => {
     e.stopPropagation();   // never toggle the card from inside the icon row
+    _jfCancelClose();
     const act = e.target.closest("[data-jfact]");
     if (act) { const ic = act.closest(".jf-ic"); jfMenuAction(ic.dataset.jf, act.dataset.jfact); return; }
     const btn = e.target.closest(".jf-iconbtn");
@@ -12174,9 +12186,31 @@ function jfMenuAction(fileKey, act) {
       if (!wasOpen) ic.classList.add("open");
     }
   });
-  // tap outside closes any open file menu
+  // Desktop hover-intent (delegated, since the row is re-rendered wholesale):
+  // open instantly on enter; on leave, wait out a grace period — cancelled if the
+  // cursor returns to the icon or reaches the menu — so there's time to travel to
+  // it without it vanishing. Gated to hover-capable pointers; touch uses tap above.
+  if (_jfCanHover) {
+    wrap.addEventListener("mouseover", e => {
+      const ic = e.target.closest && e.target.closest(".jf-ic");
+      if (!ic) return;
+      _jfCancelClose();
+      if (!ic.classList.contains("open")) {
+        wrap.querySelectorAll(".jf-ic.open").forEach(x => { if (x !== ic) x.classList.remove("open"); });
+        ic.classList.add("open");
+      }
+    });
+    wrap.addEventListener("mouseout", e => {
+      const ic = e.target.closest && e.target.closest(".jf-ic");
+      if (!ic) return;
+      if (e.relatedTarget && ic.contains(e.relatedTarget)) return; // moved within the same icon/menu
+      _jfScheduleClose();
+    });
+  }
+  // tap/click outside closes any open file menu
   document.addEventListener("click", e => {
     if (!e.target.closest || !e.target.closest("#jobFilesIcons")) {
+      _jfCancelClose();
       wrap.querySelectorAll(".jf-ic.open").forEach(x => x.classList.remove("open"));
     }
   });
