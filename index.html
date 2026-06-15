@@ -569,6 +569,31 @@
     -webkit-tap-highlight-color: transparent; transition: color .15s ease;
   }
   body.rail-tidy #jobRail .rail-expand-all:hover { color: #c9a558; }
+  /* Rail "suggest a feature / report a bug" entry link */
+  .rail-feedback-link {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%; margin-top: 12px; padding: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+    color: #5b6678; background: transparent; border: 0; cursor: pointer;
+    transition: color .15s ease; -webkit-tap-highlight-color: transparent;
+  }
+  .rail-feedback-link:hover { color: #c9a558; }
+  [data-theme="light"] .rail-feedback-link { color: #94a3b8; }
+  [data-theme="light"] .rail-feedback-link:hover { color: #97772e; }
+  /* Admin feedback list */
+  .fb-item { border: 1px solid rgba(51,65,85,0.6); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; background: rgba(15,23,42,0.4); }
+  .fb-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; }
+  .fb-kind { font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+  .fb-kind.feature { background: rgba(181,143,74,0.16); color: #dfc07a; border: 1px solid rgba(181,143,74,0.4); }
+  .fb-kind.bug { background: rgba(244,63,94,0.14); color: #fda4af; border: 1px solid rgba(244,63,94,0.38); }
+  .fb-meta { font-size: 11px; color: #64748b; }
+  .fb-msg { font-size: 13px; color: #e2e8f0; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .fb-actions { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+  .fb-act { font-size: 11px; font-weight: 600; color: #94a3b8; background: transparent; border: 1px solid rgba(71,85,105,0.6); border-radius: 999px; padding: 3px 10px; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
+  .fb-act:hover { border-color: rgba(181,143,74,0.55); color: #c9a558; }
+  .fb-item.is-done { opacity: 0.55; }
+  [data-theme="light"] .fb-item { background: #f8fafc; border-color: #e6e8ec; }
+  [data-theme="light"] .fb-msg { color: #1e293b; }
   /* Impact level — tint ONLY the "?" help icon so the cue is glanceable but
      stays out of the title text. High = rose, medium = gold; low/neutral fields
      keep the default slate icon (no marker). The tint is the icon's RESTING
@@ -4292,6 +4317,10 @@
       <div class="rail-field" style="margin-top: 18px;">
         <button id="railResetJobBtn" type="button" class="rail-reset-btn">Reset job</button>
       </div>
+      <button id="railFeedbackBtn" type="button" class="rail-feedback-link">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-4 3z"/></svg>
+        Suggest a feature &middot; Report a bug
+      </button>
     </div>
 </aside>
 <div id="jobRailBackdrop"></div>
@@ -5367,6 +5396,9 @@
           <div class="set-h">Admin</div>
           <div class="set-sub mb-5">Owner-only — usage analytics and the missing-FL# queue.</div>
           <div id="adminPanelBody"></div>
+          <div class="set-h" style="margin-top:30px">Feedback &amp; suggestions <span id="adminFeedbackCount" class="text-slate-600 font-bold"></span></div>
+          <div class="set-sub mb-3">Feature requests &amp; bug reports from users — newest first.</div>
+          <div id="adminFeedbackBody"></div>
         </div>
 
       </div>
@@ -5376,6 +5408,40 @@
     <div id="settingsFooter" class="px-5 sm:px-8 py-4 border-t border-slate-800 flex items-center justify-end gap-2 flex-shrink-0">
       <button id="adminReset" class="btn rounded-full text-sm text-slate-400 hover:text-rose-300 hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Restore Defaults</button>
       <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     FEEDBACK — suggest a feature / report a bug
+     ============================================================ -->
+<div id="feedbackModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[80]">
+  <div class="absolute inset-0 modal-backdrop" data-fbclose></div>
+  <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col">
+    <div class="px-6 pt-6 pb-4 flex items-start justify-between gap-3">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-100">Help shape Anchor</h3>
+        <p class="text-xs text-slate-500 mt-1">Suggest a feature or flag a bug — it goes straight to the team.</p>
+      </div>
+      <button class="modal-close" data-fbclose aria-label="Close">×</button>
+    </div>
+    <div id="feedbackForm" class="px-6 pb-6 space-y-4">
+      <div id="feedbackKind" class="seg" role="tablist" aria-label="Feedback type">
+        <button type="button" class="seg-btn active" data-fbkind="feature" role="tab" aria-selected="true">Feature idea</button>
+        <button type="button" class="seg-btn" data-fbkind="bug" role="tab" aria-selected="false">Bug report</button>
+      </div>
+      <textarea id="feedbackMessage" rows="5" maxlength="4000" placeholder="What would make Anchor better for you?"
+        class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" style="resize:vertical;min-height:120px;"></textarea>
+      <div class="flex items-center justify-between gap-3">
+        <span id="feedbackError" class="text-xs text-rose-400"></span>
+        <button id="feedbackSubmit" type="button" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] disabled:opacity-50 ml-auto">Send</button>
+      </div>
+    </div>
+    <div id="feedbackThanks" class="hidden px-6 pb-8 pt-2 text-center">
+      <div class="mx-auto mb-3 w-12 h-12 rounded-full bg-[#b58f4a]/15 border border-[#b58f4a]/40 flex items-center justify-center text-[#c9a558] text-2xl">✓</div>
+      <p class="text-base font-semibold text-slate-100">Thanks — we got it.</p>
+      <p class="text-xs text-slate-500 mt-1">Your note is on its way to the team. We read every one.</p>
+      <button id="feedbackDone" type="button" class="btn mt-5 rounded-full px-5 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Done</button>
     </div>
   </div>
 </div>
@@ -11320,7 +11386,7 @@ function showSettingsTab(name) {
     p.classList.toggle("active", p.dataset.panel === name));
   const dataTab = ["brand", "defaults", "manufacturers", "rates"].includes(name);
   document.getElementById("settingsFooter").style.display = dataTab ? "" : "none";
-  if (name === "admin") renderAdminPanel();
+  if (name === "admin") { renderAdminPanel(); renderAdminFeedback(); }
   if (name === "subscription") renderSubscriptionPanel();
 }
 
@@ -11947,6 +12013,158 @@ function openFL() {
     .catch(() => { /* surfaces in the search UI on retry */ });
 }
 function closeFL() { flModal.classList.add("hidden"); flModal.classList.remove("flex"); }
+
+// ── Feedback: suggest a feature / report a bug ───────────────────────────────
+let _feedbackKind = "feature";
+function openFeedback() {
+  const m = document.getElementById("feedbackModal");
+  if (!m) return;
+  document.getElementById("feedbackForm").classList.remove("hidden");
+  document.getElementById("feedbackThanks").classList.add("hidden");
+  const err = document.getElementById("feedbackError"); if (err) err.textContent = "";
+  setFeedbackKind(_feedbackKind);
+  m.classList.remove("hidden"); m.classList.add("flex");
+  setTimeout(() => { const t = document.getElementById("feedbackMessage"); if (t) t.focus(); }, 60);
+  try { window.track("feedback_opened"); } catch (_e) {}
+}
+function closeFeedback() {
+  const m = document.getElementById("feedbackModal");
+  if (m) { m.classList.add("hidden"); m.classList.remove("flex"); }
+}
+function setFeedbackKind(k) {
+  _feedbackKind = k === "bug" ? "bug" : "feature";
+  document.querySelectorAll("#feedbackKind .seg-btn").forEach(b => {
+    const on = b.dataset.fbkind === _feedbackKind;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  const t = document.getElementById("feedbackMessage");
+  if (t) t.placeholder = _feedbackKind === "bug"
+    ? "What went wrong? What were you doing when it happened?"
+    : "What would make Anchor better for you?";
+}
+async function submitFeedback() {
+  const ta = document.getElementById("feedbackMessage");
+  const err = document.getElementById("feedbackError");
+  const btn = document.getElementById("feedbackSubmit");
+  const msg = ((ta && ta.value) || "").trim();
+  if (err) err.textContent = "";
+  if (!msg) { if (err) err.textContent = "Type a message first."; if (ta) ta.focus(); return; }
+  if (typeof sb === "undefined" || !sb || typeof currentUser === "undefined" || !currentUser) {
+    if (err) err.textContent = "Please sign in to send feedback."; return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  try {
+    const brand = (DATA && DATA.config && DATA.config.brand) || {};
+    const ent = (DATA && DATA.config && DATA.config.entitlements) || {};
+    const { data, error } = await sb.functions.invoke("submit-feedback", {
+      body: {
+        kind: _feedbackKind,
+        message: msg,
+        context: {
+          company: brand.companyName || "",
+          plan: ent.plan || "",
+          url: location.href,
+          ua: navigator.userAgent,
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+        },
+      },
+    });
+    if (error || !data || data.ok === false) {
+      throw new Error((data && data.error) || (error && error.message) || "Couldn't send — try again.");
+    }
+    document.getElementById("feedbackForm").classList.add("hidden");
+    document.getElementById("feedbackThanks").classList.remove("hidden");
+    if (ta) ta.value = "";
+    try { window.track("feedback_submitted", { kind: _feedbackKind }); } catch (_e) {}
+  } catch (e) {
+    if (err) err.textContent = (e && e.message) || "Couldn't send — try again.";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Send"; }
+  }
+}
+
+// ── Admin: feedback list (owner-only; reads via admin RLS + live realtime) ────
+let _fbRealtimeWired = false;
+async function renderAdminFeedback() {
+  const body = document.getElementById("adminFeedbackBody");
+  if (!body) return;
+  if (typeof sb === "undefined" || !sb) { body.innerHTML = '<p class="text-xs text-slate-500">Sign in as the owner to view feedback.</p>'; return; }
+  body.innerHTML = '<p class="text-xs text-slate-500">Loading…</p>';
+  let rows = [];
+  try {
+    const { data, error } = await sb.from("feedback").select("*").order("created_at", { ascending: false }).limit(100);
+    if (error) throw error;
+    rows = data || [];
+  } catch (e) {
+    body.innerHTML = '<p class="text-xs text-slate-500">Couldn\'t load feedback (' + escHtml((e && e.message) || "error") + ').</p>';
+    return;
+  }
+  const cnt = document.getElementById("adminFeedbackCount");
+  const openCount = rows.filter(r => r.status === "new" || r.status === "reviewing").length;
+  if (cnt) cnt.textContent = openCount ? `· ${openCount} open` : "";
+  if (!rows.length) { body.innerHTML = '<p class="text-xs text-slate-500">No feedback yet.</p>'; return; }
+  body.innerHTML = rows.map(r => {
+    const when = new Date(r.created_at).toLocaleString();
+    const kind = r.kind === "bug" ? "bug" : "feature";
+    const done = r.status === "done" || r.status === "dismissed";
+    return `<div class="fb-item ${done ? "is-done" : ""}" data-fbid="${r.id}">
+      <div class="fb-top">
+        <span class="fb-kind ${kind}">${kind === "bug" ? "Bug" : "Feature"}</span>
+        <span class="fb-meta">${escHtml(r.company || r.user_email || "Unknown")}${r.plan ? " · " + escHtml(r.plan) : ""}</span>
+        <span class="fb-meta" style="margin-left:auto">${escHtml(when)}</span>
+      </div>
+      <div class="fb-msg">${escHtml(r.message || "")}</div>
+      ${r.user_email ? `<div class="fb-meta" style="margin-top:6px">${escHtml(r.user_email)}</div>` : ""}
+      <div class="fb-actions">
+        <button class="fb-act" data-fbact="done" data-fbid="${r.id}">${done ? "Reopen" : "Mark done"}</button>
+        <button class="fb-act" data-fbact="delete" data-fbid="${r.id}">Delete</button>
+      </div>
+    </div>`;
+  }).join("");
+  if (!_fbRealtimeWired) {
+    try {
+      sb.channel("feedback-admin")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "feedback" }, () => {
+          if (!hidden("adminModal")) renderAdminFeedback();
+          try { toast("New feedback received"); } catch (_e) {}
+        })
+        .subscribe();
+      _fbRealtimeWired = true;
+    } catch (_e) {}
+  }
+}
+async function feedbackAction(id, act) {
+  if (typeof sb === "undefined" || !sb || !id) return;
+  try {
+    if (act === "delete") {
+      if (!confirm("Delete this feedback?")) return;
+      await sb.from("feedback").delete().eq("id", id);
+    } else if (act === "done") {
+      const item = document.querySelector(`.fb-item[data-fbid="${id}"]`);
+      const isDone = item && item.classList.contains("is-done");
+      await sb.from("feedback").update({ status: isDone ? "new" : "done" }).eq("id", id);
+    }
+    renderAdminFeedback();
+  } catch (_e) { try { toast("Action failed"); } catch (_e2) {} }
+}
+
+// Wire feedback UI (markup exists above this script).
+(function wireFeedback() {
+  const rb = document.getElementById("railFeedbackBtn");
+  if (rb) rb.addEventListener("click", openFeedback);
+  const kind = document.getElementById("feedbackKind");
+  if (kind) kind.addEventListener("click", e => { const b = e.target.closest("[data-fbkind]"); if (b) setFeedbackKind(b.dataset.fbkind); });
+  const sub = document.getElementById("feedbackSubmit"); if (sub) sub.addEventListener("click", submitFeedback);
+  const done = document.getElementById("feedbackDone"); if (done) done.addEventListener("click", closeFeedback);
+  const modal = document.getElementById("feedbackModal");
+  if (modal) modal.addEventListener("click", e => { if (e.target.dataset.fbclose !== undefined) closeFeedback(); });
+  const fbBody = document.getElementById("adminFeedbackBody");
+  if (fbBody) fbBody.addEventListener("click", e => {
+    const a = e.target.closest("[data-fbact]"); if (!a) return;
+    feedbackAction(a.dataset.fbid, a.dataset.fbact);
+  });
+})();
 
 /* ---- Job rail: collapsible + hover-peek on desktop, drawer on mobile ---- */
 function isDesktopRail() { return window.matchMedia("(min-width: 1024px)").matches; }
