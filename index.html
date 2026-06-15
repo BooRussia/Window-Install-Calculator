@@ -592,6 +592,13 @@
   .fb-act { font-size: 11px; font-weight: 600; color: #94a3b8; background: transparent; border: 1px solid rgba(71,85,105,0.6); border-radius: 999px; padding: 3px 10px; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
   .fb-act:hover { border-color: rgba(181,143,74,0.55); color: #c9a558; }
   .fb-item.is-done { opacity: 0.55; }
+  /* New-feedback notification badge on the Feedback tab */
+  .fb-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; margin-left: 7px; padding: 0 5px;
+    border-radius: 999px; background: #f43f5e; color: #fff;
+    font-size: 10px; font-weight: 800; line-height: 1; vertical-align: middle;
+  }
   [data-theme="light"] .fb-item { background: #f8fafc; border-color: #e6e8ec; }
   [data-theme="light"] .fb-msg { color: #1e293b; }
   /* Impact level — tint ONLY the "?" help icon so the cue is glanceable but
@@ -4868,6 +4875,7 @@
         <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
         <button type="button" class="set-tab" data-tab="subscription">Subscription</button>
         <button type="button" class="set-tab" data-tab="account">Account</button>
+        <button type="button" class="set-tab hidden" data-tab="feedback" id="feedbackTabBtn">Feedback<span id="feedbackTabBadge" class="fb-badge hidden">0</span></button>
         <button type="button" class="set-tab hidden" data-tab="admin" id="adminTabBtn">Admin</button>
       </nav>
 
@@ -5396,8 +5404,12 @@
           <div class="set-h">Admin</div>
           <div class="set-sub mb-5">Owner-only — usage analytics and the missing-FL# queue.</div>
           <div id="adminPanelBody"></div>
-          <div class="set-h" style="margin-top:30px">Feedback &amp; suggestions <span id="adminFeedbackCount" class="text-slate-600 font-bold"></span></div>
-          <div class="set-sub mb-3">Feature requests &amp; bug reports from users — newest first.</div>
+        </div>
+
+        <!-- Feedback (owner-only) -->
+        <div class="set-panel" data-panel="feedback">
+          <div class="set-h">Feedback &amp; suggestions <span id="adminFeedbackCount" class="text-slate-600 font-bold"></span></div>
+          <div class="set-sub mb-5">Feature requests &amp; bug reports from users — newest first.</div>
           <div id="adminFeedbackBody"></div>
         </div>
 
@@ -11372,6 +11384,8 @@ function openAdmin() {
   const acct = document.getElementById("acctEmailSettings");
   if (acct) acct.textContent = (currentUser && currentUser.email) || "Offline mode";
   document.getElementById("adminTabBtn").classList.toggle("hidden", !isAdmin());
+  document.getElementById("feedbackTabBtn").classList.toggle("hidden", !isAdmin());
+  if (isAdmin()) updateFeedbackBadge();
   showSettingsTab("brand");
   adminModal.classList.remove("hidden");
 }
@@ -11386,7 +11400,8 @@ function showSettingsTab(name) {
     p.classList.toggle("active", p.dataset.panel === name));
   const dataTab = ["brand", "defaults", "manufacturers", "rates"].includes(name);
   document.getElementById("settingsFooter").style.display = dataTab ? "" : "none";
-  if (name === "admin") { renderAdminPanel(); renderAdminFeedback(); }
+  if (name === "admin") renderAdminPanel();
+  if (name === "feedback") { renderAdminFeedback(); markFeedbackSeen(); }
   if (name === "subscription") renderSubscriptionPanel();
 }
 
@@ -12126,7 +12141,9 @@ async function renderAdminFeedback() {
     try {
       sb.channel("feedback-admin")
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "feedback" }, () => {
-          if (!hidden("adminModal")) renderAdminFeedback();
+          updateFeedbackBadge();
+          const fbActive = document.querySelector('#adminModal .set-tab[data-tab="feedback"]')?.classList.contains("active");
+          if (!hidden("adminModal") && fbActive) renderAdminFeedback();
           try { toast("New feedback received"); } catch (_e) {}
         })
         .subscribe();
@@ -12147,6 +12164,27 @@ async function feedbackAction(id, act) {
     }
     renderAdminFeedback();
   } catch (_e) { try { toast("Action failed"); } catch (_e2) {} }
+}
+
+// New-feedback notification badge on the Feedback tab (count of status='new').
+async function updateFeedbackBadge() {
+  const badge = document.getElementById("feedbackTabBadge");
+  if (!badge) return;
+  if (typeof sb === "undefined" || !sb || typeof currentUser === "undefined" || !currentUser) { badge.classList.add("hidden"); return; }
+  try {
+    const { count, error } = await sb.from("feedback").select("id", { count: "exact", head: true }).eq("status", "new");
+    if (error) throw error;
+    const n = count || 0;
+    if (n > 0) { badge.textContent = n > 99 ? "99+" : String(n); badge.classList.remove("hidden"); }
+    else badge.classList.add("hidden");
+  } catch (_e) { badge.classList.add("hidden"); }
+}
+// Viewing the Feedback tab marks unseen ('new') items as seen ('reviewing') so
+// the badge clears; they still show in the list until Marked done / Deleted.
+async function markFeedbackSeen() {
+  if (typeof sb === "undefined" || !sb || typeof currentUser === "undefined" || !currentUser) return;
+  try { await sb.from("feedback").update({ status: "reviewing" }).eq("status", "new"); } catch (_e) {}
+  updateFeedbackBadge();
 }
 
 // Wire feedback UI (markup exists above this script).
