@@ -12094,6 +12094,31 @@ document.addEventListener("click", e => {
 const _svgView = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
 const _svgDl   = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg>';
 const _svgShare= '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>';
+const _svgSign = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+// "Copy signing link" from the Job Files menu: ensure the quote is SAVED (auto-save
+// headless if needed — quota-checked), then reuse createSignLink (which builds the
+// e-sign snapshot, inserts shared_quotes, copies the URL + shows the result modal).
+async function copySigningLinkFromFiles() {
+  if (typeof sb === "undefined" || !sb || typeof currentUser === "undefined" || !currentUser) {
+    toast("Sign in to create a signing link"); return;
+  }
+  const r = calculate();
+  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
+  let saved = STATE.currentJobId && loadJobs().some(x => x.id === STATE.currentJobId && !x.isDraft);
+  if (!saved) {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
+    set("saveJobName", STATE.customerName || STATE.jobName || "");
+    set("saveJobAddress", STATE.customerAddress || "");
+    set("saveJobPhone", STATE.customerPhone || "");
+    set("saveJobEmail", STATE.customerEmail || "");
+    set("saveJobNotes", STATE.customerNotes || "");
+    confirmSaveJob();   // quota-checked save; sets STATE.currentJobId, or shows the upsell + aborts
+    saved = STATE.currentJobId && loadJobs().some(x => x.id === STATE.currentJobId && !x.isDraft);
+    if (!saved) return; // blocked by quota or failed — confirmSaveJob already messaged
+  }
+  _jdSignExclude = new Set();                    // no per-customer hidden rows for the quick link
+  await createSignLink(STATE.currentJobId, _jdSignDetail || "summary");
+}
 const JOB_FILES = [
   { key: "customer", name: "Customer Quote", view: "viewCustomerQuote", dl: "fileCustomerQuote", share: "shareCustomerQuote",
     icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>' },
@@ -12111,7 +12136,8 @@ function renderJobFileIcons() {
     const items =
       `<button data-jfact="view">${_svgView}<span>View</span></button>` +
       `<button data-jfact="download">${_svgDl}<span>Download</span></button>` +
-      (f.share ? `<button data-jfact="share">${_svgShare}<span>Share</span></button>` : "");
+      (f.share ? `<button data-jfact="share">${_svgShare}<span>Share</span></button>` : "") +
+      (f.key === "customer" ? `<button data-jfact="sign">${_svgSign}<span>Copy signing link</span></button>` : "");
     return `<div class="jf-ic" data-jf="${f.key}">
       <button class="jf-iconbtn" type="button" title="${escHtml(f.name)}" aria-label="${escHtml(f.name)}">${f.icon}</button>
       <div class="jf-menu" role="menu">
@@ -12124,6 +12150,11 @@ function renderJobFileIcons() {
 function jfMenuAction(fileKey, act) {
   const f = JOB_FILES.find(x => x.key === fileKey);
   if (!f) return;
+  if (act === "sign") {
+    copySigningLinkFromFiles();
+    document.querySelectorAll("#jobFilesIcons .jf-ic.open").forEach(x => x.classList.remove("open"));
+    return;
+  }
   const id = act === "view" ? f.view : act === "download" ? f.dl : act === "share" ? f.share : null;
   if (id) { const b = document.getElementById(id); if (b) b.click(); }
   document.querySelectorAll("#jobFilesIcons .jf-ic.open").forEach(x => x.classList.remove("open"));
