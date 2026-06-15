@@ -755,6 +755,33 @@
   .rcard.collapsed > :not(.rcard-head) { display: none; }
   [data-theme="light"] .rcard-title { color: #0f172a; }
   [data-theme="light"] .rcard-sum { color: #1e293b; }
+  /* Job Files: compact icon row shown when the card is minimized; each icon
+     reveals a popover (hover on desktop, tap on mobile) of file actions. */
+  .jf-icons { display: none; align-items: center; gap: 6px; margin-left: auto; }
+  .rcard.collapsed .jf-head .jf-icons { display: flex; }
+  .jf-ic { position: relative; }
+  .jf-iconbtn {
+    width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 9px; border: 1px solid rgba(71,85,105,0.55); background: rgba(15,23,42,0.5);
+    color: #94a3b8; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .jf-iconbtn:hover, .jf-ic.open .jf-iconbtn { border-color: rgba(201,165,88,0.6); color: #c9a558; background: rgba(181,143,74,0.1); }
+  .jf-menu {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: none;
+    min-width: 168px; background: rgba(2,6,23,0.98); border: 1px solid rgba(181,143,74,0.4);
+    border-radius: 12px; padding: 6px; box-shadow: 0 16px 32px -12px rgba(0,0,0,0.75);
+  }
+  .jf-ic.open .jf-menu { display: block; }
+  @media (hover: hover) { .jf-ic:hover .jf-menu { display: block; } }
+  .jf-menu-name { font-size: 11px; font-weight: 700; color: #c9a558; letter-spacing: 0.04em; padding: 5px 9px 6px; border-bottom: 1px solid rgba(51,65,85,0.6); margin-bottom: 4px; white-space: nowrap; }
+  .jf-menu button { width: 100%; display: flex; align-items: center; gap: 9px; text-align: left; font-size: 13px; font-weight: 600; color: #e2e8f0; background: transparent; border: 0; border-radius: 8px; padding: 8px 9px; cursor: pointer; }
+  .jf-menu button:hover { background: rgba(181,143,74,0.12); color: #dfc07a; }
+  .jf-menu button svg { flex-shrink: 0; color: #94a3b8; }
+  .jf-menu button:hover svg { color: #c9a558; }
+  [data-theme="light"] .jf-iconbtn { background: #fff; border-color: #d6dae1; color: #64748b; }
+  [data-theme="light"] .jf-menu { background: #fff; border-color: rgba(181,143,74,0.5); }
+  [data-theme="light"] .jf-menu button { color: #334155; }
 
   /* ------- Job Files — individual file cards ------- */
   .jf-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; color: #c9a558; font-weight: 800; }
@@ -4523,12 +4550,12 @@
     </div>
 
     <!-- Job Files — each document is its own clearly-separated card -->
-    <div class="mt-8 card rounded-2xl overflow-hidden rcard" data-rcard="files">
-      <button type="button" class="rcard-head border-b border-slate-800/80">
+    <div class="mt-8 card rounded-2xl rcard" data-rcard="files">
+      <div class="rcard-head jf-head border-b border-slate-800/80">
         <span class="rcard-title">Job Files</span>
-        <span class="rcard-sum" id="jobFilesSummary"></span>
+        <div id="jobFilesIcons" class="jf-icons"></div>
         <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
-      </button>
+      </div>
 
       <div class="px-5 sm:px-6 py-5 space-y-5">
         <!-- ── For the customer ── -->
@@ -12059,11 +12086,70 @@ document.addEventListener("click", e => {
   const card = head.closest(".rcard");
   if (!card) return;
   card.classList.toggle("collapsed");
-  if (card.dataset.rcard === "files") {
-    const s = document.getElementById("jobFilesSummary");
-    if (s) { const n = card.querySelectorAll(".jf-card").length; s.textContent = n ? n + " file" + (n === 1 ? "" : "s") : ""; }
-  }
+  if (card.dataset.rcard === "files" && card.classList.contains("collapsed")) renderJobFileIcons();
 });
+
+// Job Files — minimized icon row + per-file popover menu (reuses the existing
+// View/Download/Share handlers by clicking their buttons, so all logic is shared).
+const _svgView = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+const _svgDl   = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg>';
+const _svgShare= '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>';
+const JOB_FILES = [
+  { key: "customer", name: "Customer Quote", view: "viewCustomerQuote", dl: "fileCustomerQuote", share: "shareCustomerQuote",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>' },
+  { key: "cost", name: "Cost Breakdown", view: "viewCostBreakdown", dl: "fileCostBreakdown",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="10"/><line x1="10" y1="20" x2="10" y2="4"/><line x1="16" y1="20" x2="16" y2="13"/><line x1="2" y1="20" x2="22" y2="20"/></svg>' },
+  { key: "materials", name: "Materials List", view: "viewMaterialsList", dl: "fileMaterialsList",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' },
+  { key: "buck", name: "Buck Cut List", view: "viewBuckCutList", dl: "fileBuckCutList",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-4"/></svg>' },
+];
+function renderJobFileIcons() {
+  const wrap = document.getElementById("jobFilesIcons");
+  if (!wrap) return;
+  wrap.innerHTML = JOB_FILES.map(f => {
+    const items =
+      `<button data-jfact="view">${_svgView}<span>View</span></button>` +
+      `<button data-jfact="download">${_svgDl}<span>Download</span></button>` +
+      (f.share ? `<button data-jfact="share">${_svgShare}<span>Share</span></button>` : "");
+    return `<div class="jf-ic" data-jf="${f.key}">
+      <button class="jf-iconbtn" type="button" title="${escHtml(f.name)}" aria-label="${escHtml(f.name)}">${f.icon}</button>
+      <div class="jf-menu" role="menu">
+        <div class="jf-menu-name">${escHtml(f.name)}</div>
+        ${items}
+      </div>
+    </div>`;
+  }).join("");
+}
+function jfMenuAction(fileKey, act) {
+  const f = JOB_FILES.find(x => x.key === fileKey);
+  if (!f) return;
+  const id = act === "view" ? f.view : act === "download" ? f.dl : act === "share" ? f.share : null;
+  if (id) { const b = document.getElementById(id); if (b) b.click(); }
+  document.querySelectorAll("#jobFilesIcons .jf-ic.open").forEach(x => x.classList.remove("open"));
+}
+(function wireJobFileIcons() {
+  const wrap = document.getElementById("jobFilesIcons");
+  if (!wrap) return;
+  wrap.addEventListener("click", e => {
+    e.stopPropagation();   // never toggle the card from inside the icon row
+    const act = e.target.closest("[data-jfact]");
+    if (act) { const ic = act.closest(".jf-ic"); jfMenuAction(ic.dataset.jf, act.dataset.jfact); return; }
+    const btn = e.target.closest(".jf-iconbtn");
+    if (btn) {
+      const ic = btn.closest(".jf-ic");
+      const wasOpen = ic.classList.contains("open");
+      wrap.querySelectorAll(".jf-ic.open").forEach(x => x.classList.remove("open"));
+      if (!wasOpen) ic.classList.add("open");
+    }
+  });
+  // tap outside closes any open file menu
+  document.addEventListener("click", e => {
+    if (!e.target.closest || !e.target.closest("#jobFilesIcons")) {
+      wrap.querySelectorAll(".jf-ic.open").forEach(x => x.classList.remove("open"));
+    }
+  });
+})();
 
 // ── Feedback: suggest a feature / report a bug ───────────────────────────────
 let _feedbackKind = "feature";
