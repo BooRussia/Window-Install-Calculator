@@ -732,6 +732,30 @@
   .mfr-card.always .mfr-ni,
   .mfr-card.always .mfr-ni-head { opacity: 0.3; pointer-events: none; }
 
+  /* ------- Collapsible result cards (Full Breakdown / Labor Detail / Job Files):
+     big centered title when open (clear separation), compact title-left +
+     summary-right when minimized. ------- */
+  .rcard-head {
+    position: relative; width: 100%; display: flex; align-items: center; gap: 12px;
+    padding: 16px 46px; background: transparent; border: 0; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; color: inherit;
+  }
+  .rcard-title { font-weight: 700; letter-spacing: -0.01em; color: #f1f5f9; }
+  .rcard-sum { font-weight: 700; color: #dbe3ee; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rcard-chev { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); color: #64748b; transition: transform .25s ease, color .2s ease; flex-shrink: 0; }
+  .rcard-head:hover .rcard-chev { color: #c9a558; }
+  /* Expanded: title centered + big, chevron pinned right, summary hidden */
+  .rcard:not(.collapsed) .rcard-title { width: 100%; text-align: center; font-size: 21px; }
+  .rcard:not(.collapsed) .rcard-sum { display: none; }
+  /* Collapsed: title left, summary right, chevron points right, body hidden */
+  .rcard.collapsed .rcard-head { padding: 15px 44px 15px 20px; }
+  .rcard.collapsed .rcard-title { font-size: 17px; }
+  .rcard.collapsed .rcard-sum { margin-left: auto; font-size: 15px; }
+  .rcard.collapsed .rcard-chev { transform: translateY(-50%) rotate(-90deg); }
+  .rcard.collapsed > :not(.rcard-head) { display: none; }
+  [data-theme="light"] .rcard-title { color: #0f172a; }
+  [data-theme="light"] .rcard-sum { color: #1e293b; }
+
   /* ------- Job Files — individual file cards ------- */
   .jf-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; color: #c9a558; font-weight: 800; }
   .jf-card {
@@ -4389,11 +4413,13 @@
     </div>
 
     <!-- Breakdown table -->
-    <div class="mt-10 card rounded-2xl overflow-hidden">
-      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-        <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Full Breakdown</h2>
-        <span id="perLfBadge" class="text-[10px] sm:text-xs text-slate-400 tracking-[0.16em] uppercase font-semibold">$0.00 / LF</span>
-      </div>
+    <div class="mt-10 card rounded-2xl overflow-hidden rcard" data-rcard="breakdown">
+      <button type="button" class="rcard-head border-b border-slate-800/80">
+        <span class="rcard-title">Full Breakdown</span>
+        <span class="rcard-sum" id="breakdownSummary"></span>
+        <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+      </button>
+      <div class="px-5 sm:px-6 pt-3 flex justify-end"><span id="perLfBadge" class="text-[10px] sm:text-xs text-slate-400 tracking-[0.16em] uppercase font-semibold">$0.00 / LF</span></div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm" style="font-variant-numeric: tabular-nums;">
           <thead>
@@ -4432,20 +4458,17 @@
     <!-- Labor Detail — the hour breakdown behind the single Labor line in
          the table above. Cost-plus: crew-hours × what the crew costs/hr.
          That cost is marked up by the job margin like everything else. -->
-    <div id="laborDetailCard" class="mt-6 card rounded-2xl overflow-hidden hidden">
-      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Labor Detail
-            <span class="ml-1.5 align-middle text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold">Internal</span>
-          </h2>
-          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">The hours behind the Labor line above</p>
-        </div>
-        <div class="text-right">
-          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Total crew-hours</div>
-          <div id="laborTotalHrs" class="text-lg font-bold text-slate-100">—</div>
-        </div>
-      </div>
+    <div id="laborDetailCard" class="mt-6 card rounded-2xl overflow-hidden hidden rcard" data-rcard="labor">
+      <button type="button" class="rcard-head border-b border-slate-800/80">
+        <span class="rcard-title">Labor Detail<span class="ml-1.5 align-middle text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold">Internal</span></span>
+        <span class="rcard-sum" id="laborSummary"></span>
+        <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+      </button>
       <div class="divide-y divide-slate-800/60">
+        <div class="px-5 sm:px-6 py-3 flex items-center justify-between">
+          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Total crew-hours</div>
+          <div id="laborTotalHrs" class="text-base font-bold text-slate-100">—</div>
+        </div>
         <!-- Breakdown rows (mobilization · setup · window install · door install) -->
         <div id="laborBreakdownRows"></div>
         <!-- Cost line -->
@@ -4500,16 +4523,12 @@
     </div>
 
     <!-- Job Files — each document is its own clearly-separated card -->
-    <div class="mt-8 card rounded-2xl overflow-hidden">
-      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center gap-3">
-        <span class="flex-shrink-0 w-9 h-9 rounded-xl bg-[#b58f4a]/10 border border-[#b58f4a]/28 flex items-center justify-center text-[#c9a558]">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-        </span>
-        <div>
-          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Job Files</h2>
-          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">View or download everything for this job</p>
-        </div>
-      </div>
+    <div class="mt-8 card rounded-2xl overflow-hidden rcard" data-rcard="files">
+      <button type="button" class="rcard-head border-b border-slate-800/80">
+        <span class="rcard-title">Job Files</span>
+        <span class="rcard-sum" id="jobFilesSummary"></span>
+        <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+      </button>
 
       <div class="px-5 sm:px-6 py-5 space-y-5">
         <!-- ── For the customer ── -->
@@ -7742,6 +7761,7 @@ function render() {
   document.getElementById("perLfBadge").textContent = `${formatMoney(r.perLfCost)} / LF`;
   document.getElementById("perLfFooter").textContent = formatMoney(r.perLfCost);
   document.getElementById("grandTotalFooter").textContent = formatMoney(r.totalCost);
+  { const _bs = document.getElementById("breakdownSummary"); if (_bs) _bs.textContent = formatMoney(r.totalCost); }
 
   const body = document.getElementById("breakdownBody");
   body.innerHTML = r.rows.map(row => {
@@ -7844,6 +7864,7 @@ function render() {
            <div class="text-slate-400 tabular-nums">${b.hrs.toFixed(1)} hr</div>
          </div>`).join("");
       document.getElementById("laborCostTotal").textContent = formatMoney(lb.laborCost);
+      { const _ls = document.getElementById("laborSummary"); if (_ls) _ls.textContent = lb.totalHrs.toFixed(1) + "h crew · " + formatMoney(lb.laborCost); }
       document.getElementById("laborCostRate").textContent =
         lb.crewSize + " × " + formatMoney(lb.crewPayPerHrEach) + " = " + formatMoney(lb.crewCostPerHr) + "/hr";
     } else {
@@ -12028,6 +12049,21 @@ function openFL() {
     .catch(() => { /* surfaces in the search UI on retry */ });
 }
 function closeFL() { flModal.classList.add("hidden"); flModal.classList.remove("flex"); }
+
+// Collapsible result cards (Full Breakdown / Labor Detail / Job Files): click the
+// big centered header to minimize (title-left + summary-right) or expand. The
+// summaries themselves are kept current by render().
+document.addEventListener("click", e => {
+  const head = e.target.closest && e.target.closest(".rcard-head");
+  if (!head) return;
+  const card = head.closest(".rcard");
+  if (!card) return;
+  card.classList.toggle("collapsed");
+  if (card.dataset.rcard === "files") {
+    const s = document.getElementById("jobFilesSummary");
+    if (s) { const n = card.querySelectorAll(".jf-card").length; s.textContent = n ? n + " file" + (n === 1 ? "" : "s") : ""; }
+  }
+});
 
 // ── Feedback: suggest a feature / report a bug ───────────────────────────────
 let _feedbackKind = "feature";
