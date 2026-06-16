@@ -9131,6 +9131,57 @@ async function migrateBase64Photos() {
    photo. Gives every job a clean branded thumbnail with one click.
    ============================================================ */
 
+// Pure-JS separable box blur (3 passes ≈ gaussian), in place on a canvas.
+// We do NOT use ctx.filter = "blur()": Safari (iOS + older macOS) silently
+// ignores canvas filters, so thumbnails generated there baked with NO blur.
+// This is plain pixel math, so the result is identical on every browser.
+// Call it while the canvas holds ONLY the background image (overlays/title
+// are drawn on top afterward, so they stay crisp).
+function blurCanvas(ctx, w, h, radius, passes) {
+  radius = radius | 0;
+  if (radius < 1) return;
+  const win = radius * 2 + 1;
+  const img = ctx.getImageData(0, 0, w, h);
+  const px = img.data;                          // RGBA, alpha left untouched
+  const tmp = new Float32Array(w * h * 3);      // working RGB buffer
+  for (let p = 0; p < (passes || 1); p++) {
+    // horizontal blur: px -> tmp
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        for (let k = -radius; k <= radius; k++) {
+          const x = k < 0 ? 0 : (k >= w ? w - 1 : k);
+          sum += px[(row + x) * 4 + c];
+        }
+        for (let x = 0; x < w; x++) {
+          tmp[(row + x) * 3 + c] = sum / win;
+          const xa = x + radius + 1, ai = xa >= w ? w - 1 : xa;
+          const xr = x - radius,     ri = xr < 0 ? 0 : xr;
+          sum += px[(row + ai) * 4 + c] - px[(row + ri) * 4 + c];
+        }
+      }
+    }
+    // vertical blur: tmp -> px
+    for (let x = 0; x < w; x++) {
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        for (let k = -radius; k <= radius; k++) {
+          const y = k < 0 ? 0 : (k >= h ? h - 1 : k);
+          sum += tmp[(y * w + x) * 3 + c];
+        }
+        for (let y = 0; y < h; y++) {
+          px[(y * w + x) * 4 + c] = sum / win;
+          const ya = y + radius + 1, ai = ya >= h ? h - 1 : ya;
+          const yr = y - radius,     ri = yr < 0 ? 0 : yr;
+          sum += tmp[(ai * w + x) * 3 + c] - tmp[(ri * w + x) * 3 + c];
+        }
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
 // Composite a blurred background image + a bold, centered, wrapped title
 // (and optional subtitle) into a 16:10 JPEG data URL.
 function composeJobThumbnail(bgDataUrl, title, subtitle) {
@@ -9146,9 +9197,11 @@ function composeJobThumbnail(bgDataUrl, title, subtitle) {
         const over = 44;
         const s = Math.max((W + over * 2) / img.width, (H + over * 2) / img.height);
         const dw = img.width * s, dh = img.height * s;
-        ctx.filter = "blur(7px)";
         ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-        ctx.filter = "none";
+        // Blur the background with a pure-JS box blur (works on Safari, where
+        // ctx.filter is a no-op). Runs now, while the canvas holds only the
+        // image; the dark wash + title below composite on top and stay crisp.
+        blurCanvas(ctx, W, H, 6, 3);
         // darken for legibility: flat wash + center-out vignette
         ctx.fillStyle = "rgba(2,6,23,0.46)"; ctx.fillRect(0, 0, W, H);
         const g = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W * 0.72);
