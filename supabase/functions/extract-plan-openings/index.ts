@@ -87,7 +87,7 @@ Identify the window MANUFACTURER (title block, header row, notes, or any "MFR" /
 PART B — Every opening (READ THE QUANTITY COLUMN — THIS IS CRITICAL):
 A window schedule almost always has a QUANTITY column, labeled QTY, QT, QNTY, COUNT, NO., or # . ONE row in the schedule usually represents MULTIPLE identical units — e.g. a "Type W1" row with QTY 4 means there are four of that window in the building. You MUST read that column for every row. Do NOT assume the quantity is 1.
 For EACH row/opening in the schedule:
-1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O — ignore frame size, unit size, and glass size). If only the unit/nominal size is shown, use it. Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5.
+1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, R/O, SIZING R/O, or Masonry Opening / M.O.). Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5. If NO rough opening is shown (only the unit/nominal/frame size or glass size), COMPUTE it: add 3.5 inches to BOTH the width and the height of the unit size — a 1.5" buck board on each side plus a 1/4" shim gap on each side — and report that as the rough opening (e.g. a 36 x 60 unit with no R.O. listed becomes 39.5 x 63.5).
 2. Read the QUANTITY (QTY) for that row straight off the schedule — the real count. Only use 1 if there is genuinely no quantity shown anywhere for that row.
 3. Find the room or location name (or the window mark/label if no room is given).
 4. Determine the TYPE. There are THREE types:

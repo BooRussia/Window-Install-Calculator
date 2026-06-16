@@ -14292,7 +14292,9 @@ function applyFullExtraction(text, source) {
    BUCK CUT LIST — Grok extracts openings, we optimize + build the PDF
    ============================================================ */
 const BUCK_RULES = {
-  headSillAdd: 3,             // inches added to R.O. width for head & sill
+  headSillAdd: 3,             // inches added to R.O. width for head & sill (1.5" lap each side)
+  lumberThk: 1.5,            // 2x6 actual thickness — each jamb is cut this much shorter per
+                             // horizontal member it tucks under (head, plus sill on windows)
   kerf: 0.125,               // saw kerf consumed per cut
   stockFeet: [16, 12, 10, 8], // available stock lengths
   consolidateThreshold: 2     // straggler runs of this many short boards or
@@ -14306,8 +14308,8 @@ const BUCK_PROMPT = `Window Schedule — Rough Opening Extraction
 I'm doing a window buck takeoff. Read the attached window/door schedule and extract every opening.
 
 For EACH opening:
-1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, or SIZING R/O). Ignore frame size, unit size, and glass size.
-2. Convert both to inches. Feet-and-inches like 3'-0" becomes 36. Fractions like 36 1/2" become 36.5.
+1. Find the ROUGH OPENING width and height — look for it labeled R.O., Rough Opening, R/O, SIZING R/O, or Masonry Opening / M.O. Use it when it is shown. Convert to inches: feet-and-inches like 3'-0" becomes 36, fractions like 36 1/2" become 36.5.
+2. If NO rough opening is listed (only the window/unit/nominal size or glass size), compute the rough opening by ADDING 3.5 inches to BOTH the width AND the height of the unit size — that's a 1.5" buck board on each side plus a 1/4" shim gap on each side. Report that computed rough opening. (Example: a 36 x 60 window with no R.O. listed becomes 39.5 x 63.5.)
 3. Find the quantity (QTY) — how many of that opening. If no quantity is shown, use 1.
 4. Find the room or location name.
 5. Determine the TYPE. If the opening is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door". If it is a bifold, bi-fold, folding glass wall, accordion door, or multi-leaf folding door, mark it "bifold door". Everything else is a "window".
@@ -14322,7 +14324,7 @@ OPENING | Kitchen | 48 | 60 | 1 | window
 OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
 OPENING | Great Room Rear | 144 | 96 | 1 | bifold door
 
-If the schedule does not clearly show rough opening sizes, say so instead. Otherwise reply with only the OPENING lines.`;
+Reply with only the OPENING lines.`;
 
 // Parse Grok's "OPENING | room | w | h | qty | type | panels" lines.
 // The type field is optional (older 5-field lines still parse). The 7th field
@@ -14669,7 +14671,7 @@ function formatInches(n) {
 // Packs all buck pieces onto stock boards minimizing total lumber bought,
 // then downsizes each board to the smallest stock length that still fits.
 function optimizeCutList(openings) {
-  const { headSillAdd, kerf, stockFeet } = BUCK_RULES;
+  const { headSillAdd, kerf, stockFeet, lumberThk } = BUCK_RULES;
   const stockIn = stockFeet.map(f => f * 12).sort((a, b) => b - a);
   const maxStock = stockIn[0];
   const stockAsc = stockIn.slice().sort((a, b) => a - b);
@@ -14679,13 +14681,17 @@ function optimizeCutList(openings) {
   let pieces = [];
   openings.forEach((op, idx) => {
     const opId = "Op" + String(idx + 1).padStart(2, "0");
+    const hasSill = !op.isSlider && !op.isBifold;        // doors get head + 2 jambs, no sill
+    // Jambs tuck UNDER the head (and sit on the sill) — the head sits on top of
+    // them to be screwed off — so each jamb is cut shorter than the R.O. height
+    // by the thickness of every horizontal member it meets: head + sill on a
+    // window (−3"), head only on a door (−1.5").
+    const jambLen = Math.max(1, op.height - lumberThk * (hasSill ? 2 : 1));
     for (let q = 0; q < op.qty; q++) {
       pieces.push({ opId, room: op.room, type: "Head",  length: op.width + headSillAdd });
-      if (!op.isSlider && !op.isBifold) {
-        pieces.push({ opId, room: op.room, type: "Sill", length: op.width + headSillAdd });
-      }
-      pieces.push({ opId, room: op.room, type: "Jamb L", length: op.height });
-      pieces.push({ opId, room: op.room, type: "Jamb R", length: op.height });
+      if (hasSill) pieces.push({ opId, room: op.room, type: "Sill", length: op.width + headSillAdd });
+      pieces.push({ opId, room: op.room, type: "Jamb L", length: jambLen });
+      pieces.push({ opId, room: op.room, type: "Jamb R", length: jambLen });
     }
   });
 
