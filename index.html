@@ -9263,7 +9263,18 @@ function wireDashboard() {
     const id = _dashPhotoTargetId; _dashPhotoTargetId = null;
     if (!file || !id) return;
     if (file.size > 12 * 1024 * 1024) { toast("That image is too large (max ~12MB)."); return; }
-    try { const dataUrl = await compressJobPhoto(file); await saveJobPhoto(id, dataUrl); toast("Photo added"); }
+    try {
+      const dataUrl = await compressJobPhoto(file);
+      // Brand the uploaded photo like a Grok thumbnail — blurred background with
+      // the job title overlaid — so every dashboard tile looks consistent.
+      const job = loadJobs().find(x => x.id === id);
+      const title = (job && (job.customerName || job.name)) || "Window Job";
+      const subtitle = (job && job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "";
+      let thumb = dataUrl;
+      try { thumb = await composeJobThumbnail(dataUrl, title, subtitle); } catch (_) { /* fall back to the raw photo */ }
+      await saveJobPhoto(id, thumb);
+      toast("Photo added");
+    }
     catch (_) { toast("Couldn't read that image"); }
   });
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
