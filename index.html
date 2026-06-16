@@ -9141,9 +9141,28 @@ function composeJobThumbnail(bgDataUrl, title, subtitle) {
         const over = 44;
         const s = Math.max((W + over * 2) / img.width, (H + over * 2) / img.height);
         const dw = img.width * s, dh = img.height * s;
-        ctx.filter = "blur(7px)";
-        ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-        ctx.filter = "none";
+        const dx = (W - dw) / 2, dy = (H - dh) / 2;
+        // Blur the background on a SEPARATE offscreen canvas, then paint the
+        // finished result onto the main canvas. The main ctx never gets a
+        // filter set, so the title text can't inherit the blur. (iOS Safari
+        // doesn't reliably reset ctx.filter on the same context, which baked a
+        // blurry title into thumbnails generated on a phone — desktop was fine.)
+        const bc = document.createElement("canvas");
+        bc.width = W; bc.height = H;
+        const bx = bc.getContext("2d");
+        if (typeof bx.filter === "string") {
+          bx.filter = "blur(7px)";
+          bx.drawImage(img, dx, dy, dw, dh);
+        } else {
+          // No canvas-filter support: approximate the blur by downscaling then
+          // upscaling so the background still reads as soft, not sharp.
+          const tw = 80, th = 50, t = document.createElement("canvas");
+          t.width = tw; t.height = th;
+          t.getContext("2d").drawImage(img, 0, 0, tw, th);
+          bx.imageSmoothingEnabled = true;
+          bx.drawImage(t, 0, 0, tw, th, 0, 0, W, H);
+        }
+        ctx.drawImage(bc, 0, 0);
         // darken for legibility: flat wash + center-out vignette
         ctx.fillStyle = "rgba(2,6,23,0.46)"; ctx.fillRect(0, 0, W, H);
         const g = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W * 0.72);
