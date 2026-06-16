@@ -9136,16 +9136,9 @@ async function migrateBase64Photos() {
 function composeJobThumbnail(bgDataUrl, title, subtitle) {
   return new Promise((resolve, reject) => {
     const W = 800, H = 500;
-    // Render at 2× (1600×1000) so the baked title stays crisp when the dashboard
-    // shows the thumbnail full-width on a high-DPI phone (1-column). At 1× the
-    // 800px image was UPSCALED there and the text went soft; desktop shows it
-    // smaller (3-col grid) so it downscaled and looked fine. All drawing below
-    // stays in the 800×500 logical space via ctx.scale.
-    const SCALE = 2;
     const c = document.createElement("canvas");
-    c.width = W * SCALE; c.height = H * SCALE;
+    c.width = W; c.height = H;
     const ctx = c.getContext("2d");
-    ctx.scale(SCALE, SCALE);
     const img = new Image();
     img.onload = () => {
       try {
@@ -9153,26 +9146,9 @@ function composeJobThumbnail(bgDataUrl, title, subtitle) {
         const over = 44;
         const s = Math.max((W + over * 2) / img.width, (H + over * 2) / img.height);
         const dw = img.width * s, dh = img.height * s;
-        const dx = (W - dw) / 2, dy = (H - dh) / 2;
-        // Blur the background by downscaling to a tiny canvas, then upscaling it
-        // with smoothing. We deliberately AVOID ctx.filter = "blur()": iOS Safari
-        // renders that pixelated and bakes the pixelation into the saved JPEG.
-        // Bilinear up-scaling is smooth on every browser. Two downscale steps
-        // keep the small image clean before the big upscale. No filter is ever
-        // set on the main ctx, so the title pass below stays crisp.
-        const bw = 64, bh = Math.round(bw * H / W);          // smaller = blurrier
-        const mid = document.createElement("canvas");
-        mid.width = Math.round(bw * 3); mid.height = Math.round(bh * 3);
-        const mx = mid.getContext("2d");
-        mx.imageSmoothingEnabled = true; if ("imageSmoothingQuality" in mx) mx.imageSmoothingQuality = "high";
-        mx.drawImage(img, dx * mid.width / W, dy * mid.height / H, dw * mid.width / W, dh * mid.height / H);
-        const small = document.createElement("canvas");
-        small.width = bw; small.height = bh;
-        const sx = small.getContext("2d");
-        sx.imageSmoothingEnabled = true; if ("imageSmoothingQuality" in sx) sx.imageSmoothingQuality = "high";
-        sx.drawImage(mid, 0, 0, bw, bh);
-        ctx.imageSmoothingEnabled = true; if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(small, 0, 0, bw, bh, 0, 0, W, H);
+        ctx.filter = "blur(7px)";
+        ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+        ctx.filter = "none";
         // darken for legibility: flat wash + center-out vignette
         ctx.fillStyle = "rgba(2,6,23,0.46)"; ctx.fillRect(0, 0, W, H);
         const g = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W * 0.72);
