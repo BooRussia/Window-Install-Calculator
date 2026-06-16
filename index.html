@@ -9131,9 +9131,16 @@ async function migrateBase64Photos() {
 function composeJobThumbnail(bgDataUrl, title, subtitle) {
   return new Promise((resolve, reject) => {
     const W = 800, H = 500;
+    // Render at 2× (1600×1000) so the baked title stays crisp when the dashboard
+    // shows the thumbnail full-width on a high-DPI phone (1-column). At 1× the
+    // 800px image was UPSCALED there and the text went soft; desktop shows it
+    // smaller (3-col grid) so it downscaled and looked fine. All drawing below
+    // stays in the 800×500 logical space via ctx.scale.
+    const SCALE = 2;
     const c = document.createElement("canvas");
-    c.width = W; c.height = H;
+    c.width = W * SCALE; c.height = H * SCALE;
     const ctx = c.getContext("2d");
+    ctx.scale(SCALE, SCALE);
     const img = new Image();
     img.onload = () => {
       try {
@@ -9148,11 +9155,11 @@ function composeJobThumbnail(bgDataUrl, title, subtitle) {
         // doesn't reliably reset ctx.filter on the same context, which baked a
         // blurry title into thumbnails generated on a phone — desktop was fine.)
         const bc = document.createElement("canvas");
-        bc.width = W; bc.height = H;
+        bc.width = W * SCALE; bc.height = H * SCALE;
         const bx = bc.getContext("2d");
         if (typeof bx.filter === "string") {
-          bx.filter = "blur(7px)";
-          bx.drawImage(img, dx, dy, dw, dh);
+          bx.filter = "blur(" + (7 * SCALE) + "px)";
+          bx.drawImage(img, dx * SCALE, dy * SCALE, dw * SCALE, dh * SCALE);
         } else {
           // No canvas-filter support: approximate the blur by downscaling then
           // upscaling so the background still reads as soft, not sharp.
@@ -9160,9 +9167,9 @@ function composeJobThumbnail(bgDataUrl, title, subtitle) {
           t.width = tw; t.height = th;
           t.getContext("2d").drawImage(img, 0, 0, tw, th);
           bx.imageSmoothingEnabled = true;
-          bx.drawImage(t, 0, 0, tw, th, 0, 0, W, H);
+          bx.drawImage(t, 0, 0, tw, th, 0, 0, bc.width, bc.height);
         }
-        ctx.drawImage(bc, 0, 0);
+        ctx.drawImage(bc, 0, 0, W, H);
         // darken for legibility: flat wash + center-out vignette
         ctx.fillStyle = "rgba(2,6,23,0.46)"; ctx.fillRect(0, 0, W, H);
         const g = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W * 0.72);
