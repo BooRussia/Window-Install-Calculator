@@ -9183,8 +9183,10 @@ function blurCanvas(ctx, w, h, radius, passes) {
 }
 
 // Composite a blurred background image + a bold, centered, wrapped title
-// (and optional subtitle) into a 16:10 JPEG data URL.
-function composeJobThumbnail(bgDataUrl, title, subtitle) {
+// (and optional subtitle) into a 16:10 JPEG data URL. blurRadius defaults to 6
+// (generic Grok houses blur heavily); pass a smaller value (e.g. 3) for a real
+// uploaded job photo so it stays recognizable behind the title.
+function composeJobThumbnail(bgDataUrl, title, subtitle, blurRadius) {
   return new Promise((resolve, reject) => {
     const W = 800, H = 500;
     const c = document.createElement("canvas");
@@ -9201,7 +9203,7 @@ function composeJobThumbnail(bgDataUrl, title, subtitle) {
         // Blur the background with a pure-JS box blur (works on Safari, where
         // ctx.filter is a no-op). Runs now, while the canvas holds only the
         // image; the dark wash + title below composite on top and stay crisp.
-        blurCanvas(ctx, W, H, 6, 3);
+        blurCanvas(ctx, W, H, (blurRadius != null ? blurRadius : 6), 3);
         // darken for legibility: flat wash + center-out vignette
         ctx.fillStyle = "rgba(2,6,23,0.46)"; ctx.fillRect(0, 0, W, H);
         const g = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W * 0.72);
@@ -9324,7 +9326,9 @@ function wireDashboard() {
       const title = (job && (job.customerName || job.name)) || "Window Job";
       const subtitle = (job && job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "";
       let thumb = dataUrl;
-      try { thumb = await composeJobThumbnail(dataUrl, title, subtitle); } catch (_) { /* fall back to the raw photo */ }
+      // Half the blur of a Grok thumbnail (radius 3 vs 6) — a real uploaded job
+      // photo should stay recognizable behind the title.
+      try { thumb = await composeJobThumbnail(dataUrl, title, subtitle, 3); } catch (_) { /* fall back to the raw photo */ }
       await saveJobPhoto(id, thumb);
       toast("Photo added");
     }
