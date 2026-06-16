@@ -9154,27 +9154,25 @@ function composeJobThumbnail(bgDataUrl, title, subtitle) {
         const s = Math.max((W + over * 2) / img.width, (H + over * 2) / img.height);
         const dw = img.width * s, dh = img.height * s;
         const dx = (W - dw) / 2, dy = (H - dh) / 2;
-        // Blur the background on a SEPARATE offscreen canvas, then paint the
-        // finished result onto the main canvas. The main ctx never gets a
-        // filter set, so the title text can't inherit the blur. (iOS Safari
-        // doesn't reliably reset ctx.filter on the same context, which baked a
-        // blurry title into thumbnails generated on a phone — desktop was fine.)
-        const bc = document.createElement("canvas");
-        bc.width = W * SCALE; bc.height = H * SCALE;
-        const bx = bc.getContext("2d");
-        if (typeof bx.filter === "string") {
-          bx.filter = "blur(" + (7 * SCALE) + "px)";
-          bx.drawImage(img, dx * SCALE, dy * SCALE, dw * SCALE, dh * SCALE);
-        } else {
-          // No canvas-filter support: approximate the blur by downscaling then
-          // upscaling so the background still reads as soft, not sharp.
-          const tw = 80, th = 50, t = document.createElement("canvas");
-          t.width = tw; t.height = th;
-          t.getContext("2d").drawImage(img, 0, 0, tw, th);
-          bx.imageSmoothingEnabled = true;
-          bx.drawImage(t, 0, 0, tw, th, 0, 0, bc.width, bc.height);
-        }
-        ctx.drawImage(bc, 0, 0, W, H);
+        // Blur the background by downscaling to a tiny canvas, then upscaling it
+        // with smoothing. We deliberately AVOID ctx.filter = "blur()": iOS Safari
+        // renders that pixelated and bakes the pixelation into the saved JPEG.
+        // Bilinear up-scaling is smooth on every browser. Two downscale steps
+        // keep the small image clean before the big upscale. No filter is ever
+        // set on the main ctx, so the title pass below stays crisp.
+        const bw = 64, bh = Math.round(bw * H / W);          // smaller = blurrier
+        const mid = document.createElement("canvas");
+        mid.width = Math.round(bw * 3); mid.height = Math.round(bh * 3);
+        const mx = mid.getContext("2d");
+        mx.imageSmoothingEnabled = true; if ("imageSmoothingQuality" in mx) mx.imageSmoothingQuality = "high";
+        mx.drawImage(img, dx * mid.width / W, dy * mid.height / H, dw * mid.width / W, dh * mid.height / H);
+        const small = document.createElement("canvas");
+        small.width = bw; small.height = bh;
+        const sx = small.getContext("2d");
+        sx.imageSmoothingEnabled = true; if ("imageSmoothingQuality" in sx) sx.imageSmoothingQuality = "high";
+        sx.drawImage(mid, 0, 0, bw, bh);
+        ctx.imageSmoothingEnabled = true; if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(small, 0, 0, bw, bh, 0, 0, W, H);
         // darken for legibility: flat wash + center-out vignette
         ctx.fillStyle = "rgba(2,6,23,0.46)"; ctx.fillRect(0, 0, W, H);
         const g = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W * 0.72);
