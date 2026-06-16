@@ -2288,9 +2288,14 @@
   .dash-thumb-act:active { transform: scale(0.97); }
   .dash-thumb-act-ai { background: linear-gradient(180deg,#d8b96a,#b58f4a); color: #0b1120; }
   .dash-thumb-act-ai:hover { background: linear-gradient(180deg,#e6c878,#c9a558); }
-  /* touch devices have no hover — pin the actions as a bottom bar so they stay reachable without covering the photo */
+  /* touch devices have no hover — pin the actions as a bottom bar so they stay
+     reachable without covering the photo. Critically, DROP the backdrop blur:
+     this overlay is always visible on touch, and inset:0 + backdrop-filter
+     would blur the whole thumbnail behind it — the baked title AND the status
+     badge — which is exactly what looked blurry on mobile. The bottom gradient
+     keeps the buttons legible without any blur. */
   @media (hover: none) {
-    .dash-thumb-actions { opacity: 1; pointer-events: auto; flex-direction: row; align-items: flex-end; justify-content: center; gap: 6px; padding: 8px; background: linear-gradient(transparent 45%, rgba(2,6,23,0.8)); }
+    .dash-thumb-actions { opacity: 1; pointer-events: auto; flex-direction: row; align-items: flex-end; justify-content: center; gap: 6px; padding: 8px; background: linear-gradient(transparent 45%, rgba(2,6,23,0.8)); -webkit-backdrop-filter: none; backdrop-filter: none; }
     .dash-thumb-act { width: auto; font-size: 10px; padding: 6px 9px; }
   }
   .dash-card-load { font-size: 12px; font-weight: 700; border-radius: 9999px; padding: 6px 14px; cursor: pointer; background: rgba(181,143,74,0.12); color: #c9a558; border: 1px solid rgba(181,143,74,0.5); transition: all .15s ease; }
