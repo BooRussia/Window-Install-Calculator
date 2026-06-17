@@ -14443,9 +14443,12 @@ function applyFullExtraction(text, source) {
    BUCK CUT LIST — Grok extracts openings, we optimize + build the PDF
    ============================================================ */
 const BUCK_RULES = {
-  headSillAdd: 3,             // inches added to R.O. width for head & sill (1.5" lap each side)
-  lumberThk: 1.5,            // 2x6 actual thickness — each jamb is cut this much shorter per
-                             // horizontal member it tucks under (head, plus sill on windows)
+  // Head & sill are cut to the EXACT masonry rough-opening width — they span the
+  // full opening, top and bottom (a head can't be wider than the hole it sits in,
+  // so nothing is added). The jambs fit BETWEEN them, cut shorter by the lumber
+  // thickness for each horizontal member they tuck under: head + sill on a window
+  // (−3"), head only on a door (−1.5"). The head then rests on top of the jambs.
+  lumberThk: 1.5,            // 2x actual thickness (2x6 / 2x8 / 2x10 are all 1.5" thick)
   kerf: 0.125,               // saw kerf consumed per cut
   stockFeet: [16, 12, 10, 8], // available stock lengths
   consolidateThreshold: 2     // straggler runs of this many short boards or
@@ -14822,7 +14825,7 @@ function formatInches(n) {
 // Packs all buck pieces onto stock boards minimizing total lumber bought,
 // then downsizes each board to the smallest stock length that still fits.
 function optimizeCutList(openings) {
-  const { headSillAdd, kerf, stockFeet, lumberThk } = BUCK_RULES;
+  const { kerf, stockFeet, lumberThk } = BUCK_RULES;
   const stockIn = stockFeet.map(f => f * 12).sort((a, b) => b - a);
   const maxStock = stockIn[0];
   const stockAsc = stockIn.slice().sort((a, b) => a - b);
@@ -14839,8 +14842,8 @@ function optimizeCutList(openings) {
     // window (−3"), head only on a door (−1.5").
     const jambLen = Math.max(1, op.height - lumberThk * (hasSill ? 2 : 1));
     for (let q = 0; q < op.qty; q++) {
-      pieces.push({ opId, room: op.room, type: "Head",  length: op.width + headSillAdd });
-      if (hasSill) pieces.push({ opId, room: op.room, type: "Sill", length: op.width + headSillAdd });
+      pieces.push({ opId, room: op.room, type: "Head",  length: op.width });
+      if (hasSill) pieces.push({ opId, room: op.room, type: "Sill", length: op.width });
       pieces.push({ opId, room: op.room, type: "Jamb L", length: jambLen });
       pieces.push({ opId, room: op.room, type: "Jamb R", length: jambLen });
     }
