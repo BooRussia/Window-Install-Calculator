@@ -6445,7 +6445,11 @@ const DEFAULT_DATA = {
     { id: "wood_bucking", name: "Wood Bucking", unit: "LF", rates: { default: 0, "Block Framed": 1.25 },
       defaultVariant: "wood_bucking__1",
       variants: [
-        { id: "wood_bucking__1", brand: "2x6 PT Lumber", unitPrice: 0.95,
+        { id: "wood_bucking__1", brand: "2x6 PT", unitPrice: 0.95,
+          procurement: { caseSize: 8, packName: "board", packPlural: "boards" } },
+        { id: "wood_bucking__2x8", brand: "2x8 PT", unitPrice: 1.45,
+          procurement: { caseSize: 8, packName: "board", packPlural: "boards" } },
+        { id: "wood_bucking__2x10", brand: "2x10 PT", unitPrice: 1.95,
           procurement: { caseSize: 8, packName: "board", packPlural: "boards" } }
       ] },
     { id: "block_sealer", name: "Block Sealer", unit: "gallon", rates: { default: 0, "Block Framed": 0 },
@@ -6609,6 +6613,20 @@ function loadData() {
     if (sc) sc.rates = { default: sc.rates.default ?? 2.0 };
     const an = merged.costItems.find(c => c.id === "concrete_anchors");
     if (an) an.rates = { default: 0, "Block Framed": an.rates["Block Framed"] ?? 1.0 };
+    // Buck lumber sizes: ensure 2x8 / 2x10 variants exist next to 2x6 so the
+    // Wood Bucking rates card lets you pick the buck lumber size (existing
+    // accounts only had 2x6). Idempotent — preserves any prices already set.
+    const wb = merged.costItems.find(c => c.id === "wood_bucking");
+    if (wb) {
+      wb.variants = wb.variants || [];
+      const proc = (wb.variants[0] && wb.variants[0].procurement) || { caseSize: 8, packName: "board", packPlural: "boards" };
+      const v6 = wb.variants.find(v => /2\s*x\s*6/i.test(v.brand || ""));
+      if (v6 && /lumber/i.test(v6.brand)) v6.brand = "2x6 PT";   // tidy legacy name
+      const has = re => wb.variants.some(v => re.test(v.brand || ""));
+      if (!has(/2\s*x\s*8/i))  wb.variants.push({ id: "wood_bucking__2x8",  brand: "2x8 PT",  unitPrice: 1.45, procurement: clone(proc) });
+      if (!has(/2\s*x\s*10/i)) wb.variants.push({ id: "wood_bucking__2x10", brand: "2x10 PT", unitPrice: 1.95, procurement: clone(proc) });
+      if (!wb.defaultVariant) wb.defaultVariant = wb.variants[0].id;
+    }
     return merged;
   } catch { return clone(DEFAULT_DATA); }
 }
@@ -6992,6 +7010,15 @@ function buckListTotalLF(bl) {
 // Total board count in a buck cut list
 function buckListBoardCount(bl) {
   return (bl && bl.totalBoards) ? bl.totalBoards : 0;
+}
+// The buck lumber name to display (2x6 PT / 2x8 PT / 2x10 PT) — follows the
+// chosen Wood Bucking variant in Settings → Rates. Cut-list lengths/board counts
+// are identical across sizes (all dimensional 2x lumber is 1.5" thick); only the
+// lumber you buy and its price change.
+function buckLumberName() {
+  const wb = (DATA.costItems || []).find(c => c.id === "wood_bucking");
+  const v = wb ? activeVariant(wb) : null;
+  return (v && v.brand) || "2x6 PT";
 }
 
 // Swing-door totals — returns per-leaf counts and contributory dollars/minutes.
@@ -14939,7 +14966,7 @@ function renderBuckResult() {
     document.getElementById("buckResultSummary").textContent =
       `${buckYardOrderString(bl)}  —  ${bl.totalBoards} boards, ${bl.wastePercent}% waste`;
     document.getElementById("buckResultMeta").textContent =
-      `${bl.pieces} pieces from ${bl.openings.length} openings · ${bl.totalStockLF} LF of 2x6 PT`;
+      `${bl.pieces} pieces from ${bl.openings.length} openings · ${bl.totalStockLF} LF of ${buckLumberName()}`;
     const noteEl = document.getElementById("buckResultNote");
     if (bl.consolidated > 0) {
       noteEl.textContent = `${bl.consolidated} short board${bl.consolidated === 1 ? "" : "s"} rounded up to 16ft to keep the order to one length.`;
@@ -15071,7 +15098,7 @@ function exportCutListPDF(mode) {
   doc.text(buckYardOrderString(bl).replace(/×/g, "x"), M, y);
   y += 15;
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(110, 110, 110);
-  doc.text(`${bl.totalBoards} boards of 2x6 PT  ·  ${bl.wastePercent}% waste  ·  ${bl.pieces} pieces from ${bl.openings.length} openings`, M, y);
+  doc.text(`${bl.totalBoards} boards of ${buckLumberName()}  ·  ${bl.wastePercent}% waste  ·  ${bl.pieces} pieces from ${bl.openings.length} openings`, M, y);
   y += 13;
   if (bl.consolidated > 0) {
     doc.setFontSize(8); doc.setTextColor(150, 150, 150);
@@ -17466,7 +17493,7 @@ const CHECKLIST_ITEMS = [
     [ { label: "Width", w: 70 }, { label: "Length of roll", w: 70 } ],
   ]},
   { name: "Wood Bucking", note: "Cut list and standard lumber pricing handle the rest automatically.", rows: [
-    [ { kind: "choice", label: "Lumber preference", options: ["2x6", "2x8"] } ],
+    [ { kind: "choice", label: "Lumber size", options: ["2x6", "2x8", "2x10"] } ],
   ]},
   { name: "Block Sealer", rows: [
     [ { label: "Product / brand", w: 330 } ],
