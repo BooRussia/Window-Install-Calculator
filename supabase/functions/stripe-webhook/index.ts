@@ -1,33 +1,103 @@
-// stripe-webhook
-// ─────────────────────────────────────────────────────────────────────────────
-// Receives Stripe's webhook events and keeps our `profiles.data.entitlements`
-// in sync with the subscription's real state.
+// Stripe webhook handler — signature-verified, keeps profiles.entitlements in sync.
 //
-// Events we care about (configure these in your Stripe webhook endpoint):
-//   • checkout.session.completed          → user just paid → grant the plan
-//   • customer.subscription.created       → (same as above, fires second)
-//   • customer.subscription.updated       → plan change, status change
-//   • customer.subscription.deleted       → cancellation took effect
-//   • invoice.paid                        → cycle renewed → reset usage counter
+// SELF-CONTAINED ON PURPOSE: the Supabase MCP deploy tool flattens files into a
+// single source dir and can't resolve `../_shared/*.ts` imports that escape it,
+// so the Stripe client + plan map + admin client are inlined here rather than
+// imported. The repo's _shared/*.ts files are still used by the other functions
+// (create-checkout-session / create-portal-session). Keep this file and the
+// deployed function in lockstep — edit here, then redeploy via MCP.
+//
+// API-version-tolerant: handles both 2024-06-20 and newer (≥2024-09-30) event
+// shapes — see the accessor helpers below.
+//
+// Events we handle (configure these in the Stripe webhook endpoint):
+//   • checkout.session.completed    → user just paid → grant the plan
+//   • customer.subscription.created → (same as above, fires second)
+//   • customer.subscription.updated → plan change, status change
+//   • customer.subscription.deleted → cancellation took effect
+//   • invoice.paid                  → cycle renewed → reset usage counters
 //
 // SECURITY: verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
-// Without verification, anyone could POST to this endpoint and grant
-// themselves the Unlimited plan.
-//
-// PHASE 3 STATUS: Functional. Requires STRIPE_SECRET_KEY +
-// STRIPE_WEBHOOK_SECRET set, plus the webhook configured in Stripe pointing
-// at this function's public URL. See PHASE_3_SETUP.md.
+// (config.toml sets verify_jwt = false for this function — Stripe authenticates
+// by signature, not a Supabase JWT.)
 
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
-import { stripe, planFromPriceId } from "../_shared/stripe.ts";
-import { supabaseAdmin } from "../_shared/supabase-admin.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+if (!STRIPE_SECRET_KEY) console.error("[stripe] STRIPE_SECRET_KEY is not set.");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("[supabase-admin] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env.");
+}
+
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
+  apiVersion: "2024-06-20",
+  httpClient: Stripe.createFetchHttpClient(),
+});
+
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+// ─────────────────────────────────────────────────────────────
+// API-version-tolerant field accessors
+//
+// Webhook event payloads arrive in the *account's* API version, which can be
+// newer than the SDK's pinned apiVersion. Stripe moved `current_period_end`
+// from the Subscription root onto `items.data[i].current_period_end` (so a
+// subscription can theoretically bill items on different cycles), and promoted
+// `invoice.subscription` to `invoice.parent.subscription_details.subscription`.
+// These helpers try the new shape first, then fall back to the legacy one, and
+// return undefined when neither is present (e.g., one-off invoices).
+// ─────────────────────────────────────────────────────────────
+
+// deno-lint-ignore no-explicit-any
+function subCurrentPeriodEnd(sub: any): number | undefined {
+  return sub?.items?.data?.[0]?.current_period_end ?? sub?.current_period_end;
+}
+
+// deno-lint-ignore no-explicit-any
+function invoiceSubscriptionId(invoice: any): string | undefined {
+  const sub = invoice?.parent?.subscription_details?.subscription
+    ?? invoice?.subscription;
+  if (!sub) return undefined;
+  return typeof sub === "string" ? sub : sub.id;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Price-ID → plan reverse map. Reads STRIPE_PRICE_* env vars first so price IDs
+// can rotate without a code redeploy; the PLACEHOLDER fallbacks just let the
+// function compile before setup.
+// ─────────────────────────────────────────────────────────────
+type Plan = "starter" | "pro" | "unlimited";
+type Cycle = "monthly" | "annual";
+
+const PRICE_FALLBACKS: Record<Plan, Record<Cycle, string>> = {
+  starter:   { monthly: "price_PLACEHOLDER_STARTER_MONTHLY", annual: "price_PLACEHOLDER_STARTER_ANNUAL" },
+  pro:       { monthly: "price_PLACEHOLDER_PRO_MONTHLY",     annual: "price_PLACEHOLDER_PRO_ANNUAL" },
+  unlimited: { monthly: "price_PLACEHOLDER_UNLIMITED_MONTHLY", annual: "price_PLACEHOLDER_UNLIMITED_ANNUAL" },
+};
+
+function priceIdFor(plan: Plan, cycle: Cycle): string {
+  const envKey = `STRIPE_PRICE_${plan.toUpperCase()}_${cycle.toUpperCase()}`;
+  return Deno.env.get(envKey) ?? PRICE_FALLBACKS[plan][cycle];
+}
+
+function planFromPriceId(priceId: string): Plan | null {
+  for (const plan of ["starter", "pro", "unlimited"] as Plan[]) {
+    for (const cycle of ["monthly", "annual"] as Cycle[]) {
+      if (priceIdFor(plan, cycle) === priceId) return plan;
+    }
+  }
+  return null;
+}
 
 Deno.serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const signature = req.headers.get("stripe-signature");
   if (!signature) return new Response("Missing signature", { status: 400 });
@@ -43,11 +113,7 @@ Deno.serve(async (req) => {
   try {
     // constructEventAsync (vs constructEvent) is required on Deno because the
     // Web Crypto API used for HMAC is async-only.
-    event = await stripe.webhooks.constructEventAsync(
-      rawBody,
-      signature,
-      STRIPE_WEBHOOK_SECRET,
-    );
+    event = await stripe.webhooks.constructEventAsync(rawBody, signature, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error("[webhook] signature verification failed", err);
     return new Response("Invalid signature", { status: 400 });
@@ -58,33 +124,25 @@ Deno.serve(async (req) => {
       case "checkout.session.completed":
         await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
         break;
-
       case "customer.subscription.created":
       case "customer.subscription.updated":
         await handleSubscriptionChanged(event.data.object as Stripe.Subscription);
         break;
-
       case "customer.subscription.deleted":
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
-
       case "invoice.paid":
         await handleInvoicePaid(event.data.object as Stripe.Invoice);
         break;
-
-      // Useful to log but no action needed:
       case "invoice.payment_failed":
         console.log("[webhook] payment_failed for", event.data.object);
         break;
-
       default:
-        // Unhandled events are fine — Stripe sends a lot.
         console.log("[webhook] ignoring event type:", event.type);
     }
   } catch (err) {
     console.error("[webhook] handler error", err);
-    // Return 500 so Stripe retries. (For poison events, return 200 to stop
-    // retries — but log loudly so you can investigate.)
+    // Return 500 so Stripe retries.
     return new Response("Handler error", { status: 500 });
   }
 
@@ -94,34 +152,18 @@ Deno.serve(async (req) => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Event handlers
-// ─────────────────────────────────────────────────────────────────────────────
-
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.client_reference_id;
-  const customerId = typeof session.customer === "string"
-    ? session.customer
-    : session.customer?.id;
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
   if (!userId) {
     console.warn("[webhook] checkout.completed missing client_reference_id");
     return;
   }
-
-  // Make sure stripe_customer_id is persisted (it should already be — the
-  // checkout function writes it — but be defensive in case of race).
   if (customerId) {
-    await supabaseAdmin
-      .from("profiles")
-      .update({ stripe_customer_id: customerId })
-      .eq("id", userId);
+    await supabaseAdmin.from("profiles").update({ stripe_customer_id: customerId }).eq("id", userId);
   }
-
-  // Pull the subscription so we can derive plan + cycleResetAt.
   if (session.subscription) {
-    const subId = typeof session.subscription === "string"
-      ? session.subscription
-      : session.subscription.id;
+    const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
     const sub = await stripe.subscriptions.retrieve(subId);
     await applySubscriptionToEntitlements(userId, sub);
   }
@@ -136,46 +178,45 @@ async function handleSubscriptionChanged(sub: Stripe.Subscription) {
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
   const userId = await userIdFromSubscription(sub);
   if (!userId) return;
-  // Downgrade back to trial-with-zero-quotes — the frontend's Phase-4
-  // lockdown can decide what to do (offer reactivation, etc.).
+  // KEEP the real plan id — only flip the status to "canceled". If we downgrade
+  // plan→"trial" here the frontend reads isTrialExpired() and shows the wrong
+  // "your free trial ended" wall to someone who was a paying customer. With the
+  // real plan retained, canGenerate() takes the subscription-inactive branch and
+  // shows the correct "reactivate your subscription" messaging instead.
+  // Don't bump cycleResetAt — there's no active cycle anymore.
   await patchEntitlements(userId, {
-    plan: "trial",
     subscriptionStatus: "canceled",
-    quotesUsedThisCycle: 0,
-    // Don't bump cycleResetAt — the trial window has already passed.
   });
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
-  // invoice.paid fires every billing cycle. Use it to reset the usage counter.
-  const subId = typeof invoice.subscription === "string"
-    ? invoice.subscription
-    : invoice.subscription?.id;
-  if (!subId) return;
+  // invoice.paid fires every billing cycle. Use it to reset the usage counters.
+  const subId = invoiceSubscriptionId(invoice);
+  if (!subId) return; // one-off invoice, no subscription — nothing to do
   const sub = await stripe.subscriptions.retrieve(subId);
   const userId = await userIdFromSubscription(sub);
   if (!userId) return;
+  const periodEnd = subCurrentPeriodEnd(sub);
   await patchEntitlements(userId, {
+    // Reset ALL per-cycle usage counters on renewal — not just quotes. The AI
+    // plan-read and thumbnail counters live in the same entitlements JSON and
+    // are enforced server-side (consume_ai_credit). If we don't zero them here
+    // they accumulate forever and the user is permanently capped on AI after
+    // their first cycle, even though they keep paying.
     quotesUsedThisCycle: 0,
-    cycleResetAt: sub.current_period_end * 1000,
+    aiExtractionsUsedThisCycle: 0,
+    aiThumbnailsUsedThisCycle: 0,
+    ...(periodEnd ? { cycleResetAt: periodEnd * 1000 } : {}),
     subscriptionStatus: sub.status,
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function userIdFromSubscription(
-  sub: Stripe.Subscription,
-): Promise<string | null> {
+async function userIdFromSubscription(sub: Stripe.Subscription): Promise<string | null> {
   // Preferred: metadata we set at checkout time.
   const metaId = sub.metadata?.supabase_user_id;
   if (metaId) return metaId;
   // Fallback: look up by customer id on profiles.
-  const customerId = typeof sub.customer === "string"
-    ? sub.customer
-    : sub.customer.id;
+  const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("id")
@@ -188,10 +229,7 @@ async function userIdFromSubscription(
   return data?.id ?? null;
 }
 
-async function applySubscriptionToEntitlements(
-  userId: string,
-  sub: Stripe.Subscription,
-) {
+async function applySubscriptionToEntitlements(userId: string, sub: Stripe.Subscription) {
   const item = sub.items.data[0];
   if (!item) {
     console.warn("[webhook] subscription has no items", sub.id);
@@ -202,21 +240,19 @@ async function applySubscriptionToEntitlements(
     console.warn("[webhook] unknown price id", item.price.id, "(check plan registry)");
     return;
   }
+  const periodEnd = subCurrentPeriodEnd(sub);
   await patchEntitlements(userId, {
     plan,
     subscriptionStatus: sub.status,
-    cycleResetAt: sub.current_period_end * 1000,
+    ...(periodEnd ? { cycleResetAt: periodEnd * 1000 } : {}),
     planSetAt: Date.now(),
-    // Don't zero quotesUsedThisCycle here — invoice.paid handles renewals.
-    // For brand-new subscriptions (first checkout), the user hasn't used
-    // anything yet so leaving it as-is is correct.
+    // Don't zero quotesUsedThisCycle here — invoice.paid handles renewals. For a
+    // brand-new subscription (first checkout) the user hasn't used anything yet,
+    // so leaving the counters as-is is correct.
   });
 }
 
-async function patchEntitlements(
-  userId: string,
-  patch: Record<string, unknown>,
-) {
+async function patchEntitlements(userId: string, patch: Record<string, unknown>) {
   const { data: profile, error: pErr } = await supabaseAdmin
     .from("profiles")
     .select("data")
