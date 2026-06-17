@@ -790,6 +790,34 @@
   [data-theme="light"] .jf-menu { background: #fff; border-color: rgba(181,143,74,0.5); }
   [data-theme="light"] .jf-menu button { color: #334155; }
 
+  /* Resources tab — plain-English in-app guide (owner-only) */
+  .res-dl { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:800; color:#0b1120; background:linear-gradient(180deg,#d8b96a,#b58f4a); border-radius:9999px; padding:9px 16px; text-decoration:none; }
+  .res-dl:hover { background:linear-gradient(180deg,#e6c878,#c9a558); }
+  .res-intro { margin:14px 0 16px; font-size:13px; color:#94a3b8; line-height:1.6; }
+  .res-sec { border:1px solid rgba(71,85,105,0.4); border-radius:12px; margin-bottom:10px; background:rgba(15,23,42,0.4); overflow:hidden; }
+  .res-sec > summary { list-style:none; cursor:pointer; padding:13px 16px; font-weight:800; font-size:14px; color:#f1f5f9; display:flex; align-items:center; gap:11px; }
+  .res-sec > summary::-webkit-details-marker { display:none; }
+  .res-sec > summary:hover { color:#c9a558; }
+  .res-num { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:6px; background:rgba(181,143,74,0.18); color:#c9a558; font-size:12px; font-weight:800; flex-shrink:0; }
+  .res-sec[open] > summary { border-bottom:1px solid rgba(71,85,105,0.4); color:#c9a558; }
+  .res-in { padding:6px 18px 16px; }
+  .res-over { font-size:13px; color:#cbd5e1; line-height:1.6; margin:10px 0 6px; font-style:italic; }
+  .res-gh { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#c9a558; margin:14px 0 4px; }
+  .res-ul { margin:0 0 4px; padding-left:18px; }
+  .res-ul li { font-size:12.5px; color:#94a3b8; line-height:1.55; margin-bottom:5px; }
+  .res-body { font-size:12.5px; color:#cbd5e1; line-height:1.55; margin:2px 0 4px; }
+  .res-table { width:100%; border-collapse:collapse; margin-top:8px; }
+  .res-table th { text-align:left; vertical-align:top; font-size:12px; font-weight:700; color:#e2e8f0; padding:6px 10px 6px 0; width:38%; border-bottom:1px solid rgba(51,65,85,0.5); }
+  .res-table td { font-size:12px; color:#94a3b8; vertical-align:top; padding:6px 0; border-bottom:1px solid rgba(51,65,85,0.5); }
+  .res-loading { font-size:13px; color:#64748b; padding:20px 0; }
+  [data-theme="light"] .res-sec { border-color:#e2e8f0; background:#f8fafc; }
+  [data-theme="light"] .res-sec > summary { color:#0f172a; }
+  [data-theme="light"] .res-sec[open] > summary { border-color:#e2e8f0; }
+  [data-theme="light"] .res-over { color:#334155; }
+  [data-theme="light"] .res-ul li, [data-theme="light"] .res-table td { color:#475569; }
+  [data-theme="light"] .res-table th { color:#1e293b; }
+  [data-theme="light"] .res-intro { color:#64748b; }
+
   /* ------- Job Files — individual file cards ------- */
   .jf-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; color: #c9a558; font-weight: 800; }
   .jf-card {
@@ -4959,6 +4987,7 @@
         <button type="button" class="set-tab" data-tab="subscription">Subscription</button>
         <button type="button" class="set-tab" data-tab="account">Account</button>
         <button type="button" class="set-tab hidden" data-tab="feedback" id="feedbackTabBtn">Feedback<span id="feedbackTabBadge" class="fb-badge hidden">0</span></button>
+        <button type="button" class="set-tab hidden" data-tab="resources" id="resourcesTabBtn">Resources</button>
         <button type="button" class="set-tab hidden" data-tab="admin" id="adminTabBtn">Admin</button>
       </nav>
 
@@ -5494,6 +5523,13 @@
           <div class="set-h">Feedback &amp; suggestions <span id="adminFeedbackCount" class="text-slate-600 font-bold"></span></div>
           <div class="set-sub mb-5">Feature requests &amp; bug reports from users — newest first.</div>
           <div id="adminFeedbackBody"></div>
+        </div>
+
+        <!-- Resources (owner-only) — plain-English guide to how the app works -->
+        <div class="set-panel" data-panel="resources">
+          <div class="set-h">Resources</div>
+          <div class="set-sub mb-5">How the platform works, in plain English — for answering customer questions, training sellers, and checking the logic.</div>
+          <div id="resourcesBody"></div>
         </div>
 
       </div>
@@ -11649,6 +11685,7 @@ function openAdmin() {
   if (acct) acct.textContent = (currentUser && currentUser.email) || "Offline mode";
   document.getElementById("adminTabBtn").classList.toggle("hidden", !isAdmin());
   document.getElementById("feedbackTabBtn").classList.toggle("hidden", !isAdmin());
+  { const rb = document.getElementById("resourcesTabBtn"); if (rb) rb.classList.toggle("hidden", !isAdmin()); }
   if (isAdmin()) updateFeedbackBadge();
   showSettingsTab("brand");
   adminModal.classList.remove("hidden");
@@ -11667,6 +11704,57 @@ function showSettingsTab(name) {
   if (name === "admin") renderAdminPanel();
   if (name === "feedback") { renderAdminFeedback(); markFeedbackSeen(); }
   if (name === "subscription") renderSubscriptionPanel();
+  if (name === "resources") renderResources();
+}
+
+// Resources tab — plain-English guide to how the app works. Lazy-loaded from a
+// static JSON asset (kept out of the app bundle) and rendered as collapsible
+// sections. Owner-only: the tab is hidden unless isAdmin().
+let _resourcesLoaded = false;
+const RESOURCES_PDF = "anchor-how-it-works.pdf";
+async function renderResources() {
+  const el = document.getElementById("resourcesBody");
+  if (!el || _resourcesLoaded) return;
+  el.innerHTML = '<div class="res-loading">Loading the guide…</div>';
+  let d;
+  try {
+    const res = await fetch("anchor-resources.json", { cache: "no-cache" });
+    if (!res.ok) throw new Error("http " + res.status);
+    d = await res.json();
+  } catch (e) {
+    el.innerHTML = '<div class="res-loading">Couldn\'t load the guide here — '
+      + '<a href="' + RESOURCES_PDF + '" target="_blank" rel="noopener" style="color:#c9a558;text-decoration:underline">open the PDF instead</a>.</div>';
+    return;
+  }
+  const li  = arr => (arr && arr.length) ? '<ul class="res-ul">' + arr.map(x => "<li>" + escHtml(x) + "</li>").join("") + "</ul>" : "";
+  const grp = (t, arr) => (arr && arr.length) ? '<div class="res-gh">' + escHtml(t) + "</div>" + li(arr) : "";
+  let h = '<a href="' + RESOURCES_PDF + '" target="_blank" rel="noopener" class="res-dl">⬇  Download the full guide (PDF)</a>';
+  h += '<p class="res-intro">' + escHtml(d.meta.intro) + "</p>";
+  (d.subsystems || []).forEach((s, i) => {
+    h += '<details class="res-sec"' + (i === 0 ? " open" : "") + '><summary><span class="res-num">' + (i + 1) + "</span>" + escHtml(s.subsystem) + '</summary><div class="res-in">';
+    h += '<p class="res-over">' + escHtml(s.plainOverview) + "</p>";
+    h += grp("How it works", s.howItWorks);
+    h += grp("How it connects to the rest of the app", s.worksWith);
+    h += grp("Good numbers to know", s.keyNumbers);
+    h += "</div></details>";
+  });
+  if (d.sales) {
+    h += '<details class="res-sec"><summary><span class="res-num">$</span>' + escHtml(d.sales.title) + '</summary><div class="res-in">';
+    h += '<p class="res-over">' + escHtml(d.sales.intro) + "</p>";
+    (d.sales.blocks || []).forEach(b => {
+      h += '<div class="res-gh">' + escHtml(b.heading) + "</div>";
+      if (b.body) h += '<p class="res-body">' + escHtml(b.body) + "</p>";
+      h += li(b.points);
+    });
+    h += "</div></details>";
+  }
+  if (d.quickref) {
+    h += '<details class="res-sec" open><summary><span class="res-num">#</span>Key Numbers at a Glance</summary><div class="res-in"><table class="res-table"><tbody>';
+    d.quickref.forEach(r => { h += "<tr><th>" + escHtml(r[0]) + "</th><td>" + escHtml(r[1]) + "</td></tr>"; });
+    h += "</tbody></table></div></details>";
+  }
+  el.innerHTML = h;
+  _resourcesLoaded = true;
 }
 
 // Open Settings on the Rates tab, scroll to the input that controls a
