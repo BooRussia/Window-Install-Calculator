@@ -21,15 +21,17 @@ create index if not exists profiles_stripe_customer_id_idx
   on public.profiles (stripe_customer_id)
   where stripe_customer_id is not null;
 
--- ── 3. RLS — readable by owner, writable only by service role ────────────────
+-- ── 3. Billing fields — readable by owner, writable only by service role ─────
 -- The existing profiles SELECT/UPDATE policies likely already cover the
 -- column (users can read their own row, update their own row's `data`).
 -- But UPDATE on stripe_customer_id from a normal user would be a vector
--- for fraud — block it with a column-level check.
+-- for fraud. The same applies to Stripe-managed entitlement fields inside
+-- profiles.data: normal profile sync must not be able to self-grant a paid
+-- plan or overwrite a paid plan that the webhook just wrote.
 --
 -- Approach: a row-level trigger that blocks any non-service-role attempt to
--- change stripe_customer_id. Service-role connections bypass triggers that
--- check `auth.role()` so the edge functions still work.
+-- change billing-owned fields. Service-role connections bypass the checks so
+-- the edge functions still work.
 
 create or replace function public.profiles_block_stripe_customer_id_update()
 returns trigger
@@ -37,18 +39,57 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  old_plan text;
+  new_plan text;
+  protects_paid_plan boolean;
 begin
-  if NEW.stripe_customer_id is distinct from OLD.stripe_customer_id
-     and auth.role() <> 'service_role' then
-    raise exception 'stripe_customer_id is read-only for normal users';
+  new_plan := NEW.data #>> '{config,entitlements,plan}';
+
+  if auth.role() <> 'service_role' then
+    if TG_OP = 'INSERT' and NEW.stripe_customer_id is not null then
+      raise exception 'stripe_customer_id is read-only for normal users';
+    end if;
+
+    if TG_OP = 'UPDATE'
+       and NEW.stripe_customer_id is distinct from OLD.stripe_customer_id then
+      raise exception 'stripe_customer_id is read-only for normal users';
+    end if;
+
+    if TG_OP = 'INSERT' then
+      if coalesce(new_plan, 'trial') <> 'trial' then
+        raise exception 'Stripe-managed entitlement plan is read-only for normal users';
+      end if;
+      return NEW;
+    end if;
+
+    old_plan := OLD.data #>> '{config,entitlements,plan}';
+    protects_paid_plan :=
+      coalesce(old_plan, 'trial') <> 'trial' or coalesce(new_plan, 'trial') <> 'trial';
+
+    if old_plan is distinct from new_plan and protects_paid_plan then
+      raise exception 'Stripe-managed entitlement plan is read-only for normal users';
+    end if;
+
+    if protects_paid_plan and (
+      (NEW.data #>> '{config,entitlements,subscriptionStatus}') is distinct from (OLD.data #>> '{config,entitlements,subscriptionStatus}')
+      or (NEW.data #>> '{config,entitlements,trialStartedAt}') is distinct from (OLD.data #>> '{config,entitlements,trialStartedAt}')
+      or (NEW.data #>> '{config,entitlements,quotesUsedThisCycle}') is distinct from (OLD.data #>> '{config,entitlements,quotesUsedThisCycle}')
+      or (NEW.data #>> '{config,entitlements,cycleResetAt}') is distinct from (OLD.data #>> '{config,entitlements,cycleResetAt}')
+      or (NEW.data #>> '{config,entitlements,planSetAt}') is distinct from (OLD.data #>> '{config,entitlements,planSetAt}')
+      or (NEW.data #>> '{config,entitlements,lastQuoteAt}') is distinct from (OLD.data #>> '{config,entitlements,lastQuoteAt}')
+    ) then
+      raise exception 'Stripe-managed entitlements are read-only for normal users';
+    end if;
   end if;
+
   return NEW;
 end;
 $$;
 
 drop trigger if exists profiles_protect_stripe_customer_id on public.profiles;
 create trigger profiles_protect_stripe_customer_id
-  before update on public.profiles
+  before insert or update on public.profiles
   for each row
   execute function public.profiles_block_stripe_customer_id_update();
 

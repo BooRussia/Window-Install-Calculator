@@ -6601,6 +6601,16 @@ function setupCountyCombobox(prefix) {
    STATE + STORAGE
    ============================================================ */
 const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1" };
+const STRIPE_MANAGED_ENTITLEMENT_FIELDS = [
+  "plan",
+  "subscriptionStatus",
+  "trialStartedAt",
+  "quotesUsedThisCycle",
+  "cycleResetAt",
+  "planSetAt",
+  "lastQuoteAt"
+];
+let _serverEntitlements = null;
 
 function loadData() {
   try {
@@ -6659,6 +6669,32 @@ function loadJobs() {
 function saveJobs(j) { localStorage.setItem(LS_KEYS.jobs, JSON.stringify(j)); }
 
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+function isPaidEntitlements(e) {
+  return !!(e && e.plan && e.plan !== "trial");
+}
+
+function rememberServerEntitlements(data) {
+  const entitlements = data?.config?.entitlements;
+  _serverEntitlements = entitlements ? clone(entitlements) : null;
+}
+
+function profileDataForCloud(d) {
+  const data = clone(d);
+  if (!isPaidEntitlements(_serverEntitlements)) return data;
+
+  data.config = data.config || {};
+  const nextEntitlements = { ...(data.config.entitlements || {}) };
+  STRIPE_MANAGED_ENTITLEMENT_FIELDS.forEach(field => {
+    if (Object.prototype.hasOwnProperty.call(_serverEntitlements, field)) {
+      nextEntitlements[field] = _serverEntitlements[field];
+    } else {
+      delete nextEntitlements[field];
+    }
+  });
+  data.config.entitlements = nextEntitlements;
+  return data;
+}
 
 // Normalize a screw count into { impact, nonImpact }. Accepts a bare number
 // (legacy format) or a partial object, falling back to `dflt`.
@@ -15475,7 +15511,14 @@ async function _cloudRetryPing() {
 // Wrap any promise that hits the cloud. Auto-routes outcome to the tracker.
 function trackCloud(promise) {
   return Promise.resolve(promise).then(
-    v => { markCloudOk(); return v; },
+    v => {
+      if (v && v.error) {
+        markCloudError(v.error);
+        throw v.error;
+      }
+      markCloudOk();
+      return v;
+    },
     e => { markCloudError(e); throw e; }
   );
 }
@@ -15747,6 +15790,7 @@ async function syncFromCloud() {
     if (pErr) throw pErr;
 
     if (prof && prof.data && Object.keys(prof.data).length) {
+      rememberServerEntitlements(prof.data);
       localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
       const { data: jobRows, error: jErr } = await sb.from("jobs")
         .select("id,data").eq("user_id", user.id);
@@ -15758,6 +15802,7 @@ async function syncFromCloud() {
     } else {
       // First login ever — seed the cloud from whatever is already local
       await firstLoginMigration(user.id);
+      rememberServerEntitlements(loadData());
     }
     markCloudOk();
   } catch (e) {
@@ -15769,7 +15814,8 @@ async function syncFromCloud() {
 
 async function firstLoginMigration(userId) {
   const localData = loadData();
-  await sb.from("profiles").upsert({ id: userId, data: localData });
+  const { error: pErr } = await sb.from("profiles").upsert({ id: userId, data: localData });
+  if (pErr) throw pErr;
   const localJobs = loadJobs();
   // Working drafts stay local-only — they're for the current device/session.
   const drafts = localJobs.filter(j => j.isDraft);
@@ -15779,7 +15825,8 @@ async function firstLoginMigration(userId) {
       const id = isUuid(j.id) ? j.id : crypto.randomUUID();
       return { id, user_id: userId, data: { ...j, id } };
     });
-    await sb.from("jobs").insert(rows);
+    const { error: jErr } = await sb.from("jobs").insert(rows);
+    if (jErr) throw jErr;
     // Keep any local-only drafts alongside the freshly-uploaded jobs
     localStorage.setItem(LS_KEYS.jobs, JSON.stringify([...rows.map(r => r.data), ...drafts]));
   }
@@ -15788,9 +15835,11 @@ async function firstLoginMigration(userId) {
 async function pushProfileToCloud(d) {
   if (!sb || !currentUser) return;
   try {
+    const data = profileDataForCloud(d);
     await trackCloud(sb.from("profiles").upsert({
-      id: currentUser.id, data: d, updated_at: new Date().toISOString()
+      id: currentUser.id, data, updated_at: new Date().toISOString()
     }));
+    rememberServerEntitlements(data);
   } catch (e) { /* error already routed via trackCloud */ }
 }
 
@@ -16034,9 +16083,10 @@ const PLANS = [
 // ====================================================================
 // PHASE 2 — ENTITLEMENTS BRAIN
 // --------------------------------------------------------------------
-//   The single source of truth for "what can this user do right now?".
-//   Lives at DATA.config.entitlements and persists through saveData()
-//   (which already pushes to localStorage + the Supabase profile JSON).
+//   The local decision point for "what can this user do right now?".
+//   Trial state lives in DATA.config.entitlements. Once Stripe upgrades a
+//   user, the server/webhook owns the paid entitlement fields and profile sync
+//   preserves the last server copy instead of overwriting it from the browser.
 //
 //   Critical Phase-2 rule: WE DO NOT LOCK ANYONE OUT YET. The badge
 //   and upsell modal are friendly upsells — the underlying action
