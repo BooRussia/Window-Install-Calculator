@@ -791,7 +791,7 @@
   [data-theme="light"] .jf-menu button { color: #334155; }
 
   /* Resources tab — plain-English in-app guide (owner-only) */
-  .res-dl { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:800; color:#0b1120; background:linear-gradient(180deg,#d8b96a,#b58f4a); border-radius:9999px; padding:9px 16px; text-decoration:none; }
+  .res-dl { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:800; color:#0b1120; background:linear-gradient(180deg,#d8b96a,#b58f4a); border:0; border-radius:9999px; padding:9px 16px; text-decoration:none; cursor:pointer; }
   .res-dl:hover { background:linear-gradient(180deg,#e6c878,#c9a558); }
   .res-intro { margin:14px 0 16px; font-size:13px; color:#94a3b8; line-height:1.6; }
   .res-sec { border:1px solid rgba(71,85,105,0.4); border-radius:12px; margin-bottom:10px; background:rgba(15,23,42,0.4); overflow:hidden; }
@@ -11695,6 +11695,7 @@ function closeAdmin() { adminModal.classList.add("hidden"); }
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
 function showSettingsTab(name) {
+  if (name === "resources" && !isAdmin()) name = "brand";
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
     t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll("#adminModal .set-panel").forEach(p =>
@@ -11707,28 +11708,33 @@ function showSettingsTab(name) {
   if (name === "resources") renderResources();
 }
 
-// Resources tab — plain-English guide to how the app works. Lazy-loaded from a
-// static JSON asset (kept out of the app bundle) and rendered as collapsible
-// sections. Owner-only: the tab is hidden unless isAdmin().
+// Resources tab — plain-English guide to how the app works. The content is
+// lazy-loaded through an owner-only Edge Function; the tab being hidden is just
+// UI, not the security boundary.
 let _resourcesLoaded = false;
-const RESOURCES_PDF = "anchor-how-it-works.pdf";
+const RESOURCES_FN = "admin-resources";
 async function renderResources() {
   const el = document.getElementById("resourcesBody");
   if (!el || _resourcesLoaded) return;
+  if (!isAdmin()) {
+    el.innerHTML = '<div class="res-loading">Owner-only resources.</div>';
+    return;
+  }
   el.innerHTML = '<div class="res-loading">Loading the guide…</div>';
   let d;
   try {
-    const res = await fetch("anchor-resources.json", { cache: "no-cache" });
-    if (!res.ok) throw new Error("http " + res.status);
-    d = await res.json();
+    if (!sb || !currentUser) throw new Error("not signed in");
+    const { data, error } = await sb.functions.invoke(RESOURCES_FN, { body: { type: "json" } });
+    if (error) throw error;
+    d = data;
   } catch (e) {
-    el.innerHTML = '<div class="res-loading">Couldn\'t load the guide here — '
-      + '<a href="' + RESOURCES_PDF + '" target="_blank" rel="noopener" style="color:#c9a558;text-decoration:underline">open the PDF instead</a>.</div>';
+    console.warn("resources load failed", e);
+    el.innerHTML = '<div class="res-loading">Couldn\'t load the owner guide. Sign in as the owner and try again.</div>';
     return;
   }
   const li  = arr => (arr && arr.length) ? '<ul class="res-ul">' + arr.map(x => "<li>" + escHtml(x) + "</li>").join("") + "</ul>" : "";
   const grp = (t, arr) => (arr && arr.length) ? '<div class="res-gh">' + escHtml(t) + "</div>" + li(arr) : "";
-  let h = '<a href="' + RESOURCES_PDF + '" target="_blank" rel="noopener" class="res-dl">⬇  Download the full guide (PDF)</a>';
+  let h = '<button type="button" id="resourcesPdfBtn" class="res-dl">⬇  Download the full guide (PDF)</button>';
   h += '<p class="res-intro">' + escHtml(d.meta.intro) + "</p>";
   (d.subsystems || []).forEach((s, i) => {
     h += '<details class="res-sec"' + (i === 0 ? " open" : "") + '><summary><span class="res-num">' + (i + 1) + "</span>" + escHtml(s.subsystem) + '</summary><div class="res-in">';
@@ -11754,7 +11760,54 @@ async function renderResources() {
     h += "</tbody></table></div></details>";
   }
   el.innerHTML = h;
+  const pdfBtn = document.getElementById("resourcesPdfBtn");
+  if (pdfBtn) pdfBtn.addEventListener("click", () => downloadResourcesPdf(pdfBtn));
   _resourcesLoaded = true;
+}
+
+async function downloadResourcesPdf(btn) {
+  if (!isAdmin()) { toast("Owner-only resources"); return; }
+  const prev = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Preparing…"; }
+  try {
+    if (!sb || !currentUser) throw new Error("Sign in as the owner first.");
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session && session.access_token;
+    if (!token) throw new Error("Sign in as the owner first.");
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${RESOURCES_FN}`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "apikey": SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ type: "pdf" }),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      let msg = "Couldn't download the guide.";
+      try {
+        const j = await res.json();
+        if (j && j.error) msg = j.error;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "anchor-how-it-works.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    toast("Guide download started");
+  } catch (e) {
+    console.warn("resources pdf download failed", e);
+    toast((e && e.message) || "Couldn't download the guide");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
+  }
 }
 
 // Open Settings on the Rates tab, scroll to the input that controls a
