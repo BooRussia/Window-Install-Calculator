@@ -292,6 +292,18 @@
   /* Per-job "Materials — this job" toggles: full-width, equal buttons that fit
      even a narrow rail (3 buck sizes). Slightly tighter so labels never clip. */
   .seg-rail .seg-btn { padding: 8px 6px; font-size: 12px; min-width: 0; }
+  /* "Materials — this job" — collapsible per-job variable-material picker */
+  .mat-card { border: 1px solid rgba(51,65,85,0.6); border-radius: 16px; background: rgba(15,23,42,0.4); overflow: hidden; }
+  .mat-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 12px 14px; -webkit-tap-highlight-color: transparent; }
+  .mat-head::-webkit-details-marker { display: none; }
+  .mat-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; color: #94a3b8; font-weight: 800; }
+  .mat-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; background: rgba(181,143,74,0.18); color: #c9a558; font-size: 10px; font-weight: 800; }
+  .mat-chev { margin-left: auto; color: #64748b; transition: transform .2s ease; flex-shrink: 0; }
+  .mat-card[open] .mat-chev { transform: rotate(180deg); }
+  .mat-head:hover .mat-title, .mat-head:hover .mat-chev { color: #c9a558; }
+  .mat-body { padding: 2px 14px 14px; }
+  [data-theme="light"] .mat-card { border-color: #e2e8f0; background: #f8fafc; }
+  [data-theme="light"] .mat-title { color: #64748b; }
   .seg-btn.active {
     background: rgba(181,143,74,0.18);
     color: var(--gold-hi);
@@ -8321,13 +8333,28 @@ function initRailAccordion() {
   updateExpandAllBtn();
 }
 
-// Per-job material variant toggles — one segmented control per category
-// with 2+ variants. Hidden entirely when there's nothing to choose.
+// Does a material apply to THIS job? Used to decide what shows in the per-job
+// "Materials — this job" picker — e.g. wood bucking only matters on block-framed
+// jobs, flashing tape only on stick-framed. Keeps the picker free of irrelevant
+// options.
+function materialAppliesToJob(item) {
+  // Fixed-job materials (e.g. block sealer) apply on block-framed jobs.
+  if (item.calculationType === "fixed_job") return STATE.houseType === "Block Framed";
+  // Per-LF materials apply when they're actually consumed on this job —
+  // getQuantityPerLF returns 0 for a material that doesn't apply.
+  return getQuantityPerLF(item) > 0;
+}
+
+// Per-job material variant picker — a collapsible card with one segmented
+// control per material that (a) has 2+ variants to choose from AND (b) applies
+// to this job. Hidden entirely when nothing applies (e.g. bucking on a
+// stick-framed job). Remembers open/closed across re-renders.
+let _matToggleOpen = true;
 function renderMaterialsToggle() {
   const wrap = document.getElementById("materialsRow");
   if (!wrap) return;
   const multi = (DATA.costItems || []).filter(c =>
-    Array.isArray(c.variants) && c.variants.length > 1);
+    Array.isArray(c.variants) && c.variants.length > 1 && materialAppliesToJob(c));
   if (!multi.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
   STATE.variants = STATE.variants || {};
   const rows = multi.map(item => {
@@ -8340,10 +8367,16 @@ function renderMaterialsToggle() {
       <div class="seg seg-rail" style="max-width:none">${btns}</div>
     </div>`;
   }).join("");
-  wrap.innerHTML = `<div class="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3">
-    <div class="text-[10px] uppercase tracking-[0.18em] text-slate-500 font-bold mb-2">Materials — this job</div>
-    <div class="space-y-2">${rows}</div>
-  </div>`;
+  wrap.innerHTML = `<details class="mat-card"${_matToggleOpen ? " open" : ""}>
+    <summary class="mat-head">
+      <span class="mat-title">Materials — this job</span>
+      <span class="mat-count">${multi.length}</span>
+      <svg class="mat-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+    </summary>
+    <div class="mat-body space-y-3">${rows}</div>
+  </details>`;
+  const det = wrap.querySelector("details");
+  if (det) det.addEventListener("toggle", () => { _matToggleOpen = det.open; });
   wrap.classList.remove("hidden");
 }
 
