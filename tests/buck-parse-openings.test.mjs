@@ -23,6 +23,12 @@ const context = {
       };
     },
   },
+  buckLumberName() {
+    return "2x";
+  },
+  escHtml(value) {
+    return String(value);
+  },
   saveData() {},
   renderBuckResult() {},
   render() {},
