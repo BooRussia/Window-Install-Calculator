@@ -14548,9 +14548,9 @@ Reply with only the OPENING lines.`;
 // the dimension tag (nominal/ro/mo), and the panel count (a bare number) can come
 // in any order and any are optional. Width/height are stored RAW (as the schedule
 // shows them) plus the dim tag, and the MASONRY opening the buck needs is derived
-// into width/height via masonryFromRaw(). A line with NO dim tag is legacy output
-// from the old prompt (the number was already a rough/masonry opening), so it's
-// treated as "mo" (used as-is) — never re-converted.
+// into width/height via masonryFromRaw(). A line with NO dim tag uses the job-wide
+// default and is marked as unlabeled so the "Unlabeled =" control can safely
+// retag only those rows later.
 function parseOpenings(text) {
   const openings = [];
   const lines = String(text || "").split(/\r?\n/);
@@ -14561,25 +14561,27 @@ function parseOpenings(text) {
     const rawWidth = parseFloat(parts[2]);
     const rawHeight = parseFloat(parts[3]);
     const qty = parseInt(parts[4], 10) || 1;
-    const typeText = parts[5] || "";
-    // Classify trailing fields (index 6+): a dim tag or a bare panel count.
     let dimTag = null, panels = null;
-    for (let i = 6; i < parts.length; i++) {
+    const typeParts = [];
+    // Classify all fields after qty: type text, dim tag, or bare panel count.
+    for (let i = 5; i < parts.length; i++) {
       const tok = parts[i];
       if (!tok) continue;
       const dn = normalizeBuckDimToken(tok);
       if (dn && dimTag == null) { dimTag = dn; continue; }
       if (panels == null && /^\d+$/.test(tok)) { panels = Math.max(2, Math.min(10, parseInt(tok, 10))); }
+      else typeParts.push(tok);
     }
+    const typeText = typeParts.join(" ") || "window";
     const hay = typeText + " " + room;
     // Bifold detection takes precedence — a "bifold glass door" must not be
     // mis-bucketed as a slider just because it contains "glass door".
     const isBifold = /bi[\s-]*fold|folding|accordion|fgw|folding\s*glass\s*wall/i.test(hay);
     const isSlider = !isBifold && /slid|sgd|patio\s*door|glass\s*door/i.test(hay);
     if (rawWidth > 0 && rawHeight > 0) {
-      const dimType = dimTag || "mo";   // no tag → legacy line, already an opening
+      const dimType = dimTag || buckDimDefault();
       openings.push({
-        room, qty, isSlider, isBifold, panels,
+        room, qty, isSlider, isBifold, panels, dimExplicit: !!dimTag,
         rawWidth, rawHeight, dimType,
         width: masonryFromRaw(rawWidth, dimType),
         height: masonryFromRaw(rawHeight, dimType),
@@ -15103,11 +15105,13 @@ function renderBuckResult() {
 // before the R.O./M.O. feature): its width/height were already the masonry
 // opening, so tag it "mo" and use the values as-is (idempotent).
 function ensureRawDims(o) {
-  if (o && o.rawWidth != null && o.rawHeight != null && o.dimType) return o;
+  if (o && o.rawWidth != null && o.rawHeight != null && o.dimType) {
+    return { ...o, dimExplicit: o.dimExplicit === false ? false : true };
+  }
   const dimType = (o && o.dimType) || "mo";
   const rawWidth = (o && o.rawWidth != null) ? o.rawWidth : (o ? o.width : 0);
   const rawHeight = (o && o.rawHeight != null) ? o.rawHeight : (o ? o.height : 0);
-  return { ...o, rawWidth, rawHeight, dimType,
+  return { ...o, rawWidth, rawHeight, dimType, dimExplicit: true,
            width: masonryFromRaw(rawWidth, dimType), height: masonryFromRaw(rawHeight, dimType) };
 }
 
@@ -15160,7 +15164,7 @@ function setBuckOpeningDim(idx, val) {
   const ops = bl.openings.map((o, i) => {
     const o2 = ensureRawDims(o);
     if (i !== idx) return o2;
-    return { ...o2, dimType: val,
+    return { ...o2, dimType: val, dimExplicit: true,
              width: masonryFromRaw(o2.rawWidth, val), height: masonryFromRaw(o2.rawHeight, val) };
   });
   STATE.buckList = optimizeCutList(ops);
@@ -15181,7 +15185,7 @@ function setBuckDimDefault(val) {
   if (bl && Array.isArray(bl.openings) && val !== prev) {
     const ops = bl.openings.map(o => {
       const o2 = ensureRawDims(o);
-      if (o2.dimType !== prev) return o2;
+      if (o2.dimExplicit !== false) return o2;
       return { ...o2, dimType: val,
                width: masonryFromRaw(o2.rawWidth, val), height: masonryFromRaw(o2.rawHeight, val) };
     });
