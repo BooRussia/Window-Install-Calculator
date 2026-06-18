@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: "Your free trial has ended — subscribe to keep going." }, 403);
     }
     if (
-      ent.plan !== "trial" && ent.plan !== "unlimited" &&
+      ent.plan !== "trial" &&
       ent.subscriptionStatus && ent.subscriptionStatus !== "active" &&
       ent.subscriptionStatus !== "trialing"
     ) {
