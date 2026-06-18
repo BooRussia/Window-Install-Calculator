@@ -12,6 +12,17 @@ assert.notEqual(end, -1, "buck calculator section end not found");
 const context = {
   DATA: { config: {} },
   STATE: { buckList: null },
+  document: {
+    getElementById() {
+      return {
+        classList: { add() {}, remove() {}, toggle() {} },
+        querySelectorAll() { return []; },
+        addEventListener() {},
+        innerHTML: "",
+        textContent: "",
+      };
+    },
+  },
   saveData() {},
   renderBuckResult() {},
   render() {},
