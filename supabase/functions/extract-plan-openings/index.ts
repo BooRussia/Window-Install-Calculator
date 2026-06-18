@@ -87,7 +87,10 @@ Identify the window MANUFACTURER (title block, header row, notes, or any "MFR" /
 PART B — Every opening (READ THE QUANTITY COLUMN — THIS IS CRITICAL):
 A window schedule almost always has a QUANTITY column, labeled QTY, QT, QNTY, COUNT, NO., or # . ONE row in the schedule usually represents MULTIPLE identical units — e.g. a "Type W1" row with QTY 4 means there are four of that window in the building. You MUST read that column for every row. Do NOT assume the quantity is 1.
 For EACH row/opening in the schedule:
-1. Find the ROUGH OPENING width and height (labeled R.O., Rough Opening, R/O, SIZING R/O, or Masonry Opening / M.O.). Convert to inches: 3'-0" becomes 36, 36 1/2" becomes 36.5. If NO rough opening is shown (only the unit/nominal/frame size or glass size), COMPUTE it: add 3.5 inches to BOTH the width and the height of the unit size — a 1.5" buck board on each side plus a 1/4" shim gap on each side — and report that as the rough opening (e.g. a 36 x 60 unit with no R.O. listed becomes 39.5 x 63.5).
+1. Report the width and height EXACTLY as the schedule prints them — do NOT add or subtract any buck or shim allowance; the calculator sizes the buck itself. Convert to inches only: 3'-0" becomes 36, 36 1/2" becomes 36.5. Then TAG which dimension you reported with one word in the "dim" field:
+   - "ro" if it is labeled Rough Opening, R.O., R/O, or SIZING R/O.
+   - "mo" if it is labeled Masonry Opening or M.O.
+   - "nominal" for anything else — the window/unit/frame/glass/callout size. This is the default whenever no R.O. or M.O. label is shown. (Do NOT compute or inflate it — just report the size shown and tag it "nominal".)
 2. Read the QUANTITY (QTY) for that row straight off the schedule — the real count. Only use 1 if there is genuinely no quantity shown anywhere for that row.
 3. Find the room or location name (or the window mark/label if no room is given).
 4. Determine the TYPE. There are THREE types:
@@ -96,7 +99,7 @@ For EACH row/opening in the schedule:
    - Everything else (including hinged/swing/French doors) is "window".
    Both sliding glass doors and bifold doors are much more involved than a window and MUST be tagged separately.
 5. PANELS — for sliding glass doors AND bifold doors: count the PANELS (the number of glass leaves/panels). For sliders, codes map directly: XO or OX = 2, XOX or OXO = 3, XOXO = 4, etc. For bifolds, use the stated leaf count (e.g. a "4-panel bifold"). If a code or panel count is shown, use it; otherwise estimate from the width. Leave panels blank for windows.
-6. SIZE for sliding glass doors and bifold doors: report the OVERALL rough-opening width and height. If the schedule only gives a single PANEL size, multiply: overall width = panel width × number of panels; overall height = the panel height.
+6. SIZE for sliding glass doors and bifold doors: report the OVERALL width and height exactly as shown (and tag the "dim" field the same way as for windows). If the schedule only gives a single PANEL size, multiply: overall width = panel width × number of panels; overall height = the panel height.
 
 PART C — Florida product approvals:
 Schedules frequently list a Florida Product Approval number (FL#, formatted like FL12345, FL12345.1, or FL12345-R3) and/or a Miami-Dade NOA number (formatted like 21-0119.05) for each window or door — usually in a column headed "FL #", "FL APPROVAL", "PRODUCT APPROVAL", "APPROVAL", "FBC", or "NOA", or in the schedule notes/legend. Extract EVERY product-approval number you can find, along with what it applies to (the window mark / type / series). If no approval numbers appear anywhere, skip Part C entirely.
@@ -105,19 +108,19 @@ If multiple schedule pages are shown, include EVERYTHING across ALL of them. Rep
 
 MANUFACTURER: <name or Unknown>
 PROJECT: <project name, homeowner, or address — or Unknown>
-OPENING | room or location | width_inches | height_inches | qty | type | panels
+OPENING | room or location | width_inches | height_inches | qty | type | dim | panels
 APPROVAL | <FL# or NOA number> | <window mark / type / series it applies to>
 
-The 7th field (panels) is for sliding glass doors and bifold doors only — leave it off for windows.
+The "dim" field is REQUIRED on every OPENING line — it is "ro", "mo", or "nominal" (use "nominal" whenever no R.O./M.O. label is shown). The 8th field (panels) is for sliding glass doors and bifold doors only — leave it off for windows.
 
 Example reply:
 MANUFACTURER: Viwinco
 PROJECT: Smith Residence
-OPENING | Master Bedroom | 36 | 48 | 2 | window
-OPENING | Kitchen | 48 | 60 | 1 | window
-OPENING | Living Room Patio | 144 | 80 | 1 | sliding glass door | 3
-OPENING | Family Room | 192 | 96 | 1 | sliding glass door | 4
-OPENING | Great Room Rear | 192 | 96 | 1 | bifold door | 6
+OPENING | Master Bedroom | 36 | 48 | 2 | window | nominal
+OPENING | Kitchen | 48.5 | 60.5 | 1 | window | ro
+OPENING | Living Room Patio | 144 | 80 | 1 | sliding glass door | nominal | 3
+OPENING | Family Room | 192 | 96 | 1 | sliding glass door | nominal | 4
+OPENING | Great Room Rear | 192 | 96 | 1 | bifold door | nominal | 6
 APPROVAL | FL16258.3 | 7000 Series Single Hung (W1-W4)
 APPROVAL | FL22193.1 | 8000 Series Sliding Glass Door (SGD1)
 

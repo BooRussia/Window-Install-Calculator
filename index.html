@@ -4835,6 +4835,9 @@
         <div id="buckPlanUploadStatus" class="hidden mt-3 flex items-center gap-2 text-[12px] font-semibold"></div>
       </div>
 
+      <!-- Openings editor — confirm/override each opening's size type (nominal / R.O. / M.O.) -->
+      <div id="buckOpeningsEditor" class="hidden rounded-2xl border border-slate-800 bg-slate-900/40 p-4"></div>
+
       <!-- Result panel — appears once a cut list exists -->
       <div id="buckResultPanel" class="hidden rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
         <div class="text-[10px] uppercase tracking-[0.16em] text-[#c9a558] font-bold mb-2">Cut List Ready</div>
@@ -14461,52 +14464,126 @@ const BUCK_RULES = {
                               // yard order stays one clean length
 };
 
-// Grok's only job: read the schedule, list rough openings. No optimization.
-const BUCK_PROMPT = `Window Schedule — Rough Opening Extraction
+// ─────────────────────────────────────────────────────────────────────────────
+//  OPENING DIMENSION TYPE → MASONRY OPENING
+//
+//  A window schedule can give a dimension three different ways, and they are NOT
+//  interchangeable for bucking:
+//    • "nominal" — the window/unit/frame/glass size (the window itself).
+//    • "ro"      — Rough Opening: the window + a 1/4" shim each side (W+0.5,
+//                  H+0.5). This is the FINISHED framed opening; on a stick-framed
+//                  job the window drops straight in and there is NO buck.
+//    • "mo"      — Masonry Opening: the block hole the buck boards frame.
+//
+//  The buck boards always consume 3" per dimension (two 1.5" jambs across the
+//  width; a 1.5" head + 1.5" sill across the height), and the finished hole must
+//  end up = window + 0.5" shim. So the masonry opening the cut list needs is:
+//    nominal → +3.5"   (1.5" buck + 0.25" shim on each side)
+//    ro      → +3.0"   (the 0.5" shim is already baked in; just add the buck)
+//    mo      → as-is
+//  All three converge: nominal+3.5 = (nominal+0.5)+3 = mo.  Finished hole then
+//  comes out window + 0.5" shim every time.
+const BUCK_DIM_TYPES = ["nominal", "ro", "mo"];
+const BUCK_DIM_LABELS = { nominal: "Nominal", ro: "R.O.", mo: "M.O." };
 
-I'm doing a window buck takeoff. Read the attached window/door schedule and extract every opening.
+// Normalize any free-text dimension tag (from the AI or a pasted line) to one of
+// our three canonical types. Returns null if the token isn't a recognizable tag.
+function normalizeBuckDimToken(tok) {
+  if (!tok) return null;
+  const t = String(tok).toLowerCase().replace(/[^a-z]/g, "");
+  if (t === "ro" || t === "rough" || t === "roughopening") return "ro";
+  if (t === "mo" || t === "masonry" || t === "masonryopening") return "mo";
+  if (t === "nominal" || t === "nom" || t === "unit" || t === "unitsize" ||
+      t === "frame" || t === "framesize" || t === "glass" || t === "glasssize") return "nominal";
+  return null;
+}
+
+// The job-wide assumption for openings the schedule doesn't explicitly label.
+function buckDimDefault() {
+  const d = DATA.config && DATA.config.buckDimDefault;
+  return BUCK_DIM_TYPES.includes(d) ? d : "nominal";
+}
+
+// Convert an as-found schedule dimension to the masonry opening the buck frames.
+function masonryFromRaw(val, dimType) {
+  const v = Number(val) || 0;
+  if (v <= 0) return v;
+  if (dimType === "mo") return v;          // already the masonry opening
+  if (dimType === "ro") return v + 3;      // rough opening (+0.5 shim baked in)
+  return v + 3.5;                          // nominal/unit/glass size
+}
+
+// Grok's only job: read the schedule, list openings with the dimension EXACTLY
+// as shown plus a tag for WHAT that dimension is. The calculator does the buck
+// math (it converts to the masonry opening), so the AI must NOT add anything.
+const BUCK_PROMPT = `Window Schedule — Opening Extraction
+
+I'm doing a window buck takeoff. Read the attached window/door schedule and extract every opening. Do the dimensions EXACTLY as printed — do NOT add or subtract anything; I'll size the buck myself.
 
 For EACH opening:
-1. Find the ROUGH OPENING width and height — look for it labeled R.O., Rough Opening, R/O, SIZING R/O, or Masonry Opening / M.O. Use it when it is shown. Convert to inches: feet-and-inches like 3'-0" becomes 36, fractions like 36 1/2" become 36.5.
-2. If NO rough opening is listed (only the window/unit/nominal size or glass size), compute the rough opening by ADDING 3.5 inches to BOTH the width AND the height of the unit size — that's a 1.5" buck board on each side plus a 1/4" shim gap on each side. Report that computed rough opening. (Example: a 36 x 60 window with no R.O. listed becomes 39.5 x 63.5.)
+1. Report the width and height EXACTLY as the schedule shows them. Convert to inches only: feet-and-inches like 3'-0" becomes 36, fractions like 36 1/2" become 36.5. Never add a buck/shim allowance.
+2. Tag WHICH dimension you reported with one word:
+   - "ro"  if it is labeled Rough Opening, R.O., R/O, or SIZING R/O.
+   - "mo"  if it is labeled Masonry Opening or M.O.
+   - "nominal" for anything else — the window/unit/frame/glass/callout size (this is the default when no R.O. or M.O. label is shown).
 3. Find the quantity (QTY) — how many of that opening. If no quantity is shown, use 1.
 4. Find the room or location name.
 5. Determine the TYPE. If the opening is a sliding glass door, slider, SGD, or patio door, mark it "sliding glass door". If it is a bifold, bi-fold, folding glass wall, accordion door, or multi-leaf folding door, mark it "bifold door". Everything else is a "window".
 
 Reply with ONLY a list — one opening per line — in EXACTLY this format. No headers, no totals, no commentary:
 
-OPENING | room or location | width_inches | height_inches | qty | type
+OPENING | room or location | width_inches | height_inches | qty | type | dim
 
 Example reply:
-OPENING | Master Bedroom | 36 | 48 | 2 | window
-OPENING | Kitchen | 48 | 60 | 1 | window
-OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door
-OPENING | Great Room Rear | 144 | 96 | 1 | bifold door
+OPENING | Master Bedroom | 36 | 48 | 2 | window | nominal
+OPENING | Kitchen | 48.5 | 60.5 | 1 | window | ro
+OPENING | Garage | 40 | 64 | 1 | window | mo
+OPENING | Living Room Patio | 72 | 80 | 1 | sliding glass door | nominal
+OPENING | Great Room Rear | 144 | 96 | 1 | bifold door | nominal
 
 Reply with only the OPENING lines.`;
 
-// Parse Grok's "OPENING | room | w | h | qty | type | panels" lines.
-// The type field is optional (older 5-field lines still parse). The 7th field
-// (panel count) is optional and only meaningful for sliders. A slider is
-// detected from the type text or, as a fallback, the room name.
+// Parse Grok's "OPENING | room | w | h | qty | type | dim | panels" lines.
+// Fields after qty are split-and-classified, so order is tolerant: the type text,
+// the dimension tag (nominal/ro/mo), and the panel count (a bare number) can come
+// in any order and any are optional. Width/height are stored RAW (as the schedule
+// shows them) plus the dim tag, and the MASONRY opening the buck needs is derived
+// into width/height via masonryFromRaw(). A line with NO dim tag is legacy output
+// from the old prompt (the number was already a rough/masonry opening), so it's
+// treated as "mo" (used as-is) — never re-converted.
 function parseOpenings(text) {
   const openings = [];
-  const re = /OPENING\s*\|\s*([^|]+?)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*(\d+)\s*(?:\|\s*([^|\r\n]*?))?\s*(?:\|\s*(\d+)\s*)?(?=\r|\n|$)/gi;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    const room = (m[1].trim() || "Opening");
-    const width = parseFloat(m[2]);
-    const height = parseFloat(m[3]);
-    const qty = parseInt(m[4], 10) || 1;
-    const typeText = (m[5] || "").trim();
+  const lines = String(text || "").split(/\r?\n/);
+  for (const line of lines) {
+    if (!/^\s*OPENING\s*\|/i.test(line)) continue;
+    const parts = line.split("|").map(s => s.trim());
+    const room = parts[1] || "Opening";
+    const rawWidth = parseFloat(parts[2]);
+    const rawHeight = parseFloat(parts[3]);
+    const qty = parseInt(parts[4], 10) || 1;
+    const typeText = parts[5] || "";
+    // Classify trailing fields (index 6+): a dim tag or a bare panel count.
+    let dimTag = null, panels = null;
+    for (let i = 6; i < parts.length; i++) {
+      const tok = parts[i];
+      if (!tok) continue;
+      const dn = normalizeBuckDimToken(tok);
+      if (dn && dimTag == null) { dimTag = dn; continue; }
+      if (panels == null && /^\d+$/.test(tok)) { panels = Math.max(2, Math.min(10, parseInt(tok, 10))); }
+    }
     const hay = typeText + " " + room;
     // Bifold detection takes precedence — a "bifold glass door" must not be
     // mis-bucketed as a slider just because it contains "glass door".
     const isBifold = /bi[\s-]*fold|folding|accordion|fgw|folding\s*glass\s*wall/i.test(hay);
     const isSlider = !isBifold && /slid|sgd|patio\s*door|glass\s*door/i.test(hay);
-    const panels = m[6] ? Math.max(2, Math.min(10, parseInt(m[6], 10))) : null;
-    if (width > 0 && height > 0) {
-      openings.push({ room, width, height, qty, isSlider, isBifold, panels });
+    if (rawWidth > 0 && rawHeight > 0) {
+      const dimType = dimTag || "mo";   // no tag → legacy line, already an opening
+      openings.push({
+        room, qty, isSlider, isBifold, panels,
+        rawWidth, rawHeight, dimType,
+        width: masonryFromRaw(rawWidth, dimType),
+        height: masonryFromRaw(rawHeight, dimType),
+      });
     }
   }
   return openings;
@@ -15019,6 +15096,99 @@ function renderBuckResult() {
       noteEl.classList.add("hidden");
     }
   }
+  renderBuckOpeningsEditor();
+}
+
+// Back-fill the raw dimension + dim type on a legacy opening (one saved/parsed
+// before the R.O./M.O. feature): its width/height were already the masonry
+// opening, so tag it "mo" and use the values as-is (idempotent).
+function ensureRawDims(o) {
+  if (o && o.rawWidth != null && o.rawHeight != null && o.dimType) return o;
+  const dimType = (o && o.dimType) || "mo";
+  const rawWidth = (o && o.rawWidth != null) ? o.rawWidth : (o ? o.width : 0);
+  const rawHeight = (o && o.rawHeight != null) ? o.rawHeight : (o ? o.height : 0);
+  return { ...o, rawWidth, rawHeight, dimType,
+           width: masonryFromRaw(rawWidth, dimType), height: masonryFromRaw(rawHeight, dimType) };
+}
+
+function _fmtIn(n) { return String(Math.round((Number(n) || 0) * 100) / 100); }
+
+// Per-opening size-type editor inside the buck modal. Lets the user confirm or
+// override whether each schedule dimension was a nominal/unit size, a rough
+// opening, or a masonry opening — the calculator converts each to the masonry
+// opening the buck frames. Recomputes the cut list live on any change.
+function renderBuckOpeningsEditor() {
+  const wrap = document.getElementById("buckOpeningsEditor");
+  if (!wrap) return;
+  const bl = STATE.buckList;
+  const ops = (bl && Array.isArray(bl.openings)) ? bl.openings : [];
+  if (!ops.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
+  wrap.classList.remove("hidden");
+  const def = buckDimDefault();
+  const optsHtml = (sel) => BUCK_DIM_TYPES
+    .map(t => `<option value="${t}"${t === sel ? " selected" : ""}>${BUCK_DIM_LABELS[t]}</option>`).join("");
+  const rows = ops.map((oRaw, i) => {
+    const o = ensureRawDims(oRaw);
+    const mw = masonryFromRaw(o.rawWidth, o.dimType);
+    const mh = masonryFromRaw(o.rawHeight, o.dimType);
+    return `<div class="flex items-center gap-2 text-[12px]">
+      <span class="flex-1 min-w-0 truncate text-slate-300" title="${escHtml(o.room || "Opening")}">${escHtml(o.room || "Opening")} <span class="text-slate-600">·</span> <span class="tabular-nums">${_fmtIn(o.rawWidth)}×${_fmtIn(o.rawHeight)}</span>${o.qty > 1 ? ` <span class="text-slate-600">×${o.qty}</span>` : ""}</span>
+      <select data-buckdim="${i}" class="control rounded-lg px-2 py-1 text-[12px] text-slate-100">${optsHtml(o.dimType)}</select>
+      <span class="text-slate-500 tabular-nums whitespace-nowrap" title="masonry opening the buck frames">→ ${_fmtIn(mw)}×${_fmtIn(mh)}</span>
+    </div>`;
+  }).join("");
+  wrap.innerHTML = `
+    <div class="flex items-center justify-between mb-2.5 gap-2">
+      <div class="text-[10px] uppercase tracking-[0.16em] text-[#c9a558] font-bold">Openings — confirm the size type</div>
+      <label class="text-[11px] text-slate-400 flex items-center gap-1.5 whitespace-nowrap">Unlabeled =
+        <select id="buckDimDefault" class="control rounded-lg px-2 py-1 text-[12px] text-slate-100">${optsHtml(def)}</select>
+      </label>
+    </div>
+    <div class="space-y-1.5">${rows}</div>
+    <div class="text-[11px] text-slate-500 mt-2.5 leading-relaxed">Each size becomes the <span class="text-slate-300 font-semibold">masonry opening</span> the buck frames — Nominal <b>+3.5″</b> · R.O. <b>+3″</b> · M.O. <b>as-is</b>. The finished hole always ends up the window + ½″ shim.</div>`;
+  wrap.querySelectorAll("[data-buckdim]").forEach(sel =>
+    sel.addEventListener("change", () => setBuckOpeningDim(parseInt(sel.dataset.buckdim, 10), sel.value)));
+  const dd = document.getElementById("buckDimDefault");
+  if (dd) dd.addEventListener("change", () => setBuckDimDefault(dd.value));
+}
+
+// Override one opening's size type → reconvert its masonry opening → rebuild list.
+function setBuckOpeningDim(idx, val) {
+  if (!BUCK_DIM_TYPES.includes(val)) return;
+  const bl = STATE.buckList;
+  if (!bl || !Array.isArray(bl.openings)) return;
+  const ops = bl.openings.map((o, i) => {
+    const o2 = ensureRawDims(o);
+    if (i !== idx) return o2;
+    return { ...o2, dimType: val,
+             width: masonryFromRaw(o2.rawWidth, val), height: masonryFromRaw(o2.rawHeight, val) };
+  });
+  STATE.buckList = optimizeCutList(ops);
+  renderBuckResult();
+  render();
+}
+
+// Job-wide default for unlabeled openings. Persisted, and re-tags every opening
+// that was sitting on the previous default (the "unlabeled" ones) so a single
+// change flips them all at once. Explicitly-labeled rows are left alone.
+function setBuckDimDefault(val) {
+  if (!BUCK_DIM_TYPES.includes(val)) return;
+  const prev = buckDimDefault();
+  if (!DATA.config) DATA.config = {};
+  DATA.config.buckDimDefault = val;
+  saveData(DATA);
+  const bl = STATE.buckList;
+  if (bl && Array.isArray(bl.openings) && val !== prev) {
+    const ops = bl.openings.map(o => {
+      const o2 = ensureRawDims(o);
+      if (o2.dimType !== prev) return o2;
+      return { ...o2, dimType: val,
+               width: masonryFromRaw(o2.rawWidth, val), height: masonryFromRaw(o2.rawHeight, val) };
+    });
+    STATE.buckList = optimizeCutList(ops);
+  }
+  renderBuckResult();
+  render();
 }
 
 async function openGrokBuckPrompt() {
