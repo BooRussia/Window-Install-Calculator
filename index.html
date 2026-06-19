@@ -438,6 +438,14 @@
   /* AI auto-fill markers — gold "AI" pill on the label + gold ring on the input
      so the user sees at a glance which fields the plan filled (and which are
      still theirs to set). Cleared as soon as they edit the field. */
+  /* AI plan-read meter (shown in the upload modals) */
+  .ai-reads-meter:empty { display: none; }
+  .aim { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; }
+  .aim-ok { color: #c9a558; }
+  .aim-low { color: #fbbf24; }
+  .aim-limit { color: #fca5a5; }
+  .aim-unlimited { color: #c9a558; }
+  .aim-cta { text-decoration: underline; cursor: pointer; }
   .ai-badge {
     position: relative;
     display: inline-flex; align-items: center;
@@ -1714,6 +1722,31 @@
     border: 1px solid rgba(34,197,94,0.5);
   }
   .lp-plan-cta.current:hover { border-color: #22c55e; color: #bbf7d0; }
+  /* Canceled / past-due (formerly active) tier */
+  .lp-plan-card.is-canceled, .lp-plan-card.is-pastdue { border-color: rgba(245,158,11,0.55); box-shadow: 0 0 0 1px rgba(245,158,11,0.20) inset; }
+  .lp-plan-ribbon.canceled, .lp-plan-ribbon.pastdue {
+    background: linear-gradient(180deg,#f59e0b 0%,#d97706 100%);
+    color: #2a1604;
+    box-shadow: 0 10px 24px -8px rgba(245,158,11,0.55);
+  }
+  .lp-plan-cta.resub {
+    background: linear-gradient(180deg, var(--gold) 0%, var(--gold-hi) 100%);
+    color: #1a1206; border: 1px solid var(--gold-hi); font-weight: 800;
+  }
+  .lp-plan-cta.resub:hover { background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-hi) 100%); transform: translateY(-1px); }
+  .lp-plan-note { margin-top: 8px; font-size: 11.5px; color: #fbbf24; font-weight: 600; }
+  /* Pricing status banner above the grid */
+  .lp-status-banner {
+    border: 1px solid rgba(245,158,11,0.45); background: rgba(245,158,11,0.08);
+    border-radius: 16px; padding: 18px 20px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .lp-status-main { font-size: 15px; font-weight: 700; color: #fde68a; }
+  .lp-status-sub { font-size: 13px; color: #94a3b8; max-width: 460px; line-height: 1.5; }
+  .lp-status-btn { margin-top: 8px; }
+  [data-theme="light"] .lp-status-banner { background: rgba(245,158,11,0.12); border-color: rgba(217,119,6,0.5); }
+  [data-theme="light"] .lp-status-main { color: #92400e; }
+  [data-theme="light"] .lp-plan-note { color: #b45309; }
   .lp-plan-name {
     font-size: 13px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
     color: var(--gold-hi);
@@ -3635,6 +3668,9 @@
         <p id="lpBillSubcopy" class="text-[12px] text-slate-500">Billed monthly. Switch to annual to save ~16%.</p>
       </div>
 
+      <!-- Subscription status banner (canceled / past-due) — populated by renderPlans() -->
+      <div id="lpPlanStatusBanner" class="hidden lp-reveal mt-10"></div>
+
       <!-- Plan cards -->
       <div id="lpPlanGrid" class="lp-reveal mt-12 grid sm:grid-cols-3 gap-6 sm:gap-7 items-stretch"></div>
 
@@ -4803,6 +4839,7 @@
           Choose plan file
         </label>
         <div id="readPlanUploadStatus" class="hidden mt-3 flex items-center gap-2 text-[12px] font-semibold"></div>
+        <div class="ai-reads-meter mt-2.5"></div>
       </div>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
@@ -4833,6 +4870,7 @@
           Choose plan file
         </label>
         <div id="buckPlanUploadStatus" class="hidden mt-3 flex items-center gap-2 text-[12px] font-semibold"></div>
+        <div class="ai-reads-meter mt-2.5"></div>
       </div>
 
       <!-- Openings editor — confirm/override each opening's size type (nominal / R.O. / M.O.) -->
@@ -14003,6 +14041,7 @@ function matchManufacturer(raw) {
 function openReadPlanModal() {
   window.track("scan_plan_used");
   setPlanUploadStatus("readPlanUploadStatus", "");
+  if (typeof renderAiReadsMeter === "function") renderAiReadsMeter();
   const modal = document.getElementById("readPlanModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -14250,6 +14289,11 @@ async function handlePlanUpload(files, source) {
   if (!files.length) return;
   if (_planUploadBusy) return;                       // guard against any double-fire
   if (!sb || !currentUser) { toast("Sign in to use AI plan reading"); try { openAuth("login"); } catch (_) {} return; }
+  // Pre-flight: don't fire a doomed request when the user is out of AI reads.
+  if (typeof getAiReadsRemaining === "function" && getAiReadsRemaining() <= 0) {
+    try { showUpsellModal("ai_reads_exhausted"); } catch (_) { toast("You're out of AI plan reads this month — upgrade for more."); }
+    return;
+  }
   let totalSize = 0; for (const f of files) totalSize += (f.size || 0);
   if (totalSize > 30 * 1024 * 1024) { toast("Those files are too large — upload just the schedule sheets."); return; }
   _planUploadBusy = true;
@@ -14279,10 +14323,26 @@ async function handlePlanUpload(files, source) {
     setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
     if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — up to a minute…");
     const res = await invokePlanExtraction({ images: allImages, mimeType: "image/jpeg" });
-    if (!res.ok) { setErr(res.msg, res.debug); return; }
+    if (!res.ok) {
+      // Server cap hit — sync the meter to empty + nudge to upgrade.
+      if (res.status === 429) {
+        const cap = getAiReadCap();
+        if (cap !== Infinity) { getEntitlements().aiExtractionsUsedThisCycle = cap; saveData(DATA); renderAiReadsMeter(); }
+        try { showUpsellModal("ai_reads_exhausted"); } catch (_) {}
+      }
+      setErr(res.msg, res.debug); return;
+    }
     const text = (res.data && res.data.text) || "";
     const ok = applyFullExtraction(text, source);   // fills the calc + toasts a summary
     if (!ok) { setErr("Couldn't read any openings — try clearer pages, or just the schedule sheets."); return; }
+    // Success → the server debited one AI read. Mirror it locally so the meter
+    // updates immediately, and tell the user how many are left (admins are ∞).
+    if (!(typeof isAdmin === "function" && isAdmin())) {
+      bumpAiReadUsed();
+      renderAiReadsMeter();
+      const rem = getAiReadsRemaining();
+      if (rem !== Infinity) toast(`AI read used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
+    }
     if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " pages — upload just the schedule sheets if any were missed.");
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
     try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length }); } catch (_) {}
@@ -15065,6 +15125,7 @@ function buckYardOrderString(bl) {
 function openBuckModal() {
   window.track("buck_list_used");
   setPlanUploadStatus("buckPlanUploadStatus", "");
+  if (typeof renderAiReadsMeter === "function") renderAiReadsMeter();
   renderBuckResult();
   const modal = document.getElementById("buckModal");
   modal.classList.remove("hidden");
@@ -16268,6 +16329,44 @@ function getQuotesRemaining() {
   return Math.max(0, lim - (e.quotesUsedThisCycle || 0));
 }
 
+// ── AI plan-read usage ───────────────────────────────────────────────────────
+// Mirror of the SERVER cap table in supabase/functions/extract-plan-openings
+// /index.ts (AI_CAPS). KEEP IN LOCKSTEP — the server is the real enforcement
+// boundary (consume_ai_credit); this client copy is display/UX only. The used
+// count (aiExtractionsUsedThisCycle) is written by the edge fn into the
+// entitlements JSON and synced down via syncFromCloud(); we also bump it
+// locally right after a successful read so the meter updates instantly.
+const AI_READ_CAPS = { trial: 5, starter: 2, pro: 100, unlimited: Infinity };
+function getAiReadCap() {
+  if (typeof isAdmin === "function" && isAdmin()) return Infinity;
+  const p = getEntitlements().plan;
+  return (AI_READ_CAPS[p] != null) ? AI_READ_CAPS[p] : AI_READ_CAPS.trial;
+}
+function getAiReadsUsed() { return getEntitlements().aiExtractionsUsedThisCycle || 0; }
+function getAiReadsRemaining() {
+  const cap = getAiReadCap();
+  return cap === Infinity ? Infinity : Math.max(0, cap - getAiReadsUsed());
+}
+function bumpAiReadUsed() {
+  const e = getEntitlements();
+  e.aiExtractionsUsedThisCycle = (e.aiExtractionsUsedThisCycle || 0) + 1;
+  saveData(DATA);
+}
+// "✨ N of CAP AI plan reads left this month" — for the upload modals' meter.
+function aiReadsMeterHtml() {
+  if (!currentUser) return "";
+  const cap = getAiReadCap();
+  if (cap === Infinity) return `<span class="aim aim-unlimited">✨ Unlimited AI plan reads</span>`;
+  const remaining = getAiReadsRemaining();
+  const where = getEntitlements().plan === "trial" ? "in your trial" : "this month";
+  const tier = remaining <= 0 ? "limit" : (remaining <= 1 ? "low" : "ok");
+  const tail = remaining <= 0 ? ` &middot; <span class="aim-cta">Upgrade for more</span>` : "";
+  return `<span class="aim aim-${tier}">✨ ${remaining} of ${cap} AI plan read${cap === 1 ? "" : "s"} left ${where}${tail}</span>`;
+}
+function renderAiReadsMeter() {
+  document.querySelectorAll(".ai-reads-meter").forEach(el => { el.innerHTML = aiReadsMeterHtml(); });
+}
+
 function getCycleDaysRemaining() {
   const e = getEntitlements();
   const ms = (e.cycleResetAt || 0) - Date.now();
@@ -16484,6 +16583,11 @@ const UPSELL_COPY = {
     headline: "You've hit your monthly quote limit",
     // body filled in dynamically with {plan}, {limit}, {date}
     body: "You're on the {plan} plan ({limit} quotes/month). Upgrade for more — or wait until {date} for your next cycle."
+  },
+  ai_reads_exhausted: {
+    eyebrow: "Out of AI reads",
+    headline: "You've used all your AI plan reads this cycle",
+    body: "AI plan reads reset next billing cycle — or upgrade for more (Pro includes plenty, Shop is unlimited). You can still enter openings by hand anytime."
   },
   subscription_inactive: {
     eyebrow: "Action needed",
@@ -17003,19 +17107,31 @@ function wirePricing(ls) {
   const isMutedFeature = (s) => /^Everything in /i.test(s);
 
   function renderPlans() {
-    // Signed-in users see their active tier flagged so they remember what
-    // they're on before upgrading/downgrading. Trial users have no paid card
-    // to flag, so nothing is marked (correct).
-    let curPlan = null;
+    // Signed-in users see their tier flagged. The flag is status-aware: an
+    // ACTIVE sub shows "Current plan" + Manage; a CANCELED sub shows "Canceled"
+    // + Resubscribe (a fresh checkout); a PAST-DUE sub shows "Past due" + Update
+    // payment (Stripe portal). Trial users have no paid card to flag.
+    let curPlan = null, curStatus = null;
     if (currentUser && typeof getEntitlements === "function") {
-      try { curPlan = getEntitlements().plan; } catch (_) {}
+      try { const e = getEntitlements(); curPlan = e.plan; curStatus = e.subscriptionStatus; } catch (_) {}
     }
+    const statusActive  = (s) => !s || s === "active" || s === "trialing";
+    const statusCanceled = (s) => s === "canceled";
+    const statusPastDue  = (s) => s === "past_due" || s === "unpaid";
+
     grid.innerHTML = PLANS.map(p => {
       const featured = !!p.highlighted;
-      const isCurrent = !!curPlan && curPlan === p.id;
-      const ribbon = isCurrent
-        ? `<span class="lp-plan-ribbon current">&#10003; Current plan</span>`
-        : (p.badge ? `<span class="lp-plan-ribbon">${p.badge}</span>` : "");
+      const isMine = !!curPlan && curPlan === p.id && curPlan !== "trial";
+      const mineActive   = isMine && statusActive(curStatus);
+      const mineCanceled = isMine && statusCanceled(curStatus);
+      const minePastDue  = isMine && statusPastDue(curStatus);
+
+      let ribbon;
+      if (mineActive) ribbon = `<span class="lp-plan-ribbon current">&#10003; Current plan</span>`;
+      else if (mineCanceled) ribbon = `<span class="lp-plan-ribbon canceled">Canceled</span>`;
+      else if (minePastDue) ribbon = `<span class="lp-plan-ribbon pastdue">Past due</span>`;
+      else ribbon = (p.badge ? `<span class="lp-plan-ribbon">${p.badge}</span>` : "");
+
       const priceNum = billingPeriod === "monthly" ? p.monthlyPrice : p.annualPrice;
       const per = billingPeriod === "monthly" ? "/mo" : "/yr";
       const sub = billingPeriod === "monthly"
@@ -17025,13 +17141,16 @@ function wirePricing(ls) {
         const muted = isMutedFeature(f) ? " class=\"muted\"" : "";
         return `<li${muted}>${checkSvg}<span>${f}</span></li>`;
       }).join("");
-      const btnClass = isCurrent ? "lp-plan-cta current"
-        : (featured ? "lp-plan-cta gold" : "lp-plan-cta ghost");
-      const btnAttr = isCurrent ? `data-pricing-manage="1"` : `data-pricing-cta="${p.id}"`;
-      const btnLabel = isCurrent ? "Manage subscription" : p.cta;
-      const cardClass = "lp-plan-card"
-        + (featured ? " lp-plan-featured" : "")
-        + (isCurrent ? " is-current" : "");
+
+      let btnClass, btnAttr, btnLabel, cardState = "";
+      if (mineActive) { btnClass = "lp-plan-cta current"; btnAttr = `data-pricing-manage="1"`; btnLabel = "Manage subscription"; cardState = " is-current"; }
+      else if (mineCanceled) { btnClass = "lp-plan-cta resub"; btnAttr = `data-pricing-resub="${p.id}"`; btnLabel = "Resubscribe"; cardState = " is-canceled"; }
+      else if (minePastDue) { btnClass = "lp-plan-cta resub"; btnAttr = `data-pricing-manage="1"`; btnLabel = "Update payment"; cardState = " is-pastdue"; }
+      else { btnClass = featured ? "lp-plan-cta gold" : "lp-plan-cta ghost"; btnAttr = `data-pricing-cta="${p.id}"`; btnLabel = p.cta; }
+
+      const note = mineCanceled ? `<div class="lp-plan-note">Your plan was canceled.</div>`
+        : (minePastDue ? `<div class="lp-plan-note">Payment didn't go through.</div>` : "");
+      const cardClass = "lp-plan-card" + (featured ? " lp-plan-featured" : "") + cardState;
       return `
         <div class="${cardClass}" data-plan="${p.id}">
           ${ribbon}
@@ -17040,27 +17159,59 @@ function wirePricing(ls) {
           <div class="lp-plan-price"><span class="num">${fmt(priceNum)}</span><span class="per">${per}</span></div>
           <div class="lp-plan-billing-sub">${sub}</div>
           <button class="${btnClass}" ${btnAttr}>${btnLabel}</button>
+          ${note}
           <ul class="lp-plan-features">${features}</ul>
         </div>`;
     }).join("");
 
-    // (Re)wire CTA clicks — innerHTML wipes any prior listeners
-    grid.querySelectorAll("[data-pricing-cta]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const plan = btn.dataset.pricingCta;
-        if (typeof window.track === "function") {
-          window.track("pricing_cta_click", { plan, billing: billingPeriod });
-        }
-        // Phase 3: tier CTAs go to Stripe Checkout. startStripeCheckout()
-        // handles the auth gate (kicks logged-out users to signup first).
-        startStripeCheckout(plan, billingPeriod);
+    // Status banner above the grid (canceled / past-due only)
+    const banner = document.getElementById("lpPlanStatusBanner");
+    if (banner) {
+      const planName = (PLANS.find(pp => pp.id === curPlan) || {}).name || "plan";
+      if (curPlan && curPlan !== "trial" && statusCanceled(curStatus)) {
+        banner.className = "lp-reveal mt-10 lp-status-banner canceled";
+        banner.innerHTML = `
+          <div class="lp-status-main">Your <b>${planName}</b> plan was canceled.</div>
+          <div class="lp-status-sub">Resubscribe to pick up right where you left off. Refunds, if any, are handled through Stripe.</div>
+          <button class="lp-btn-gold lp-status-btn" data-pricing-resub="${curPlan}">Resubscribe to ${planName}</button>`;
+      } else if (curPlan && curPlan !== "trial" && statusPastDue(curStatus)) {
+        banner.className = "lp-reveal mt-10 lp-status-banner pastdue";
+        banner.innerHTML = `
+          <div class="lp-status-main">Your <b>${planName}</b> payment didn't go through.</div>
+          <div class="lp-status-sub">Update your card to keep your plan active.</div>
+          <button class="lp-btn-gold lp-status-btn" data-pricing-manage="1">Update payment</button>`;
+      } else {
+        banner.className = "hidden";
+        banner.innerHTML = "";
+      }
+    }
+
+    // (Re)wire clicks — innerHTML wipes any prior listeners. Wire BOTH the grid
+    // (cards) and the banner (its Resubscribe / Update-payment button).
+    [grid, banner].filter(Boolean).forEach(root => {
+      root.querySelectorAll("[data-pricing-cta]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const plan = btn.dataset.pricingCta;
+          if (typeof window.track === "function") window.track("pricing_cta_click", { plan, billing: billingPeriod });
+          // Tier CTAs go to Stripe Checkout. startStripeCheckout() handles the
+          // auth gate (kicks logged-out users to signup first).
+          startStripeCheckout(plan, billingPeriod);
+        });
       });
-    });
-    // "Manage subscription" on the current-plan card → Stripe customer portal
-    grid.querySelectorAll("[data-pricing-manage]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        if (typeof window.track === "function") window.track("pricing_manage_click", { plan: curPlan });
-        openStripePortal();
+      // Resubscribe (canceled tier) → fresh Stripe Checkout for that plan
+      root.querySelectorAll("[data-pricing-resub]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const plan = btn.dataset.pricingResub;
+          if (typeof window.track === "function") window.track("pricing_resubscribe_click", { plan, billing: billingPeriod });
+          startStripeCheckout(plan, billingPeriod);
+        });
+      });
+      // "Manage subscription" / "Update payment" → Stripe customer portal
+      root.querySelectorAll("[data-pricing-manage]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          if (typeof window.track === "function") window.track("pricing_manage_click", { plan: curPlan });
+          openStripePortal();
+        });
       });
     });
   }
