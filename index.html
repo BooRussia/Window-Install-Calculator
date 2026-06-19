@@ -14326,8 +14326,8 @@ async function handlePlanUpload(files, source) {
     if (!res.ok) {
       // Server cap hit — sync the meter to empty + nudge to upgrade.
       if (res.status === 429) {
-        const cap = getAiReadCap();
-        if (cap !== Infinity) { getEntitlements().aiExtractionsUsedThisCycle = cap; saveData(DATA); renderAiReadsMeter(); }
+        markAiReadsExhaustedLocally();
+        renderAiReadsMeter();
         try { showUpsellModal("ai_reads_exhausted"); } catch (_) {}
       }
       setErr(res.msg, res.debug); return;
@@ -14342,6 +14342,7 @@ async function handlePlanUpload(files, source) {
       renderAiReadsMeter();
       const rem = getAiReadsRemaining();
       if (rem !== Infinity) toast(`AI read used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
+      refreshAiReadsFromCloud();
     }
     if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " pages — upload just the schedule sheets if any were missed.");
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
@@ -15987,6 +15988,7 @@ async function syncFromCloud() {
 
     if (prof && prof.data && Object.keys(prof.data).length) {
       localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
+      if (typeof resetAiReadLocalUsageOverlay === "function") resetAiReadLocalUsageOverlay();
       const { data: jobRows, error: jErr } = await sb.from("jobs")
         .select("id,data").eq("user_id", user.id);
       if (jErr) throw jErr;
@@ -16337,20 +16339,50 @@ function getQuotesRemaining() {
 // entitlements JSON and synced down via syncFromCloud(); we also bump it
 // locally right after a successful read so the meter updates instantly.
 const AI_READ_CAPS = { trial: 5, starter: 2, pro: 100, unlimited: Infinity };
+let _aiReadsLocalDebitDelta = 0;
+let _aiReadsLocalUsedFloor = 0;
 function getAiReadCap() {
   if (typeof isAdmin === "function" && isAdmin()) return Infinity;
   const p = getEntitlements().plan;
   return (AI_READ_CAPS[p] != null) ? AI_READ_CAPS[p] : AI_READ_CAPS.trial;
 }
-function getAiReadsUsed() { return getEntitlements().aiExtractionsUsedThisCycle || 0; }
+function getAiReadsUsed() {
+  const serverUsed = Number(getEntitlements().aiExtractionsUsedThisCycle) || 0;
+  return Math.max(serverUsed + _aiReadsLocalDebitDelta, _aiReadsLocalUsedFloor);
+}
 function getAiReadsRemaining() {
   const cap = getAiReadCap();
   return cap === Infinity ? Infinity : Math.max(0, cap - getAiReadsUsed());
 }
 function bumpAiReadUsed() {
-  const e = getEntitlements();
-  e.aiExtractionsUsedThisCycle = (e.aiExtractionsUsedThisCycle || 0) + 1;
-  saveData(DATA);
+  _aiReadsLocalDebitDelta += 1;
+}
+function markAiReadsExhaustedLocally() {
+  const cap = getAiReadCap();
+  if (cap !== Infinity) _aiReadsLocalUsedFloor = Math.max(_aiReadsLocalUsedFloor, cap);
+}
+function resetAiReadLocalUsageOverlay() {
+  _aiReadsLocalDebitDelta = 0;
+  _aiReadsLocalUsedFloor = 0;
+}
+async function refreshAiReadsFromCloud() {
+  if (!sb || !currentUser) return;
+  try {
+    const { data: prof, error } = await trackCloud(sb.from("profiles")
+      .select("data").eq("id", currentUser.id).maybeSingle());
+    if (error) throw error;
+    const ent = prof && prof.data && prof.data.config && prof.data.config.entitlements;
+    if (ent) {
+      if (!DATA.config) DATA.config = {};
+      DATA.config.entitlements = clone(ent);
+      localStorage.setItem(LS_KEYS.data, JSON.stringify(DATA));
+      resetAiReadLocalUsageOverlay();
+    }
+    renderAiReadsMeter();
+  } catch (_) {
+    // The server is still the enforcement boundary; keep the local overlay until
+    // a later sync replaces it with the authoritative profile counter.
+  }
 }
 // "✨ N of CAP AI plan reads left this month" — for the upload modals' meter.
 function aiReadsMeterHtml() {

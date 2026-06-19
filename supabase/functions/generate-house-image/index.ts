@@ -83,6 +83,11 @@ function isAdminUser(user: { id?: string; email?: string } | null): boolean {
   return !!em && ADMIN_EMAILS.includes(em);
 }
 
+function hasLivePaidSubscription(ent: any): boolean {
+  const status = ent?.subscriptionStatus;
+  return !status || status === "active" || status === "trialing";
+}
+
 async function refundCredit(userId: string) {
   try {
     await admin.rpc("refund_ai_credit", { p_user: userId, p_key: THUMB_KEY });
@@ -124,11 +129,7 @@ Deno.serve(async (req) => {
     if (ent.plan === "trial" && Date.now() >= (ent.cycleResetAt ?? 0)) {
       return json({ ok: false, error: "Your free trial has ended — subscribe to keep going." }, 403);
     }
-    if (
-      ent.plan !== "trial" && ent.plan !== "unlimited" &&
-      ent.subscriptionStatus && ent.subscriptionStatus !== "active" &&
-      ent.subscriptionStatus !== "trialing"
-    ) {
+    if (ent.plan !== "trial" && !hasLivePaidSubscription(ent)) {
       return json({ ok: false, error: "Your subscription isn't active." }, 403);
     }
     const cap = THUMB_CAPS[ent.plan] ?? 0;
