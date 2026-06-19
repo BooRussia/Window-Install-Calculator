@@ -216,30 +216,41 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   });
 }
 
-async function userIdFromCustomer(customerId: string): Promise<string | null> {
-  if (!customerId) return null;
-  const { data, error } = await supabaseAdmin
-    .from("profiles").select("id").eq("stripe_customer_id", customerId).maybeSingle();
-  if (error) { console.error("[webhook] userIdFromCustomer lookup failed", error); return null; }
-  return data?.id ?? null;
+function chargeInvoiceId(charge: Stripe.Charge): string | undefined {
+  const invoice = charge.invoice;
+  if (!invoice) return undefined;
+  return typeof invoice === "string" ? invoice : invoice.id;
 }
 
 // A FULL refund ends service immediately (per policy: cancel = end of period,
-// cancel + refund = end now). Cancel the customer's active subscription(s) right
-// away and flip entitlements to canceled. Partial refunds are ignored — service
-// continues. Cancelling also fires customer.subscription.deleted, which re-runs
-// handleSubscriptionDeleted (idempotent with the patch here).
+// cancel + refund = end now). Scope the cancellation to the subscription on the
+// refunded charge's invoice; do not cancel every active subscription on the
+// customer. Partial refunds are ignored — service continues. Cancelling also
+// fires customer.subscription.deleted, which re-runs handleSubscriptionDeleted
+// (idempotent with the patch here).
 async function handleChargeRefunded(charge: Stripe.Charge) {
   if (!charge.refunded) return;   // only a FULL refund ends service early
-  const customerId = typeof charge.customer === "string" ? charge.customer : charge.customer?.id;
-  if (!customerId) return;
-  const userId = await userIdFromCustomer(customerId);
-  try {
-    const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 10 });
-    for (const s of subs.data) {
-      try { await stripe.subscriptions.cancel(s.id); } catch (e) { console.warn("[webhook] refund cancel failed", s.id, e); }
-    }
-  } catch (e) { console.warn("[webhook] refund: list subs failed", e); }
+
+  const invoiceId = chargeInvoiceId(charge);
+  if (!invoiceId) {
+    console.warn("[webhook] refund charge has no invoice; not canceling subscription", charge.id);
+    return;
+  }
+
+  const invoice = await stripe.invoices.retrieve(invoiceId);
+  const subId = invoiceSubscriptionId(invoice);
+  if (!subId) {
+    console.warn("[webhook] refund invoice has no subscription; not canceling subscription", invoiceId);
+    return;
+  }
+
+  const sub = await stripe.subscriptions.retrieve(subId);
+  const userId = await userIdFromSubscription(sub);
+  if (sub.status !== "canceled") {
+    // Let errors escape so Stripe retries instead of acknowledging a refund
+    // whose subscription was never actually canceled.
+    await stripe.subscriptions.cancel(subId);
+  }
   if (userId) await patchEntitlements(userId, { subscriptionStatus: "canceled", cancelAtPeriodEnd: false });
 }
 
