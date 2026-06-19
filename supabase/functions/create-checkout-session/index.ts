@@ -75,7 +75,22 @@ Deno.serve(async (req) => {
     );
   }
 
-  // ── 3. Find-or-create the Stripe Customer for this user
+  // ── 3. Find-or-create the Stripe Customer for this user.
+  // Creates a fresh Stripe customer and persists it on the profile.
+  async function createAndStoreCustomer(): Promise<string> {
+    const customer = await stripe.customers.create({
+      email: user.email ?? undefined,
+      metadata: { supabase_user_id: user.id },
+    });
+    const { error: upErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ stripe_customer_id: customer.id })
+      .eq("id", user.id);
+    // Don't fatal — checkout can still proceed; webhook will reconcile.
+    if (upErr) console.warn("[checkout] couldn't persist stripe_customer_id", upErr);
+    return customer.id;
+  }
+
   let stripeCustomerId: string | null = null;
   try {
     const { data: profile, error: pErr } = await supabaseAdmin
@@ -90,26 +105,11 @@ Deno.serve(async (req) => {
     return errorResponse("Profile lookup failed", 500);
   }
 
-  if (!stripeCustomerId) {
-    try {
-      const customer = await stripe.customers.create({
-        email: user.email ?? undefined,
-        metadata: { supabase_user_id: user.id },
-      });
-      stripeCustomerId = customer.id;
-      // Persist so the next checkout / portal call reuses the same customer.
-      const { error: upErr } = await supabaseAdmin
-        .from("profiles")
-        .update({ stripe_customer_id: stripeCustomerId })
-        .eq("id", user.id);
-      if (upErr) {
-        // Don't fatal — checkout can still proceed; webhook will reconcile.
-        console.warn("[checkout] couldn't persist stripe_customer_id", upErr);
-      }
-    } catch (err) {
-      console.error("[checkout] stripe customer create failed", err);
-      return errorResponse("Could not create Stripe customer", 500);
-    }
+  try {
+    if (!stripeCustomerId) stripeCustomerId = await createAndStoreCustomer();
+  } catch (err) {
+    console.error("[checkout] stripe customer create failed", err);
+    return errorResponse("Could not create Stripe customer", 500);
   }
 
   // ── 4. Create the Checkout Session
@@ -120,10 +120,10 @@ Deno.serve(async (req) => {
   const successUrl = `${returnUrl}?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl  = `${returnUrl}?checkout=canceled`;
 
-  try {
-    const session = await stripe.checkout.sessions.create({
+  const makeSession = (customerId: string) =>
+    stripe.checkout.sessions.create({
       mode: "subscription",
-      customer: stripeCustomerId,
+      customer: customerId,
       client_reference_id: user.id,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
@@ -135,6 +135,27 @@ Deno.serve(async (req) => {
         metadata: { supabase_user_id: user.id, plan, billing },
       },
     });
+
+  // A stored customer id can go bad: deleted in Stripe, restored data, or a
+  // sandbox id after switching to live. Stripe answers "No such customer".
+  // deno-lint-ignore no-explicit-any
+  const isMissingCustomer = (err: any) =>
+    err?.code === "resource_missing" ||
+    /no such customer/i.test(err?.message || "") ||
+    /no such customer/i.test(err?.raw?.message || "");
+
+  try {
+    let session;
+    try {
+      session = await makeSession(stripeCustomerId);
+    } catch (err) {
+      // Self-heal: drop the bad customer id, make a fresh one, and retry once
+      // so the user is never permanently stuck at checkout over a stale id.
+      if (!isMissingCustomer(err)) throw err;
+      console.warn("[checkout] stale customer, recreating", stripeCustomerId);
+      stripeCustomerId = await createAndStoreCustomer();
+      session = await makeSession(stripeCustomerId);
+    }
     return jsonResponse({ url: session.url });
   } catch (err) {
     console.error("[checkout] session create failed", err);
