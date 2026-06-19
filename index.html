@@ -16644,7 +16644,9 @@ function _fmtPlanName() {
   const s = e.subscriptionStatus;
   const inactive = s && s !== "active" && s !== "trialing";
   const name = e.plan === "unlimited" ? "Unlimited" : (PLANS.find(pp => pp.id === e.plan)?.name || "Plan");
-  return inactive ? `${name} (inactive)` : name;
+  if (inactive) return `${name} (inactive)`;
+  if (e.cancelAtPeriodEnd) return `${name} (canceling)`;
+  return name;
 }
 
 function updateUsageBadge() {
@@ -16689,6 +16691,13 @@ function updateUsageBadge() {
       tier = "limit";
       full = `Subscription inactive <span class="ub-cta">Reactivate →</span>`;
       short = `Reactivate`;
+    } else if (e.cancelAtPeriodEnd) {
+      // Still active but set to cancel at period end (Stripe portal default).
+      // Full access continues until the date — say when it lapses.
+      tier = "low";
+      const d = _formatCycleDate();
+      full = `Canceling ${d} <span class="ub-cta">Resume →</span>`;
+      short = `Canceling`;
     } else if (e.plan === "unlimited") {
       tier = "unlimited";
       full = `<span class="ub-glyph">∞</span> Unlimited`;
@@ -17280,10 +17289,11 @@ function wirePricing(ls) {
     // ACTIVE sub shows "Current plan" + Manage; a CANCELED sub shows "Canceled"
     // + Resubscribe (a fresh checkout); a PAST-DUE sub shows "Past due" + Update
     // payment (Stripe portal). Trial users have no paid card to flag.
-    let curPlan = null, curStatus = null;
+    let curPlan = null, curStatus = null, curCancelPending = false;
     if (currentUser && typeof getEntitlements === "function") {
-      try { const e = getEntitlements(); curPlan = e.plan; curStatus = e.subscriptionStatus; } catch (_) {}
+      try { const e = getEntitlements(); curPlan = e.plan; curStatus = e.subscriptionStatus; curCancelPending = !!e.cancelAtPeriodEnd; } catch (_) {}
     }
+    const cancelDate = (typeof _formatCycleDate === "function") ? _formatCycleDate() : "";
     const statusActive  = (s) => !s || s === "active" || s === "trialing";
     const statusCanceled = (s) => s === "canceled";
     const statusPastDue  = (s) => s === "past_due" || s === "unpaid";
@@ -17292,11 +17302,13 @@ function wirePricing(ls) {
       const featured = !!p.highlighted;
       const isMine = !!curPlan && curPlan === p.id && curPlan !== "trial";
       const mineActive   = isMine && statusActive(curStatus);
+      const minePending  = isMine && statusActive(curStatus) && curCancelPending; // active but set to cancel
       const mineCanceled = isMine && statusCanceled(curStatus);
       const minePastDue  = isMine && statusPastDue(curStatus);
 
       let ribbon;
-      if (mineActive) ribbon = `<span class="lp-plan-ribbon current">&#10003; Current plan</span>`;
+      if (minePending) ribbon = `<span class="lp-plan-ribbon canceled">Canceling</span>`;
+      else if (mineActive) ribbon = `<span class="lp-plan-ribbon current">&#10003; Current plan</span>`;
       else if (mineCanceled) ribbon = `<span class="lp-plan-ribbon canceled">Canceled</span>`;
       else if (minePastDue) ribbon = `<span class="lp-plan-ribbon pastdue">Past due</span>`;
       else ribbon = (p.badge ? `<span class="lp-plan-ribbon">${p.badge}</span>` : "");
@@ -17312,13 +17324,15 @@ function wirePricing(ls) {
       }).join("");
 
       let btnClass, btnAttr, btnLabel, cardState = "";
-      if (mineActive) { btnClass = "lp-plan-cta current"; btnAttr = `data-pricing-manage="1"`; btnLabel = "Manage subscription"; cardState = " is-current"; }
+      if (minePending) { btnClass = "lp-plan-cta resub"; btnAttr = `data-pricing-manage="1"`; btnLabel = "Resume subscription"; cardState = " is-canceled"; }
+      else if (mineActive) { btnClass = "lp-plan-cta current"; btnAttr = `data-pricing-manage="1"`; btnLabel = "Manage subscription"; cardState = " is-current"; }
       else if (mineCanceled) { btnClass = "lp-plan-cta resub"; btnAttr = `data-pricing-resub="${p.id}"`; btnLabel = "Resubscribe"; cardState = " is-canceled"; }
       else if (minePastDue) { btnClass = "lp-plan-cta resub"; btnAttr = `data-pricing-manage="1"`; btnLabel = "Update payment"; cardState = " is-pastdue"; }
       else { btnClass = featured ? "lp-plan-cta gold" : "lp-plan-cta ghost"; btnAttr = `data-pricing-cta="${p.id}"`; btnLabel = p.cta; }
 
-      const note = mineCanceled ? `<div class="lp-plan-note">Your plan was canceled.</div>`
-        : (minePastDue ? `<div class="lp-plan-note">Payment didn't go through.</div>` : "");
+      const note = minePending ? `<div class="lp-plan-note">Active until ${cancelDate} &mdash; then it cancels. Resume anytime before then.</div>`
+        : (mineCanceled ? `<div class="lp-plan-note">Your plan was canceled.</div>`
+        : (minePastDue ? `<div class="lp-plan-note">Payment didn't go through.</div>` : ""));
       const cardClass = "lp-plan-card" + (featured ? " lp-plan-featured" : "") + cardState;
       return `
         <div class="${cardClass}" data-plan="${p.id}">
@@ -17337,7 +17351,13 @@ function wirePricing(ls) {
     const banner = document.getElementById("lpPlanStatusBanner");
     if (banner) {
       const planName = (PLANS.find(pp => pp.id === curPlan) || {}).name || "plan";
-      if (curPlan && curPlan !== "trial" && statusCanceled(curStatus)) {
+      if (curPlan && curPlan !== "trial" && statusActive(curStatus) && curCancelPending) {
+        banner.className = "lp-reveal mt-10 lp-status-banner canceled";
+        banner.innerHTML = `
+          <div class="lp-status-main">Your <b>${planName}</b> plan is set to cancel on <b>${cancelDate}</b>.</div>
+          <div class="lp-status-sub">You keep full access until then. Change your mind? Resume anytime before that date &mdash; nothing lapses.</div>
+          <button class="lp-btn-gold lp-status-btn" data-pricing-manage="1">Resume subscription</button>`;
+      } else if (curPlan && curPlan !== "trial" && statusCanceled(curStatus)) {
         banner.className = "lp-reveal mt-10 lp-status-banner canceled";
         banner.innerHTML = `
           <div class="lp-status-main">Your <b>${planName}</b> plan was canceled.</div>

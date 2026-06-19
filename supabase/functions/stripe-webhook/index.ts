@@ -16,6 +16,7 @@
 //   • customer.subscription.updated → plan change, status change
 //   • customer.subscription.deleted → cancellation took effect
 //   • invoice.paid                  → cycle renewed → reset usage counters
+//   • charge.refunded               → full refund → end service immediately
 //
 // SECURITY: verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET.
 // (config.toml sets verify_jwt = false for this function — Stripe authenticates
@@ -134,6 +135,9 @@ Deno.serve(async (req) => {
       case "invoice.paid":
         await handleInvoicePaid(event.data.object as Stripe.Invoice);
         break;
+      case "charge.refunded":
+        await handleChargeRefunded(event.data.object as Stripe.Charge);
+        break;
       case "invoice.payment_failed":
         console.log("[webhook] payment_failed for", event.data.object);
         break;
@@ -186,6 +190,7 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
   // Don't bump cycleResetAt — there's no active cycle anymore.
   await patchEntitlements(userId, {
     subscriptionStatus: "canceled",
+    cancelAtPeriodEnd: false,   // fully canceled now — clear the pending flag
   });
 }
 
@@ -209,6 +214,33 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     ...(periodEnd ? { cycleResetAt: periodEnd * 1000 } : {}),
     subscriptionStatus: sub.status,
   });
+}
+
+async function userIdFromCustomer(customerId: string): Promise<string | null> {
+  if (!customerId) return null;
+  const { data, error } = await supabaseAdmin
+    .from("profiles").select("id").eq("stripe_customer_id", customerId).maybeSingle();
+  if (error) { console.error("[webhook] userIdFromCustomer lookup failed", error); return null; }
+  return data?.id ?? null;
+}
+
+// A FULL refund ends service immediately (per policy: cancel = end of period,
+// cancel + refund = end now). Cancel the customer's active subscription(s) right
+// away and flip entitlements to canceled. Partial refunds are ignored — service
+// continues. Cancelling also fires customer.subscription.deleted, which re-runs
+// handleSubscriptionDeleted (idempotent with the patch here).
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  if (!charge.refunded) return;   // only a FULL refund ends service early
+  const customerId = typeof charge.customer === "string" ? charge.customer : charge.customer?.id;
+  if (!customerId) return;
+  const userId = await userIdFromCustomer(customerId);
+  try {
+    const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 10 });
+    for (const s of subs.data) {
+      try { await stripe.subscriptions.cancel(s.id); } catch (e) { console.warn("[webhook] refund cancel failed", s.id, e); }
+    }
+  } catch (e) { console.warn("[webhook] refund: list subs failed", e); }
+  if (userId) await patchEntitlements(userId, { subscriptionStatus: "canceled", cancelAtPeriodEnd: false });
 }
 
 async function userIdFromSubscription(sub: Stripe.Subscription): Promise<string | null> {
@@ -244,6 +276,10 @@ async function applySubscriptionToEntitlements(userId: string, sub: Stripe.Subsc
   await patchEntitlements(userId, {
     plan,
     subscriptionStatus: sub.status,
+    // Pending cancellation (Stripe portal "cancel" defaults to end-of-period).
+    // The sub stays "active" until period end; we surface this so the app can
+    // show "Canceling on <date>" while access continues. Resuming flips it back.
+    cancelAtPeriodEnd: !!sub.cancel_at_period_end,
     ...(periodEnd ? { cycleResetAt: periodEnd * 1000 } : {}),
     planSetAt: Date.now(),
     // Don't zero quotesUsedThisCycle here — invoice.paid handles renewals. For a
