@@ -16373,9 +16373,10 @@ function trackEntitlementsInit() {
 function _fmtPlanName() {
   const e = getEntitlements();
   if (e.plan === "trial") return "Trial";
-  if (e.plan === "unlimited") return "Unlimited";
-  const p = PLANS.find(pp => pp.id === e.plan);
-  return p ? p.name : "Plan";
+  const s = e.subscriptionStatus;
+  const inactive = s && s !== "active" && s !== "trialing";
+  const name = e.plan === "unlimited" ? "Unlimited" : (PLANS.find(pp => pp.id === e.plan)?.name || "Plan");
+  return inactive ? `${name} (inactive)` : name;
 }
 
 function updateUsageBadge() {
@@ -16410,21 +16411,32 @@ function updateUsageBadge() {
       full = `${daysLeft}d &middot; ${remaining} quote${remaining === 1 ? "" : "s"} left`;
       short = `${daysLeft}d &middot; ${remaining}`;
     }
-  } else if (e.plan === "unlimited") {
-    tier = "unlimited";
-    full = `<span class="ub-glyph">∞</span> Unlimited`;
-    short = `<span class="ub-glyph">∞</span>`;
   } else {
-    // Paid (starter / pro)
-    if (remaining <= 0) {
+    // Any paid plan (starter / pro / unlimited)
+    const s = e.subscriptionStatus;
+    const inactive = s && s !== "active" && s !== "trialing";
+    if (inactive) {
+      // Canceled / past-due / unpaid — access is walled, so the badge must
+      // say so rather than still reading like an active paid plan.
       tier = "limit";
-      full = `Limit reached <span class="ub-cta">Upgrade →</span>`;
-      short = `Upgrade`;
+      full = `Subscription inactive <span class="ub-cta">Reactivate →</span>`;
+      short = `Reactivate`;
+    } else if (e.plan === "unlimited") {
+      tier = "unlimited";
+      full = `<span class="ub-glyph">∞</span> Unlimited`;
+      short = `<span class="ub-glyph">∞</span>`;
     } else {
-      const pct = limit > 0 ? (used / limit) : 0;
-      tier = pct >= 0.8 ? "low" : "ok";
-      full = `${used} / ${limit} this month`;
-      short = `${used}/${limit}`;
+      // Paid (starter / pro), active
+      if (remaining <= 0) {
+        tier = "limit";
+        full = `Limit reached <span class="ub-cta">Upgrade →</span>`;
+        short = `Upgrade`;
+      } else {
+        const pct = limit > 0 ? (used / limit) : 0;
+        tier = pct >= 0.8 ? "low" : "ok";
+        full = `${used} / ${limit} this month`;
+        short = `${used}/${limit}`;
+      }
     }
   }
 
