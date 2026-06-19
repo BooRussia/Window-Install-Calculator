@@ -1981,6 +1981,14 @@
     transition: background .12s ease, color .12s ease;
   }
   .pfp-item:hover { background: rgba(30,41,59,0.7); color: #ffffff; }
+  /* Small grouping label inside the account menu */
+  .pfp-label {
+    padding: 7px 12px 3px; font-size: 9.5px; font-weight: 800;
+    letter-spacing: 0.13em; text-transform: uppercase; color: #64748b;
+  }
+  .pfp-sep { height: 1px; background: rgba(51,65,85,0.6); margin: 5px 0; }
+  [data-theme="light"] .pfp-label { color: #94a3b8; }
+  [data-theme="light"] .pfp-sep { background: #e2e8f0; }
 
   /* ------- Trust signals band ------- */
   .lp-trust-headline {
@@ -3170,15 +3178,15 @@
   <!-- Nav -->
   <nav class="lp-nav sticky top-0 z-30">
     <div class="max-w-6xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-2.5">
+      <button id="lpHome" type="button" class="btn flex items-center gap-2.5 group" aria-label="Back to top">
         <span class="text-[#c9a558]">
           <svg viewBox="0 0 100 100" width="25" height="25" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
             <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
           </svg>
         </span>
-        <span class="text-lg font-black tracking-tightest text-slate-100">Anchor</span>
-      </div>
+        <span class="text-lg font-black tracking-tightest text-slate-100 group-hover:text-[#c9a558] transition-colors">Anchor</span>
+      </button>
       <div class="flex items-center gap-0.5 sm:gap-1">
         <button id="lpPricingNav" type="button" class="btn inline-flex text-sm font-bold text-[#c9a558] hover:text-[#dfc07a] px-2 sm:px-3 py-2">Pricing</button>
         <button class="lp-scroll btn hidden sm:block text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-scroll="lpHow">How it works</button>
@@ -3684,6 +3692,7 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           Home
         </button>
+        <button class="btn hidden sm:block text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-learn-link="">Learn</button>
         <button id="prLogin" type="button" class="btn text-sm font-medium text-slate-400 hover:text-[#c9a558] px-3 py-2">Log In</button>
         <button id="prSignup" type="button" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-2">Get Started</button>
         <button id="prOpenApp" type="button" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-2">Open App →</button>
@@ -4156,12 +4165,13 @@
         <span class="text-lg font-black tracking-tightest text-slate-100">Anchor</span>
       </button>
       <div class="flex items-center gap-0.5 sm:gap-1">
+        <!-- Settings / Plan / Sign out now live in the account (avatar) menu. -->
         <button id="dashFL" type="button" class="dash-nav-btn hidden sm:inline-flex">FL Lookup</button>
-        <button id="dashSettings" type="button" class="dash-nav-btn">Settings</button>
-        <button id="dashPricing" type="button" class="dash-nav-btn">Plan</button>
-        <button id="dashSignOut" type="button" class="dash-nav-btn hidden sm:inline-flex">Sign out</button>
         <button id="dashOpenCalc" type="button" class="lp-btn-gold btn rounded-full text-[12.5px] sm:text-[15px] font-black tracking-tight px-3 sm:px-5 py-2 sm:py-2.5 ml-0.5 sm:ml-1 whitespace-nowrap shrink-0"><span class="sm:hidden">Calc →</span><span class="hidden sm:inline">Open Calculator →</span></button>
-        <button data-theme-toggle type="button" class="btn w-10 h-10 sm:w-9 sm:h-9 rounded-full inline-flex items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition shrink-0 ml-2" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
+        <button data-theme-toggle type="button" class="btn w-10 h-10 sm:w-9 sm:h-9 rounded-full inline-flex items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition shrink-0 ml-1 sm:ml-2" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
+        <button id="dashPfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800 shrink-0 ml-1" aria-label="Account menu" aria-haspopup="true">
+          <span id="dashPfpInner" class="w-full h-full flex items-center justify-center"></span>
+        </button>
       </div>
     </div>
   </nav>
@@ -4298,13 +4308,15 @@
           <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/>
         </svg>
       </button>
-      <span class="text-[#c9a558]">
-        <svg viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
-          <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
-        </svg>
-      </span>
-      <span class="text-base font-black tracking-tightest text-slate-100">Anchor</span>
+      <button id="appHome" type="button" class="btn flex items-center gap-1.5 sm:gap-2.5 group" aria-label="Go to dashboard">
+        <span class="text-[#c9a558]">
+          <svg viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
+            <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
+          </svg>
+        </span>
+        <span class="text-base font-black tracking-tightest text-slate-100 group-hover:text-[#c9a558] transition-colors">Anchor</span>
+      </button>
     </div>
     <div class="flex items-center gap-2">
       <!-- Pricing link removed from app header — reachable via the PFP dropdown's "Plans & Pricing" entry -->
@@ -4334,19 +4346,49 @@
       <button id="pfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800" aria-label="Account menu" aria-haspopup="true">
         <span id="pfpInner" class="w-full h-full flex items-center justify-center"></span>
       </button>
-      <div id="pfpMenu" class="hidden absolute right-0 top-full mt-2 w-56 card rounded-xl py-1.5 z-[45]" style="box-shadow:0 24px 48px -12px rgba(0,0,0,0.7);">
+      <!-- Account menu. position:fixed so the SAME menu can be opened from the
+           app-header avatar OR the dashboard avatar — togglePfpMenu() positions
+           it under whichever trigger was clicked. -->
+      <div id="pfpMenu" class="hidden fixed w-60 card rounded-xl py-1.5 z-[85]" style="box-shadow:0 24px 48px -12px rgba(0,0,0,0.7); max-height: calc(100vh - 84px); overflow-y: auto;">
         <div class="px-3 py-2 border-b border-slate-800">
           <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Signed in as</div>
           <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
         </div>
+
+        <div class="pfp-label">Navigate</div>
         <button id="pfpHome" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>
           Dashboard
+        </button>
+        <button id="pfpCalc" type="button" class="pfp-item">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="12" height="15" rx="1.6"/><line x1="7" y1="6" x2="13" y2="6"/><line x1="7" y1="10" x2="7.01" y2="10"/><line x1="10" y1="10" x2="10.01" y2="10"/><line x1="13" y1="10" x2="13.01" y2="10"/><line x1="7" y1="13.5" x2="7.01" y2="13.5"/><line x1="10" y1="13.5" x2="10.01" y2="13.5"/><line x1="13" y1="13.5" x2="13.01" y2="13.5"/></svg>
+          Open calculator
         </button>
         <button id="openFL" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
           FL Lookup
         </button>
+
+        <div class="pfp-sep"></div>
+        <div class="pfp-label">Plan &amp; billing</div>
+        <button id="pfpMyPlan" type="button" class="pfp-item" title="View your current plan + usage">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l2.5 1.5"/></svg>
+          <span class="flex-1">My plan</span>
+          <span id="pfpMyPlanTag" class="text-[10px] uppercase tracking-[0.12em] text-[#c9a558] font-bold">—</span>
+        </button>
+        <button id="pfpPricing" type="button" class="pfp-item">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h14M3 10h14M3 14.5h9"/><circle cx="15.5" cy="14.5" r="2.2"/></svg>
+          Plans &amp; pricing
+        </button>
+        <!-- Manage Subscription: only shown for users with an active Stripe sub.
+             Toggled by updateUsageBadge() based on entitlements.plan. -->
+        <button id="pfpManageBilling" type="button" class="pfp-item hidden" title="Update payment method, change plan, cancel">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="15" height="10" rx="1.5"/><path d="M2.5 8.5h15M5.5 12.5h3"/></svg>
+          Manage subscription
+        </button>
+
+        <div class="pfp-sep"></div>
+        <div class="pfp-label">Settings</div>
         <button id="openAdmin" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1.5v3M10 15.5v3M3.5 10h-2M18.5 10h-2M5 5l-1.4-1.4M16.4 16.4 15 15M5 15l-1.4 1.4M16.4 3.6 15 5"/></svg>
           Settings
@@ -4355,33 +4397,45 @@
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5l4 4 9-9"/></svg>
           <span id="pfpFinishSetupLabel">Finish setup</span>
         </button>
-        <button id="pfpPricing" type="button" class="pfp-item">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h14M3 10h14M3 14.5h9"/><circle cx="15.5" cy="14.5" r="2.2"/></svg>
-          Plans &amp; Pricing
-        </button>
-        <button id="pfpMyPlan" type="button" class="pfp-item" title="View your current plan + usage">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l2.5 1.5"/></svg>
-          <span class="flex-1">My plan</span>
-          <span id="pfpMyPlanTag" class="text-[10px] uppercase tracking-[0.12em] text-[#c9a558] font-bold">—</span>
-        </button>
-        <!-- Manage Subscription: only rendered for users with an active Stripe sub.
-             Toggled by updateUsageBadge() based on entitlements.plan. -->
-        <button id="pfpManageBilling" type="button" class="pfp-item hidden" title="Update payment method, change plan, cancel">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="15" height="10" rx="1.5"/><path d="M2.5 8.5h15M5.5 12.5h3"/></svg>
-          Manage subscription
-        </button>
+
+        <!-- Admin-only tools — hidden for everyone except isAdmin() (toggled in renderPfp). -->
+        <div id="pfpAdminSection" class="hidden">
+          <div class="pfp-sep"></div>
+          <div class="pfp-label">Admin</div>
+          <button id="pfpAdmin" type="button" class="pfp-item">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1.8l6.5 2.6v4.2c0 4-2.8 6.9-6.5 8.6-3.7-1.7-6.5-4.6-6.5-8.6V4.4z"/></svg>
+            Admin tools
+          </button>
+          <button id="pfpFeedbackInbox" type="button" class="pfp-item">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h14v9H8l-4 3.2V13.5H3z"/></svg>
+            <span class="flex-1">Feedback inbox</span>
+            <span id="pfpFeedbackBadge" class="fb-badge hidden">0</span>
+          </button>
+          <button id="pfpResources" type="button" class="pfp-item">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h4l2 2h6a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>
+            Resources
+          </button>
+        </div>
+
+        <div class="pfp-sep"></div>
+        <div class="pfp-label">Help</div>
         <button type="button" class="pfp-item" data-learn-link="">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H9a2 2 0 0 1 1 .27V16a2 2 0 0 0-1-.27H4.5A1.5 1.5 0 0 1 3 14.2zM17 4.5A1.5 1.5 0 0 0 15.5 3H11a2 2 0 0 0-1 .27V16a2 2 0 0 1 1-.27h4.5A1.5 1.5 0 0 0 17 14.2z"/></svg>
-          Window &amp; Door Basics
+          Window &amp; door basics
+        </button>
+        <button id="pfpSendFeedback" type="button" class="pfp-item">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h14v9H8l-4 3.2V13.5H3z"/><line x1="7" y1="8.2" x2="13" y2="8.2"/><line x1="7" y1="10.8" x2="11" y2="10.8"/></svg>
+          Send feedback
         </button>
         <button id="pfpLegal" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5v15M4.5 6h11M6.5 6l-2.5 5a2.5 2.5 0 0 0 5 0zM13.5 6l-2.5 5a2.5 2.5 0 0 0 5 0z"/></svg>
-          Legal &amp; Privacy
+          Legal &amp; privacy
         </button>
-        <div class="border-t border-slate-800 my-1"></div>
+
+        <div class="pfp-sep"></div>
         <button id="signOutBtn" type="button" class="pfp-item text-rose-300/80 hover:text-rose-300">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M13 14l4-4-4-4M17 10H8"/></svg>
-          Sign Out
+          Sign out
         </button>
       </div>
       </div>
@@ -7854,21 +7908,28 @@ function applyBrandToUI() {
   renderPfp();
 }
 
-// Profile avatar — the company logo, or initials / anchor fallback.
+// Profile avatar — the company logo, or initials / anchor fallback. Rendered
+// into BOTH the app-header avatar (#pfpInner) and the dashboard avatar
+// (#dashPfpInner). Also gates the admin-only menu section.
 function renderPfp() {
-  const inner = document.getElementById("pfpInner");
-  if (!inner) return;
   const b = (DATA && DATA.config && DATA.config.brand) || {};
+  let html;
   // Same gate as the public renderers: only data:image/* URLs, escaped.
   if (b.logo && /^data:image\//i.test(b.logo)) {
-    inner.innerHTML = `<img src="${escHtml(b.logo)}" alt="" class="w-full h-full object-cover">`;
+    html = `<img src="${escHtml(b.logo)}" alt="" class="w-full h-full object-cover">`;
   } else {
     const name = (b.companyName || "").trim();
     const initials = name
       ? name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()
       : "";
-    inner.innerHTML = `<span class="text-[11px] font-black text-[#c9a558]">${initials ? escHtml(initials) : "&#9875;"}</span>`;
+    html = `<span class="text-[11px] font-black text-[#c9a558]">${initials ? escHtml(initials) : "&#9875;"}</span>`;
   }
+  ["pfpInner", "dashPfpInner"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.innerHTML = html;
+  });
+  // Admin-only menu section visibility (Admin tools / Feedback inbox / Resources).
+  const adminSec = document.getElementById("pfpAdminSection");
+  if (adminSec) { try { adminSec.classList.toggle("hidden", !isAdmin()); } catch (_) { adminSec.classList.add("hidden"); } }
 }
 
 // ── Light / dark theme ──────────────────────────────────────────────────────
@@ -7914,9 +7975,24 @@ function setupThemeToggles() {
 setupThemeToggles();
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupThemeToggles);
 
-function togglePfpMenu(e) {
+// The account menu is position:fixed and shared by the app-header avatar and
+// the dashboard avatar — anchor it under whichever trigger opened it.
+function positionPfpMenu(trigger) {
+  const m = document.getElementById("pfpMenu");
+  if (!m || !trigger || !trigger.getBoundingClientRect) return;
+  const r = trigger.getBoundingClientRect();
+  m.style.top = (r.bottom + 8) + "px";
+  m.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+  m.style.left = "auto";
+}
+function togglePfpMenu(e, trigger) {
   if (e) e.stopPropagation();
-  document.getElementById("pfpMenu").classList.toggle("hidden");
+  const m = document.getElementById("pfpMenu");
+  if (!m) return;
+  if (m.classList.contains("hidden")) {
+    positionPfpMenu(trigger || (e && e.currentTarget) || document.getElementById("pfpBtn"));
+  }
+  m.classList.toggle("hidden");
 }
 function closePfpMenu() {
   const m = document.getElementById("pfpMenu");
@@ -8661,6 +8737,7 @@ function openDashboard() {
   d.classList.remove("hidden");
   d.scrollTop = 0;
   renderDashboard();
+  try { renderPfp(); } catch (_) {}   // paint the dashboard avatar + admin gate
   try { updateThemeToggleIcon(); } catch (_) {}
   try { window.track("dashboard_opened"); } catch (_) {}
 }
@@ -9566,9 +9643,7 @@ function wireDashboard() {
   on("dashOpenCalc", () => closeDashboard());
   on("dashNewQuote", () => { try { resetAll(); } catch (_) {} closeDashboard(); });
   on("dashFL", () => { try { openFL(); } catch (_) {} });
-  on("dashSettings", () => { try { openAdmin(); } catch (_) {} });
-  on("dashPricing", () => { try { showPricing("dashboard"); } catch (_) {} });
-  on("dashSignOut", () => { try { handleSignOut(); } catch (_) {} });
+  // Settings / Plan / Sign out moved to the account (avatar) menu (#pfpMenu).
   on("dashExportCsv", exportPipelineCSV);
   const jdBackdrop = document.querySelector("#jobDetailsModal .modal-backdrop");
   if (jdBackdrop) jdBackdrop.addEventListener("click", closeJobDetails);
@@ -17196,6 +17271,12 @@ function wireLanding() {
   // Pricing nav button — opens the standalone pricing page (not a scroll)
   const lpPricingNav = document.getElementById("lpPricingNav");
   if (lpPricingNav) lpPricingNav.addEventListener("click", () => showPricing("landing_nav"));
+  // Logo → back to top of the landing page
+  const lpHome = document.getElementById("lpHome");
+  if (lpHome && !lpHome.dataset.wired) {
+    lpHome.dataset.wired = "1";
+    lpHome.addEventListener("click", () => ls.scrollTo({ top: 0, behavior: "smooth" }));
+  }
   // Public FL search
   document.getElementById("flPublicSearch").addEventListener("input", e => {
     renderPublicFL(e.target.value);
@@ -18294,14 +18375,30 @@ function init() {
   // Light / dark theme toggle — idempotent (already wired at parse for the
   // landing nav; this re-runs harmlessly and catches any late-mounted buttons).
   setupThemeToggles();
-  // Profile (PFP) menu
+  // App-header logo → home (dashboard)
+  { const ah = document.getElementById("appHome"); if (ah) ah.addEventListener("click", goHome); }
+  // Profile (PFP) menu — one shared menu, two triggers (app header + dashboard).
+  // Re-parent it to <body> so its position:fixed escapes the app-header's
+  // stacking context (z-40) — otherwise it renders BEHIND the dashboard (z-74)
+  // when opened from the dashboard avatar.
+  { const pm = document.getElementById("pfpMenu"); if (pm && pm.parentElement !== document.body) document.body.appendChild(pm); }
   document.getElementById("pfpBtn").addEventListener("click", togglePfpMenu);
+  { const dpb = document.getElementById("dashPfpBtn"); if (dpb) dpb.addEventListener("click", togglePfpMenu); }
   document.getElementById("pfpMenu").addEventListener("click", closePfpMenu);
   document.addEventListener("click", e => {
     const m = document.getElementById("pfpMenu");
     if (m && !m.classList.contains("hidden") &&
-        !e.target.closest("#pfpMenu") && !e.target.closest("#pfpBtn")) closePfpMenu();
+        !e.target.closest("#pfpMenu") && !e.target.closest("#pfpBtn") &&
+        !e.target.closest("#dashPfpBtn")) closePfpMenu();
   });
+  // Reposition / close the fixed menu if the viewport changes while it's open.
+  window.addEventListener("resize", closePfpMenu);
+  // New account-menu entries
+  { const b = document.getElementById("pfpCalc"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { closeDashboard(); } catch (_) {} }); }
+  { const b = document.getElementById("pfpSendFeedback"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openFeedback(); } catch (_) {} }); }
+  { const b = document.getElementById("pfpAdmin"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("admin"); } catch (_) {} }); }
+  { const b = document.getElementById("pfpFeedbackInbox"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("feedback"); } catch (_) {} }); }
+  { const b = document.getElementById("pfpResources"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("resources"); } catch (_) {} }); }
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
   // Live crew-cost readout in the Labor settings
   ["adminCrewSize", "adminCrewPayRatePerHr"].forEach(id => {
