@@ -14548,9 +14548,8 @@ Reply with only the OPENING lines.`;
 // the dimension tag (nominal/ro/mo), and the panel count (a bare number) can come
 // in any order and any are optional. Width/height are stored RAW (as the schedule
 // shows them) plus the dim tag, and the MASONRY opening the buck needs is derived
-// into width/height via masonryFromRaw(). A line with NO dim tag is legacy output
-// from the old prompt (the number was already a rough/masonry opening), so it's
-// treated as "mo" (used as-is) — never re-converted.
+// into width/height via masonryFromRaw(). A line with NO dim tag uses the
+// job-wide "Unlabeled" default so pasted/older output follows the visible UI.
 function parseOpenings(text) {
   const openings = [];
   const lines = String(text || "").split(/\r?\n/);
@@ -14577,10 +14576,10 @@ function parseOpenings(text) {
     const isBifold = /bi[\s-]*fold|folding|accordion|fgw|folding\s*glass\s*wall/i.test(hay);
     const isSlider = !isBifold && /slid|sgd|patio\s*door|glass\s*door/i.test(hay);
     if (rawWidth > 0 && rawHeight > 0) {
-      const dimType = dimTag || "mo";   // no tag → legacy line, already an opening
+      const dimType = dimTag || buckDimDefault();
       openings.push({
         room, qty, isSlider, isBifold, panels,
-        rawWidth, rawHeight, dimType,
+        rawWidth, rawHeight, dimType, dimInferred: !dimTag,
         width: masonryFromRaw(rawWidth, dimType),
         height: masonryFromRaw(rawHeight, dimType),
       });
@@ -15107,7 +15106,7 @@ function ensureRawDims(o) {
   const dimType = (o && o.dimType) || "mo";
   const rawWidth = (o && o.rawWidth != null) ? o.rawWidth : (o ? o.width : 0);
   const rawHeight = (o && o.rawHeight != null) ? o.rawHeight : (o ? o.height : 0);
-  return { ...o, rawWidth, rawHeight, dimType,
+  return { ...o, rawWidth, rawHeight, dimType, dimInferred: false,
            width: masonryFromRaw(rawWidth, dimType), height: masonryFromRaw(rawHeight, dimType) };
 }
 
@@ -15160,7 +15159,7 @@ function setBuckOpeningDim(idx, val) {
   const ops = bl.openings.map((o, i) => {
     const o2 = ensureRawDims(o);
     if (i !== idx) return o2;
-    return { ...o2, dimType: val,
+    return { ...o2, dimType: val, dimInferred: false,
              width: masonryFromRaw(o2.rawWidth, val), height: masonryFromRaw(o2.rawHeight, val) };
   });
   STATE.buckList = optimizeCutList(ops);
@@ -15181,7 +15180,7 @@ function setBuckDimDefault(val) {
   if (bl && Array.isArray(bl.openings) && val !== prev) {
     const ops = bl.openings.map(o => {
       const o2 = ensureRawDims(o);
-      if (o2.dimType !== prev) return o2;
+      if (!o2.dimInferred || o2.dimType !== prev) return o2;
       return { ...o2, dimType: val,
                width: masonryFromRaw(o2.rawWidth, val), height: masonryFromRaw(o2.rawHeight, val) };
     });
@@ -15947,7 +15946,12 @@ async function syncFromCloud() {
 
 async function firstLoginMigration(userId) {
   const localData = loadData();
-  await sb.from("profiles").upsert({ id: userId, data: localData });
+  const { data: prof, error: pErr } = await sb.from("profiles")
+    .upsert({ id: userId, data: localData })
+    .select("data")
+    .maybeSingle();
+  if (pErr) throw pErr;
+  applyCloudEntitlements(prof?.data);
   const localJobs = loadJobs();
   // Working drafts stay local-only — they're for the current device/session.
   const drafts = localJobs.filter(j => j.isDraft);
@@ -15963,12 +15967,21 @@ async function firstLoginMigration(userId) {
   }
 }
 
+function applyCloudEntitlements(cloudData) {
+  const ent = cloudData?.config?.entitlements;
+  if (!ent) return;
+  if (!DATA.config) DATA.config = {};
+  DATA.config.entitlements = ent;
+  localStorage.setItem(LS_KEYS.data, JSON.stringify(DATA));
+}
+
 async function pushProfileToCloud(d) {
   if (!sb || !currentUser) return;
   try {
-    await trackCloud(sb.from("profiles").upsert({
+    const { data: prof } = await trackCloud(sb.from("profiles").upsert({
       id: currentUser.id, data: d, updated_at: new Date().toISOString()
-    }));
+    }).select("data").maybeSingle());
+    applyCloudEntitlements(prof?.data);
   } catch (e) { /* error already routed via trackCloud */ }
 }
 
@@ -16213,8 +16226,8 @@ const PLANS = [
 // PHASE 2 — ENTITLEMENTS BRAIN
 // --------------------------------------------------------------------
 //   The single source of truth for "what can this user do right now?".
-//   Lives at DATA.config.entitlements and persists through saveData()
-//   (which already pushes to localStorage + the Supabase profile JSON).
+//   Lives at DATA.config.entitlements locally, but Supabase preserves the
+//   server-owned entitlement subtree during normal profile sync.
 //
 //   Critical Phase-2 rule: WE DO NOT LOCK ANYONE OUT YET. The badge
 //   and upsell modal are friendly upsells — the underlying action
@@ -16222,7 +16235,6 @@ const PLANS = [
 //   `attemptGenerateQuote()` return to actually block.
 // ====================================================================
 const DAY_MS = 86400 * 1000;
-const CYCLE_MS = 30 * DAY_MS;
 
 function defaultEntitlements() {
   const now = Date.now();
@@ -16279,34 +16291,11 @@ function isTrialExpired() {
   return e.plan === "trial" && Date.now() >= (e.cycleResetAt || 0);
 }
 
-function isCycleExpired() {
-  const e = getEntitlements();
-  return Date.now() >= (e.cycleResetAt || 0);
-}
-
-// Paid-plan cycle rollover — auto-resets the counter when the
-// anniversary has passed. Trial doesn't auto-reset; the user must
-// subscribe to start a new cycle. Returns true if a reset occurred.
-function cycleNeedsReset() {
-  const e = getEntitlements();
-  // A canceled subscription has no live billing cycle — don't auto-roll its
-  // counter (that would hand a lapsed customer a fresh quota every 30 days).
-  // The real reset comes from the invoice.paid webhook on renewal.
-  if (isCycleExpired() && e.plan !== "trial" && e.subscriptionStatus !== "canceled") {
-    e.quotesUsedThisCycle = 0;
-    e.cycleResetAt = Date.now() + CYCLE_MS;
-    saveData(DATA);
-    return true;
-  }
-  return false;
-}
-
 // Returns { allowed, reason } — single decision point for whether the
 // next quote should consume entitlement OR trigger an upsell. Order of
 // checks is intentional: trial expiry beats subscription status, which
 // beats the per-cycle limit. Reasons feed `showUpsellModal(reason)`.
 function canGenerate() {
-  cycleNeedsReset();   // refresh paid cycles before checking
   const e = getEntitlements();
   if (isTrialExpired()) return { allowed: false, reason: "trial_expired" };
   // Any paid plan (including unlimited) whose subscription has lapsed gets the
@@ -16387,8 +16376,6 @@ function updateUsageBadge() {
   // Only visible to signed-in users. (Logged-out / public-quote routes
   // and offline-mode skip the badge entirely.)
   if (!currentUser) { badge.classList.add("hidden"); badge.classList.remove("inline-flex"); return; }
-
-  cycleNeedsReset();   // make sure paid cycles have rolled over
 
   const e = getEntitlements();
   const limit = getPlanLimit();
@@ -16562,7 +16549,6 @@ function closeUpsellModal() {
 // --------------------------------------------------------------------
 function renderSubscriptionPanel() {
   const e = getEntitlements();
-  cycleNeedsReset();
 
   const nameEl = document.getElementById("subPlanName");
   const statusEl = document.getElementById("subPlanStatus");
