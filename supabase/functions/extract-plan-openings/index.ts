@@ -137,6 +137,11 @@ function isAdminUser(user: { id?: string; email?: string } | null): boolean {
   return !!em && ADMIN_EMAILS.includes(em);
 }
 
+function hasLivePaidSubscription(ent: any): boolean {
+  const status = ent?.subscriptionStatus;
+  return !status || status === "active" || status === "trialing";
+}
+
 function extractReplyText(json: any): string {
   if (!json) return "";
   const parts: string[] = [];
@@ -229,11 +234,7 @@ Deno.serve(async (req) => {
     if (ent.plan === "trial" && Date.now() >= (ent.cycleResetAt ?? 0)) {
       return errorResponse("Your free trial has ended — subscribe to keep going.", 403);
     }
-    if (
-      ent.plan !== "trial" && ent.plan !== "unlimited" &&
-      ent.subscriptionStatus && ent.subscriptionStatus !== "active" &&
-      ent.subscriptionStatus !== "trialing"
-    ) {
+    if (ent.plan !== "trial" && !hasLivePaidSubscription(ent)) {
       return errorResponse("Your subscription isn't active.", 403);
     }
     const cap = AI_CAPS[ent.plan] ?? 0;
