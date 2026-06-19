@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync(new URL("./stripe-errors.ts", import.meta.url), "utf8");
-const match = source.match(/export function isMissingStripeCustomer\(err\) \{[\s\S]*?\n\}/);
+const match = source.match(/export function isMissingStripeCustomer\(err: any\): boolean \{[\s\S]*?\n\}/);
 assert.ok(match, "isMissingStripeCustomer function should be present");
 
 const isMissingStripeCustomer = new Function(
-  `${match[0].replace("export ", "")}; return isMissingStripeCustomer;`,
+  `${
+    match[0].replace(
+      "export function isMissingStripeCustomer(err: any): boolean",
+      "function isMissingStripeCustomer(err)",
+    )
+  }; return isMissingStripeCustomer;`,
 )();
 
 assert.equal(
