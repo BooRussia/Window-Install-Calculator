@@ -16457,7 +16457,14 @@ async function _cloudRetryPing() {
 // Wrap any promise that hits the cloud. Auto-routes outcome to the tracker.
 function trackCloud(promise) {
   return Promise.resolve(promise).then(
-    v => { markCloudOk(); return v; },
+    v => {
+      if (v && v.error) {
+        markCloudError(v.error);
+        throw v.error;
+      }
+      markCloudOk();
+      return v;
+    },
     e => { markCloudError(e); throw e; }
   );
 }
@@ -16772,6 +16779,27 @@ function reconcileDrafts(cloudJobs, pushKept) {
   }
 }
 
+function firstLoginJobRows(localJobs, userId) {
+  const rows = [];
+  let newestDraft = null;
+  (localJobs || []).forEach(j => {
+    if (!j) return;
+    if (j.isDraft) {
+      if (!newestDraft || new Date(j.updatedAt || 0) > new Date(newestDraft.updatedAt || 0)) {
+        newestDraft = j;
+      }
+      return;
+    }
+    const id = isUuid(j.id) ? j.id : crypto.randomUUID();
+    rows.push({ id, user_id: userId, data: { ...j, id } });
+  });
+  if (newestDraft) {
+    const id = draftIdFor({ id: userId });
+    rows.push({ id, user_id: userId, data: { ...newestDraft, id } });
+  }
+  return rows;
+}
+
 async function syncFromCloud() {
   try {
     const { data: { user } } = await sb.auth.getUser();
@@ -16805,18 +16833,18 @@ async function syncFromCloud() {
 
 async function firstLoginMigration(userId) {
   const localData = loadData();
-  await sb.from("profiles").upsert({ id: userId, data: localData });
   const localJobs = loadJobs();
   // Upload everything including the working draft so it follows the user. The
   // draft takes the canonical per-account id so other devices converge on one row.
   if (localJobs.length) {
-    const rows = localJobs.map(j => {
-      const id = j.isDraft ? draftIdFor({ id: userId }) : (isUuid(j.id) ? j.id : crypto.randomUUID());
-      return { id, user_id: userId, data: { ...j, id } };
-    });
-    await sb.from("jobs").insert(rows);
+    const rows = firstLoginJobRows(localJobs, userId);
+    await trackCloud(sb.from("jobs").upsert(rows));
     localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
   }
+  // Write the profile last. Its presence is how syncFromCloud decides migration
+  // has already happened; if job upload fails first, the next login retries
+  // instead of treating an empty cloud jobs table as authoritative.
+  await trackCloud(sb.from("profiles").upsert({ id: userId, data: localData }));
 }
 
 async function pushProfileToCloud(d) {
