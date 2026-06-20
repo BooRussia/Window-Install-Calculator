@@ -1553,6 +1553,26 @@
     .lp-range.hint::-webkit-slider-thumb,
     .lp-range.hint::-moz-range-thumb { animation: none; }
   }
+  /* "Try me!" pill pinned under the slider knob (JS positions left/top) */
+  .lp-tryme {
+    position: absolute; transform: translateX(-50%) translateY(4px);
+    background: #dfc07a; color: #1b1206; font-size: 11px; font-weight: 800;
+    letter-spacing: 0.02em; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none; z-index: 6;
+    opacity: 0; visibility: hidden; transition: opacity .25s ease, transform .25s ease;
+  }
+  .lp-tryme::before {
+    content: ""; position: absolute; left: 50%; top: -4px; transform: translateX(-50%);
+    border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 5px solid #dfc07a;
+  }
+  .lp-tryme.show { opacity: 1; visibility: visible; animation: lpTryBob 1.4s ease-in-out infinite; }
+  @keyframes lpTryBob {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50%      { transform: translateX(-50%) translateY(4px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lp-tryme.show { animation: none; transform: translateX(-50%) translateY(0); }
+  }
 
   /* ------- Scroll-driven anchor dive ------- */
   #anchorDive {
@@ -19462,17 +19482,38 @@ function init() {
   update();
 
   // ---- one-time "you can drag this" hint ----
-  // When the teaser scrolls into view the first time, auto-sweep the slider so a
-  // visitor SEES every number change (most don't realize the slider is live even
-  // though the label says so). A pulsing ring draws the eye to the thumb. The
-  // moment the user touches it, the hint stops and gets out of the way.
+  // When the teaser scrolls into view the first time, a "Try me!" pill pops up
+  // pinned under the slider knob and the slider auto-sweeps so the visitor SEES
+  // every number change (most don't realize the slider is live even though the
+  // label says so). The moment the user touches it, the hint gets out of the way.
   const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  let hintPlayed = false, hintRaf = 0;
+
+  // "Try me!" pill pinned just under the knob — JS keeps it tracking the thumb
+  const sliderCard = r.parentElement;
+  if (sliderCard && getComputedStyle(sliderCard).position === "static") sliderCard.style.position = "relative";
+  const tryTip = document.createElement("div");
+  tryTip.className = "lp-tryme"; tryTip.textContent = "Try me!";
+  if (sliderCard) sliderCard.appendChild(tryTip);
+  function positionTip() {
+    if (!tryTip || !sliderCard) return;
+    const TW = 20, range = (+r.max - +r.min) || 1;       // 20px thumb
+    const frac = (+r.value - +r.min) / range;
+    tryTip.style.left = (r.offsetLeft + TW / 2 + frac * (r.clientWidth - TW)) + "px";
+    tryTip.style.top = (r.offsetTop + r.offsetHeight + 6) + "px";
+  }
+  positionTip();
+  window.addEventListener("resize", positionTip);
+  r.addEventListener("input", positionTip);
+
+  let hintPlayed = false, hintRaf = 0, tipTimer = 0;
+  function hideTip() { if (tryTip) tryTip.classList.remove("show"); if (tipTimer) { clearTimeout(tipTimer); tipTimer = 0; } }
   function stopHint() { if (hintRaf) cancelAnimationFrame(hintRaf); hintRaf = 0; r.classList.remove("hint"); }
   function playHint() {
     if (hintPlayed) return;
     hintPlayed = true;
-    if (reduceMotion) return;            // respect reduced motion (label still reads "drag…")
+    // pop the pill (auto-hide after a while if the visitor never touches it)
+    if (tryTip) { positionTip(); tryTip.classList.add("show"); tipTimer = setTimeout(hideTip, 7000); }
+    if (reduceMotion) return;            // pill still shows; just skip the auto-sweep
     const start = +r.value, lo = +r.min, hi = +r.max, step = +r.step || 1;
     // up, down, back — so the total + every breakdown line visibly moves
     const legs = [[start, Math.min(hi, 420)], [Math.min(hi, 420), Math.max(lo, 160)], [Math.max(lo, 160), start]];
@@ -19484,18 +19525,18 @@ function init() {
       const a = legs[leg][0], b = legs[leg][1];
       let p = (now - t0) / dur[leg]; if (p > 1) p = 1;
       r.value = Math.round((a + (b - a) * easeIO(p)) / step) * step;
-      update();
+      update(); positionTip();           // pill rides the knob through the sweep
       if (p >= 1) {
         leg++; t0 = now;
-        if (leg >= legs.length) { r.value = start; update(); r.classList.remove("hint"); hintRaf = 0; return; }
+        if (leg >= legs.length) { r.value = start; update(); positionTip(); r.classList.remove("hint"); hintRaf = 0; return; }
       }
       hintRaf = requestAnimationFrame(frame);
     }
     hintRaf = requestAnimationFrame(frame);
   }
-  // any real interaction preempts the hint
+  // any real interaction preempts the hint AND dismisses the pill
   ["pointerdown", "touchstart", "keydown", "input", "focus"].forEach((ev) =>
-    r.addEventListener(ev, () => { hintPlayed = true; stopHint(); }, { passive: true }));
+    r.addEventListener(ev, () => { hintPlayed = true; stopHint(); hideTip(); }, { passive: true }));
   // fire once, when the teaser cards are well into view
   const teaserEl = r.closest(".grid") || r;
   if ("IntersectionObserver" in window) {
