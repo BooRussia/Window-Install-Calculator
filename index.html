@@ -2473,16 +2473,17 @@
 
   /* ---- Installation-photo fan carousel (job profile) ---- */
   .jd-fan { position: relative; width: 100%; }
-  .jd-fan-layout { position: relative; height: 248px; width: 100%; }
-  @media (min-width: 640px) { .jd-fan-layout { height: 290px; } }
+  .jd-fan-layout { position: relative; height: 300px; width: 100%; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+  .jd-fan-layout.dragging { cursor: grabbing; }
+  @media (min-width: 640px) { .jd-fan-layout { height: 384px; } }
   .fan-card {
     position: absolute; top: 50%; left: 50%;
-    width: 108px; height: 152px; padding: 0; margin: 0; border: 0; background: transparent;
+    width: 138px; height: 194px; padding: 0; margin: 0; border: 0; background: transparent;
     opacity: 0; transform: translate(-50%, -50%) scale(0.6); transform-origin: center center;
     cursor: pointer; will-change: transform, opacity;
     transition: transform .55s cubic-bezier(.34,1.4,.5,1), opacity .4s ease;
   }
-  @media (min-width: 640px) { .fan-card { width: 132px; height: 186px; } }
+  @media (min-width: 640px) { .fan-card { width: 178px; height: 248px; } }
   .fan-card:hover { z-index: 30 !important; }
   .fan-card-inner {
     width: 100%; height: 100%; border-radius: 14px; overflow: hidden; display: block;
@@ -2491,7 +2492,7 @@
     transition: transform .4s cubic-bezier(.34,1.4,.5,1), box-shadow .3s ease, border-color .3s ease;
   }
   .fan-card:hover .fan-card-inner { transform: translateY(-12px) scale(1.05); border-color: rgba(201,165,88,0.7); box-shadow: 0 18px 44px rgba(0,0,0,0.6); }
-  .fan-card-img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0b1120; }
+  .fan-card-img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0b1120; -webkit-user-drag: none; user-select: none; pointer-events: none; }
   .fan-card-zoom { position: absolute; right: 6px; bottom: 6px; width: 22px; height: 22px; border-radius: 999px; background: rgba(2,6,23,0.65); color: #e2cf9a; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .25s ease; pointer-events: none; }
   .fan-card:hover .fan-card-zoom { opacity: 1; }
   .jd-fan-empty { text-align: center; color: #475569; font-size: 12px; padding: 26px 12px; border: 1px dashed #1e293b; border-radius: 14px; }
@@ -9627,7 +9628,7 @@ function jobGalleryHTML(job) {
   const carousel = photos.length
     ? `<div class="jd-fan" data-jdg-center="${photos.length >> 1}">
          <div class="jd-fan-layout">${cards}</div>
-         <div class="jd-fan-controls${photos.length > 7 ? "" : " hidden"}">
+         <div class="jd-fan-controls${photos.length > 1 ? "" : " hidden"}">
            <button type="button" class="jd-fan-arrow" data-jdg-prev aria-label="Previous">${chev("left")}</button>
            <div class="jd-fan-counter"><span data-jdg-cur>${(photos.length >> 1) + 1}</span> / ${photos.length}</div>
            <button type="button" class="jd-fan-arrow" data-jdg-next aria-label="Next">${chev("right")}</button>
@@ -9663,13 +9664,14 @@ function layoutJobFan(fan, center) {
   const avail = fan.clientWidth || fan.offsetWidth || 320;
   const widest = 0.85 * cardW + cardW / 2;
   const xScale = widest > avail / 2 && widest > 0 ? (avail / 2) / widest : 1;
+  // Center-based rotating window: the `center` card sits at the front slot (3)
+  // and up to 7 cards fan out around it (wrapping). For <=7 photos every card
+  // shows; for more, the window scrolls as `center` changes (drag / arrows).
+  const V = Math.min(N, 7);
+  const loSlot = 3 - Math.floor((V - 1) / 2);
+  const hiSlot = 3 + Math.ceil((V - 1) / 2);
   const slotOf = new Map();
-  if (N <= 7) {
-    const start = 3 - (N >> 1);
-    cards.forEach((_, i) => slotOf.set(i, start + i));
-  } else {
-    for (let s = 0; s < 7; s++) slotOf.set(((center + s - 3) % N + N) % N, s);
-  }
+  for (let s = loSlot; s <= hiSlot; s++) slotOf.set(((center + (s - 3)) % N + N) % N, s);
   cards.forEach((card, i) => {
     const slot = slotOf.get(i);
     if (slot === undefined) {
@@ -9698,13 +9700,46 @@ function wireJobGallery(job) {
   const relayout = () => layoutJobFan(fan, center);
   // Lay out once the modal is actually on screen (cards need a real width).
   requestAnimationFrame(() => requestAnimationFrame(relayout));
-  fan.querySelectorAll("[data-jdg-idx]").forEach((c) =>
-    c.addEventListener("click", () => openGalleryLightbox(job.id, parseInt(c.dataset.jdgIdx, 10) || 0)));
   const stepFan = (dir) => { if (total <= 1) return; center = (center + dir + total) % total; fan.dataset.jdgCenter = String(center); relayout(); };
   fan.querySelector("[data-jdg-prev]")?.addEventListener("click", () => stepFan(-1));
   fan.querySelector("[data-jdg-next]")?.addEventListener("click", () => stepFan(1));
-  fan.querySelectorAll("[data-jdg-dot]").forEach((d) =>
-    d.addEventListener("click", () => { center = parseInt(d.dataset.jdgDot, 10) || 0; fan.dataset.jdgCenter = String(center); relayout(); }));
+
+  // Click a card to expand — unless the pointer was dragging (swipe / scrub).
+  let suppressClick = false;
+  fan.querySelectorAll("[data-jdg-idx]").forEach((c) =>
+    c.addEventListener("click", (e) => {
+      if (suppressClick) { suppressClick = false; e.preventDefault(); e.stopPropagation(); return; }
+      openGalleryLightbox(job.id, parseInt(c.dataset.jdgIdx, 10) || 0);
+    }));
+
+  // Drag / swipe to scroll the fan. Pointer events unify desktop click-drag and
+  // mobile touch-swipe; CSS touch-action:pan-y lets vertical page scroll pass
+  // through while we own horizontal drags. Each STEP_PX advances one card —
+  // drag/swipe left = next, right = previous.
+  const layoutEl = fan.querySelector(".jd-fan-layout");
+  if (layoutEl && total > 1) {
+    const STEP_PX = 46, MOVE_TOL = 8;
+    let down = false, dragging = false, downX = 0, downY = 0, lastStepX = 0;
+    layoutEl.addEventListener("pointerdown", (e) => {
+      down = true; dragging = false; suppressClick = false;
+      downX = lastStepX = e.clientX; downY = e.clientY;
+    });
+    layoutEl.addEventListener("pointermove", (e) => {
+      if (!down) return;
+      const dx = e.clientX - downX, dy = e.clientY - downY;
+      if (!dragging) {
+        if (Math.abs(dx) < MOVE_TOL) return;
+        if (Math.abs(dx) < Math.abs(dy)) { down = false; return; }   // vertical intent → let the modal scroll
+        dragging = true; suppressClick = true; layoutEl.classList.add("dragging");
+        try { layoutEl.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+      while (e.clientX <= lastStepX - STEP_PX) { stepFan(1); lastStepX -= STEP_PX; }
+      while (e.clientX >= lastStepX + STEP_PX) { stepFan(-1); lastStepX += STEP_PX; }
+    });
+    const endDrag = () => { down = false; layoutEl.classList.remove("dragging"); };
+    layoutEl.addEventListener("pointerup", endDrag);
+    layoutEl.addEventListener("pointercancel", endDrag);
+  }
   if (!window._jdFanResizeBound) {
     window._jdFanResizeBound = true;
     window.addEventListener("resize", () => {
