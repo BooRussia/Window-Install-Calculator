@@ -10965,9 +10965,12 @@ function confirmSaveJob() {
   STATE.customerNotes = notes;
 
   const jobs = loadJobs();
-  // If a draft exists, upgrade it in place rather than creating a duplicate entry
+  // Promote the working draft to a saved job under a FRESH id (and retire the
+  // draft's cloud row below). A new id means a late cross-device draft autosync
+  // can never clobber this saved job back into a draft.
   const draftIdx = jobs.findIndex(x => x.isDraft);
-  const reuseId = (draftIdx >= 0) ? jobs[draftIdx].id : crypto.randomUUID();
+  const oldDraftId = (draftIdx >= 0 && jobs[draftIdx]) ? jobs[draftIdx].id : null;
+  const reuseId = crypto.randomUUID();
 
   // ENTITLEMENTS (Phase 2) — count this as a NEW quote only if it's not an
   // edit-and-resave of an existing saved job. STATE.currentJobId matching a
@@ -10990,6 +10993,7 @@ function confirmSaveJob() {
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
@@ -11014,6 +11018,10 @@ function confirmSaveJob() {
   if (draftIdx >= 0) jobs[draftIdx] = job; else jobs.push(job);
   saveJobs(jobs);
   STATE.currentJobId = job.id;
+  // Cancel any pending draft autosync and retire the promoted draft's cloud row
+  // so the just-saved job can't be reverted by a stale background draft push.
+  clearTimeout(_draftCloudTimer); _draftCloudTimer = 0;
+  if (oldDraftId && isUuid(oldDraftId)) { try { deleteJobFromCloud(oldDraftId); } catch (_) {} }
   pushJobToCloud(job);   // best-effort cloud sync (explicit saves only)
   logQuoteEvent("saved_job");
   window.track("job_saved", { is_version: false });
@@ -11163,7 +11171,17 @@ function writeDraftJob(r) {
   const draftName = typedName
     ? `${typedName} (draft)`
     : `Draft — ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-  const baseId = (idx >= 0) ? jobs[idx].id : crypto.randomUUID();
+  // Deterministic per-account id when signed in, so the working draft is ONE
+  // cloud row shared across devices; fall back to a local random id offline.
+  let baseId;
+  if (currentUser && currentUser.id) {
+    baseId = draftIdFor(currentUser);
+    if (idx >= 0 && jobs[idx].id !== baseId && isUuid(jobs[idx].id) && sb) {
+      try { deleteJobFromCloud(jobs[idx].id); } catch (_) {}   // retire a pre-sign-in/local-id draft row
+    }
+  } else {
+    baseId = (idx >= 0) ? jobs[idx].id : crypto.randomUUID();
+  }
   const draft = {
     id: baseId,
     isDraft: true,
@@ -11199,9 +11217,38 @@ function writeDraftJob(r) {
   }
   if (idx >= 0) jobs[idx] = draft; else jobs.push(draft);
   saveJobs(jobs);
+  // Sync the working draft to the account (debounced + silent) so it follows
+  // the user across devices. One working draft per account, latest edit wins.
+  scheduleDraftCloudPush();
   // Re-render the saved-jobs list so the draft is visible immediately.
-  // (No cloud push — drafts stay local until explicitly saved.)
   renderSavedJobs();
+}
+
+let _draftCloudTimer = 0;
+function scheduleDraftCloudPush() {
+  if (!sb || !currentUser) return;
+  if (!window._draftFlushBound) {
+    window._draftFlushBound = true;
+    // Flush when the tab is backgrounded: visibilitychange→hidden reliably
+    // completes while the page is still alive (tab switch / app background).
+    // pagehide is best-effort on a hard close; the 2.5s debounce covers the rest.
+    window.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushDraftToCloud(); });
+    window.addEventListener("pagehide", flushDraftToCloud);
+    window.addEventListener("online", flushDraftToCloud);   // retry once connectivity returns
+  }
+  clearTimeout(_draftCloudTimer);
+  _draftCloudTimer = setTimeout(flushDraftToCloud, 2500);
+}
+let _lastDraftSig = "";
+async function flushDraftToCloud() {
+  clearTimeout(_draftCloudTimer); _draftCloudTimer = 0;
+  if (!sb || !currentUser) return;
+  const d = loadJobs().find(j => j.isDraft);
+  if (!d || !isUuid(d.id)) return;
+  const sig = d.id + "|" + (d.updatedAt || "");
+  if (sig === _lastDraftSig) return;   // unchanged since the last SUCCESSFUL push
+  const ok = await pushJobToCloud(d, true);
+  if (ok) _lastDraftSig = sig;         // only mark clean on success, so a failed push retries
 }
 
 // Pure STATE assignment from a job object — no UI side effects. Shared by
@@ -11258,6 +11305,9 @@ function deleteJob(id) {
     const gp = target.photos.filter(p => p && !/^data:/.test(p));
     if (gp.length) { try { sb.storage.from(PHOTO_BUCKET).remove(gp); gp.forEach(p => delete _photoUrlCache[p]); } catch (_) {} }
   }
+  // If we're deleting the working draft, cancel any pending autosync so it can't
+  // be re-pushed to the cloud right after the delete.
+  if (target && target.isDraft) { clearTimeout(_draftCloudTimer); _draftCloudTimer = 0; }
   const jobs = all.filter(x => x.id !== id);
   saveJobs(jobs);
   deleteJobFromCloud(id);   // best-effort cloud sync
@@ -16668,6 +16718,60 @@ function isUuid(s) {
 
 // Pull this user's profile + jobs from Supabase into localStorage (the
 // app reads localStorage synchronously, so the cloud is just the backing store).
+// Deterministic per-account working-draft id, so every device writes the SAME
+// cloud row (even offline, with no coordination) — one working draft per account.
+function draftIdFor(u) {
+  const h = ((u && u.id) || "").replace(/-/g, "");
+  return "00000000-0000-4000-8000-" + (h.slice(-12) || "000000000000").padStart(12, "0");
+}
+
+// Ids written to the cloud very recently — so a reconcile that races a just-saved
+// job (e.g. a realtime refresh firing right after Save, before the async upsert
+// lands) doesn't drop it from localStorage. pushJobToCloud stamps this.
+const _recentWrites = new Map();
+function markWritten(id) { if (id) _recentWrites.set(id, Date.now()); }
+
+// Reconcile drafts after a cloud pull. Cloud is authoritative for SAVED jobs; the
+// working draft is merged on top. Rules that keep data safe:
+//  - never drop a saved job we wrote in the last ~20s but that the pull is missing
+//    (its upsert is still in flight),
+//  - keep exactly ONE working draft (newest by updatedAt; dedup by id),
+//  - never let a draft shadow a saved job sharing its id (a promoted job wins),
+//  - never delete a local draft just because the cloud lacks it (no destructive
+//    "deleted elsewhere" inference — that risks losing unsynced work).
+function reconcileDrafts(cloudJobs, pushKept) {
+  const all = cloudJobs || [];
+  const real = all.filter(j => !j.isDraft);
+  const realIds = new Set(real.map(j => j.id));
+  const localAll = loadJobs();
+  const now = Date.now();
+  // Preserve a just-saved local job the pull hasn't caught up to yet.
+  localAll.forEach(j => {
+    if (!j.isDraft && !realIds.has(j.id) && _recentWrites.has(j.id) && (now - _recentWrites.get(j.id) < 20000)) {
+      real.push(j); realIds.add(j.id);
+    }
+  });
+  // Candidate working drafts: cloud drafts + the local draft, excluding any id
+  // that is now a saved (promoted) job — so an explicit save never reverts.
+  const candidates = all.filter(j => j.isDraft && !realIds.has(j.id));
+  const localDraft = localAll.find(j => j.isDraft);
+  if (localDraft && !realIds.has(localDraft.id)) candidates.push(localDraft);
+  const byId = new Map();
+  candidates.forEach(d => {
+    const ex = byId.get(d.id);
+    if (!ex || new Date(d.updatedAt || 0) > new Date(ex.updatedAt || 0)) byId.set(d.id, d);
+  });
+  const drafts = [...byId.values()].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+  const keep = drafts[0] || null;
+  // Clean up superseded/duplicate draft rows + any draft row whose id was promoted.
+  drafts.slice(1).forEach(d => { if (isUuid(d.id)) { try { deleteJobFromCloud(d.id); } catch (_) {} } });
+  all.filter(j => j.isDraft && realIds.has(j.id) && isUuid(j.id)).forEach(d => { try { deleteJobFromCloud(d.id); } catch (_) {} });
+  saveJobs(keep ? [...real, keep] : real);
+  if (pushKept && keep && isUuid(keep.id) && sb && currentUser) {
+    try { pushJobToCloud(keep, true); } catch (_) {}
+  }
+}
+
 async function syncFromCloud() {
   try {
     const { data: { user } } = await sb.auth.getUser();
@@ -16684,9 +16788,9 @@ async function syncFromCloud() {
         .select("id,data").eq("user_id", user.id);
       if (jErr) throw jErr;
       const jobs = (jobRows || []).map(row => ({ ...row.data, id: row.id }));
-      // Preserve any local-only working drafts across cloud refreshes
-      const localDrafts = loadJobs().filter(j => j.isDraft);
-      localStorage.setItem(LS_KEYS.jobs, JSON.stringify([...jobs, ...localDrafts]));
+      // The working draft now syncs too — reconcile to a single newest draft
+      // across devices and push the survivor back so the cloud stays canonical.
+      reconcileDrafts(jobs, true);
     } else {
       // First login ever — seed the cloud from whatever is already local
       await firstLoginMigration(user.id);
@@ -16703,17 +16807,15 @@ async function firstLoginMigration(userId) {
   const localData = loadData();
   await sb.from("profiles").upsert({ id: userId, data: localData });
   const localJobs = loadJobs();
-  // Working drafts stay local-only — they're for the current device/session.
-  const drafts = localJobs.filter(j => j.isDraft);
-  const realJobs = localJobs.filter(j => !j.isDraft);
-  if (realJobs.length) {
-    const rows = realJobs.map(j => {
-      const id = isUuid(j.id) ? j.id : crypto.randomUUID();
+  // Upload everything including the working draft so it follows the user. The
+  // draft takes the canonical per-account id so other devices converge on one row.
+  if (localJobs.length) {
+    const rows = localJobs.map(j => {
+      const id = j.isDraft ? draftIdFor({ id: userId }) : (isUuid(j.id) ? j.id : crypto.randomUUID());
       return { id, user_id: userId, data: { ...j, id } };
     });
     await sb.from("jobs").insert(rows);
-    // Keep any local-only drafts alongside the freshly-uploaded jobs
-    localStorage.setItem(LS_KEYS.jobs, JSON.stringify([...rows.map(r => r.data), ...drafts]));
+    localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
   }
 }
 
@@ -16726,17 +16828,20 @@ async function pushProfileToCloud(d) {
   } catch (e) { /* error already routed via trackCloud */ }
 }
 
-async function pushJobToCloud(job) {
-  if (!sb || !currentUser) return;
+async function pushJobToCloud(job, silent) {
+  if (!sb || !currentUser) return false;
+  markWritten(job.id);   // protect a just-saved row from a racing reconcile pull
   try {
     // Upsert (not insert) so Cmd+S overwriting an already-uploaded job and
     // explicit-save-upgrades of a draft id both succeed instead of colliding
     // on the primary key.
     await trackCloud(sb.from("jobs").upsert({ id: job.id, user_id: currentUser.id, data: job }));
+    return true;
   } catch (e) {
-    // Header pill already shows offline state; keep the toast for immediate
-    // user feedback on the action they just took
-    toast("Saved locally — cloud sync failed");
+    // Header pill already shows offline state. The toast is for foreground
+    // actions; background draft autosync passes silent=true to avoid spam.
+    if (!silent) toast("Saved locally — cloud sync failed");
+    return false;
   }
 }
 
@@ -16765,8 +16870,7 @@ async function refreshJobsFromCloud() {
       .select("id,data").eq("user_id", currentUser.id);
     if (error) throw error;
     const jobs = (jobRows || []).map(r => ({ ...r.data, id: r.id }));
-    const drafts = loadJobs().filter(j => j.isDraft);
-    saveJobs([...jobs, ...drafts]);
+    reconcileDrafts(jobs, false);
   } catch (e) { /* best-effort */ }
 }
 
