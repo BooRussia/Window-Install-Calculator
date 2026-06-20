@@ -1541,6 +1541,18 @@
     width: 20px; height: 20px; border-radius: 50%;
     background: #d8b96a; border: 2px solid #0b1120; cursor: pointer;
   }
+  /* one-time "you can drag this" hint: a pulsing ring on the thumb while it
+     auto-sweeps the first time the teaser scrolls into view */
+  @keyframes lpThumbPulse {
+    0%   { box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 0 0 rgba(216,185,106,0.55); }
+    100% { box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 0 9px rgba(216,185,106,0); }
+  }
+  .lp-range.hint::-webkit-slider-thumb { animation: lpThumbPulse 0.85s ease-out infinite; }
+  .lp-range.hint::-moz-range-thumb { animation: lpThumbPulse 0.85s ease-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .lp-range.hint::-webkit-slider-thumb,
+    .lp-range.hint::-moz-range-thumb { animation: none; }
+  }
 
   /* ------- Scroll-driven anchor dive ------- */
   #anchorDive {
@@ -19448,6 +19460,52 @@ function init() {
   }
   r.addEventListener("input", update);
   update();
+
+  // ---- one-time "you can drag this" hint ----
+  // When the teaser scrolls into view the first time, auto-sweep the slider so a
+  // visitor SEES every number change (most don't realize the slider is live even
+  // though the label says so). A pulsing ring draws the eye to the thumb. The
+  // moment the user touches it, the hint stops and gets out of the way.
+  const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  let hintPlayed = false, hintRaf = 0;
+  function stopHint() { if (hintRaf) cancelAnimationFrame(hintRaf); hintRaf = 0; r.classList.remove("hint"); }
+  function playHint() {
+    if (hintPlayed) return;
+    hintPlayed = true;
+    if (reduceMotion) return;            // respect reduced motion (label still reads "drag…")
+    const start = +r.value, lo = +r.min, hi = +r.max, step = +r.step || 1;
+    // up, down, back — so the total + every breakdown line visibly moves
+    const legs = [[start, Math.min(hi, 420)], [Math.min(hi, 420), Math.max(lo, 160)], [Math.max(lo, 160), start]];
+    const dur = [620, 760, 560];
+    const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    let leg = 0, t0 = performance.now();
+    r.classList.add("hint");
+    function frame(now) {
+      const a = legs[leg][0], b = legs[leg][1];
+      let p = (now - t0) / dur[leg]; if (p > 1) p = 1;
+      r.value = Math.round((a + (b - a) * easeIO(p)) / step) * step;
+      update();
+      if (p >= 1) {
+        leg++; t0 = now;
+        if (leg >= legs.length) { r.value = start; update(); r.classList.remove("hint"); hintRaf = 0; return; }
+      }
+      hintRaf = requestAnimationFrame(frame);
+    }
+    hintRaf = requestAnimationFrame(frame);
+  }
+  // any real interaction preempts the hint
+  ["pointerdown", "touchstart", "keydown", "input", "focus"].forEach((ev) =>
+    r.addEventListener(ev, () => { hintPlayed = true; stopHint(); }, { passive: true }));
+  // fire once, when the teaser cards are well into view
+  const teaserEl = r.closest(".grid") || r;
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting && e.intersectionRatio >= 0.5) { io.disconnect(); setTimeout(playHint, 280); break; }
+      }
+    }, { threshold: [0, 0.5, 1] });
+    io.observe(teaserEl);
+  }
 })();
 
 // ----- Procedural sand grain texture for the footer -----
