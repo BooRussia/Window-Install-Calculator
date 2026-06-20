@@ -1492,7 +1492,7 @@
       radial-gradient(760px 520px at 102% 14%, rgba(138,106,46,0.08), transparent 60%),
       #020617;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    overscroll-behavior-y: none;   /* no elastic bounce at the bottom (the rope pile owns that gesture) */
   }
   .lp-nav {
     background: rgba(2,6,23,0.72);
@@ -18880,11 +18880,15 @@ function init() {
   const PILE_MIN_X = -30;
   const PILE_MAX_X = 150;
   const PILE_SCATTER = 2.2;   // random 2D birth velocity -> seeds vertical stacking + variety
-  // --- feed / reel ---
-  const FEED_GAIN = 0.22;     // px rope per px wheel at the bottom
-  const FEED_CAP = 8;         // px/event clamp (trackpad-flick guard)
-  const FEED_DRAIN = 5;       // px/frame drained from feedAccum
-  const REEL_MS = 1700;       // coupled reel-in duration (ropeLen + scrollTop, one ease)
+  // --- pile feed / reel ---
+  // The bottom pile is a single reversible "paid-out length" (pileLen). Wheel-down
+  // at the bottom pays rope out; wheel-up reels it back in the same way — the page
+  // stays pinned (wheel captured) until the pile is fully back, so it can't bounce.
+  const FEED_GAIN = 0.07;     // px of rope paid out per px of wheel (gentle; ~3x slower than before)
+  const FEED_CAP = 16;        // px/event clamp (smooth even on a trackpad flick)
+  const PILE_LEN_MAX = 1500;  // max rope (px) that can be paid out onto the floor
+  const IDLE_SWAY = 3.0;      // gentle always-on underwater current so the rest pose isn't dead-straight
+  const REEL_MS = 1500;       // reel-in duration (pileLen + scrollTop eased together)
   const MAX_NODE_STEP = SEG;  // per-frame per-node displacement firewall
   const EPS = 1e-4;
   // flat spatial-hash grid bounds (scene == viewport coords; #anchorDive is fixed top:0)
@@ -18896,15 +18900,14 @@ function init() {
   let pts = null, anchorAngle = 0;
   let N = MIN_N;                       // live node count = pts.length
   let ropeLen = SEG * (MIN_N - 1);     // INDEPENDENT rest length (px)
-  let feedAccum = 0;                   // pending wheel-fed rope length
+  let pileLen = 0;                     // px of rope paid out onto the floor (0 = none); reversible
   let idleFrames = 0;
   let piling = false;                  // true once at-bottom AND the anchor reaches the floor
   let floorY = 0;                      // .lp-sand-footer top in scene coords
-  let stripesHidden = false;
   let displayRingY = 0, prevDisplayRingY = 0;
   let ringSpringVel = 0;
   let prevTs = 0;
-  let reeling = false, reelT0 = 0, reelLen0 = 0, reelScroll0 = 0;
+  let reeling = false, reelT0 = 0, reelPile0 = 0, reelScroll0 = 0;
   let maxNeff = MAX_N, slowFrames = 0; // runtime self-throttle
   // pointer interaction — shove the anchor; it swings back like settling in water
   let mx = -9999, my = -9999, lastPointerTs = -1e9, heroLeftLocal = 9999;
@@ -19125,43 +19128,34 @@ function init() {
 
     idleFrames++;
     let anc = pts[pts.length - 1];
-    // Piling = at the bottom AND there's more rope than the straight drop to the
-    // sand (so excess heaps up). Keyed on ropeLen, NOT the anchor's y — once the
-    // heap lifts the anchor off the floor, an anchor-y test would flicker off and
-    // wrongly drain the pile.
-    const dropToFloor = Math.max(EPS, floorY);
-    piling = atBottom && ropeLen > dropToFloor * 1.06;
+    // Piling = at the bottom AND some rope has been paid out onto the floor.
+    piling = atBottom && pileLen > 0.5;
     const idle = idleFrames > 14 && Math.abs(targetP - p) < 0.004 && !piling && !reeling;
 
     const nowLanded = p > 0.985;
     if (nowLanded !== landed) { landed = nowLanded; scene.classList.toggle("landed", landed); }
 
-    // ---- rope rest-length target (THE free-flow control) ----
-    // Measure to the anchor's NEW depth (ringY), not last frame's, so the length
-    // tracks the scroll tightly and can't lag into excess on a fast up-scroll.
-    const straight = Math.max(EPS, Math.hypot(anc.x - CX, ringY));
+    // ---- rope rest-length ----
+    const straight = Math.max(EPS, Math.hypot(anc.x - CX, ringY));   // straight drop to the anchor
     if (reeling) {
+      // wind the paid-out rope back up AND scroll to the top, eased together
       const tt = clamp((ts - reelT0) / REEL_MS, 0, 1);
       const e = tt < 0.5 ? 4 * tt * tt * tt : 1 - Math.pow(-2 * tt + 2, 3) / 2;   // easeInOutCubic
-      const targetLen = SEG * (MIN_N - 1);
-      ropeLen = reelLen0 + (targetLen - reelLen0) * e;
-      ls.scrollTop = reelScroll0 * (1 - e);                                       // page rises in lockstep
-      if (tt >= 1) { reeling = false; ropeLen = targetLen; ls.scrollTop = 0; feedAccum = 0; }
+      pileLen = reelPile0 * (1 - e);
+      ls.scrollTop = reelScroll0 * (1 - e);
+      ropeLen = straight + pileLen;
+      if (tt >= 1) { reeling = false; pileLen = 0; ls.scrollTop = 0; ropeLen = straight; }
     } else if (atBottom) {
-      // at the floor, the SAME wheel input feeds rope length (down = pile up,
-      // up = wind down). Not gated on `piling` — the feed is what GROWS the rope
-      // past the drop-to-floor distance and thereby starts the pile.
-      const step = clamp(feedAccum, -FEED_DRAIN * dt, FEED_DRAIN * dt);
-      ropeLen += step; feedAccum -= step;
-      if (ropeLen < straight) ropeLen += (straight - ropeLen) * LEN_EASE * dt;  // never go taut above the floor
+      // floor pile: total length = drop to the sand + paid-out rope. pileLen is
+      // driven reversibly by the wheel handler (down pays out, up reels back in).
+      ropeLen = straight + pileLen;
     } else {
-      // Ease toward (straight + a little slack) — slow when idle (gentle drift to
-      // straight), quicker while sinking. The EASE gives the feel...
+      // hanging: ease toward (straight + a little slack); HARD-capped so a fast
+      // up-scroll can't leave excess rope looping below the knot.
       const slack = idle ? SLACK_REST_PX : SLACK_DESCEND_PX;
       ropeLen += ((straight + slack) - ropeLen) * (idle ? REST_RELAX : LEN_EASE) * dt;
-      // ...the HARD CAP guarantees the rope is never longer than the gap + max
-      // slack, so a fast up-scroll can't leave excess rope looping below the knot.
       ropeLen = clamp(ropeLen, straight * 0.985, straight + SLACK_DESCEND_PX + 2);
+      pileLen = 0;
     }
     ropeLen = clamp(ropeLen, SEG * (MIN_N - 1), SEG * (maxNeff - 1));
 
@@ -19195,11 +19189,12 @@ function init() {
       const axMax = Math.max(56, Math.min(56 + Math.max(0, window.innerWidth - 130 - 16), heroLeftLocal - 80));
       if (axPos < 56) { axPos = 56; axVel = 0; } else if (axPos > axMax) { axPos = axMax; axVel = 0; }
 
-      // sway amplitude grows with scroll speed, eases to 0 at rest (drift straight)
+      // sway: a gentle always-on underwater current (so the rest pose isn't a dead
+      // straight line) that grows with scroll speed.
       const scrollSpeed = Math.abs(ringY - prevRingForSway); prevRingForSway = ringY;
-      const swayTarget = Math.min(SWAY_MAX, scrollSpeed * 0.85);
+      const swayTarget = Math.min(SWAY_MAX, IDLE_SWAY + scrollSpeed * 0.85);
       swayAmpCur += (swayTarget - swayAmpCur) * 0.10 * dt;
-      swayPhase += 0.05 * dt;
+      swayPhase += 0.045 * dt;
 
       for (let i = 0; i < N; i++) {
         const t = i / (N - 1);
@@ -19296,18 +19291,11 @@ function init() {
     ropePaths[0].setAttribute("d", d);
     ropePaths[1].setAttribute("d", d);
     elHighlight.setAttribute("d", d);
-    // Stripes ride the clean HANGING rope at any length; only the chaotic pile
-    // drops them (where a braid pattern is meaningless and costly).
-    if (!piling) {
-      stripesHidden = false;
-      const s = goldLines();
-      elGold.setAttribute("d", s.dA);
-      elGoldB.setAttribute("d", s.dB);
-    } else if (!stripesHidden) {
-      elGold.setAttribute("d", "");
-      elGoldB.setAttribute("d", "");
-      stripesHidden = true;
-    }
+    // Gold braid ALWAYS rides the rope — hanging AND piled. (Dropping it on the
+    // pile was what made the rope flash pure white the instant it started piling.)
+    const s = goldLines();
+    elGold.setAttribute("d", s.dA);
+    elGoldB.setAttribute("d", s.dB);
     const kx = anc.x.toFixed(1), ky = anc.y.toFixed(1);
     elKnotCasing.setAttribute("cx", kx); elKnotCasing.setAttribute("cy", ky);
     elKnotBody.setAttribute("cx", kx); elKnotBody.setAttribute("cy", ky);
@@ -19321,9 +19309,7 @@ function init() {
 
     // ---- reel-in button visibility ----
     if (reelBtn) {
-      const straightTopFloor = Math.hypot(CX - anc.x, 0 - floorY);
-      const showReel = !reeling && piling && ropeLen > straightTopFloor * 1.2;
-      reelBtn.classList.toggle("show", showReel);
+      reelBtn.classList.toggle("show", !reeling && piling && pileLen > 120);
     }
 
     lastP = p;
@@ -19337,22 +19323,30 @@ function init() {
     mx = e.clientX - 16; my = e.clientY; lastPointerTs = e.timeStamp;
   }, { passive: true });
   window.addEventListener("blur", () => { lastPointerTs = -1e9; });
-  // at the very bottom the page can't scroll further, so the SAME wheel input
-  // feeds rope length (down = pile, up = wind up) at a rate that feels identical
+  // At the very bottom, the wheel drives the floor pile instead of the page —
+  // NON-passive so we can preventDefault() and pin the page (kills the bounce).
+  // Down pays rope out; up reels it back in the SAME way, and the page stays
+  // pinned until the pile is fully back (so scrolling up retraces, never snaps).
   ls.addEventListener("wheel", (e) => {
-    if (reeling) return;
+    if (reduce) return;
     const max = ls.scrollHeight - ls.clientHeight;
-    const atBottom = max > 0 && (max - ls.scrollTop) < 4;
-    if (atBottom && e.deltaY > 0) { feedAccum += clamp(e.deltaY * FEED_GAIN, 0, FEED_CAP); idleFrames = 0; }
-    else if (e.deltaY < 0) { feedAccum += clamp(e.deltaY * FEED_GAIN, -FEED_CAP, 0); idleFrames = 0; }
-  }, { passive: true });
-  if (reelBtn) reelBtn.addEventListener("click", () => {
-    const a = pts ? pts[pts.length - 1] : null;
-    if (reduce) {
-      if (a) ropeLen = clamp(Math.hypot(CX - a.x, 0 - a.y) * SLACK_REST, SEG * (MIN_N - 1), SEG * (MAX_N - 1));
-      ls.scrollTop = 0; feedAccum = 0; reelBtn.classList.remove("show"); return;
+    const atBottom = max > 0 && (max - ls.scrollTop) < 2;
+    if (reeling) { if (atBottom) e.preventDefault(); return; }
+    if (!atBottom) return;                       // normal scrolling elsewhere
+    if (e.deltaY > 0) {                           // pay rope out onto the floor
+      e.preventDefault();                         // pin the page -> no overscroll bounce
+      pileLen = clamp(pileLen + clamp(e.deltaY * FEED_GAIN, 0, FEED_CAP), 0, PILE_LEN_MAX);
+      idleFrames = 0;
+    } else if (e.deltaY < 0 && pileLen > 0) {     // reel the pile back in first
+      e.preventDefault();                         // keep the page pinned while it retracts
+      pileLen = clamp(pileLen + clamp(e.deltaY * FEED_GAIN, -FEED_CAP, 0), 0, PILE_LEN_MAX);
+      idleFrames = 0;
     }
-    reeling = true; reelT0 = performance.now(); reelLen0 = ropeLen; reelScroll0 = ls.scrollTop;
+    // wheel-up with no pile left -> not prevented -> the page scrolls up normally
+  }, { passive: false });
+  if (reelBtn) reelBtn.addEventListener("click", () => {
+    if (reduce) { pileLen = 0; ls.scrollTop = 0; reelBtn.classList.remove("show"); return; }
+    reeling = true; reelT0 = performance.now(); reelPile0 = pileLen; reelScroll0 = ls.scrollTop;
     reelBtn.classList.remove("show");
   });
   recalcTarget();
