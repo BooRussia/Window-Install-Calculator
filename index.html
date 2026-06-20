@@ -6947,6 +6947,14 @@ function saveJobs(j) {
   }
 }
 
+function mutateSavedJob(id, mutator) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x.id === id);
+  if (!j) return null;
+  mutator(j);
+  return saveJobs(jobs) ? j : null;
+}
+
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
 // Normalize a screw count into { impact, nonImpact }. Accepts a bare number
@@ -9498,8 +9506,10 @@ function jobPhotoImgHTML(j, cls) {
 async function saveJobPhoto(id, dataUrl) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
-  if (!j) return;
+  if (!j) return false;
   let uploaded = false;
+  let photoPath = "";
+  let photoUpdatedAt = 0;
   if (dataUrl && sb && sb.storage && currentUser && isUuid(j.id)) {
     try {
       const path = currentUser.id + "/" + j.id + ".jpg";
@@ -9507,16 +9517,23 @@ async function saveJobPhoto(id, dataUrl) {
       const { error } = await sb.storage.from(PHOTO_BUCKET)
         .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
       if (error) throw error;
-      j.photoPath = path; j.photo = ""; j.photoUpdatedAt = Date.now();
+      photoPath = path; photoUpdatedAt = Date.now();
       delete _photoUrlCache[path];
       uploaded = true;
     } catch (e) { console.warn("photo upload failed, keeping local", e); }
   }
-  if (!uploaded) { j.photo = dataUrl || ""; j.photoPath = ""; }
-  saveJobs(jobs);
-  if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
+  const saved = mutateSavedJob(id, (live) => {
+    if (uploaded) {
+      live.photoPath = photoPath; live.photo = ""; live.photoUpdatedAt = photoUpdatedAt;
+    } else {
+      live.photo = dataUrl || ""; live.photoPath = "";
+    }
+  });
+  if (!saved) return false;
+  if (!saved.isDraft) { try { pushJobToCloud(saved); } catch (_) {} }
   renderDashboard();
-  if (_jdJobId === id) renderJobDetails(j);
+  if (_jdJobId === id) renderJobDetails(saved);
+  return true;
 }
 
 // One-time background migration: push any remaining base64 photos into Storage.
@@ -9526,6 +9543,9 @@ async function migrateBase64Photos() {
   let changed = false;
   for (const j of jobs) {
     if (j.isDraft || !isUuid(j.id)) continue;
+    let jobChanged = false;
+    let coverMigration = null;
+    const galleryMigrations = [];
     // Cover photo: legacy single base64 -> Storage.
     if (!j.photoPath && j.photo && /^data:image\//.test(j.photo)) {
       try {
@@ -9533,15 +9553,12 @@ async function migrateBase64Photos() {
         const { error } = await sb.storage.from(PHOTO_BUCKET)
           .upload(path, dataURLToBlob(j.photo), { upsert: true, contentType: "image/jpeg" });
         if (error) throw error;
-        j.photoPath = path; j.photo = ""; j.photoUpdatedAt = Date.now();
-        changed = true;
-        try { await pushJobToCloud(j); } catch (_) {}
+        coverMigration = { oldPhoto: j.photo, path, updatedAt: Date.now() };
       } catch (e) { /* leave base64 in place; retry next login */ }
     }
     // Gallery: any base64 fallback entries -> Storage (so the cloud row + this
     // device aren't bloated by inline images once we're back online).
     if (Array.isArray(j.photos) && j.photos.some(p => /^data:image\//.test(p))) {
-      let jobChanged = false;
       for (let i = 0; i < j.photos.length; i++) {
         const p = j.photos[i];
         if (!p || !/^data:image\//.test(p)) continue;
@@ -9550,13 +9567,38 @@ async function migrateBase64Photos() {
           const { error } = await sb.storage.from(PHOTO_BUCKET)
             .upload(gp, dataURLToBlob(p), { upsert: true, contentType: "image/jpeg" });
           if (error) throw error;
-          j.photos[i] = gp; jobChanged = true;
+          galleryMigrations.push({ idx: i, oldPhoto: p, path: gp });
         } catch (e) { /* leave this entry as base64; retry next login */ }
       }
-      if (jobChanged) { j.photosUpdatedAt = Date.now(); changed = true; try { await pushJobToCloud(j); } catch (_) {} }
     }
+    if (!coverMigration && !galleryMigrations.length) continue;
+    const unusedPaths = [];
+    const saved = mutateSavedJob(j.id, (live) => {
+      let galleryChanged = false;
+      if (coverMigration) {
+        if (!live.photoPath && live.photo === coverMigration.oldPhoto) {
+          live.photoPath = coverMigration.path; live.photo = ""; live.photoUpdatedAt = coverMigration.updatedAt; jobChanged = true;
+        } else {
+          unusedPaths.push(coverMigration.path);
+        }
+      }
+      if (galleryMigrations.length && Array.isArray(live.photos)) {
+        for (const m of galleryMigrations) {
+          if (live.photos[m.idx] === m.oldPhoto) {
+            live.photos[m.idx] = m.path; jobChanged = true; galleryChanged = true;
+          } else {
+            unusedPaths.push(m.path);
+          }
+        }
+        if (galleryChanged) live.photosUpdatedAt = Date.now();
+      } else {
+        galleryMigrations.forEach(m => unusedPaths.push(m.path));
+      }
+    });
+    if (unusedPaths.length) cleanupStoredGalleryEntries(unusedPaths);
+    if (saved && jobChanged) { changed = true; try { await pushJobToCloud(saved); } catch (_) {} }
   }
-  if (changed) { saveJobs(jobs); try { renderDashboard(); } catch (_) {} }
+  if (changed) { try { renderDashboard(); } catch (_) {} }
 }
 
 /* ============================================================
@@ -9568,18 +9610,26 @@ async function migrateBase64Photos() {
    job.photos[]; offline/draft jobs fall back to inline base64. This is
    separate from the single cover photo (photoPath / dashboard tile).
    ============================================================ */
+const MAX_GALLERY = 24;
 function jobGalleryList(j) { return Array.isArray(j && j.photos) ? j.photos.filter(Boolean) : []; }
 
 let _jdGalleryTargetId = null;   // job id awaiting files from #jdGalleryInput
 
+function cleanupStoredGalleryEntries(entries) {
+  const paths = (entries || []).filter(p => p && !/^data:/.test(p));
+  if (paths.length && sb && sb.storage) {
+    try { sb.storage.from(PHOTO_BUCKET).remove(paths); paths.forEach(p => delete _photoUrlCache[p]); } catch (_) {}
+  }
+}
+
 async function addJobGalleryPhotos(id, dataUrls) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
-  if (!j) return;
-  if (!Array.isArray(j.photos)) j.photos = [];
-  const MAX_GALLERY = 24;
-  for (let i = 0; i < dataUrls.length; i++) {
-    if (j.photos.length >= MAX_GALLERY) { toast("Photo limit reached — up to 24 per job."); break; }
+  if (!j) return 0;
+  const availableAtStart = Math.max(0, MAX_GALLERY - jobGalleryList(j).length);
+  if (!availableAtStart) { toast("Photo limit reached — up to 24 per job."); return 0; }
+  const entries = [];
+  for (let i = 0; i < dataUrls.length && entries.length < availableAtStart; i++) {
     const dataUrl = dataUrls[i];
     if (!dataUrl) continue;
     let stored = false;
@@ -9589,16 +9639,35 @@ async function addJobGalleryPhotos(id, dataUrls) {
         const { error } = await sb.storage.from(PHOTO_BUCKET)
           .upload(path, dataURLToBlob(dataUrl), { upsert: true, contentType: "image/jpeg" });
         if (error) throw error;
-        j.photos.push(path); stored = true;
+        entries.push(path); stored = true;
       } catch (e) { console.warn("gallery upload failed, keeping local", e); }
     }
-    if (!stored) j.photos.push(dataUrl);   // base64 fallback (offline / draft)
+    if (!stored) entries.push(dataUrl);   // base64 fallback (offline / draft)
   }
-  j.photosUpdatedAt = Date.now();
-  saveJobs(jobs);
-  if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
+  if (entries.length < dataUrls.filter(Boolean).length) toast("Photo limit reached — up to 24 per job.");
+  if (!entries.length) return 0;
+  let added = 0;
+  const unused = [];
+  const saved = mutateSavedJob(id, (live) => {
+    if (!Array.isArray(live.photos)) live.photos = [];
+    for (const entry of entries) {
+      if (live.photos.length >= MAX_GALLERY) { unused.push(entry); continue; }
+      live.photos.push(entry); added++;
+    }
+    if (added) live.photosUpdatedAt = Date.now();
+  });
+  if (!saved || !added) {
+    cleanupStoredGalleryEntries(entries);
+    if (!saved) return 0;
+  } else if (unused.length) {
+    cleanupStoredGalleryEntries(unused);
+    toast("Photo limit reached — up to 24 per job.");
+  }
+  if (!saved || !added) return 0;
+  if (!saved.isDraft) { try { pushJobToCloud(saved); } catch (_) {} }
   renderDashboard();
-  if (_jdJobId === id) renderJobDetails(j);
+  if (_jdJobId === id) renderJobDetails(saved);
+  return added;
 }
 
 async function removeJobGalleryPhoto(id, idx) {
@@ -9948,7 +10017,8 @@ async function generateJobThumbnail(jobId, btn) {
     const title = job.customerName || job.name || "Window Job";
     const subtitle = (job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "";
     const thumb = await composeJobThumbnail(data.image, title, subtitle);
-    await saveJobPhoto(jobId, thumb);   // uploads to Storage + re-renders
+    const saved = await saveJobPhoto(jobId, thumb);   // uploads to Storage + re-renders
+    if (!saved) { toast("Couldn't save thumbnail"); return; }
     try { if (typeof window.track === "function") window.track("ai_thumbnail_generated"); } catch (_) {}
     toast("Thumbnail generated");
   } catch (e) {
@@ -10008,8 +10078,7 @@ function wireDashboard() {
       // Half the blur of a Grok thumbnail (radius 3 vs 6) — a real uploaded job
       // photo should stay recognizable behind the title.
       try { thumb = await composeJobThumbnail(dataUrl, title, subtitle, 3); } catch (_) { /* fall back to the raw photo */ }
-      await saveJobPhoto(id, thumb);
-      toast("Photo added");
+      if (await saveJobPhoto(id, thumb)) toast("Photo added");
     }
     catch (_) { toast("Couldn't read that image"); }
   });
@@ -10026,8 +10095,8 @@ function wireDashboard() {
     const dataUrls = [];
     for (const f of okFiles) { try { dataUrls.push(await compressJobPhoto(f, 1400, 0.82)); } catch (_) {} }
     if (!dataUrls.length) { toast("Couldn't read those images"); return; }
-    await addJobGalleryPhotos(id, dataUrls);
-    toast(dataUrls.length === 1 ? "Photo added" : (dataUrls.length + " photos added"));
+    const added = await addJobGalleryPhotos(id, dataUrls);
+    if (added) toast(added === 1 ? "Photo added" : (added + " photos added"));
   });
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
   on("dashHome", () => renderDashboard());
