@@ -11,8 +11,11 @@
 <meta name="description" content="Anchor — quote window installs in seconds. Linear-footage costing, Florida product-approval lookup, and instant customer quotes for window & door installers." />
 <title>Anchor — Window Install Pricing</title>
 
-<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23020617'/><g fill='none' stroke='%23c9a558' stroke-width='11' stroke-linecap='round' stroke-linejoin='round'><circle cx='90' cy='45' r='14'/><line x1='90' y1='59' x2='90' y2='139'/><line x1='63' y1='73' x2='117' y2='73'/><path d='M46 100 C 46 132 71 145 90 145 C 109 145 134 132 134 100'/><path d='M46 100 L 32 88'/><path d='M134 100 L 148 88'/></g></svg>" />
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23020617'/><g fill='none' stroke='%23c9a558' stroke-width='11' stroke-linecap='round' stroke-linejoin='round'><circle cx='90' cy='45' r='14'/><line x1='90' y1='59' x2='90' y2='139'/><line x1='63' y1='73' x2='117' y2='73'/><path d='M46 100 C 46 132 71 145 90 145 C 109 145 134 132 134 100'/><path d='M46 100 L 32 88'/><path d='M134 100 L 148 88'/></g></svg>" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="icon" href="/favicon.ico" sizes="48x48" />
+<link rel="manifest" href="/manifest.webmanifest" />
 
 <!-- ============================================================
      PUBLIC-QUOTE ROUTE GATE — runs before any heavy script loads.
@@ -3348,6 +3351,7 @@
         </div>
       </div>
     </div>
+    <p class="lp-reveal text-[11px] text-slate-500 leading-relaxed text-center max-w-md mx-auto mt-6">Just a preview — the full calculator tunes to your rates, products, labor model, and <span class="text-[#c9a558] font-medium">FL approvals</span>.</p>
   </section>
 
   <!-- How it works — three plain steps so a first-time visitor instantly gets
@@ -15941,33 +15945,9 @@ function purgeStaleSW() {
   } catch (_) {}
 }
 
-function injectManifest() {
-  const manifest = {
-    name: "Anchor — Window Install Pricing",
-    short_name: "Anchor",
-    start_url: ".",
-    display: "standalone",
-    background_color: "#020617",
-    theme_color: "#020617",
-    icons: [{
-      src: "data:image/svg+xml;utf8," + encodeURIComponent(
-        `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>
-           <rect width='512' height='512' rx='112' fill='#020617'/>
-           <g stroke='#c9a558' stroke-width='14' fill='none'>
-             <rect x='110' y='110' width='292' height='292' rx='14'/>
-             <line x1='256' y1='110' x2='256' y2='402'/>
-             <line x1='110' y1='256' x2='402' y2='256'/>
-           </g>
-         </svg>`),
-      sizes: "512x512", type: "image/svg+xml", purpose: "any maskable"
-    }]
-  };
-  const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
-  const link = document.createElement("link");
-  link.rel = "manifest";
-  link.href = URL.createObjectURL(blob);
-  document.head.appendChild(link);
-}
+// Web app manifest is a static file (/manifest.webmanifest) linked in <head>.
+// The old runtime Blob manifest was uninstallable on Android (a blob: base
+// can't resolve start_url, and Chrome rejected its SVG icon), so it was removed.
 
 /* ============================================================
    INIT
@@ -17629,7 +17609,6 @@ async function boot() {
   if (window.__PUBLIC_SIGN_ROUTE || /^#\/sign\//.test(window.location.hash || "")) {
     return;
   }
-  injectManifest();
   try {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch (e) {
