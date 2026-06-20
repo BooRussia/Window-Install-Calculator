@@ -1578,6 +1578,32 @@
   }
 
   /* ------- Scroll-driven anchor dive ------- */
+  /* Aurora hero backdrop — slow gold "northern lights" drifting behind the hero.
+     z-index:-1 keeps it behind all landing content (nav z30, rope z20, sections
+     z-auto) with no other layout changes. Masked to glow at the top + fade down. */
+  .lp-aurora {
+    position: absolute; top: 0; left: 0; right: 0; height: 820px; z-index: -1;
+    overflow: hidden; pointer-events: none;
+    --lp-aurora-grad: repeating-linear-gradient(100deg, #5e4520 6%, #c9a558 13%, #b58f4a 19%, #e9d39a 25%, #7a5c28 31%);
+    --lp-aurora-stripe: repeating-linear-gradient(100deg, #020617 0%, #020617 7%, transparent 10%, transparent 12%, #020617 16%);
+    -webkit-mask-image: radial-gradient(130% 85% at 50% -12%, #000 24%, transparent 74%);
+            mask-image: radial-gradient(130% 85% at 50% -12%, #000 24%, transparent 74%);
+  }
+  .lp-aurora::after {
+    content: ""; position: absolute; inset: -60px;
+    background-image: var(--lp-aurora-stripe), var(--lp-aurora-grad);
+    background-size: 300% 220%; background-position: 50% 50%, 50% 50%;
+    filter: blur(13px) saturate(1.2); opacity: 0.55;
+    will-change: background-position;
+    animation: lpAurora 60s linear infinite;
+  }
+  @keyframes lpAurora {
+    from { background-position: 50% 50%, 50% 50%; }
+    to   { background-position: 340% 50%, 340% 50%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .lp-aurora::after { animation: none; } }
+  [data-theme="light"] .lp-aurora { opacity: 0.75; --lp-aurora-stripe: repeating-linear-gradient(100deg, #ffffff 0%, #ffffff 7%, transparent 10%, transparent 12%, #ffffff 16%); }
+
   #anchorDive {
     position: fixed; left: 16px; top: 0; bottom: 0; width: 110px;
     pointer-events: none; z-index: 20; overflow: visible;
@@ -3275,6 +3301,9 @@
      LANDING PAGE  (shown when logged out)
      ============================================================ -->
 <div id="landingScreen" class="fixed inset-0 z-[75] hidden overflow-y-auto">
+
+  <!-- Aurora hero backdrop (CSS-only; behind all content via z-index:-1) -->
+  <div class="lp-aurora" aria-hidden="true"></div>
 
   <!-- Nav -->
   <nav class="lp-nav sticky top-0 z-30">
