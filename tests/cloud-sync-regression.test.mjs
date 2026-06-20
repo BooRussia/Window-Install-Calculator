@@ -25,9 +25,9 @@ const context = {
   crypto: {
     randomUUID: () => "11111111-2222-4333-8444-555555555555",
   },
-  markCloudOk() { this.okCount++; },
-  markCloudError(err) { this.errors.push(err); },
 };
+context.markCloudOk = () => { context.okCount++; };
+context.markCloudError = (err) => { context.errors.push(err); };
 vm.createContext(context);
 
 vm.runInContext(`
