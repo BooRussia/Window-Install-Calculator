@@ -18844,20 +18844,22 @@ function init() {
   const MIN_N = 14;           // shortest rope (taut near the top)
   const MAX_N = 360;          // hard node budget (~2160px of rope)
   const SPAN_NODES = 48;      // first N nodes = suspended span (stiff solve)
-  const SPAN_ITERS = 8;       // stiff iterations on the hanging span
+  const SPAN_ITERS = 10;      // stiff iterations on the hanging span (keeps it taut, body follows the anchor)
   const PILE_ITERS = 3;       // cheap iterations on the buried pile
   // --- water feel ---
   const DAMP = 0.93;          // viscous water (was 0.985 — the single biggest change)
   const DRAG_TIP = 0.018;     // anchor node drags hardest (tip leads)
   const DRAG_BODY = 0.006;    // body nodes trail like a sinking chain
   const DRAG_CAP = 0.55;
-  const SWAY_AMP = 0.06;      // lateral sway, gated by motion
+  const SWAY_MAX = 16;        // max lateral sway (px) of the kinematic hang while scrolling
+  const HANG_WAVES = 1.4;     // number of sway half-waves along the rope
+  const DROOP = 5;            // tiny catenary belly on the hang (px)
   // --- slack / drift ---
   // Slack is a CAPPED PIXEL excess over the straight line, NOT a ratio: a tall
   // rope in a ~110px column buckles ~sqrt(span) for a fixed % slack, so a ratio
   // mashes the walls on long spans. A px cap keeps the bow graceful + bounded
   // on every span, and the "in water" life comes from sway + trailing + drift.
-  const SLACK_DESCEND_PX = 15; // rope length over the straight line while sinking
+  const SLACK_DESCEND_PX = 8;  // gentle give while sinking — enough to sway, not enough to loop at the knot
   const SLACK_REST_PX = 0.5;   // ~0 slack at rest so it eases fully to straight (a long span buckles even from tiny slack)
   const SLACK_REST = 1.04;     // ratio form, used by reduced-motion + reel-click
   const LEN_EASE = 0.18;       // ropeLen approach while descending (keeps slack during scroll)
@@ -18906,6 +18908,8 @@ function init() {
   let maxNeff = MAX_N, slowFrames = 0; // runtime self-throttle
   // pointer interaction — shove the anchor; it swings back like settling in water
   let mx = -9999, my = -9999, lastPointerTs = -1e9, heroLeftLocal = 9999;
+  // kinematic-hang state (anchor pendulum + sway)
+  let axPos = CX, axVel = 0, swayPhase = 0, swayAmpCur = 0, prevRingForSway = 0;
   // flat spatial-hash grid (allocated ONCE — zero per-frame allocation)
   const gridCount = new Int32Array(GRID_COLS * GRID_ROWS);
   const gridCells = new Int32Array(GRID_COLS * GRID_ROWS * GRID_CAP);
@@ -19109,11 +19113,13 @@ function init() {
     let targetRingY = startY + (endY - startY) * p;
     if (atBottom) targetRingY = Math.min(targetRingY, floorY - RING_Y);   // anchor rests on the sand
     prevDisplayRingY = displayRingY;
-    ringSpringVel = (ringSpringVel + (targetRingY - displayRingY) * 0.12 * dt) * Math.pow(0.78, dt);
-    displayRingY += ringSpringVel * dt;
-    if (Math.abs(ringSpringVel) < 0.003 && Math.abs(targetRingY - displayRingY) < 0.6) {
-      ringSpringVel = 0; displayRingY = targetRingY;
-    }
+    // Direct MONOTONIC follow — no spring momentum/overshoot. A momentum spring
+    // briefly reverses direction when it overshoots, which oscillates the whole
+    // rope (the erratic jiggle) and lets the body swing below the knot. A plain
+    // ease never moves past the target, so the anchor only descends as you scroll
+    // down and the rope stays taut behind it.
+    displayRingY += (targetRingY - displayRingY) * 0.22 * dt;
+    if (Math.abs(targetRingY - displayRingY) < 0.4) displayRingY = targetRingY;
     const ringY = displayRingY;
     const ropeVelY = displayRingY - prevDisplayRingY;
 
@@ -19131,7 +19137,9 @@ function init() {
     if (nowLanded !== landed) { landed = nowLanded; scene.classList.toggle("landed", landed); }
 
     // ---- rope rest-length target (THE free-flow control) ----
-    const straight = Math.max(EPS, Math.hypot(anc.x - CX, anc.y - 0));
+    // Measure to the anchor's NEW depth (ringY), not last frame's, so the length
+    // tracks the scroll tightly and can't lag into excess on a fast up-scroll.
+    const straight = Math.max(EPS, Math.hypot(anc.x - CX, ringY));
     if (reeling) {
       const tt = clamp((ts - reelT0) / REEL_MS, 0, 1);
       const e = tt < 0.5 ? 4 * tt * tt * tt : 1 - Math.pow(-2 * tt + 2, 3) / 2;   // easeInOutCubic
@@ -19146,130 +19154,142 @@ function init() {
       const step = clamp(feedAccum, -FEED_DRAIN * dt, FEED_DRAIN * dt);
       ropeLen += step; feedAccum -= step;
       if (ropeLen < straight) ropeLen += (straight - ropeLen) * LEN_EASE * dt;  // never go taut above the floor
-    } else if (idle) {
-      ropeLen += ((straight + SLACK_REST_PX) - ropeLen) * REST_RELAX * dt;       // ~2.5s drift to straight
     } else {
-      ropeLen += ((straight + SLACK_DESCEND_PX) - ropeLen) * LEN_EASE * dt;      // bow while sinking
+      // Ease toward (straight + a little slack) — slow when idle (gentle drift to
+      // straight), quicker while sinking. The EASE gives the feel...
+      const slack = idle ? SLACK_REST_PX : SLACK_DESCEND_PX;
+      ropeLen += ((straight + slack) - ropeLen) * (idle ? REST_RELAX : LEN_EASE) * dt;
+      // ...the HARD CAP guarantees the rope is never longer than the gap + max
+      // slack, so a fast up-scroll can't leave excess rope looping below the knot.
+      ropeLen = clamp(ropeLen, straight * 0.985, straight + SLACK_DESCEND_PX + 2);
     }
     ropeLen = clamp(ropeLen, SEG * (MIN_N - 1), SEG * (maxNeff - 1));
 
-    // ---- reconcile node count (one node/frame, born with zero velocity) ----
+    // ---- node count target ----
     const wantN = clamp(Math.round(ropeLen / SEG) + 1, MIN_N, maxNeff);
-    if (pts.length < wantN) {
-      const a = pts[pts.length - 1];
-      // while piling, give each new node a random 2D birth velocity so the heap
-      // mounds + spills differently every time (px/py offset = initial velocity)
-      let bpx = a.x, bpy = a.y;
-      if (piling) { const ang = Math.random() * 6.2832, sp = Math.random() * PILE_SCATTER; bpx = a.x - Math.cos(ang) * sp; bpy = a.y - Math.sin(ang) * sp; }
-      pts.splice(pts.length - 1, 0, { x: a.x, y: a.y, px: bpx, py: bpy });   // insert ahead of the anchor
-    } else if (pts.length > wantN) {
-      pts.splice(pts.length - 2, 1);
-    }
-    N = pts.length;
-    anc = pts[N - 1];
 
-    // ---- integrate (skip the top pin i=0) ----
-    const swayGate = clamp(Math.abs(ropeVelY) * 0.8, 0, 1);   // provably 0 at rest -> no standing waves
-    for (let i = 1; i < N; i++) {
-      const pt = pts[i];
-      let vx = (pt.x - pt.px) * DAMP;
-      let vy = (pt.y - pt.py) * DAMP;
-      const speed = Math.hypot(vx, vy);
-      if (speed > 0.01) {
-        const k = (i === N - 1) ? DRAG_TIP : DRAG_BODY;
-        const drag = Math.min(DRAG_CAP, k * speed);
-        vx -= vx * drag; vy -= vy * drag;
-      }
-      pt.px = pt.x; pt.py = pt.y;
-      let nx = pt.x + vx + Math.sin(ts * 0.0009 + i * 0.45) * SWAY_AMP * swayGate;
-      // lighter gravity inside the heap so coils stack into a mound instead of
-      // pancaking flat into a thin snake along the floor
-      const g = (piling && pt.y > floorY - PILE_GRAVITY_BAND) ? GRAVITY * PILE_GRAVITY_K : GRAVITY;
-      let ny = pt.y + vy + g * dt;
-      const ddx = nx - pt.px, ddy = ny - pt.py;   // per-frame displacement firewall
-      if (ddx > MAX_NODE_STEP) nx = pt.px + MAX_NODE_STEP; else if (ddx < -MAX_NODE_STEP) nx = pt.px - MAX_NODE_STEP;
-      if (ddy > MAX_NODE_STEP) ny = pt.py + MAX_NODE_STEP; else if (ddy < -MAX_NODE_STEP) ny = pt.py - MAX_NODE_STEP;
-      pt.x = nx; pt.y = ny;
-    }
+    if (!piling) {
+      // =================== KINEMATIC HANG ===================
+      // The hanging rope is drawn as a controlled smooth curve from the top pin to
+      // the anchor, NOT simulated with verlet. A pinned rope whose end is yanked
+      // around by scroll is exactly what makes verlet droop below the knot, jiggle
+      // and loop. A kinematic curve can do none of those: it always runs cleanly
+      // top -> anchor, taut, with procedural sway for the in-water life.
 
-    // ---- distance constraints: stiff span + cheap pile (the inverted-iters fix) ----
-    const spanEnd = Math.min(N - 1, SPAN_NODES);
-    for (let it = 0; it < SPAN_ITERS; it++) {
-      if ((it & 1) === 0) { for (let i = 0; i < spanEnd; i++) solveLink(i); }
-      else { for (let i = spanEnd - 1; i >= 0; i--) solveLink(i); }
-      pts[0].x = CX; pts[0].y = 0;
-      if (!piling) anc.y = ringY;
-    }
-    if (N - 1 > spanEnd) {
-      for (let it = 0; it < PILE_ITERS; it++) {
-        if ((it & 1) === 0) { for (let i = spanEnd - 1; i < N - 1; i++) solveLink(i); }
-        else { for (let i = N - 2; i >= spanEnd - 1; i--) solveLink(i); }
-        pts[0].x = CX; pts[0].y = 0;
-        if (!piling) anc.y = ringY;
-      }
-    }
+      // resize instantly (positions are recomputed below, so resizing never pops)
+      while (pts.length < wantN) pts.push({ x: CX, y: 0, px: CX, py: 0 });
+      while (pts.length > wantN && pts.length > MIN_N) pts.pop();
+      N = pts.length;
 
-    // ---- self-collision: ONLY on the actual pile. The hanging rope must NEVER
-    //      self-collide (it's a single clean strand) or it shudders/jitters. ----
-    if (piling) { for (let cp = 0; cp < COLLIDE_PASSES; cp++) runCollisionPass(); }
-
-    // ---- cursor play: shove the anchor sideways (not while piling) ----
-    if (!reduce && !piling) {
-      const sinceMove = ts - lastPointerTs;
-      if (sinceMove < 1400) {
-        const adx = mx - anc.x, ady = my - anc.y;
-        const adist = Math.hypot(adx, ady);
-        const R = 180;
-        if (adist < R) {
-          let grab = 1 - adist / R; grab *= grab;
-          idleFrames = 0;
-          anc.x += adx * grab * 0.16 * dt;
+      // anchor X = a damped pendulum toward centre + cursor shove (lateral life)
+      axVel += (CX - axPos) * 0.012 * dt;
+      if (!reduce) {
+        const sinceMove = ts - lastPointerTs;
+        if (sinceMove < 1400) {
+          const adx = mx - axPos, adist = Math.hypot(adx, my - ringY);
+          if (adist < 190) { let grab = 1 - adist / 190; grab *= grab; axVel += adx * grab * 0.06 * dt; idleFrames = 0; }
         }
       }
-    }
+      axVel *= Math.pow(0.90, dt);
+      axPos += axVel * dt;
+      const axMax = Math.max(56, Math.min(56 + Math.max(0, window.innerWidth - 130 - 16), heroLeftLocal - 80));
+      if (axPos < 56) { axPos = 56; axVel = 0; } else if (axPos > axMax) { axPos = axMax; axVel = 0; }
 
-    // ---- drift to vertical: when idle, ease the anchor back under the top pin
-    //      so the rope settles straight-and-vertical (not a straight diagonal). ----
-    if (idle) { anc.x += (CX - anc.x) * 0.04 * dt; anc.px += (CX - anc.px) * 0.04 * dt; }
+      // sway amplitude grows with scroll speed, eases to 0 at rest (drift straight)
+      const scrollSpeed = Math.abs(ringY - prevRingForSway); prevRingForSway = ringY;
+      const swayTarget = Math.min(SWAY_MAX, scrollSpeed * 0.85);
+      swayAmpCur += (swayTarget - swayAmpCur) * 0.10 * dt;
+      swayPhase += 0.05 * dt;
 
-    // ---- floor + wall clamp (LAST word on penetration) ----
-    // Hanging: a narrow gutter (stay left of the hero). Piling: a WIDE spill zone
-    // so the rope spreads across the footer instead of stacking inside a box.
-    const minX = piling ? PILE_MIN_X : SEG;
-    const maxX = piling ? PILE_MAX_X : Math.min(110 - SEG, heroLeftLocal - 12);
-    for (let i = 1; i < N; i++) {
-      const pt = pts[i];
-      if (pt.y > floorY) { pt.y = floorY; pt.px += (pt.x - pt.px) * FLOOR_FRICTION; }
-      if (pt.x < minX) { pt.x = minX; pt.px = minX; }
-      else if (pt.x > maxX) { pt.x = maxX; pt.px = maxX; }
-    }
+      for (let i = 0; i < N; i++) {
+        const t = i / (N - 1);
+        const taper = Math.sin(t * Math.PI);            // 0 at both pinned ends
+        const bx = CX + (axPos - CX) * t;               // straight line top -> anchor
+        const by = ringY * t;
+        const sx = Math.sin(t * Math.PI * HANG_WAVES + swayPhase) * swayAmpCur * taper;
+        const pt = pts[i];
+        pt.x = bx + sx; pt.y = by + taper * DROOP;       // tiny catenary belly
+        pt.px = pt.x; pt.py = pt.y;
+      }
+      pts[0].x = CX; pts[0].y = 0;
+      anc = pts[N - 1];
+      anc.x = axPos; anc.y = ringY; anc.px = axPos; anc.py = ringY;   // exact knot = anchor
 
-    // ---- final pin + anchor placement ----
-    pts[0].x = CX; pts[0].y = 0; pts[0].px = CX; pts[0].py = 0;
-    if (piling) {
-      if (anc.y > floorY) anc.y = floorY;        // rest on the sand, x free
+      // anchor element tilt from lateral velocity
+      const tgtA = clamp(axVel * 2.4, -20, 20);
+      anchorAngle += (tgtA - anchorAngle) * 0.12 * dt;
+      anchor.style.transform =
+        "translate(" + (axPos - CX).toFixed(2) + "px," + (ringY - RING_Y).toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
+
     } else {
-      anc.y = ringY;
-      const minLastX = 56;
-      const maxLastX = Math.max(minLastX, Math.min(56 + Math.max(0, window.innerWidth - 130 - 16), heroLeftLocal - 80));
-      if (anc.x < minLastX) { anc.x = minLastX; anc.px = minLastX; }
-      else if (anc.x > maxLastX) { anc.x = maxLastX; anc.px = maxLastX; }
+      // =================== VERLET PILE ===================
+      // feed one node/frame AT the anchor with a random 2D birth velocity so the
+      // heap mounds + spills differently every time
+      if (pts.length < wantN) {
+        const a = pts[pts.length - 1];
+        const ang = Math.random() * 6.2832, sp = Math.random() * PILE_SCATTER;
+        pts.splice(pts.length - 1, 0, { x: a.x, y: a.y, px: a.x - Math.cos(ang) * sp, py: a.y - Math.sin(ang) * sp });
+      } else if (pts.length > wantN) {
+        pts.splice(pts.length - 2, 1);
+      }
+      N = pts.length;
+      anc = pts[N - 1];
+
+      // integrate (skip the top pin i=0)
+      for (let i = 1; i < N; i++) {
+        const pt = pts[i];
+        let vx = (pt.x - pt.px) * DAMP;
+        let vy = (pt.y - pt.py) * DAMP;
+        const speed = Math.hypot(vx, vy);
+        if (speed > 0.01) {
+          const k = (i === N - 1) ? DRAG_TIP : DRAG_BODY;
+          const drag = Math.min(DRAG_CAP, k * speed);
+          vx -= vx * drag; vy -= vy * drag;
+        }
+        pt.px = pt.x; pt.py = pt.y;
+        let nx = pt.x + vx;
+        const g = (pt.y > floorY - PILE_GRAVITY_BAND) ? GRAVITY * PILE_GRAVITY_K : GRAVITY;
+        let ny = pt.y + vy + g * dt;
+        const ddx = nx - pt.px, ddy = ny - pt.py;
+        if (ddx > MAX_NODE_STEP) nx = pt.px + MAX_NODE_STEP; else if (ddx < -MAX_NODE_STEP) nx = pt.px - MAX_NODE_STEP;
+        if (ddy > MAX_NODE_STEP) ny = pt.py + MAX_NODE_STEP; else if (ddy < -MAX_NODE_STEP) ny = pt.py - MAX_NODE_STEP;
+        pt.x = nx; pt.y = ny;
+      }
+      // distance constraints (stiff span + cheap pile)
+      const spanEnd = Math.min(N - 1, SPAN_NODES);
+      for (let it = 0; it < SPAN_ITERS; it++) {
+        if ((it & 1) === 0) { for (let i = 0; i < spanEnd; i++) solveLink(i); }
+        else { for (let i = spanEnd - 1; i >= 0; i--) solveLink(i); }
+        pts[0].x = CX; pts[0].y = 0;
+      }
+      if (N - 1 > spanEnd) {
+        for (let it = 0; it < PILE_ITERS; it++) {
+          if ((it & 1) === 0) { for (let i = spanEnd - 1; i < N - 1; i++) solveLink(i); }
+          else { for (let i = N - 2; i >= spanEnd - 1; i--) solveLink(i); }
+          pts[0].x = CX; pts[0].y = 0;
+        }
+      }
+      // self-collision (the heap)
+      for (let cp = 0; cp < COLLIDE_PASSES; cp++) runCollisionPass();
+      // floor + WIDE spill walls
+      for (let i = 1; i < N; i++) {
+        const pt = pts[i];
+        if (pt.y > floorY) { pt.y = floorY; pt.px += (pt.x - pt.px) * FLOOR_FRICTION; }
+        if (pt.x < PILE_MIN_X) { pt.x = PILE_MIN_X; pt.px = PILE_MIN_X; }
+        else if (pt.x > PILE_MAX_X) { pt.x = PILE_MAX_X; pt.px = PILE_MAX_X; }
+      }
+      pts[0].x = CX; pts[0].y = 0; pts[0].px = CX; pts[0].py = 0;
+      anc = pts[N - 1];
+      if (anc.y > floorY) anc.y = floorY;
+      anc.py = anc.y;
+      axPos = anc.x; axVel = 0;   // keep the kinematic anchor synced for a smooth hand-off back
+
+      const tx = anc.x - CX, ty = anc.y - RING_Y;
+      const tgtA = clamp((anc.x - anc.px) * 3.2, -22, 22);
+      anchorAngle += (tgtA - anchorAngle) * 0.12;
+      anchor.style.transform =
+        "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
     }
-    anc.py = anc.y;   // kill phantom vy from the y-pin
-
-    // The hanging rope must never droop BELOW its own anchor knot: during fast
-    // scroll the springy end can sit above the gravity-pulled body. Clamp body
-    // nodes to the anchor's depth so the rope always reads as tied at the top.
-    if (!piling) { const ay = anc.y; for (let i = 1; i < N - 1; i++) { if (pts[i].y > ay) { pts[i].y = ay; pts[i].py = ay; } } }
-
-    // ---- place the anchor element ----
-    const tx = anc.x - CX;
-    const ty = anc.y - RING_Y;
-    let tgtAngle = (anc.x - anc.px) * 3.2;
-    if (tgtAngle > 22) tgtAngle = 22; else if (tgtAngle < -22) tgtAngle = -22;
-    anchorAngle += (tgtAngle - anchorAngle) * 0.12;
-    anchor.style.transform =
-      "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
 
     // ---- draw ----
     const d = ropeD();
