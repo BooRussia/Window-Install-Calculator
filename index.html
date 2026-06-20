@@ -18879,14 +18879,21 @@ function init() {
   // but tight enough that it heaps up rather than smearing into a thin snake.
   const PILE_MIN_X = -30;
   const PILE_MAX_X = 150;
-  const PILE_SCATTER = 2.2;   // random 2D birth velocity -> seeds vertical stacking + variety
+  const PILE_SCATTER = 2.2;   // (legacy verlet pile — unused by the procedural coil)
+  // --- procedural coil pile (deterministic, drawn not simulated) ---
+  const PILE_ROW_DY = 8;      // vertical spacing between stacked rope courses
+  const PILE_HW_MAX = 70;     // half-width of the widest (bottom) course
+  const PILE_HW_DECAY = 0.9;  // each course up is this fraction of the one below (rounded mound)
+  const PILE_HW_MIN = 13;     // narrowest course at the top of the mound
+  const PILE_ROWS = 60;       // max courses generated (safety cap)
+  const TIP_ANGLE = 74;       // degrees the anchor tips onto its side once it lands
   // --- pile feed / reel ---
   // The bottom pile is a single reversible "paid-out length" (pileLen). Wheel-down
   // at the bottom pays rope out; wheel-up reels it back in the same way — the page
   // stays pinned (wheel captured) until the pile is fully back, so it can't bounce.
   const FEED_GAIN = 0.07;     // px of rope paid out per px of wheel (gentle; ~3x slower than before)
   const FEED_CAP = 16;        // px/event clamp (smooth even on a trackpad flick)
-  const PILE_LEN_MAX = 1500;  // max rope (px) that can be paid out onto the floor
+  const PILE_LEN_MAX = 1300;  // max rope (px) that can be paid out onto the floor
   const IDLE_SWAY = 3.0;      // gentle always-on underwater current so the rest pose isn't dead-straight
   const REEL_MS = 1500;       // reel-in duration (pileLen + scrollTop eased together)
   const MAX_NODE_STEP = SEG;  // per-frame per-node displacement firewall
@@ -18913,6 +18920,7 @@ function init() {
   let mx = -9999, my = -9999, lastPointerTs = -1e9, heroLeftLocal = 9999;
   // kinematic-hang state (anchor pendulum + sway)
   let axPos = CX, axVel = 0, swayPhase = 0, swayAmpCur = 0, prevRingForSway = 0;
+  let pileAnchorX = CX, anchorTip = 0;   // locked landing x + tip-over progress (0=upright,1=on its side)
   // flat spatial-hash grid (allocated ONCE — zero per-frame allocation)
   const gridCount = new Int32Array(GRID_COLS * GRID_ROWS);
   const gridCells = new Int32Array(GRID_COLS * GRID_ROWS * GRID_CAP);
@@ -18964,6 +18972,38 @@ function init() {
     const diff = (SEG - dist) / dist * 0.5;
     dx *= diff; dy *= diff;
     a.x -= dx; a.y -= dy; b.x += dx; b.y += dy;
+  }
+
+  // Deterministic coil pile: lay `len` px of rope into a serpentine mound on the
+  // floor, growing UP from the locked anchor (bottom). Same shape every time, no
+  // randomness, smooth path so the braid reads as coiled rope. Returns points
+  // from the anchor (bottom) up to the mound top, evenly spaced ~SEG.
+  function pilePoints(len) {
+    // waypoints: anchor, then L/R ends of each rising course (boustrophedon)
+    const wp = [{ x: pileAnchorX, y: floorY }];
+    let hw = PILE_HW_MAX;
+    for (let row = 0; row < PILE_ROWS; row++) {
+      const rowY = floorY - (row + 0.6) * PILE_ROW_DY;
+      const L = { x: pileAnchorX - hw, y: rowY }, R = { x: pileAnchorX + hw, y: rowY };
+      if (row % 2 === 0) { wp.push(L, R); } else { wp.push(R, L); }
+      hw = Math.max(PILE_HW_MIN, hw * PILE_HW_DECAY);
+    }
+    // arc-length sample the waypoint polyline up to `len`
+    const out = [{ x: wp[0].x, y: wp[0].y }];
+    let used = 0, d = SEG;
+    for (let i = 0; i < wp.length - 1; i++) {
+      const ax = wp[i].x, ay = wp[i].y, bx = wp[i + 1].x, by = wp[i + 1].y;
+      const segLen = Math.hypot(bx - ax, by - ay) || EPS;
+      while (d <= segLen) {
+        const tt = d / segLen;
+        out.push({ x: ax + (bx - ax) * tt, y: ay + (by - ay) * tt });
+        used += SEG;
+        if (used >= len) return out;
+        d += SEG;
+      }
+      d -= segLen;
+    }
+    return out;
   }
 
   function ropeD() {
@@ -19210,80 +19250,51 @@ function init() {
       anc = pts[N - 1];
       anc.x = axPos; anc.y = ringY; anc.px = axPos; anc.py = ringY;   // exact knot = anchor
 
-      // anchor element tilt from lateral velocity
+      // anchor: track the landing x, un-tip back upright, tilt from lateral vel
+      pileAnchorX = axPos;
+      anchorTip += (0 - anchorTip) * 0.08 * dt;
       const tgtA = clamp(axVel * 2.4, -20, 20);
       anchorAngle += (tgtA - anchorAngle) * 0.12 * dt;
+      const dispAngle = anchorAngle * (1 - anchorTip) + TIP_ANGLE * anchorTip;
       anchor.style.transform =
-        "translate(" + (axPos - CX).toFixed(2) + "px," + (ringY - RING_Y).toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
+        "translate(" + (axPos - CX).toFixed(2) + "px," + (ringY - RING_Y).toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
 
     } else {
-      // =================== VERLET PILE ===================
-      // feed one node/frame AT the anchor with a random 2D birth velocity so the
-      // heap mounds + spills differently every time
-      if (pts.length < wantN) {
-        const a = pts[pts.length - 1];
-        const ang = Math.random() * 6.2832, sp = Math.random() * PILE_SCATTER;
-        pts.splice(pts.length - 1, 0, { x: a.x, y: a.y, px: a.x - Math.cos(ang) * sp, py: a.y - Math.sin(ang) * sp });
-      } else if (pts.length > wantN) {
-        pts.splice(pts.length - 2, 1);
+      // =================== DETERMINISTIC COIL PILE ===================
+      // No physics. Lay the paid-out rope into a deterministic serpentine mound
+      // that grows up from the LOCKED, tipped-over anchor — same shape every time,
+      // smooth path so the braid reads as coiled rope.
+      anchorTip += (1 - anchorTip) * 0.06 * dt;            // tip onto its side
+      swayPhase += 0.045 * dt;
+
+      const pile = pilePoints(pileLen);                    // anchor(bottom) .. mound top
+      const top = pile[pile.length - 1];
+      const dropLen = Math.max(EPS, Math.hypot(top.x - CX, top.y));
+      const hangN = Math.max(2, Math.round(dropLen / SEG) + 1);
+      const total = hangN + pile.length - 1;               // mound-top is shared
+      while (pts.length < total) pts.push({ x: CX, y: 0, px: CX, py: 0 });
+      while (pts.length > total) pts.pop();
+      // hang: top pin -> mound top (gentle, like the kinematic hang)
+      for (let i = 0; i < hangN; i++) {
+        const t = i / (hangN - 1);
+        const taper = Math.sin(t * Math.PI);
+        const pt = pts[i];
+        pt.x = CX + (top.x - CX) * t + Math.sin(t * Math.PI * HANG_WAVES + swayPhase) * IDLE_SWAY * taper;
+        pt.y = top.y * t + taper * DROOP;
       }
+      // pile: mound top -> ... -> anchor (pilePoints runs bottom->top, so reverse)
+      for (let j = pile.length - 2; j >= 0; j--) {
+        const pt = pts[hangN + (pile.length - 2 - j)];
+        pt.x = pile[j].x; pt.y = pile[j].y;
+      }
+      pts[0].x = CX; pts[0].y = 0;
       N = pts.length;
-      anc = pts[N - 1];
+      anc = pts[N - 1];                                    // = (pileAnchorX, floorY)
 
-      // integrate (skip the top pin i=0)
-      for (let i = 1; i < N; i++) {
-        const pt = pts[i];
-        let vx = (pt.x - pt.px) * DAMP;
-        let vy = (pt.y - pt.py) * DAMP;
-        const speed = Math.hypot(vx, vy);
-        if (speed > 0.01) {
-          const k = (i === N - 1) ? DRAG_TIP : DRAG_BODY;
-          const drag = Math.min(DRAG_CAP, k * speed);
-          vx -= vx * drag; vy -= vy * drag;
-        }
-        pt.px = pt.x; pt.py = pt.y;
-        let nx = pt.x + vx;
-        const g = (pt.y > floorY - PILE_GRAVITY_BAND) ? GRAVITY * PILE_GRAVITY_K : GRAVITY;
-        let ny = pt.y + vy + g * dt;
-        const ddx = nx - pt.px, ddy = ny - pt.py;
-        if (ddx > MAX_NODE_STEP) nx = pt.px + MAX_NODE_STEP; else if (ddx < -MAX_NODE_STEP) nx = pt.px - MAX_NODE_STEP;
-        if (ddy > MAX_NODE_STEP) ny = pt.py + MAX_NODE_STEP; else if (ddy < -MAX_NODE_STEP) ny = pt.py - MAX_NODE_STEP;
-        pt.x = nx; pt.y = ny;
-      }
-      // distance constraints (stiff span + cheap pile)
-      const spanEnd = Math.min(N - 1, SPAN_NODES);
-      for (let it = 0; it < SPAN_ITERS; it++) {
-        if ((it & 1) === 0) { for (let i = 0; i < spanEnd; i++) solveLink(i); }
-        else { for (let i = spanEnd - 1; i >= 0; i--) solveLink(i); }
-        pts[0].x = CX; pts[0].y = 0;
-      }
-      if (N - 1 > spanEnd) {
-        for (let it = 0; it < PILE_ITERS; it++) {
-          if ((it & 1) === 0) { for (let i = spanEnd - 1; i < N - 1; i++) solveLink(i); }
-          else { for (let i = N - 2; i >= spanEnd - 1; i--) solveLink(i); }
-          pts[0].x = CX; pts[0].y = 0;
-        }
-      }
-      // self-collision (the heap)
-      for (let cp = 0; cp < COLLIDE_PASSES; cp++) runCollisionPass();
-      // floor + WIDE spill walls
-      for (let i = 1; i < N; i++) {
-        const pt = pts[i];
-        if (pt.y > floorY) { pt.y = floorY; pt.px += (pt.x - pt.px) * FLOOR_FRICTION; }
-        if (pt.x < PILE_MIN_X) { pt.x = PILE_MIN_X; pt.px = PILE_MIN_X; }
-        else if (pt.x > PILE_MAX_X) { pt.x = PILE_MAX_X; pt.px = PILE_MAX_X; }
-      }
-      pts[0].x = CX; pts[0].y = 0; pts[0].px = CX; pts[0].py = 0;
-      anc = pts[N - 1];
-      if (anc.y > floorY) anc.y = floorY;
-      anc.py = anc.y;
-      axPos = anc.x; axVel = 0;   // keep the kinematic anchor synced for a smooth hand-off back
-
-      const tx = anc.x - CX, ty = anc.y - RING_Y;
-      const tgtA = clamp((anc.x - anc.px) * 3.2, -22, 22);
-      anchorAngle += (tgtA - anchorAngle) * 0.12;
+      // anchor LOCKED at the landing spot, tipped onto its side
+      const dispAngle = anchorAngle * (1 - anchorTip) + TIP_ANGLE * anchorTip;
       anchor.style.transform =
-        "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px) rotate(" + anchorAngle.toFixed(2) + "deg)";
+        "translate(" + (pileAnchorX - CX).toFixed(2) + "px," + (floorY - RING_Y).toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
     }
 
     // ---- draw ----
