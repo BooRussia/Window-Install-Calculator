@@ -18858,18 +18858,26 @@ function init() {
   // mashes the walls on long spans. A px cap keeps the bow graceful + bounded
   // on every span, and the "in water" life comes from sway + trailing + drift.
   const SLACK_DESCEND_PX = 15; // rope length over the straight line while sinking
-  const SLACK_REST_PX = 3;     // barely-slack at rest (eases to near-straight)
+  const SLACK_REST_PX = 0.5;   // ~0 slack at rest so it eases fully to straight (a long span buckles even from tiny slack)
   const SLACK_REST = 1.04;     // ratio form, used by reduced-motion + reel-click
   const LEN_EASE = 0.18;       // ropeLen approach while descending (keeps slack during scroll)
   const REST_RELAX = 0.022;    // ropeLen approach when idle -> ~2.5s eased drift to straight
   // --- self-collision ---
   const COLLIDE_MIN = 60;     // skip collision pass + chevrons when N <= this
   const CELL = 12;            // SEG*2; cell >= diameter -> 3x3 query is exhaustive
-  const MINDIST = 5.8;        // just under SEG so chain neighbours don't fight, but firm enough to stack
-  const COLLIDE_PASSES = 3;   // multiple passes so the heap STACKS UP instead of crushing flat
+  const MINDIST = 5.6;        // < SEG; firmer so coils stack into a heap (collision only runs on the pile)
+  const COLLIDE_PASSES = 4;   // passes/frame on the pile -> nodes truly separate and stack
   const COLLIDE_PUSH = 0.62;  // separation strength per pass
   const SKIP_NEIGHBOR = 1;    // ignore pairs |i-j| <= 1
-  const FLOOR_FRICTION = 0.5;
+  const FLOOR_FRICTION = 0.78; // nodes mostly STICK where they land -> mounds (low = thin snake)
+  const PILE_GRAVITY_K = 0.4;  // gravity multiplier inside the heap so it stacks up instead of pancaking flat
+  const PILE_GRAVITY_BAND = 150; // px above the floor where the lighter pile-gravity applies
+  // Pile spill: a zone a bit wider than the gutter so the heap mounds into a
+  // rounded, irregular shape (no flat box sides) and spills onto the footer,
+  // but tight enough that it heaps up rather than smearing into a thin snake.
+  const PILE_MIN_X = -30;
+  const PILE_MAX_X = 150;
+  const PILE_SCATTER = 2.2;   // random 2D birth velocity -> seeds vertical stacking + variety
   // --- feed / reel ---
   const FEED_GAIN = 0.22;     // px rope per px wheel at the bottom
   const FEED_CAP = 8;         // px/event clamp (trackpad-flick guard)
@@ -19101,7 +19109,7 @@ function init() {
     let targetRingY = startY + (endY - startY) * p;
     if (atBottom) targetRingY = Math.min(targetRingY, floorY - RING_Y);   // anchor rests on the sand
     prevDisplayRingY = displayRingY;
-    ringSpringVel = (ringSpringVel + (targetRingY - displayRingY) * 0.05 * dt) * Math.pow(0.86, dt);
+    ringSpringVel = (ringSpringVel + (targetRingY - displayRingY) * 0.12 * dt) * Math.pow(0.78, dt);
     displayRingY += ringSpringVel * dt;
     if (Math.abs(ringSpringVel) < 0.003 && Math.abs(targetRingY - displayRingY) < 0.6) {
       ringSpringVel = 0; displayRingY = targetRingY;
@@ -19149,7 +19157,11 @@ function init() {
     const wantN = clamp(Math.round(ropeLen / SEG) + 1, MIN_N, maxNeff);
     if (pts.length < wantN) {
       const a = pts[pts.length - 1];
-      pts.splice(pts.length - 1, 0, { x: a.x, y: a.y, px: a.x, py: a.y });       // insert ahead of the anchor
+      // while piling, give each new node a random 2D birth velocity so the heap
+      // mounds + spills differently every time (px/py offset = initial velocity)
+      let bpx = a.x, bpy = a.y;
+      if (piling) { const ang = Math.random() * 6.2832, sp = Math.random() * PILE_SCATTER; bpx = a.x - Math.cos(ang) * sp; bpy = a.y - Math.sin(ang) * sp; }
+      pts.splice(pts.length - 1, 0, { x: a.x, y: a.y, px: bpx, py: bpy });   // insert ahead of the anchor
     } else if (pts.length > wantN) {
       pts.splice(pts.length - 2, 1);
     }
@@ -19170,7 +19182,10 @@ function init() {
       }
       pt.px = pt.x; pt.py = pt.y;
       let nx = pt.x + vx + Math.sin(ts * 0.0009 + i * 0.45) * SWAY_AMP * swayGate;
-      let ny = pt.y + vy + GRAVITY * dt;   // FULL gravity on every node
+      // lighter gravity inside the heap so coils stack into a mound instead of
+      // pancaking flat into a thin snake along the floor
+      const g = (piling && pt.y > floorY - PILE_GRAVITY_BAND) ? GRAVITY * PILE_GRAVITY_K : GRAVITY;
+      let ny = pt.y + vy + g * dt;
       const ddx = nx - pt.px, ddy = ny - pt.py;   // per-frame displacement firewall
       if (ddx > MAX_NODE_STEP) nx = pt.px + MAX_NODE_STEP; else if (ddx < -MAX_NODE_STEP) nx = pt.px - MAX_NODE_STEP;
       if (ddy > MAX_NODE_STEP) ny = pt.py + MAX_NODE_STEP; else if (ddy < -MAX_NODE_STEP) ny = pt.py - MAX_NODE_STEP;
@@ -19194,8 +19209,9 @@ function init() {
       }
     }
 
-    // ---- self-collision (gated to the pile) — multiple passes so it heaps UP ----
-    if (N > COLLIDE_MIN) { for (let cp = 0; cp < COLLIDE_PASSES; cp++) runCollisionPass(); }
+    // ---- self-collision: ONLY on the actual pile. The hanging rope must NEVER
+    //      self-collide (it's a single clean strand) or it shudders/jitters. ----
+    if (piling) { for (let cp = 0; cp < COLLIDE_PASSES; cp++) runCollisionPass(); }
 
     // ---- cursor play: shove the anchor sideways (not while piling) ----
     if (!reduce && !piling) {
@@ -19212,9 +19228,15 @@ function init() {
       }
     }
 
+    // ---- drift to vertical: when idle, ease the anchor back under the top pin
+    //      so the rope settles straight-and-vertical (not a straight diagonal). ----
+    if (idle) { anc.x += (CX - anc.x) * 0.04 * dt; anc.px += (CX - anc.px) * 0.04 * dt; }
+
     // ---- floor + wall clamp (LAST word on penetration) ----
-    const minX = SEG;
-    const maxX = Math.min(110 - SEG, heroLeftLocal - 12);
+    // Hanging: a narrow gutter (stay left of the hero). Piling: a WIDE spill zone
+    // so the rope spreads across the footer instead of stacking inside a box.
+    const minX = piling ? PILE_MIN_X : SEG;
+    const maxX = piling ? PILE_MAX_X : Math.min(110 - SEG, heroLeftLocal - 12);
     for (let i = 1; i < N; i++) {
       const pt = pts[i];
       if (pt.y > floorY) { pt.y = floorY; pt.px += (pt.x - pt.px) * FLOOR_FRICTION; }
@@ -19235,6 +19257,11 @@ function init() {
     }
     anc.py = anc.y;   // kill phantom vy from the y-pin
 
+    // The hanging rope must never droop BELOW its own anchor knot: during fast
+    // scroll the springy end can sit above the gravity-pulled body. Clamp body
+    // nodes to the anchor's depth so the rope always reads as tied at the top.
+    if (!piling) { const ay = anc.y; for (let i = 1; i < N - 1; i++) { if (pts[i].y > ay) { pts[i].y = ay; pts[i].py = ay; } } }
+
     // ---- place the anchor element ----
     const tx = anc.x - CX;
     const ty = anc.y - RING_Y;
@@ -19249,7 +19276,9 @@ function init() {
     ropePaths[0].setAttribute("d", d);
     ropePaths[1].setAttribute("d", d);
     elHighlight.setAttribute("d", d);
-    if (N <= COLLIDE_MIN) {
+    // Stripes ride the clean HANGING rope at any length; only the chaotic pile
+    // drops them (where a braid pattern is meaningless and costly).
+    if (!piling) {
       stripesHidden = false;
       const s = goldLines();
       elGold.setAttribute("d", s.dA);
@@ -19264,8 +19293,8 @@ function init() {
     elKnotBody.setAttribute("cx", kx); elKnotBody.setAttribute("cy", ky);
     elKnotHi.setAttribute("cx", (anc.x - 2).toFixed(1)); elKnotHi.setAttribute("cy", (anc.y - 3).toFixed(1));
 
-    // ---- bubbles (only for the short, lively rope) ----
-    if (!reduce && !landed && N <= COLLIDE_MIN) {
+    // ---- bubbles (off once piled) ----
+    if (!reduce && !landed && !piling) {
       const moving = Math.abs(p - lastP) > 0.0035;
       if (ts - lastSpawn > (moving ? 105 : 640)) { spawnBubble(anc.x, anc.y); lastSpawn = ts; }
     }
