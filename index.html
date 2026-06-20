@@ -1578,31 +1578,51 @@
   }
 
   /* ------- Scroll-driven anchor dive ------- */
-  /* Aurora hero backdrop — slow gold "northern lights" drifting behind the hero.
-     z-index:-1 keeps it behind all landing content (nav z30, rope z20, sections
-     z-auto) with no other layout changes. Masked to glow at the top + fade down. */
+  /* Underwater light caustics behind the hero. A CONSTANT pale-light field (the
+     steady "sunlight") with drifting SHADOW veins (multiply) and a faint
+     prismatic refraction sheen (screen), all warped by an SVG turbulence
+     displacement for ripple/refraction. So the light stays put and shadows pass
+     through it — not the lights moving. z-index:-1 keeps it behind all landing
+     content; isolation contains the blend modes. Motion is slow + transform-
+     driven (the filter is computed once, then the layer is just translated). */
   .lp-aurora {
-    position: absolute; top: 0; left: 0; right: 0; height: 820px; z-index: -1;
-    overflow: hidden; pointer-events: none;
-    --lp-aurora-grad: repeating-linear-gradient(100deg, #5e4520 6%, #c9a558 13%, #b58f4a 19%, #e9d39a 25%, #7a5c28 31%);
-    --lp-aurora-stripe: repeating-linear-gradient(100deg, #020617 0%, #020617 7%, transparent 10%, transparent 12%, #020617 16%);
-    -webkit-mask-image: radial-gradient(130% 85% at 50% -12%, #000 24%, transparent 74%);
-            mask-image: radial-gradient(130% 85% at 50% -12%, #000 24%, transparent 74%);
+    position: absolute; top: 0; left: 0; right: 0; height: 880px; z-index: -1;
+    overflow: hidden; pointer-events: none; isolation: isolate;
+    background: radial-gradient(120% 88% at 50% 4%, rgba(205,233,255,0.66), rgba(108,178,226,0.30) 38%, rgba(2,6,23,0) 70%);
+    -webkit-mask-image: radial-gradient(130% 98% at 50% 2%, #000 34%, transparent 84%);
+            mask-image: radial-gradient(130% 98% at 50% 2%, #000 34%, transparent 84%);
   }
-  .lp-aurora::after {
-    content: ""; position: absolute; inset: -60px;
-    background-image: var(--lp-aurora-stripe), var(--lp-aurora-grad);
-    background-size: 300% 220%; background-position: 50% 50%, 50% 50%;
-    filter: blur(13px) saturate(1.2); opacity: 0.55;
-    will-change: background-position;
-    animation: lpAurora 60s linear infinite;
+  .lp-aurora > div { position: absolute; inset: -40%; will-change: transform; }
+  /* drifting shadows — dark caustic veins multiply onto the constant light */
+  .lp-cau1, .lp-cau2 { mix-blend-mode: multiply; filter: url(#lpRipple) blur(7px); }
+  .lp-cau1 {
+    background-image:
+      repeating-radial-gradient(circle at 32% 26%, rgba(3,11,28,0.72) 0 3px, transparent 4px 42px),
+      repeating-radial-gradient(circle at 74% 62%, rgba(3,11,28,0.66) 0 3px, transparent 4px 54px);
+    animation: lpCau1 165s linear infinite;
   }
-  @keyframes lpAurora {
-    from { background-position: 50% 50%, 50% 50%; }
-    to   { background-position: 340% 50%, 340% 50%; }
+  .lp-cau2 {
+    background-image:
+      repeating-radial-gradient(circle at 62% 34%, rgba(2,9,24,0.62) 0 3px, transparent 4px 60px),
+      repeating-radial-gradient(circle at 24% 72%, rgba(2,9,24,0.56) 0 3px, transparent 4px 48px);
+    animation: lpCau2 235s linear infinite; opacity: 0.92;
   }
-  @media (prefers-reduced-motion: reduce) { .lp-aurora::after { animation: none; } }
-  [data-theme="light"] .lp-aurora { opacity: 0.75; --lp-aurora-stripe: repeating-linear-gradient(100deg, #ffffff 0%, #ffffff 7%, transparent 10%, transparent 12%, #ffffff 16%); }
+  /* prismatic refraction — the rainbow you get through water */
+  .lp-rbw {
+    background: conic-gradient(from 180deg at 50% -5%,
+      rgba(255,80,80,0), rgba(255,150,60,0.22), rgba(255,235,120,0.24), rgba(120,255,170,0.26),
+      rgba(80,190,255,0.30), rgba(175,120,255,0.24), rgba(255,80,140,0.18), rgba(255,80,80,0));
+    mix-blend-mode: screen; opacity: 1;
+    filter: url(#lpRipple) blur(16px);
+    animation: lpRbw 140s linear infinite;
+  }
+  @keyframes lpCau1 { from { transform: translate3d(-2%,-1%,0) rotate(0deg); } to { transform: translate3d(5%,4%,0) rotate(7deg); } }
+  @keyframes lpCau2 { from { transform: translate3d(2%,1%,0) rotate(0deg); }  to { transform: translate3d(-5%,5%,0) rotate(-6deg); } }
+  @keyframes lpRbw  { from { transform: translate3d(-3%,0,0); } to { transform: translate3d(6%,2%,0); } }
+  @media (prefers-reduced-motion: reduce) { .lp-cau1, .lp-cau2, .lp-rbw { animation: none; } }
+  [data-theme="light"] .lp-aurora { background: radial-gradient(120% 88% at 50% 2%, rgba(120,172,224,0.34), rgba(150,190,230,0.12) 40%, rgba(255,255,255,0) 72%); }
+  [data-theme="light"] .lp-cau1, [data-theme="light"] .lp-cau2 { mix-blend-mode: soft-light; opacity: 0.34; }
+  [data-theme="light"] .lp-rbw { opacity: 0.5; }
 
   #anchorDive {
     position: fixed; left: 16px; top: 0; bottom: 0; width: 110px;
@@ -3302,8 +3322,20 @@
      ============================================================ -->
 <div id="landingScreen" class="fixed inset-0 z-[75] hidden overflow-y-auto">
 
-  <!-- Aurora hero backdrop (CSS-only; behind all content via z-index:-1) -->
-  <div class="lp-aurora" aria-hidden="true"></div>
+  <!-- Underwater light-caustics hero backdrop (behind all content via z-index:-1).
+       Constant light field + drifting shadow veins + prismatic refraction,
+       rippled by the #lpRipple SVG turbulence filter. -->
+  <div class="lp-aurora" aria-hidden="true">
+    <div class="lp-cau1"></div>
+    <div class="lp-cau2"></div>
+    <div class="lp-rbw"></div>
+  </div>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute;width:0;height:0;pointer-events:none">
+    <filter id="lpRipple" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.009 0.014" numOctaves="2" seed="14" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="48" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
 
   <!-- Nav -->
   <nav class="lp-nav sticky top-0 z-30">
