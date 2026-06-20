@@ -18881,12 +18881,13 @@ function init() {
   const PILE_MAX_X = 150;
   const PILE_SCATTER = 2.2;   // (legacy verlet pile — unused by the procedural coil)
   // --- procedural coil pile (deterministic, drawn not simulated) ---
-  const PILE_ROW_DY = 8;      // vertical spacing between stacked rope courses
-  const PILE_HW_MAX = 70;     // half-width of the widest (bottom) course
-  const PILE_HW_DECAY = 0.9;  // each course up is this fraction of the one below (rounded mound)
-  const PILE_HW_MIN = 13;     // narrowest course at the top of the mound
+  const PILE_ROW_DY = 13;     // course spacing ~ rope width, so courses read as distinct loops (not a merged crosshatch)
+  const PILE_HW_MAX = 64;     // half-width of the widest (bottom) course
+  const PILE_HW_DECAY = 0.88; // each course up is this fraction of the one below (rounded mound)
+  const PILE_HW_MIN = 12;     // narrowest course at the top of the mound
   const PILE_ROWS = 60;       // max courses generated (safety cap)
-  const TIP_ANGLE = 74;       // degrees the anchor tips onto its side once it lands
+  const PILE_CENTER_X = 104;  // where the landed anchor + coil settle (keeps the tipped anchor on-screen)
+  const TIP_ANGLE = -70;      // degrees the anchor tips onto its side (lies right, into open space, stays on-screen)
   // --- pile feed / reel ---
   // The bottom pile is a single reversible "paid-out length" (pileLen). Wheel-down
   // at the bottom pays rope out; wheel-up reels it back in the same way — the page
@@ -19018,11 +19019,13 @@ function init() {
     return parts.join("");
   }
 
-  // diagonal gold "plait" stripes locked to the body Q-curve. Only called for a
-  // short rope (N <= COLLIDE_MIN) — meaningless + expensive on a chaotic pile.
+  // diagonal gold "plait" stripes locked to the body Q-curve. ONE linear pass:
+  // sample a point+normal every `pitch` px along the centreline, then build the
+  // crossing chevrons from consecutive samples. (Was O(L^2) — rescanned the whole
+  // centreline per stripe — which tanked the framerate on a big pile.)
   function goldLines() {
     const cl = [{ x: pts[0].x, y: pts[0].y }];
-    const SUB = 6;
+    const SUB = 4;
     for (let i = 1; i < N - 1; i++) {
       const sx = (i === 1) ? pts[0].x : (pts[i - 1].x + pts[i].x) * 0.5;
       const sy = (i === 1) ? pts[0].y : (pts[i - 1].y + pts[i].y) * 0.5;
@@ -19038,27 +19041,27 @@ function init() {
       }
     }
     cl.push({ x: pts[N - 1].x, y: pts[N - 1].y });
-    const L = cl.length;
-    const seg = new Array(L - 1);
-    let total = 0;
-    for (let i = 0; i < L - 1; i++) {
-      const l = Math.hypot(cl[i + 1].x - cl[i].x, cl[i + 1].y - cl[i].y);
-      seg[i] = l; total += l;
-    }
-    function at(d) {
-      let acc = 0, i = 0;
-      while (i < L - 2 && acc + seg[i] < d) { acc += seg[i]; i++; }
-      const t = seg[i] > 0 ? (d - acc) / seg[i] : 0;
-      const a = cl[i], b = cl[i + 1];
+    const L = cl.length, pitch = 10, hw = 5.5;
+    // walk the centreline once, emitting a sample (with normal) every `pitch`
+    const P = [];
+    let nextS = 0, runLen = 0;
+    for (let k = 0; k < L - 1; k++) {
+      const a = cl[k], b = cl[k + 1];
       const dx = b.x - a.x, dy = b.y - a.y;
-      const len = Math.hypot(dx, dy) || 1;
-      return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / len, ny: dx / len };
+      const segLen = Math.hypot(dx, dy) || EPS;
+      const nx = -dy / segLen, ny = dx / segLen;
+      while (nextS <= runLen + segLen) {
+        const t = (nextS - runLen) / segLen;
+        P.push({ x: a.x + dx * t, y: a.y + dy * t, nx, ny });
+        nextS += pitch;
+      }
+      runLen += segLen;
     }
-    const pitch = 10, hw = 5.5;
-    const stop = total - 14;
+    const total = runLen;
+    const stopIdx = Math.max(0, Math.floor((total - 14) / pitch));   // stop before the knot
     const aParts = [], bParts = [];
-    for (let s = 0; s < stop; s += pitch) {
-      const p0 = at(s), p1 = at(s + pitch);
+    for (let k = 0; k < stopIdx && k + 1 < P.length; k++) {
+      const p0 = P[k], p1 = P[k + 1];
       const ax1 = (p0.x - hw * p0.nx).toFixed(1), ay1 = (p0.y - hw * p0.ny).toFixed(1);
       const ax2 = (p1.x + hw * p1.nx).toFixed(1), ay2 = (p1.y + hw * p1.ny).toFixed(1);
       const bx1 = (p0.x + hw * p0.nx).toFixed(1), by1 = (p0.y + hw * p0.ny).toFixed(1);
@@ -19265,6 +19268,7 @@ function init() {
       // that grows up from the LOCKED, tipped-over anchor — same shape every time,
       // smooth path so the braid reads as coiled rope.
       anchorTip += (1 - anchorTip) * 0.06 * dt;            // tip onto its side
+      pileAnchorX += (PILE_CENTER_X - pileAnchorX) * 0.08 * dt;  // settle to an on-screen resting spot, then locked
       swayPhase += 0.045 * dt;
 
       const pile = pilePoints(pileLen);                    // anchor(bottom) .. mound top
