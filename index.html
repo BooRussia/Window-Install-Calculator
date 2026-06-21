@@ -2695,10 +2695,6 @@
   .learn-card-num { flex-shrink:0; width:30px; height:30px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#0b1120; background:linear-gradient(180deg,#d8b96a,#b58f4a); }
   .learn-card-head h2 { font-size:18px; font-weight:800; color:#f1f5f9; letter-spacing:-0.01em; margin:0; }
   .learn-summary { font-size:14px; line-height:1.7; margin:0 0 12px; color:#cbd5e1; }
-  .learn-diagram { margin:16px 0; padding:14px; border:1px solid rgba(148,163,184,0.14); border-radius:14px; background:rgba(2,6,23,0.5); color:#cbd5e1; }
-  .learn-diagram svg, .learn-diagram-img { display:block; width:100%; height:auto; max-height:360px; margin:0 auto; object-fit:contain; }
-  .learn-diagram-img { border-radius:8px; }
-  .learn-diagram figcaption { font-size:11.5px; color:#64748b; text-align:center; margin-top:11px; line-height:1.45; }
   .learn-keynums { display:flex; flex-wrap:wrap; gap:6px; margin:14px 0; }
   .learn-keynum { font-size:11.5px; font-weight:600; color:#c9a558; background:var(--gold-soft); border:1px solid rgba(181,143,74,0.25); border-radius:999px; padding:4px 11px; }
   .learn-body { margin:12px 0 0; padding-left:18px; list-style:disc; font-size:13.5px; line-height:1.7; color:#cbd5e1; }
@@ -2722,7 +2718,6 @@
   [data-theme="light"] .learn-nav-link.active { color:#0f172a; }
   [data-theme="light"] .learn-nav-toc { color:#475569; }
   [data-theme="light"] .learn-card { background:#ffffff; border-color:#e6e8ec; box-shadow:0 1px 2px rgba(15,23,42,0.04), 0 12px 30px -22px rgba(15,23,42,0.18); }
-  [data-theme="light"] .learn-diagram { background:#f8fafc; border-color:#e2e8f0; color:#334155; }
   [data-theme="light"] .learn-pc > div { background:#f8fafc; }
   .legal-foot-link { color: inherit; background: transparent; border: 0; cursor: pointer; padding: 0; font: inherit; transition: color .15s ease; }
   .legal-foot-link:hover { color: #c9a558; }
@@ -10986,23 +10981,6 @@ function renderLearnSection() {
   const meta = _learnData.meta || {};
   const topics = (sec.topics || []).map((t, i) => {
     const num = String(i + 1).padStart(2, "0");
-    // A diagram can be a raster image (preferred) or an inline SVG. If both are
-    // present, the image renders and the SVG is a hidden fallback that's revealed
-    // only if the image asset 404s (wired up after innerHTML, below).
-    let diag = "";
-    if (t.diagram && (t.diagram.img || t.diagram.svg)) {
-      const alt = escHtml(t.diagram.alt || t.title);
-      let media;
-      if (t.diagram.img) {
-        // eager (not lazy) so a missing asset's error fires promptly and the SVG
-        // fallback swaps in without waiting for the card to scroll into view
-        media = `<img class="learn-diagram-img" src="${escHtml(t.diagram.img)}" alt="${alt}">`;
-        if (t.diagram.svg) media += `<div class="learn-diagram-fallback" style="display:none">${t.diagram.svg}</div>`;
-      } else {
-        media = t.diagram.svg;   // trusted author content from our own static asset
-      }
-      diag = `<figure class="learn-diagram" role="img" aria-label="${alt}">${media}${t.diagram.caption ? `<figcaption>${escHtml(t.diagram.caption)}</figcaption>` : ""}</figure>`;
-    }
     const keynums = (t.keyNumbers || []).length
       ? `<div class="learn-keynums">${t.keyNumbers.map(k => `<span class="learn-keynum">${escHtml(k)}</span>`).join("")}</div>` : "";
     const body = (t.body || []).length
@@ -11015,7 +10993,7 @@ function renderLearnSection() {
     return `<section class="learn-card" id="learn-${escHtml(t.slug)}">
       <div class="learn-card-head"><span class="learn-card-num">${num}</span><h2>${escHtml(t.title)}</h2></div>
       <p class="learn-summary">${escHtml(t.summary)}</p>
-      ${diag}${keynums}${body}${pc}
+      ${keynums}${body}${pc}
     </section>`;
   }).join("");
   const blurb = sec.blurb || (sec.id === _learnFirstId() ? (meta.intro || "") : "");
@@ -11025,12 +11003,6 @@ function renderLearnSection() {
       ${blurb ? `<p class="learn-intro">${escHtml(blurb)}</p>` : ""}
     </header>`;
   el.innerHTML = head + topics;
-  // Image diagrams: if the raster asset is missing, fall back to the inline SVG.
-  el.querySelectorAll(".learn-diagram-img").forEach(img => {
-    const fail = () => { img.style.display = "none"; const fb = img.parentElement.querySelector(".learn-diagram-fallback"); if (fb) fb.style.display = ""; };
-    img.addEventListener("error", fail);
-    if (img.complete && img.naturalWidth === 0) fail();
-  });
   renderLearnNav();
   const s = document.getElementById("learnScreen"); if (s) s.scrollTop = 0;
 }
