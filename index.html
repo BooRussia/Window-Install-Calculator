@@ -15756,7 +15756,7 @@ async function handlePlanUpload(files, source) {
     if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — " + (chunks.length > 1 ? "large plans can take a few minutes…" : "up to a minute…"));
 
     const texts = new Array(chunks.length).fill(null);
-    let okChunks = 0, failChunks = 0, hitCap = false, lastFail = null;
+    let okChunks = 0, emptyChunks = 0, failChunks = 0, hitCap = false, lastFail = null, lastEmpty = null;
     const runChunk = async (idx) => {
       const startPage = idx * PLAN_CHUNK_SIZE + 1;
       const endPage = startPage + chunks[idx].length - 1;
@@ -15764,11 +15764,19 @@ async function handlePlanUpload(files, source) {
         ? `Reading pages ${startPage}–${endPage} of ${allImages.length} with AI…`
         : `Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
       let res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
-      // one retry on a transient failure (timeout / 5xx) — not on cap / auth / too-large
-      if (!res.ok && res.status !== 429 && res.status !== 403 && res.status !== 413) {
+      // one retry on a TRANSIENT failure (timeout / 5xx) only — not on cap (429),
+      // auth (403), too-large (413), or "no schedule on these pages" (422). A 422 is
+      // deterministic (a cover sheet / floor plan / detail page simply has no
+      // schedule), so retrying just burns a second paid AI call for the same answer.
+      if (!res.ok && res.status !== 429 && res.status !== 403 && res.status !== 413 && res.status !== 422) {
         res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
       }
       if (res.ok) { texts[idx] = (res.data && res.data.text) || ""; okChunks++; }
+      // 422 = these pages held no window schedule — normal for the non-schedule
+      // sheets in a big set (the server refunds the credit). That is NOT a read
+      // failure, so it must not count toward the "re-upload these pages" nudge;
+      // only transient/cap errors are real failures.
+      else if (res.status === 422) { emptyChunks++; lastEmpty = res; }
       else { failChunks++; lastFail = res; if (res.status === 429) hitCap = true; }
     };
     // concurrency-limited parallel run (respects xAI rate limits)
@@ -15782,7 +15790,8 @@ async function handlePlanUpload(files, source) {
     }
     if (!okChunks) {
       if (hitCap) { setErr("You've used all your AI plan reads for this billing cycle."); try { showUpsellModal("ai_reads_exhausted"); } catch (_) {} }
-      else setErr((lastFail && lastFail.msg) || "Couldn't read that plan — try clearer pages, or just the schedule sheets.", lastFail && lastFail.debug);
+      else if (failChunks) setErr((lastFail && lastFail.msg) || "Couldn't read that plan — try clearer pages, or just the schedule sheets.", lastFail && lastFail.debug);
+      else setErr((lastEmpty && lastEmpty.msg) || "Couldn't read any openings — try clearer pages, or just the schedule sheets.", lastEmpty && lastEmpty.debug);
       return;
     }
     const mergedText = mergePlanExtractions(texts.filter(Boolean));
@@ -15796,10 +15805,10 @@ async function handlePlanUpload(files, source) {
       const rem = getAiReadsRemaining();
       if (rem !== Infinity) toast(`${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
     }
-    if (failChunks) toast(`Read ${okChunks} of ${chunks.length} sections — about ${failChunks * PLAN_CHUNK_SIZE} pages couldn't be read. Re-upload those sheets to finish.`);
+    if (failChunks) toast(`About ${failChunks * PLAN_CHUNK_SIZE} page${failChunks * PLAN_CHUNK_SIZE === 1 ? "" : "s"} couldn't be read (a temporary hiccup). Re-upload those sheets to finish — the rest of your plan was read.`);
     if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " of " + detectedPages + " pages. Contact your admin to raise the page limit, or re-upload just the schedule sheets.");
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
-    try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length, chunks: chunks.length, okChunks }); } catch (_) {}
+    try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length, chunks: chunks.length, okChunks, emptyChunks, failChunks }); } catch (_) {}
   } catch (err) {
     setErr("Something went wrong — try again in a moment.");
   } finally {
