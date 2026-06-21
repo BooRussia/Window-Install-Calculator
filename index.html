@@ -19498,6 +19498,8 @@ function init() {
   const FEED_CAP = 16;        // px/event clamp (smooth even on a trackpad flick)
   const PILE_LEN_MAX = 1300;  // max rope (px) that can be paid out onto the floor
   const IDLE_SWAY = 3.0;      // gentle always-on underwater current so the rest pose isn't dead-straight
+  const ANCHOR_DRIFT_X = 4.5; // px — the anchor's OWN gentle idle wander in the current (so it isn't dead-still)
+  const ANCHOR_DRIFT_ROT = 2.0; // deg — a tiny accompanying rock as it drifts
   const REEL_MS = 1500;       // reel-in duration (pileLen + scrollTop eased together)
   const MAX_NODE_STEP = SEG;  // per-frame per-node displacement firewall
   const EPS = 1e-4;
@@ -19841,10 +19843,19 @@ function init() {
       swayAmpCur += (swayTarget - swayAmpCur) * 0.10 * dt;
       swayPhase += 0.045 * dt;
 
+      // the anchor's OWN idle drift — without this the rope bellies in the current
+      // but the anchor endpoint stays pinned to axPos (dead-still at rest). Two
+      // summed sines on the same sway clock give an organic, non-repetitive wander;
+      // a tiny rock rides along. Small, and grows a touch with the sway amplitude.
+      const driftAmp = ANCHOR_DRIFT_X + swayAmpCur * 0.18;
+      const anchorDriftX = (Math.sin(swayPhase * 0.85 + 0.5) * 0.7 + Math.sin(swayPhase * 0.41 + 2.1) * 0.3) * driftAmp;
+      const anchorDriftRot = Math.sin(swayPhase * 0.6 + 1.1) * ANCHOR_DRIFT_ROT;
+      const ax = axPos + anchorDriftX;                  // drifted anchor x (rope tail follows it)
+
       for (let i = 0; i < N; i++) {
         const t = i / (N - 1);
         const taper = Math.sin(t * Math.PI);            // 0 at both pinned ends
-        const bx = CX + (axPos - CX) * t;               // straight line top -> anchor
+        const bx = CX + (ax - CX) * t;                  // straight line top -> drifted anchor
         const by = ringY * t;
         const sx = Math.sin(t * Math.PI * HANG_WAVES + swayPhase) * swayAmpCur * taper;
         const pt = pts[i];
@@ -19853,16 +19864,16 @@ function init() {
       }
       pts[0].x = CX; pts[0].y = 0;
       anc = pts[N - 1];
-      anc.x = axPos; anc.y = ringY; anc.px = axPos; anc.py = ringY;   // exact knot = anchor
+      anc.x = ax; anc.y = ringY; anc.px = ax; anc.py = ringY;   // exact knot = drifted anchor
 
       // anchor: track the landing x, un-tip back upright, tilt from lateral vel
       pileAnchorX = axPos;
       anchorTip += (0 - anchorTip) * 0.08 * dt;
       const tgtA = clamp(axVel * 2.4, -20, 20);
       anchorAngle += (tgtA - anchorAngle) * 0.12 * dt;
-      const dispAngle = anchorAngle * (1 - anchorTip) + TIP_ANGLE * anchorTip;
+      const dispAngle = (anchorAngle + anchorDriftRot) * (1 - anchorTip) + TIP_ANGLE * anchorTip;
       anchor.style.transform =
-        "translate(" + (axPos - CX).toFixed(2) + "px," + (ringY - RING_Y).toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
+        "translate(" + (ax - CX).toFixed(2) + "px," + (ringY - RING_Y).toFixed(2) + "px) rotate(" + dispAngle.toFixed(2) + "deg)";
 
     } else {
       // =================== DETERMINISTIC COIL PILE ===================
