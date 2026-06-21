@@ -15647,6 +15647,43 @@ const MAX_PLAN_PAGES = 100;  // total page-images sent to the AI across all file
                             // (MAX_TOTAL_B64) is the real backstop. An upload over
                             // this many pages alerts the user to contact an admin
                             // for a higher limit (see handlePlanUpload).
+// Pages per AI chunk for large plans. ≤ this many pages = one call (the everyday
+// case); above it the plan is split into parallel chunks, one metered AI read
+// each (≈ per 25 pages), merged back into a single quote.
+const PLAN_CHUNK_SIZE = 25;
+
+// Merge several chunk extractions into one reply in the exact line format the
+// parsers expect: first known MANUFACTURER/PROJECT, all OPENING lines, and
+// APPROVAL lines deduped by number. Schedule pages are self-contained, so
+// concatenating openings across chunks can't double-count.
+function mergePlanExtractions(texts) {
+  let manufacturer = "", project = "";
+  const openings = [], approvals = [], seenAppr = new Set();
+  for (const t of texts) {
+    if (!t) continue;
+    for (const raw of String(t).split("\n")) {
+      const line = raw.trim();
+      if (!line) continue;
+      const up = line.toUpperCase();
+      if (up.startsWith("MANUFACTURER:")) {
+        const v = line.slice(line.indexOf(":") + 1).trim();
+        if (!manufacturer && v && !/^unknown$/i.test(v)) manufacturer = v;
+      } else if (up.startsWith("PROJECT:")) {
+        const v = line.slice(line.indexOf(":") + 1).trim();
+        if (!project && v && !/^unknown$/i.test(v)) project = v;
+      } else if (up.startsWith("OPENING")) {
+        openings.push(line);
+      } else if (up.startsWith("APPROVAL")) {
+        const num = (line.split("|")[1] || "").trim().toLowerCase();
+        const key = num || line.toLowerCase();
+        if (!seenAppr.has(key)) { seenAppr.add(key); approvals.push(line); }
+      }
+    }
+  }
+  return ["MANUFACTURER: " + (manufacturer || "Unknown"), "PROJECT: " + (project || "Unknown")]
+    .concat(openings, approvals).join("\n");
+}
+
 let _planUploadBusy = false;
 async function handlePlanUpload(files, source) {
   files = Array.isArray(files) ? files : (files ? [files] : []);
@@ -15696,32 +15733,73 @@ async function handlePlanUpload(files, source) {
       // MAX_PLAN_PAGES and point the user to an admin to raise the limit.
       toast(`This plan has ${detectedPages} pages — Anchor reads up to ${MAX_PLAN_PAGES}. Reading the first ${MAX_PLAN_PAGES}; contact your admin to raise the page limit.`);
     }
-    setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
-    if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — " + (allImages.length > 25 ? "large plans can take a few minutes…" : "up to a minute…"));
-    const res = await invokePlanExtraction({ images: allImages, mimeType: "image/jpeg" });
-    if (!res.ok) {
-      // Server cap hit — sync the meter to empty + nudge to upgrade.
-      if (res.status === 429) {
-        const cap = getAiReadCap();
-        if (cap !== Infinity) { getEntitlements().aiExtractionsUsedThisCycle = cap; saveData(DATA); renderAiReadsMeter(); }
+    // ── Chunked extraction ────────────────────────────────────────────────
+    // ≤ PLAN_CHUNK_SIZE pages = one call. Larger plans split into ~25-page chunks
+    // read in parallel (cap 3): each chunk is a short, separate request that
+    // can't hit the timeout, one credit is metered per chunk (≈ per 25 pages),
+    // and the results merge into a single quote.
+    const chunks = [];
+    for (let c = 0; c < allImages.length; c += PLAN_CHUNK_SIZE) chunks.push(allImages.slice(c, c + PLAN_CHUNK_SIZE));
+    const creditsNeeded = chunks.length;
+    const adminUser = (typeof isAdmin === "function" && isAdmin());
+
+    // Chunk-aware credit pre-check — stop BEFORE spending anything if they can't
+    // cover the whole plan (admins are unlimited).
+    if (!adminUser) {
+      const remaining = getAiReadsRemaining();
+      if (remaining !== Infinity && remaining < creditsNeeded) {
+        setErr(`This ${allImages.length}-page plan needs ${creditsNeeded} AI reads (1 per ${PLAN_CHUNK_SIZE} pages) — you have ${remaining} left. Upgrade, or upload just the schedule sheets.`);
         try { showUpsellModal("ai_reads_exhausted"); } catch (_) {}
+        return;
       }
-      setErr(res.msg, res.debug); return;
     }
-    const text = (res.data && res.data.text) || "";
-    const ok = applyFullExtraction(text, source);   // fills the calc + toasts a summary
+    if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — " + (chunks.length > 1 ? "large plans can take a few minutes…" : "up to a minute…"));
+
+    const texts = new Array(chunks.length).fill(null);
+    let okChunks = 0, failChunks = 0, hitCap = false, lastFail = null;
+    const runChunk = async (idx) => {
+      const startPage = idx * PLAN_CHUNK_SIZE + 1;
+      const endPage = startPage + chunks[idx].length - 1;
+      setBusy(chunks.length > 1
+        ? `Reading pages ${startPage}–${endPage} of ${allImages.length} with AI…`
+        : `Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
+      let res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
+      // one retry on a transient failure (timeout / 5xx) — not on cap / auth / too-large
+      if (!res.ok && res.status !== 429 && res.status !== 403 && res.status !== 413) {
+        res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
+      }
+      if (res.ok) { texts[idx] = (res.data && res.data.text) || ""; okChunks++; }
+      else { failChunks++; lastFail = res; if (res.status === 429) hitCap = true; }
+    };
+    // concurrency-limited parallel run (respects xAI rate limits)
+    let nextIdx = 0;
+    const worker = async () => { while (nextIdx < chunks.length) { const my = nextIdx++; await runChunk(my); } };
+    await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
+
+    if (hitCap) {
+      const cap = getAiReadCap();
+      if (cap !== Infinity) { getEntitlements().aiExtractionsUsedThisCycle = cap; saveData(DATA); renderAiReadsMeter(); }
+    }
+    if (!okChunks) {
+      if (hitCap) { setErr("You've used all your AI plan reads for this billing cycle."); try { showUpsellModal("ai_reads_exhausted"); } catch (_) {} }
+      else setErr((lastFail && lastFail.msg) || "Couldn't read that plan — try clearer pages, or just the schedule sheets.", lastFail && lastFail.debug);
+      return;
+    }
+    const mergedText = mergePlanExtractions(texts.filter(Boolean));
+    const ok = applyFullExtraction(mergedText, source);   // fills the calc + toasts a summary
     if (!ok) { setErr("Couldn't read any openings — try clearer pages, or just the schedule sheets."); return; }
-    // Success → the server debited one AI read. Mirror it locally so the meter
-    // updates immediately, and tell the user how many are left (admins are ∞).
-    if (!(typeof isAdmin === "function" && isAdmin())) {
-      bumpAiReadUsed();
+
+    // Meter: the server debited one credit per SUCCESSFUL chunk; mirror locally.
+    if (!adminUser) {
+      for (let k = 0; k < okChunks; k++) bumpAiReadUsed();
       renderAiReadsMeter();
       const rem = getAiReadsRemaining();
-      if (rem !== Infinity) toast(`AI read used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
+      if (rem !== Infinity) toast(`${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
     }
+    if (failChunks) toast(`Read ${okChunks} of ${chunks.length} sections — about ${failChunks * PLAN_CHUNK_SIZE} pages couldn't be read. Re-upload those sheets to finish.`);
     if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " of " + detectedPages + " pages. Contact your admin to raise the page limit, or re-upload just the schedule sheets.");
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
-    try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length }); } catch (_) {}
+    try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length, chunks: chunks.length, okChunks }); } catch (_) {}
   } catch (err) {
     setErr("Something went wrong — try again in a moment.");
   } finally {
