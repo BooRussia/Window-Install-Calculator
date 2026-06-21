@@ -5236,6 +5236,16 @@
       <button class="modal-close" data-close-save aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-4">
+      <!-- Auto-remembered customer book: pick a past customer to auto-fill the
+           fields below. Derived from saved jobs (newest info wins); stays hidden
+           until the user has at least one saved customer. -->
+      <div id="saveJobCustomerRow" class="hidden">
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Use a saved customer</label>
+        <select id="saveJobCustomerPick" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100">
+          <option value="">— New customer —</option>
+        </select>
+        <p class="text-[11px] text-slate-500 mt-1.5">Pick one to auto-fill their details, or just type a new one below.</p>
+      </div>
       <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Customer / Job Name</label>
         <input id="saveJobName" type="text" placeholder="Smith Residence" autocomplete="off"
@@ -11015,6 +11025,69 @@ function hasQuoteInput(r) {
     || (r.bifoldDoors && r.bifoldDoors.count > 0);
 }
 
+// ─── Auto-remembered customer book ───────────────────────────────────────
+// Distinct customers derived from the user's SAVED jobs (the draft is excluded).
+// Keyed by normalized name; the newest job's contact info wins, so editing a
+// customer is as simple as saving a job with their updated details. Because it
+// rides the existing job sync, the book is the same on every device, works
+// offline, and needs no new storage. Most-recently-used first.
+function getCustomerBook() {
+  const jobs = (typeof loadJobs === "function") ? loadJobs() : [];
+  const map = new Map();
+  for (const j of jobs) {
+    if (!j || j.isDraft) continue;
+    const name = (j.customerName || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
+    const prev = map.get(key);
+    if (!prev || ts >= prev._ts) {
+      map.set(key, {
+        name,
+        address: (j.customerAddress || "").trim(),
+        phone:   (j.customerPhone   || "").trim(),
+        email:   (j.customerEmail   || "").trim(),
+        _ts: ts
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b._ts - a._ts);
+}
+
+// (Re)build the "Use a saved customer" picker in the Save Job modal. Hides the
+// whole row when there are no saved customers yet (first-time users).
+function populateCustomerPicker() {
+  const sel = document.getElementById("saveJobCustomerPick");
+  const row = document.getElementById("saveJobCustomerRow");
+  if (!sel || !row) return;
+  const book = getCustomerBook();
+  if (!book.length) { row.classList.add("hidden"); sel._book = []; return; }
+  row.classList.remove("hidden");
+  sel.innerHTML = `<option value="">— New customer —</option>` +
+    book.map((c, i) => {
+      const meta = c.phone || c.address || c.email || "";
+      const label = meta ? `${c.name} · ${meta}` : c.name;
+      return `<option value="${i}">${escHtml(label)}</option>`;
+    }).join("");
+  sel.value = "";
+  sel._book = book;   // stash for the change handler
+}
+
+// Picking a saved customer auto-fills the fields below. Notes are per-job, so
+// they're intentionally left untouched.
+function onCustomerPick() {
+  const sel = document.getElementById("saveJobCustomerPick");
+  if (!sel || !sel._book) return;
+  const idx = parseInt(sel.value, 10);
+  const c = (!isNaN(idx) && sel._book[idx]) ? sel._book[idx] : null;
+  if (!c) return;   // "— New customer —" selected
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
+  set("saveJobName", c.name);
+  set("saveJobAddress", c.address);
+  set("saveJobPhone", c.phone);
+  set("saveJobEmail", c.email);
+}
+
 function openSaveJobModal() {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
@@ -11025,6 +11098,7 @@ function openSaveJobModal() {
   { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
   { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
   document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
+  populateCustomerPicker();   // refresh the saved-customer dropdown each open
   const modal = document.getElementById("saveJobModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -18945,6 +19019,7 @@ function init() {
   saveModal.addEventListener("click", e => { if (e.target.dataset.closeSave !== undefined) closeSaveJobModal(); });
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
   document.getElementById("saveJobName").addEventListener("keydown", e => { if (e.key === "Enter") confirmSaveJob(); });
+  { const _cp = document.getElementById("saveJobCustomerPick"); if (_cp) _cp.addEventListener("change", onCustomerPick); }
 
   document.getElementById("openAdmin").addEventListener("click", openAdmin);
 
