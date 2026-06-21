@@ -4387,6 +4387,9 @@
     <!-- Material usage stats -->
     <div id="dashMaterials" class="mb-9"></div>
 
+    <!-- Customer analytics (revenue/profit/jobs by customer) -->
+    <div id="dashCustomers" class="mb-9"></div>
+
     <!-- E-signatures (sent / viewed / signed quotes) -->
     <div id="dashEsign" class="mb-9"></div>
 
@@ -5306,6 +5309,23 @@
     <div class="px-6 py-4 border-t border-slate-800 flex justify-end">
       <button data-close-manage class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Done</button>
     </div>
+  </div>
+</div>
+
+<!-- Customer Stats Modal — per-customer breakdown (jobs, win rate, revenue,
+     profit, deal outcomes, job list). Opened from the dashboard Customers
+     section. z-[80] so it layers above the dashboard screen (z-[74]). -->
+<div id="customerStatsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[80]">
+  <div class="absolute inset-0 modal-backdrop" data-close-custstats></div>
+  <div class="relative card rounded-3xl w-full max-w-lg overflow-hidden flex flex-col max-h-[88vh]">
+    <div class="px-6 py-5 border-b border-slate-800 flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 id="custStatsName" class="text-base font-semibold text-slate-100 truncate">Customer</h3>
+        <p id="custStatsContact" class="text-[12px] text-slate-500 truncate mt-0.5"></p>
+      </div>
+      <button class="modal-close shrink-0" data-close-custstats aria-label="Close">×</button>
+    </div>
+    <div id="custStatsBody" class="px-6 py-5 space-y-5 overflow-y-auto"></div>
   </div>
 </div>
 
@@ -8991,8 +9011,218 @@ function renderDashboard() {
   if (greet) greet.textContent = brand.companyName ? `Welcome back, ${brand.companyName}` : "Welcome back";
   renderDashPipeline(jobs);
   renderDashMaterials(jobs);
+  renderDashCustomers(jobs);
   renderDashJobs(jobs);
   renderDashEsign();
+}
+
+/* ============================================================
+   CUSTOMER ANALYTICS — dashboard section + per-customer modal.
+   Larger shops run many contractors; this surfaces who actually
+   drives revenue/profit, each client's win rate, and their share
+   of the book. All derived from saved jobs (no new storage).
+   Won = Won + Approved (e-signed); Lost = Lost; Open = Lead/Quoted.
+   ============================================================ */
+const CUST_COLORS = MAT_COLORS;
+let _dashCustMode = "revenue";   // revenue | profit | jobs — the pie metric
+
+// Distinct customers (deduped by normalized name) with rolled-up stats.
+// Newest job wins for the displayed name + contact + recurring flag.
+function getCustomerStats(jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft && (j.customerName || "").trim());
+  const map = new Map();
+  real.forEach(j => {
+    const name = j.customerName.trim();
+    const key = name.toLowerCase();
+    let c = map.get(key);
+    if (!c) {
+      c = { key, name, phone: "", address: "", email: "", recurring: true, _ts: -1,
+            total: 0, won: 0, lost: 0, open: 0, revenue: 0, profit: 0, pipeline: 0, jobs: [] };
+      map.set(key, c);
+    }
+    c.total++; c.jobs.push(j);
+    const st = jobStatus(j);
+    const price = Number(j.sellingPrice) || 0, prof = Number(j.profit) || 0;
+    if (st === "Won" || st === "Approved") { c.won++; c.revenue += price; c.profit += prof; }
+    else if (st === "Lost") { c.lost++; }
+    else { c.open++; c.pipeline += price; }   // Lead / Quoted
+    const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
+    if (ts >= c._ts) {
+      c._ts = ts; c.name = name;
+      c.phone = (j.customerPhone || "").trim(); c.address = (j.customerAddress || "").trim();
+      c.email = (j.customerEmail || "").trim(); c.recurring = j.customerRecurring !== false;
+    }
+  });
+  const list = Array.from(map.values());
+  list.forEach(c => { const dec = c.won + c.lost; c.winRate = dec ? Math.round(c.won / dec * 100) : null; });
+  return list;
+}
+
+function custMetric(c, mode) { return mode === "jobs" ? c.total : mode === "profit" ? c.profit : c.revenue; }
+function custMetricLabel(mode) { return mode === "jobs" ? "jobs" : mode === "profit" ? "profit" : "revenue"; }
+
+// Donut of each customer's share of the selected metric. The long tail beyond
+// the top 6 is grouped into "Others" so the chart stays legible.
+function custDonutSVG(stats, mode) {
+  const ranked = stats.slice().sort((a, b) => custMetric(b, mode) - custMetric(a, mode)).filter(c => custMetric(c, mode) > 0);
+  const total = ranked.reduce((s, c) => s + custMetric(c, mode), 0);
+  if (total <= 0) return `<div class="text-center text-slate-500 text-sm py-10">No ${custMetricLabel(mode)} to chart yet — mark a job Won (or get it e-signed) to see it here.</div>`;
+  const TOPN = 6;
+  const segs = ranked.slice(0, TOPN).map(c => ({ name: c.name, val: custMetric(c, mode) }));
+  const restVal = ranked.slice(TOPN).reduce((s, c) => s + custMetric(c, mode), 0);
+  if (restVal > 0) segs.push({ name: `Others (${ranked.length - TOPN})`, val: restVal, other: true });
+  const cx = 120, cy = 120, R = 82, W = 34, C = 2 * Math.PI * R;
+  let off = 0;
+  const rings = segs.map((s, i) => {
+    const dash = (s.val / total) * C;
+    const col = s.other ? "#475569" : CUST_COLORS[i % CUST_COLORS.length];
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    off += dash; return seg;
+  }).join("");
+  const fmt = (v) => mode === "jobs" ? (v + (v === 1 ? " job" : " jobs")) : formatMoney(v);
+  const centerLabel = mode === "jobs" ? "Total jobs" : (mode === "profit" ? "Total profit" : "Total revenue");
+  const legend = segs.map((s, i) => {
+    const col = s.other ? "#475569" : CUST_COLORS[i % CUST_COLORS.length];
+    return `<div class="flex items-center gap-2 text-[11px]">
+        <span style="width:10px;height:10px;border-radius:2px;background:${col};display:inline-block;flex-shrink:0;"></span>
+        <span class="flex-1 truncate" style="color:currentColor">${escHtml(s.name)}</span>
+        <span class="font-bold" style="color:currentColor">${Math.round(s.val / total * 100)}%</span>
+      </div>`;
+  }).join("");
+  return `<div class="flex flex-col sm:flex-row items-center gap-6 text-slate-400">
+      <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;">${rings}
+        <text x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
+        <text x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${fmt(total)}</text>
+      </svg>
+      <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5">${legend}</div>
+    </div>`;
+}
+
+function renderDashCustomers(jobs) {
+  const wrap = document.getElementById("dashCustomers");
+  if (!wrap) return;
+  const stats = getCustomerStats(jobs);
+  if (!stats.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  const mode = _dashCustMode;
+  const ranked = stats.slice().sort((a, b) => custMetric(b, mode) - custMetric(a, mode));
+  const grandJobs = stats.reduce((s, c) => s + c.total, 0);
+  const grandRev = stats.reduce((s, c) => s + c.revenue, 0);
+  const top = ranked[0];
+  const rows = ranked.map((c, i) => {
+    const col = CUST_COLORS[i % CUST_COLORS.length];
+    const wl = (c.won || c.lost) ? `${c.won}W · ${c.lost}L` : "—";
+    const oneTime = c.recurring ? "" : ` <span class="text-[10px] text-slate-500 font-medium">· one-time</span>`;
+    return `<button type="button" data-cust-open="${escHtml(c.key)}" class="w-full text-left flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-slate-800/40 transition">
+        <span style="width:11px;height:11px;border-radius:3px;background:${col};flex-shrink:0;"></span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-bold text-slate-100 truncate">${escHtml(c.name)}${oneTime}</span>
+          <span class="block text-[11px] text-slate-500">${c.total} job${c.total === 1 ? "" : "s"} · ${wl}${c.winRate != null ? ` · ${c.winRate}% win` : ""}</span>
+        </span>
+        <span class="text-right shrink-0">
+          <span class="block text-sm font-extrabold text-slate-100" style="font-variant-numeric:tabular-nums;">${formatMoney(c.revenue)}</span>
+          <span class="block text-[11px] text-emerald-300/90">${formatMoney(c.profit)} profit</span>
+        </span>
+      </button>`;
+  }).join("");
+  wrap.innerHTML = `
+    <div class="card rounded-2xl overflow-hidden">
+      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Customers</h2>
+          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">${stats.length} customer${stats.length === 1 ? "" : "s"} · ${grandJobs} job${grandJobs === 1 ? "" : "s"} — who drives your business. Tap one for the full breakdown.</p>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top by revenue</div>
+          <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${grandRev > 0 ? Math.round(top.revenue / grandRev * 100) : 0}%</div>
+        </div>
+      </div>
+      <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
+        <div class="seg" id="dashCustSeg" style="max-width:320px;">
+          <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
+          <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
+          <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
+        </div>
+        <div class="mt-4">${custDonutSVG(stats, mode)}</div>
+      </div>
+      <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${rows}</div>
+    </div>`;
+}
+
+// Per-customer detail modal.
+function openCustomerStats(key) {
+  const stats = getCustomerStats(loadJobs());
+  const c = stats.find(x => x.key === key);
+  if (!c) return;
+  renderCustomerStats(c, stats);
+  const m = document.getElementById("customerStatsModal");
+  if (!m) return;
+  m.classList.remove("hidden"); m.classList.add("flex");
+}
+function closeCustomerStats() {
+  const m = document.getElementById("customerStatsModal");
+  if (!m) return;
+  m.classList.add("hidden"); m.classList.remove("flex");
+}
+function renderCustomerStats(c, allStats) {
+  const nameEl = document.getElementById("custStatsName");
+  const contactEl = document.getElementById("custStatsContact");
+  const body = document.getElementById("custStatsBody");
+  if (!nameEl || !body) return;
+  nameEl.textContent = c.name;
+  const contact = [c.phone, c.email, c.address].filter(Boolean).join(" · ");
+  contactEl.textContent = contact || (c.recurring ? "Recurring customer" : "One-time customer");
+
+  const grandJobs = allStats.reduce((s, x) => s + x.total, 0) || 1;
+  const grandRev = allStats.reduce((s, x) => s + x.revenue, 0) || 0;
+  const jobShare = Math.round(c.total / grandJobs * 100);
+  const revShare = grandRev > 0 ? Math.round(c.revenue / grandRev * 100) : 0;
+  const tiles = [
+    { label: "Total jobs", val: String(c.total), sub: `${jobShare}% of all your jobs`, accent: "text-slate-100" },
+    { label: "Win rate", val: c.winRate == null ? "—" : c.winRate + "%", sub: (c.won || c.lost) ? `${c.won}W · ${c.lost}L` : "no decisions yet", accent: "text-slate-100" },
+    { label: "Revenue (won)", val: formatMoney(c.revenue), sub: `${revShare}% of your revenue`, accent: "text-[#c9a558]" },
+    { label: "Profit (won)", val: formatMoney(c.profit), sub: c.revenue > 0 ? `${Math.round(c.profit / c.revenue * 100)}% margin` : "—", accent: "text-emerald-300" },
+  ];
+  const tilesHTML = `<div class="grid grid-cols-2 gap-2">` + tiles.map(t => `
+      <div class="card rounded-xl px-3 py-2.5">
+        <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500 font-bold">${t.label}</div>
+        <div class="text-lg font-extrabold ${t.accent} mt-0.5" style="font-variant-numeric:tabular-nums;">${t.val}</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">${escHtml(t.sub)}</div>
+      </div>`).join("") + `</div>`;
+
+  const segTotal = (c.won + c.open + c.lost) || 1;
+  const stack = [
+    { n: c.won, c: "#34d399", label: "Won" },
+    { n: c.open, c: "#c9a558", label: "Open" },
+    { n: c.lost, c: "#fb7185", label: "Lost" },
+  ];
+  const stackBar = `<div>
+      <div class="flex items-center justify-between text-[11px] mb-1.5">
+        <span class="font-bold text-slate-300">Deal outcomes</span>
+        <span class="text-slate-500">${c.total} job${c.total === 1 ? "" : "s"}</span>
+      </div>
+      <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:rgba(148,163,184,0.16);">
+        ${stack.filter(s => s.n > 0).map(s => `<div title="${s.label}: ${s.n}" style="width:${(s.n / segTotal * 100).toFixed(1)}%;background:${s.c};"></div>`).join("")}
+      </div>
+      <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-400">
+        ${stack.map(s => `<span class="inline-flex items-center gap-1.5"><span style="width:9px;height:9px;border-radius:2px;background:${s.c};display:inline-block;"></span>${s.label} · <span class="font-bold text-slate-200">${s.n}</span></span>`).join("")}
+      </div>
+    </div>`;
+
+  const jobsSorted = c.jobs.slice().sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0));
+  const jobList = `<div>
+      <div class="text-[11px] font-bold text-slate-300 mb-2">Jobs with ${escHtml(c.name)}</div>
+      <div class="space-y-1.5">${jobsSorted.map(j => {
+        const st = jobStatus(j), sm = statusMeta(st);
+        return `<div class="flex items-center justify-between gap-3 rounded-lg border border-slate-800 px-3 py-2">
+            <span class="min-w-0 flex-1 truncate text-sm text-slate-200">${escHtml(j.name || j.customerName || "Untitled job")}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full border ${sm.cls} shrink-0">${st}</span>
+            <span class="text-sm font-bold text-slate-100 shrink-0" style="font-variant-numeric:tabular-nums;">${formatMoney(Number(j.sellingPrice) || 0)}</span>
+          </div>`;
+      }).join("")}</div>
+    </div>`;
+
+  body.innerHTML = tilesHTML + stackBar + jobList;
 }
 
 /* ============================================================
@@ -10149,6 +10379,16 @@ function wireDashboard() {
   });
   const search = document.getElementById("dashJobSearch");
   if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
+  // Customers section: metric toggle (donut) + open a customer's detail modal.
+  const cust = document.getElementById("dashCustomers");
+  if (cust) cust.addEventListener("click", (e) => {
+    const seg = e.target.closest("[data-custchart]");
+    if (seg) { _dashCustMode = seg.dataset.custchart; renderDashCustomers(loadJobs()); return; }
+    const open = e.target.closest("[data-cust-open]");
+    if (open) { openCustomerStats(open.dataset.custOpen); return; }
+  });
+  const csm = document.getElementById("customerStatsModal");
+  if (csm) csm.addEventListener("click", (e) => { if (e.target.dataset.closeCuststats !== undefined) closeCustomerStats(); });
   const photoInput = document.getElementById("dashPhotoInput");
   if (photoInput) photoInput.addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
