@@ -11527,12 +11527,22 @@ function confirmSaveJob() {
   STATE.customerNotes = notes;
 
   const jobs = loadJobs();
+  // Are we re-saving a saved job that's currently loaded? If so we must update
+  // THAT record in place (reuse its id + slot) — otherwise every edit-and-resave
+  // via this modal spawns a duplicate and the canonical job keeps stale data.
+  // (Cmd+S / quickSaveOrPrompt already updates in place; this keeps the "Save
+  // Job" button consistent with it.)
+  const _existingIdx = STATE.currentJobId
+    ? jobs.findIndex(x => x.id === STATE.currentJobId && !x.isDraft)
+    : -1;
+  const _existing = _existingIdx >= 0 ? jobs[_existingIdx] : null;
   // Promote the working draft to a saved job under a FRESH id (and retire the
   // draft's cloud row below). A new id means a late cross-device draft autosync
-  // can never clobber this saved job back into a draft.
+  // can never clobber this saved job back into a draft. When updating an existing
+  // saved job, reuse its id so the save lands on the same record.
   const draftIdx = jobs.findIndex(x => x.isDraft);
   const oldDraftId = (draftIdx >= 0 && jobs[draftIdx]) ? jobs[draftIdx].id : null;
-  const reuseId = crypto.randomUUID();
+  const reuseId = _existing ? _existing.id : crypto.randomUUID();
 
   // ENTITLEMENTS (Phase 2) — count this as a NEW quote only if it's not an
   // edit-and-resave of an existing saved job. STATE.currentJobId matching a
@@ -11541,9 +11551,6 @@ function confirmSaveJob() {
   // LIVE ENFORCEMENT: a fresh save consumes a quote. If the user is out of
   // entitlement, attemptGenerateQuote() shows the upsell and returns false —
   // abort the save entirely (no job created, no doc unlocked).
-  const _existing = STATE.currentJobId
-    ? jobs.find(x => x.id === STATE.currentJobId && !x.isDraft)
-    : null;
   if (!_existing) {
     if (!attemptGenerateQuote()) { closeSaveJobModal(); return; }
   }
@@ -11555,7 +11562,7 @@ function confirmSaveJob() {
     customerRecurring: !(document.getElementById("saveJobRecurring") && !document.getElementById("saveJobRecurring").checked),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
-    createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
+    createdAt: (_existing && _existing.createdAt) || (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -11570,7 +11577,8 @@ function confirmSaveJob() {
 
   // Photos + cover live only on the job (never in rail STATE), so carry them
   // across draft-promotion / re-save — otherwise installation photos vanish.
-  const _photoSrc = (draftIdx >= 0) ? jobs[draftIdx] : _existing;
+  // When updating an existing job, prefer ITS photos (not a leftover draft's).
+  const _photoSrc = _existing || (draftIdx >= 0 ? jobs[draftIdx] : null);
   if (_photoSrc) {
     if (Array.isArray(_photoSrc.photos)) job.photos = _photoSrc.photos;
     if (_photoSrc.photosUpdatedAt) job.photosUpdatedAt = _photoSrc.photosUpdatedAt;
@@ -11578,13 +11586,19 @@ function confirmSaveJob() {
     if (_photoSrc.photo) job.photo = _photoSrc.photo;
     if (_photoSrc.photoUpdatedAt) job.photoUpdatedAt = _photoSrc.photoUpdatedAt;
   }
-  if (draftIdx >= 0) jobs[draftIdx] = job; else jobs.push(job);
+  if (_existing) jobs[_existingIdx] = job;
+  else if (draftIdx >= 0) jobs[draftIdx] = job;
+  else jobs.push(job);
   saveJobs(jobs);
   STATE.currentJobId = job.id;
   // Cancel any pending draft autosync and retire the promoted draft's cloud row
   // so the just-saved job can't be reverted by a stale background draft push.
-  clearTimeout(_draftCloudTimer); _draftCloudTimer = 0;
-  if (oldDraftId && isUuid(oldDraftId)) { try { deleteJobFromCloud(oldDraftId); } catch (_) {} }
+  // Only when we actually promoted the draft — an in-place update of an existing
+  // job must not delete the user's separate working-draft scratch.
+  if (!_existing) {
+    clearTimeout(_draftCloudTimer); _draftCloudTimer = 0;
+    if (oldDraftId && isUuid(oldDraftId)) { try { deleteJobFromCloud(oldDraftId); } catch (_) {} }
+  }
   pushJobToCloud(job);   // best-effort cloud sync (explicit saves only)
   logQuoteEvent("saved_job");
   window.track("job_saved", { is_version: false });
