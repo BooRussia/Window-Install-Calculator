@@ -296,11 +296,15 @@ Deno.serve(async (req) => {
         model: XAI_MODEL,
         input: [{ role: "user", content }],
       }),
-      // Big reads (up to MAX_IMAGES pages) need more headroom than a small one.
-      // Kept under typical Supabase edge wall-clock limits; a 100-page set is the
-      // slow case and may still time out (the client tells the user it can take
-      // a few minutes, and to contact an admin if a huge plan won't go through).
-      signal: AbortSignal.timeout(150_000),
+      // Big reads (up to MAX_IMAGES pages) need more headroom than a small one,
+      // BUT this MUST stay safely under Supabase's 150s request-idle / free-plan
+      // wall-clock limit. The abort timer starts only after our startup work
+      // (auth + profile + debit RPC), so a 150s value would fire AFTER the
+      // platform kills the worker — skipping the catch block below and leaving
+      // the pre-debited credit un-refunded (the user is charged for a failed
+      // read). 130s leaves room for startup + the refund RPC + the 504 response
+      // to all complete before the platform's 150s cutoff.
+      signal: AbortSignal.timeout(130_000),
     });
     if (!aiRes.ok) {
       const t = await aiRes.text();
