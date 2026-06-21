@@ -71,11 +71,14 @@ const ADMIN_EMAILS = (Deno.env.get("ADMIN_EMAILS") ?? "")
 const AI_CAPS: Record<string, number> = { trial: 5, starter: 2, pro: 100, unlimited: Infinity };
 
 const MIME_ALLOW = new Set(["image/png", "image/jpeg"]);
-// Multi-page schedules run long (10–14 pages is common). xAI imposes no
-// image-count limit, so the only real bound is request size. Allow up to 20
-// pages and ~15 MB of raw image bytes (~20 MB as base64) per extraction.
-const MAX_IMAGES = 20;
-const MAX_TOTAL_B64 = 20 * 1024 * 1024;
+// Multi-page schedules run long; large commercial sets can hit ~100 pages.
+// xAI imposes no hard image-count limit, so the real bound is request size.
+// Allow up to 100 page-images and ~45 MB of base64 per extraction. The client
+// caps the page COUNT to match (MAX_PLAN_PAGES) and alerts the user past it;
+// this byte budget is the backstop against an oversized payload. Big reads are
+// slower + costlier — that's expected.
+const MAX_IMAGES = 100;
+const MAX_TOTAL_B64 = 45 * 1024 * 1024;
 
 const FULL_PROMPT = `Window Schedule — Full Takeoff
 
@@ -206,7 +209,7 @@ Deno.serve(async (req) => {
   if (images.length > MAX_IMAGES) images = images.slice(0, MAX_IMAGES);
   const totalB64 = images.reduce((s, im) => s + im.length, 0);
   if (totalB64 > MAX_TOTAL_B64) {
-    return errorResponse("Plan is too large to read — upload fewer pages, or just the schedule page.", 413);
+    return errorResponse("Plan is too large to read — upload just the schedule pages, or contact your admin to raise the limit.", 413);
   }
 
   if (!XAI_API_KEY) {
@@ -271,7 +274,11 @@ Deno.serve(async (req) => {
         model: XAI_MODEL,
         input: [{ role: "user", content }],
       }),
-      signal: AbortSignal.timeout(120_000),
+      // Big reads (up to MAX_IMAGES pages) need more headroom than a small one.
+      // Kept under typical Supabase edge wall-clock limits; a 100-page set is the
+      // slow case and may still time out (the client tells the user it can take
+      // a few minutes, and to contact an admin if a huge plan won't go through).
+      signal: AbortSignal.timeout(150_000),
     });
     if (!aiRes.ok) {
       const t = await aiRes.text();

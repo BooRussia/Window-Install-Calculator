@@ -15519,17 +15519,16 @@ function loadPdfJs() {
 
 // Render up to 8 pages of a PDF to JPEG base64 (no data: prefix). ~1700px wide
 // is enough resolution for Grok to read a dense schedule table.
-async function pdfToImages(file) {
+async function pdfToImages(file, budget) {
   const pdfjs = await loadPdfJs();
   const buf = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: buf }).promise;
-  // Render up to the whole-batch page budget. A single multi-page schedule
-  // (these run 10–14 pages) must NOT be silently cut off — that drops openings
-  // and undercounts the job. xAI imposes no image-count limit; the real bound
-  // is the byte budget enforced in the edge function (MAX_TOTAL_B64).
-  const n = Math.min(pdf.numPages, MAX_PLAN_PAGES);
+  // Render up to `budget` pages (the remaining whole-batch budget) but report the
+  // PDF's TRUE page count, so the caller can tell the user when their upload
+  // exceeds the cap. ~1700px wide is enough for Grok to read a dense table.
+  const cap = Math.max(0, Math.min(pdf.numPages, budget == null ? MAX_PLAN_PAGES : budget));
   const out = [];
-  for (let i = 1; i <= n; i++) {
+  for (let i = 1; i <= cap; i++) {
     const page = await pdf.getPage(i);
     const base = page.getViewport({ scale: 1 });
     const scale = Math.min(2.5, 1700 / base.width);
@@ -15541,7 +15540,7 @@ async function pdfToImages(file) {
     await page.render({ canvasContext: ctx, viewport }).promise;
     out.push(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
   }
-  return out;
+  return { images: out, pages: pdf.numPages };
 }
 
 // Normalise an uploaded PNG/JPEG to a JPEG base64 so every page we send (PDF
@@ -15642,9 +15641,12 @@ function showPlanError(msg, debug) {
   if (modal) { modal.classList.remove("hidden"); modal.classList.add("flex"); }
 }
 
-const MAX_PLAN_PAGES = 20;   // total page-images sent to the AI across all files
-                            // (raised from 10 — a 12-page schedule was losing
-                            //  its last ~4 pages, undercounting the windows)
+const MAX_PLAN_PAGES = 100;  // total page-images sent to the AI across all files.
+                            // Bumped 20→100 for large commercial schedules. The
+                            // edge fn's MAX_IMAGES must match, and its byte budget
+                            // (MAX_TOTAL_B64) is the real backstop. An upload over
+                            // this many pages alerts the user to contact an admin
+                            // for a higher limit (see handlePlanUpload).
 let _planUploadBusy = false;
 async function handlePlanUpload(files, source) {
   files = Array.isArray(files) ? files : (files ? [files] : []);
@@ -15657,7 +15659,7 @@ async function handlePlanUpload(files, source) {
     return;
   }
   let totalSize = 0; for (const f of files) totalSize += (f.size || 0);
-  if (totalSize > 30 * 1024 * 1024) { toast("Those files are too large — upload just the schedule sheets."); return; }
+  if (totalSize > 60 * 1024 * 1024) { toast("Those files are too large — upload just the schedule sheets."); return; }
   _planUploadBusy = true;
   const usingRail = source !== "buck";          // read flow = rail button; buck flow = modal status
   const fileInput = document.getElementById(usingRail ? "readPlanFile" : "buckPlanFile");
@@ -15672,18 +15674,30 @@ async function handlePlanUpload(files, source) {
     // Render everything to images (Grok reads them with VISION) and combine all
     // pages across all files into one batch — the AI sums the openings for us.
     let allImages = [];
+    let detectedPages = 0;   // TRUE page count across all files (may exceed the cap)
     let i = 0;
     for (const file of files) {
       i++;
       setBusy(files.length > 1 ? `Rendering file ${i} of ${files.length}…` : "Rendering plan pages…");
-      if (file.type === "application/pdf") allImages.push(...await pdfToImages(file));
-      else allImages.push(await imageToJpegBase64(file));
+      const remaining = MAX_PLAN_PAGES - allImages.length;
+      if (file.type === "application/pdf") {
+        const { images, pages } = await pdfToImages(file, remaining);
+        detectedPages += pages;
+        allImages.push(...images);
+      } else {
+        detectedPages += 1;
+        if (allImages.length < MAX_PLAN_PAGES) allImages.push(await imageToJpegBase64(file));
+      }
     }
     if (!allImages.length) { setErr("Couldn't read those files — try clearer copies."); return; }
-    let truncated = false;
-    if (allImages.length > MAX_PLAN_PAGES) { allImages = allImages.slice(0, MAX_PLAN_PAGES); truncated = true; }
+    const truncated = detectedPages > MAX_PLAN_PAGES;
+    if (truncated) {
+      // Up-front alert: the upload is bigger than the cap. We read the first
+      // MAX_PLAN_PAGES and point the user to an admin to raise the limit.
+      toast(`This plan has ${detectedPages} pages — Anchor reads up to ${MAX_PLAN_PAGES}. Reading the first ${MAX_PLAN_PAGES}; contact your admin to raise the page limit.`);
+    }
     setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
-    if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — up to a minute…");
+    if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — " + (allImages.length > 25 ? "large plans can take a few minutes…" : "up to a minute…"));
     const res = await invokePlanExtraction({ images: allImages, mimeType: "image/jpeg" });
     if (!res.ok) {
       // Server cap hit — sync the meter to empty + nudge to upgrade.
@@ -15705,7 +15719,7 @@ async function handlePlanUpload(files, source) {
       const rem = getAiReadsRemaining();
       if (rem !== Infinity) toast(`AI read used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
     }
-    if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " pages — upload just the schedule sheets if any were missed.");
+    if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " of " + detectedPages + " pages. Contact your admin to raise the page limit, or re-upload just the schedule sheets.");
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
     try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length }); } catch (_) {}
   } catch (err) {
