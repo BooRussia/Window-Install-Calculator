@@ -5240,7 +5240,10 @@
            fields below. Derived from saved jobs (newest info wins); stays hidden
            until the user has at least one saved customer. -->
       <div id="saveJobCustomerRow" class="hidden">
-        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Use a saved customer</label>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Use a saved customer</label>
+          <button id="saveJobManageCustomers" type="button" class="text-[11px] font-semibold text-[#c9a558] hover:text-[#e3c577]">Manage</button>
+        </div>
         <select id="saveJobCustomerPick" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100">
           <option value="">— New customer —</option>
         </select>
@@ -5273,10 +5276,35 @@
         <textarea id="saveJobNotes" placeholder="Any additional details…" rows="2"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700 resize-none"></textarea>
       </div>
+      <label for="saveJobRecurring" class="flex items-start gap-3 cursor-pointer select-none">
+        <input id="saveJobRecurring" type="checkbox" checked
+          class="mt-0.5 h-4 w-4 shrink-0 accent-[#b58f4a] cursor-pointer" />
+        <span class="text-sm text-slate-200 leading-snug">Recurring customer
+          <span class="block text-[11px] text-slate-500 font-normal">Adds them to your quick-pick list for next time. Uncheck for a one-time job (a remodel, etc.).</span>
+        </span>
+      </label>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
       <button data-close-save class="btn rounded-full text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Cancel</button>
       <button id="saveJobConfirm" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save Job</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manage Customers Modal — toggle which saved customers appear in the
+     quick-pick list. Unchecking only hides them from the picker; the job and
+     its contact details are never touched. Layers above the Save Job modal. -->
+<div id="manageCustomersModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[60]">
+  <div class="absolute inset-0 modal-backdrop" data-close-manage></div>
+  <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+    <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
+      <h3 class="text-base font-semibold text-slate-100">Saved Customers</h3>
+      <button class="modal-close" data-close-manage aria-label="Close">×</button>
+    </div>
+    <p class="px-6 pt-4 text-[12px] text-slate-400 leading-relaxed">Customers in your quick-pick list are checked. Uncheck a one-time client to hide them from the dropdown — their job and details stay exactly as they are.</p>
+    <div id="manageCustomersList" class="px-6 py-4 space-y-2 overflow-y-auto"></div>
+    <div class="px-6 py-4 border-t border-slate-800 flex justify-end">
+      <button data-close-manage class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Done</button>
     </div>
   </div>
 </div>
@@ -11027,11 +11055,17 @@ function hasQuoteInput(r) {
 
 // ─── Auto-remembered customer book ───────────────────────────────────────
 // Distinct customers derived from the user's SAVED jobs (the draft is excluded).
-// Keyed by normalized name; the newest job's contact info wins, so editing a
-// customer is as simple as saving a job with their updated details. Because it
-// rides the existing job sync, the book is the same on every device, works
-// offline, and needs no new storage. Most-recently-used first.
-function getCustomerBook() {
+// Keyed by normalized name; the newest job's contact info + recurring flag win,
+// so editing a customer is as simple as saving a job with their updated details.
+// Because it rides the existing job sync, the book is the same on every device,
+// works offline, and needs no new storage. Most-recently-used first.
+//
+// `customerRecurring` (default true for legacy jobs) marks whether a customer
+// belongs in the quick-pick list. One-time clients (a remodel, etc.) are saved
+// with it false so they never clutter the picker — the JOB is untouched either
+// way. getCustomerEntries() returns ALL customers (for the Manage tool);
+// getCustomerBook() is the recurring-only subset the picker shows.
+function getCustomerEntries() {
   const jobs = (typeof loadJobs === "function") ? loadJobs() : [];
   const map = new Map();
   for (const j of jobs) {
@@ -11041,17 +11075,51 @@ function getCustomerBook() {
     const key = name.toLowerCase();
     const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
     const prev = map.get(key);
-    if (!prev || ts >= prev._ts) {
+    if (!prev) {
       map.set(key, {
-        name,
+        key, name,
         address: (j.customerAddress || "").trim(),
         phone:   (j.customerPhone   || "").trim(),
         email:   (j.customerEmail   || "").trim(),
-        _ts: ts
+        recurring: j.customerRecurring !== false,
+        count: 1, _ts: ts
       });
+    } else {
+      prev.count++;
+      if (ts >= prev._ts) {   // newest job wins for display + flag
+        prev._ts = ts; prev.name = name;
+        prev.address = (j.customerAddress || "").trim();
+        prev.phone   = (j.customerPhone   || "").trim();
+        prev.email   = (j.customerEmail   || "").trim();
+        prev.recurring = j.customerRecurring !== false;
+      }
     }
   }
   return Array.from(map.values()).sort((a, b) => b._ts - a._ts);
+}
+
+function getCustomerBook() {
+  return getCustomerEntries().filter(c => c.recurring);
+}
+
+// Flip a customer's recurring flag without touching the job's data. Writes the
+// flag onto that customer's NEWEST job (the one the book dedups to) and pushes
+// it to the cloud so the change sticks across devices. updatedAt is left alone
+// so toggling doesn't reorder the list.
+function setCustomerRecurring(key, recurring) {
+  const jobs = loadJobs();
+  let target = null, targetTs = -1;
+  for (const j of jobs) {
+    if (!j || j.isDraft) continue;
+    if ((j.customerName || "").trim().toLowerCase() !== key) continue;
+    const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
+    if (ts >= targetTs) { targetTs = ts; target = j; }
+  }
+  if (!target) return false;
+  target.customerRecurring = !!recurring;
+  saveJobs(jobs);
+  try { pushJobToCloud(target); } catch (_) {}
+  return true;
 }
 
 // (Re)build the "Use a saved customer" picker in the Save Job modal. Hides the
@@ -11086,6 +11154,58 @@ function onCustomerPick() {
   set("saveJobAddress", c.address);
   set("saveJobPhone", c.phone);
   set("saveJobEmail", c.email);
+  // a picked customer is recurring by definition (they're in the list)
+  const rec = document.getElementById("saveJobRecurring"); if (rec) rec.checked = true;
+}
+
+// ─── Manage Customers tool ───────────────────────────────────────────────
+// Lists every saved customer (recurring or not) with a checkbox that toggles
+// whether they show in the quick-pick list. Toggling never deletes the job or
+// its contact details — it only flips the recurring flag (setCustomerRecurring).
+function renderManageCustomers() {
+  const list = document.getElementById("manageCustomersList");
+  if (!list) return;
+  const entries = getCustomerEntries();
+  list._entries = entries;   // stash for the toggle handler (index-based, no escaping)
+  if (!entries.length) {
+    list.innerHTML = `<div class="text-sm text-slate-500 py-6 text-center">No saved customers yet.</div>`;
+    return;
+  }
+  list.innerHTML = entries.map((c, i) => {
+    const meta = [c.phone, c.address, c.email].filter(Boolean).join(" · ");
+    const jobs = c.count === 1 ? "1 job" : (c.count + " jobs");
+    return `<label class="flex items-center gap-3 rounded-xl border border-slate-800 px-3 py-2.5 cursor-pointer hover:border-slate-700">
+        <input type="checkbox" data-cust-idx="${i}" ${c.recurring ? "checked" : ""} class="h-4 w-4 shrink-0 accent-[#b58f4a] cursor-pointer" aria-label="Show ${escHtml(c.name)} in quick-pick list" />
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold text-slate-100 truncate">${escHtml(c.name)}</span>
+          ${meta ? `<span class="block text-[11px] text-slate-400 truncate">${escHtml(meta)}</span>` : ""}
+        </span>
+        <span class="text-[10px] uppercase tracking-wide text-slate-600 shrink-0">${jobs}</span>
+      </label>`;
+  }).join("");
+}
+
+function onManageToggle(e) {
+  const cb = e.target.closest && e.target.closest("input[type=checkbox][data-cust-idx]");
+  if (!cb) return;
+  const list = document.getElementById("manageCustomersList");
+  const idx = parseInt(cb.dataset.custIdx, 10);
+  const entry = list && list._entries && list._entries[idx];
+  if (!entry) return;
+  setCustomerRecurring(entry.key, cb.checked);
+  entry.recurring = cb.checked;   // keep the stash in sync
+}
+
+function openManageCustomers() {
+  renderManageCustomers();
+  const m = document.getElementById("manageCustomersModal");
+  m.classList.remove("hidden"); m.classList.add("flex");
+}
+
+function closeManageCustomers() {
+  const m = document.getElementById("manageCustomersModal");
+  m.classList.add("hidden"); m.classList.remove("flex");
+  populateCustomerPicker();   // reflect any list changes back in the Save Job picker
 }
 
 function openSaveJobModal() {
@@ -11099,6 +11219,17 @@ function openSaveJobModal() {
   { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
   document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
   populateCustomerPicker();   // refresh the saved-customer dropdown each open
+  // "Recurring customer" defaults ON. When re-saving an existing job, reflect
+  // that job's stored flag so a one-time client stays one-time.
+  { const _rec = document.getElementById("saveJobRecurring");
+    if (_rec) {
+      let on = true;
+      if (STATE.currentJobId) {
+        const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
+        if (_j) on = _j.customerRecurring !== false;
+      }
+      _rec.checked = on;
+    } }
   const modal = document.getElementById("saveJobModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -11150,6 +11281,7 @@ function confirmSaveJob() {
     id: reuseId,
     name: name || `Job ${new Date().toLocaleDateString()}`,
     customerName: name, customerAddress: address, customerPhone: phone, customerEmail: email, customerNotes: notes,
+    customerRecurring: !(document.getElementById("saveJobRecurring") && !document.getElementById("saveJobRecurring").checked),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
@@ -19020,6 +19152,15 @@ function init() {
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
   document.getElementById("saveJobName").addEventListener("keydown", e => { if (e.key === "Enter") confirmSaveJob(); });
   { const _cp = document.getElementById("saveJobCustomerPick"); if (_cp) _cp.addEventListener("change", onCustomerPick); }
+
+  // Manage Customers modal
+  { const _mc = document.getElementById("saveJobManageCustomers"); if (_mc) _mc.addEventListener("click", openManageCustomers); }
+  { const _mm = document.getElementById("manageCustomersModal");
+    if (_mm) {
+      _mm.addEventListener("click", e => { if (e.target.dataset.closeManage !== undefined) closeManageCustomers(); });
+      const _ml = document.getElementById("manageCustomersList");
+      if (_ml) _ml.addEventListener("change", onManageToggle);
+    } }
 
   document.getElementById("openAdmin").addEventListener("click", openAdmin);
 
