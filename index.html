@@ -4400,11 +4400,18 @@
     <!-- Pipeline stats -->
     <div id="dashPipeline" class="mb-9"></div>
 
-    <!-- Material usage stats -->
-    <div id="dashMaterials" class="mb-9"></div>
-
-    <!-- Customer analytics (revenue/profit/jobs by customer) -->
-    <div id="dashCustomers" class="mb-9"></div>
+    <!-- Insights: Materials / Customers — one card, tab-swap to keep the page short -->
+    <div id="dashInsights" class="card rounded-2xl overflow-hidden mb-9 hidden">
+      <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
+        <div class="seg" id="dashInsightsTabs" style="max-width:260px;">
+          <button type="button" class="seg-btn active" data-insight="materials">Materials</button>
+          <button type="button" class="seg-btn" data-insight="customers">Customers</button>
+        </div>
+        <div id="dashInsightsMeta" class="text-right shrink-0"></div>
+      </div>
+      <div id="dashMaterials"></div>
+      <div id="dashCustomers" class="hidden"></div>
+    </div>
 
     <!-- E-signatures (sent / viewed / signed quotes) -->
     <div id="dashEsign" class="mb-9"></div>
@@ -9026,10 +9033,45 @@ function renderDashboard() {
   const greet = document.getElementById("dashGreeting");
   if (greet) greet.textContent = brand.companyName ? `Welcome back, ${brand.companyName}` : "Welcome back";
   renderDashPipeline(jobs);
-  renderDashMaterials(jobs);
-  renderDashCustomers(jobs);
+  renderDashInsights(jobs);
   renderDashJobs(jobs);
   renderDashEsign();
+}
+
+// Materials + Customers share one card with a tab toggle (keeps the dashboard
+// short). Each panel renders its own inner content (no card of its own); this
+// shows the active panel, hides a tab with no data, and mirrors the active
+// panel's callout (Top cost driver / Top by revenue) into the shared header.
+let _dashInsightTab = "materials";   // materials | customers
+function renderDashInsights(jobs) {
+  const hasMat = renderDashMaterials(jobs);
+  const hasCust = renderDashCustomers(jobs);
+  const wrap = document.getElementById("dashInsights");
+  if (!wrap) return;
+  if (!hasMat && !hasCust) { wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  const tabs = document.getElementById("dashInsightsTabs");
+  if (tabs) {
+    const mb = tabs.querySelector('[data-insight="materials"]');
+    const cb = tabs.querySelector('[data-insight="customers"]');
+    if (mb) mb.classList.toggle("hidden", !hasMat);
+    if (cb) cb.classList.toggle("hidden", !hasCust);
+    tabs.classList.toggle("hidden", !(hasMat && hasCust));   // only one view → no toggle needed
+  }
+  if (_dashInsightTab === "materials" && !hasMat) _dashInsightTab = "customers";
+  if (_dashInsightTab === "customers" && !hasCust) _dashInsightTab = "materials";
+  applyInsightTab();
+}
+function applyInsightTab() {
+  const tab = _dashInsightTab;
+  const mat = document.getElementById("dashMaterials");
+  const cust = document.getElementById("dashCustomers");
+  if (mat) mat.classList.toggle("hidden", tab !== "materials");
+  if (cust) cust.classList.toggle("hidden", tab !== "customers");
+  const tabs = document.getElementById("dashInsightsTabs");
+  if (tabs) tabs.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.insight === tab));
+  const meta = document.getElementById("dashInsightsMeta");
+  if (meta) { const active = tab === "materials" ? mat : cust; meta.innerHTML = (active && active._meta) || ""; }
 }
 
 /* ============================================================
@@ -9116,15 +9158,16 @@ function custDonutSVG(stats, mode) {
 
 function renderDashCustomers(jobs) {
   const wrap = document.getElementById("dashCustomers");
-  if (!wrap) return;
+  if (!wrap) return false;
   const stats = getCustomerStats(jobs);
-  if (!stats.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
-  wrap.classList.remove("hidden");
+  if (!stats.length) { wrap.innerHTML = ""; wrap._meta = ""; return false; }
   const mode = _dashCustMode;
   const ranked = stats.slice().sort((a, b) => custMetric(b, mode) - custMetric(a, mode));
   const grandJobs = stats.reduce((s, c) => s + c.total, 0);
   const grandRev = stats.reduce((s, c) => s + c.revenue, 0);
   const top = ranked[0];
+  wrap._meta = `<div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top by revenue</div>
+    <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${grandRev > 0 ? Math.round(top.revenue / grandRev * 100) : 0}%</div>`;
   const rows = ranked.map((c, i) => {
     const col = CUST_COLORS[i % CUST_COLORS.length];
     const wl = (c.won || c.lost) ? `${c.won}W · ${c.lost}L` : "—";
@@ -9142,18 +9185,8 @@ function renderDashCustomers(jobs) {
       </button>`;
   }).join("");
   wrap.innerHTML = `
-    <div class="card rounded-2xl overflow-hidden">
-      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Customers</h2>
-          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">${stats.length} customer${stats.length === 1 ? "" : "s"} · ${grandJobs} job${grandJobs === 1 ? "" : "s"} — who drives your business. Tap one for the full breakdown.</p>
-        </div>
-        <div class="text-right shrink-0">
-          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top by revenue</div>
-          <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${grandRev > 0 ? Math.round(top.revenue / grandRev * 100) : 0}%</div>
-        </div>
-      </div>
       <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
+        <p class="text-[11px] text-slate-500 mb-3 font-medium">${stats.length} customer${stats.length === 1 ? "" : "s"} · ${grandJobs} job${grandJobs === 1 ? "" : "s"} — who drives your business. Tap one for the full breakdown.</p>
         <div class="seg" id="dashCustSeg" style="max-width:320px;">
           <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
           <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
@@ -9161,8 +9194,8 @@ function renderDashCustomers(jobs) {
         </div>
         <div class="mt-4">${custDonutSVG(stats, mode)}</div>
       </div>
-      <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${rows}</div>
-    </div>`;
+      <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${rows}</div>`;
+  return true;
 }
 
 // Per-customer detail modal.
@@ -9542,12 +9575,13 @@ function dashMaterialStats(jobs) {
 
 function renderDashMaterials(jobs) {
   const wrap = document.getElementById("dashMaterials");
-  if (!wrap) return;
+  if (!wrap) return false;
   const { items, jobCount, totalLF, totalSpend } = dashMaterialStats(jobs);
-  if (!items.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
-  wrap.classList.remove("hidden");
+  if (!items.length) { wrap.innerHTML = ""; wrap._meta = ""; return false; }
   const top = items[0];
   const topPct = totalSpend ? Math.round(top.totalCost / totalSpend * 100) : 0;
+  wrap._meta = `<div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top cost driver</div>
+    <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${topPct}%</div>`;
   const rows = items.map((m, i) => `
     <tr class="${i === 0 ? "dash-mat-top" : ""}">
       <td>${escHtml(m.name)}</td>
@@ -9557,18 +9591,8 @@ function renderDashMaterials(jobs) {
       <td class="font-bold text-slate-100">${formatMoney(m.totalCost)}</td>
     </tr>`).join("");
   wrap.innerHTML = `
-    <div class="card rounded-2xl overflow-hidden">
-      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Where your materials go</h2>
-          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Across ${jobCount} saved job${jobCount === 1 ? "" : "s"} · ${Math.round(totalLF)} LF total — your biggest cost drivers, ranked.</p>
-        </div>
-        <div class="text-right shrink-0">
-          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top cost driver</div>
-          <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${topPct}%</div>
-        </div>
-      </div>
       <div class="px-5 sm:px-6 pt-4 pb-2 border-b border-slate-800/80">
+        <p class="text-[11px] text-slate-500 mb-3 font-medium">Across ${jobCount} saved job${jobCount === 1 ? "" : "s"} · ${Math.round(totalLF)} LF total — your biggest cost drivers, ranked.</p>
         <div class="seg" id="dashMatSeg" style="max-width:320px;">
           <button type="button" class="seg-btn ${_dashMatChartMode === "pie" ? "active" : ""}" data-matchart="pie">Allocation</button>
           <button type="button" class="seg-btn ${_dashMatChartMode === "bar" ? "active" : ""}" data-matchart="bar">Bars</button>
@@ -9581,8 +9605,7 @@ function renderDashMaterials(jobs) {
           <thead><tr><th>Material</th><th class="hidden sm:table-cell">Avg / job</th><th>Total used</th><th class="hidden sm:table-cell">$ / LF</th><th>Total spend</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
-      </div>
-    </div>`;
+      </div>`;
   renderDashMatChart();
   const seg = document.getElementById("dashMatSeg");
   if (seg) seg.addEventListener("click", (e) => {
@@ -9592,6 +9615,7 @@ function renderDashMaterials(jobs) {
     seg.querySelectorAll(".seg-btn").forEach(x => x.classList.toggle("active", x.dataset.matchart === _dashMatChartMode));
     renderDashMatChart();
   });
+  return true;
 }
 
 // Render the currently-selected material chart into #dashMatChart.
@@ -10395,6 +10419,14 @@ function wireDashboard() {
   });
   const search = document.getElementById("dashJobSearch");
   if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
+  // Insights card: swap between the Materials and Customers panels.
+  const insightsTabs = document.getElementById("dashInsightsTabs");
+  if (insightsTabs) insightsTabs.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-insight]");
+    if (!b) return;
+    _dashInsightTab = b.dataset.insight;
+    applyInsightTab();
+  });
   // Customers section: metric toggle (donut) + open a customer's detail modal.
   const cust = document.getElementById("dashCustomers");
   if (cust) cust.addEventListener("click", (e) => {
