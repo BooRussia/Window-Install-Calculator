@@ -7414,13 +7414,18 @@ function getImpactLaborMultiplier() {
 
 function getLaborPerLF() {
   const item = DATA.costItems.find(c => c.id === "labor");
-  // The Block-Framed labor rate carries the buck-install premium; drop to the
-  // standard rate when the opening was already bucked on site (Remodel still wins).
-  const blockBuck = STATE.houseType === "Block Framed" && buckingIncluded();
   let base;
   if (STATE.constructionType === "Remodel" && item.rates["Remodel"] != null) base = item.rates["Remodel"];
-  else if (blockBuck && item.rates["Block Framed"] != null) base = item.rates["Block Framed"];
+  else if (STATE.houseType === "Block Framed" && item.rates["Block Framed"] != null) base = item.rates["Block Framed"];
   else base = item.rates.default ?? 0;
+  // On a block house the labor premium over a standard wood install IS the
+  // buck work (cutting/placing boards + anchoring them to the block). Drop that
+  // premium when the opening was already bucked on site — for new construction
+  // AND remodels — so the crew time it saves comes out of the quote.
+  if (STATE.houseType === "Block Framed" && !buckingIncluded()) {
+    const buckPremium = (item.rates["Block Framed"] ?? 0) - (item.rates.default ?? 0);
+    base = Math.max(item.rates.default ?? 0, base - buckPremium);
+  }
   return base * getStoriesMultiplier() * getImpactLaborMultiplier();
 }
 
