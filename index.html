@@ -1045,6 +1045,12 @@
     #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen,
     #dashMaterials, #dashCustomers, #dashPipelinePanel { animation: none !important; }
   }
+  /* Dashboard insight charts — spin/scale pivots for the WAAPI-driven entrance:
+     donut rings rotate around the donut center, trend dots pop from their own
+     center. The actual animations live in dashPlayChart() (JS), gated on
+     prefers-reduced-motion. */
+  .donut-rings { transform-box: fill-box; transform-origin: 50% 50%; }
+  .dash-trend-dot { transform-box: fill-box; transform-origin: 50% 50%; }
   /* Hide scrollbar on horizontal control row when it overflows */
   .controls-row { scrollbar-width: none; }
   .controls-row::-webkit-scrollbar { display: none; }
@@ -9090,6 +9096,7 @@ function openDashboard() {
   d.classList.remove("hidden");
   d.scrollTop = 0;
   renderDashboard();
+  try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}   // premium count-up + chart entrance
   try { renderPfp(); } catch (_) {}   // paint the dashboard avatar + admin gate
   try { updateThemeToggleIcon(); } catch (_) {}
   try { window.track("dashboard_opened"); } catch (_) {}
@@ -9117,6 +9124,134 @@ function renderDashboard() {
 const INSIGHT_TABS = ["materials", "customers", "jobs"];
 const INSIGHT_PANELS = { jobs: "dashPipelinePanel", materials: "dashMaterials", customers: "dashCustomers" };
 let _dashInsightTab = "materials";   // materials | customers | jobs
+
+/* ============================================================
+   DASHBOARD MOTION — premium entrance + swap animations.
+   The donut "fans out while spinning", headline numbers count
+   up, bars grow from zero, and the trend line draws on. Driven
+   by the Web Animations API so each call replays cleanly with no
+   layout churn, and fully skipped under prefers-reduced-motion.
+   Played only on deliberate moments (dashboard open, tab swap,
+   chart-type toggle) — never on background data re-renders.
+   ============================================================ */
+function dashReduceMotion() {
+  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+const DASH_COUNT_FMT = {
+  money: (v) => formatMoney(v),
+  int: (v) => String(Math.round(v)),
+  pct: (v) => Math.round(v) + "%",
+  jobs: (v) => { const n = Math.round(v); return n + (n === 1 ? " job" : " jobs"); },
+};
+// Tween an element's text from 0 → its target, formatted. The target + format
+// live in data-countup / data-count-fmt so the static (pre-JS / reduced-motion)
+// render is already correct.
+function dashCountUp(el, to, fmtName, dur) {
+  if (!el) return;
+  const fmt = DASH_COUNT_FMT[fmtName] || DASH_COUNT_FMT.int;
+  if (dashReduceMotion()) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), D = dur || 760;
+  const ease = (t) => 1 - Math.pow(1 - t, 3);   // easeOutCubic
+  function tick(now) {
+    const p = Math.min(1, (now - t0) / D);
+    el.textContent = fmt(to * ease(p));
+    if (p < 1) requestAnimationFrame(tick);
+    else el.textContent = fmt(to);
+  }
+  requestAnimationFrame(tick);
+}
+function dashRunCountUps(root) {
+  if (!root) return;
+  root.querySelectorAll("[data-countup]").forEach(el => {
+    const to = parseFloat(el.getAttribute("data-countup"));
+    if (isNaN(to)) return;
+    dashCountUp(el, to, el.getAttribute("data-count-fmt") || "int");
+  });
+}
+// Donut: spin + scale the whole ring group in from the center while each wedge
+// sweeps on in sequence — reads as "fans out while spinning."
+function dashAnimateDonut(root) {
+  if (!root || dashReduceMotion()) return;
+  root.querySelectorAll(".donut-rings").forEach(group => {
+    const segs = group.querySelectorAll(".donut-seg");
+    if (!segs.length) return;
+    group.animate(
+      [{ transform: "rotate(-200deg) scale(0.45)", opacity: 0 },
+       { transform: "rotate(0deg) scale(1)", opacity: 1 }],
+      { duration: 820, easing: "cubic-bezier(0.22,1,0.36,1)", fill: "backwards" });
+    segs.forEach((seg, i) => {
+      const r = parseFloat(seg.getAttribute("r")) || 82;
+      const C = 2 * Math.PI * r;
+      const finalArr = seg.getAttribute("stroke-dasharray") || `0 ${C}`;
+      seg.animate(
+        [{ strokeDasharray: `0 ${C.toFixed(2)}` }, { strokeDasharray: finalArr }],
+        { duration: 580, delay: 150 + i * 66, easing: "cubic-bezier(0.45,0,0.2,1)", fill: "backwards" });
+    });
+  });
+  // Center label + value fade up after the ring lands.
+  root.querySelectorAll(".donut-center").forEach((t, i) => {
+    t.animate([{ opacity: 0 }, { opacity: 0 }, { opacity: 1 }],
+      { duration: 700, delay: 120 + i * 70, easing: "ease-out", fill: "backwards" });
+  });
+}
+// Horizontal cost bars grow from zero, staggered.
+function dashAnimateBars(root) {
+  if (!root || dashReduceMotion()) return;
+  root.querySelectorAll(".dash-bar-fill").forEach((el, i) => {
+    const target = el.style.width || "0%";
+    el.animate([{ width: "0%" }, { width: target }],
+      { duration: 640, delay: i * 70, easing: "cubic-bezier(0.34,1.1,0.4,1)", fill: "backwards" });
+  });
+}
+// Trend: draw the line on, fade the area, pop the dots.
+function dashAnimateTrend(root) {
+  if (!root || dashReduceMotion()) return;
+  const line = root.querySelector(".dash-trend-line");
+  if (line && line.getTotalLength) {
+    const len = line.getTotalLength() || 600;
+    line.animate(
+      [{ strokeDasharray: len, strokeDashoffset: len }, { strokeDasharray: len, strokeDashoffset: 0 }],
+      { duration: 900, easing: "cubic-bezier(0.45,0,0.2,1)", fill: "backwards" });
+  }
+  const area = root.querySelector(".dash-trend-area");
+  if (area) area.animate([{ opacity: 0 }, { opacity: 1 }],
+    { duration: 700, delay: 240, easing: "ease", fill: "backwards" });
+  root.querySelectorAll(".dash-trend-dot").forEach((d, i) => {
+    d.animate([{ opacity: 0, transform: "scale(0)" }, { opacity: 1, transform: "scale(1)" }],
+      { duration: 320, delay: 320 + i * 55, easing: "cubic-bezier(0.34,1.5,0.5,1)", fill: "backwards" });
+  });
+}
+// Subtle container lift — used for charts with no donut so a swap still feels deliberate.
+function dashChartFadeIn(el) {
+  if (!el || dashReduceMotion()) return;
+  el.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0)" }],
+    { duration: 340, easing: "cubic-bezier(0.22,0.7,0.3,1)" });
+}
+// Play whatever chart lives inside `root` (donut / bars / trend) + its count-ups.
+function dashPlayChart(root) {
+  if (!root) return;
+  dashRunCountUps(root);
+  const hasDonut = !!root.querySelector(".donut-rings");
+  dashAnimateDonut(root);
+  dashAnimateBars(root);
+  dashAnimateTrend(root);
+  if (!hasDonut) dashChartFadeIn(root);   // donut has its own spin entrance
+}
+// Find a panel's chart subtree and play it (used on tab swap + first open).
+function dashPlayPanel(panelEl) {
+  if (!panelEl) return;
+  const chart = panelEl.querySelector("#dashMatChart, .dash-cust-chart, .dash-jobs-chart") || panelEl;
+  dashPlayChart(chart);
+}
+// One-time entrance when the dashboard is opened: count up the quick-glance
+// tiles + animate the currently-active insight panel.
+function dashPlayEntrance() {
+  if (dashReduceMotion()) return;
+  dashRunCountUps(document.getElementById("dashStats"));
+  const el = document.getElementById(INSIGHT_PANELS[_dashInsightTab]);
+  if (el && !el.classList.contains("hidden")) dashPlayPanel(el);
+}
+
 function renderDashInsights(jobs) {
   const has = {
     jobs: renderDashJobsPanel(jobs),
@@ -9135,13 +9270,15 @@ function renderDashInsights(jobs) {
   if (!has[_dashInsightTab]) _dashInsightTab = INSIGHT_TABS.find(t => has[t]) || "jobs";
   applyInsightTab();
 }
-function applyInsightTab() {
+function applyInsightTab(animate) {
   const tab = _dashInsightTab;
   Object.entries(INSIGHT_PANELS).forEach(([t, id]) => { const el = document.getElementById(id); if (el) el.classList.toggle("hidden", t !== tab); });
   const tabs = document.getElementById("dashInsightsTabs");
   if (tabs) tabs.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.insight === tab));
   const meta = document.getElementById("dashInsightsMeta");
-  if (meta) { const el = document.getElementById(INSIGHT_PANELS[tab]); meta.innerHTML = (el && el._meta) || ""; }
+  const active = document.getElementById(INSIGHT_PANELS[tab]);
+  if (meta) meta.innerHTML = (active && active._meta) || "";
+  if (animate) dashPlayPanel(active);   // only on a deliberate tab click, not background re-renders
 }
 
 /* ============================================================
@@ -9204,7 +9341,7 @@ function custDonutSVG(stats, mode) {
   const rings = segs.map((s, i) => {
     const dash = (s.val / total) * C;
     const col = s.other ? "#475569" : CUST_COLORS[i % CUST_COLORS.length];
-    const seg = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    const seg = `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
     off += dash; return seg;
   }).join("");
   const fmt = (v) => mode === "jobs" ? (v + (v === 1 ? " job" : " jobs")) : formatMoney(v);
@@ -9218,9 +9355,9 @@ function custDonutSVG(stats, mode) {
       </div>`;
   }).join("");
   return `<div class="flex flex-col sm:flex-row items-center gap-6 text-slate-400">
-      <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;">${rings}
-        <text x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
-        <text x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${fmt(total)}</text>
+      <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
+        <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
+        <text class="donut-center" data-countup="${total}" data-count-fmt="${mode === "jobs" ? "jobs" : "money"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${fmt(total)}</text>
       </svg>
       <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5">${legend}</div>
     </div>`;
@@ -9262,7 +9399,7 @@ function renderDashCustomers(jobs) {
           <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
           <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
         </div>
-        <div class="mt-4">${custDonutSVG(stats, mode)}</div>
+        <div class="mt-4 dash-cust-chart">${custDonutSVG(stats, mode)}</div>
       </div>
       <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${rows}</div>`;
   return true;
@@ -9595,15 +9732,15 @@ function renderDashStats(jobs) {
   if (!p.real.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
   const tiles = [
-    { label: "Open pipeline", val: formatMoney(p.openVal), sub: `${p.openCount} open deal${p.openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]" },
-    { label: "Won", val: formatMoney(p.wonVal), sub: `${p.wonCount} job${p.wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300" },
-    { label: "Win rate", val: p.winRate == null ? "—" : p.winRate + "%", sub: p.decided ? `${p.wonCount}W · ${p.lostCount}L` : "no decisions yet", accent: "text-slate-100" },
-    { label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100" },
+    { label: "Open pipeline", val: formatMoney(p.openVal), raw: p.openVal, fmt: "money", sub: `${p.openCount} open deal${p.openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]" },
+    { label: "Won", val: formatMoney(p.wonVal), raw: p.wonVal, fmt: "money", sub: `${p.wonCount} job${p.wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300" },
+    { label: "Win rate", val: p.winRate == null ? "—" : p.winRate + "%", raw: p.winRate, fmt: "pct", sub: p.decided ? `${p.wonCount}W · ${p.lostCount}L` : "no decisions yet", accent: "text-slate-100" },
+    { label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", raw: p.avgMargin, fmt: "pct", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100" },
   ];
   wrap.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">` + tiles.map(t => `
       <div class="card rounded-2xl px-4 py-4 text-center">
         <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">${t.label}</div>
-        <div class="text-xl sm:text-2xl font-extrabold ${t.accent} mt-1" style="font-variant-numeric:tabular-nums;">${t.val}</div>
+        <div class="text-xl sm:text-2xl font-extrabold ${t.accent} mt-1" style="font-variant-numeric:tabular-nums;"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
         <div class="text-[11px] text-slate-500 mt-0.5">${escHtml(t.sub)}</div>
       </div>`).join("") + `</div>`;
 }
@@ -9625,7 +9762,7 @@ function renderDashJobsPanel(jobs) {
     const v = metricVal(s);
     if (v <= 0) return;
     const dash = (v / total) * C;
-    rings += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${STATUS_COLORS[s]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    rings += `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${STATUS_COLORS[s]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
     off += dash;
   });
   const centerLabel = metric === "value" ? "Pipeline value" : "Total jobs";
@@ -9646,10 +9783,10 @@ function renderDashJobsPanel(jobs) {
     ? `<button type="button" data-dash-filter="${_dashStatusFilter}" class="text-[11px] text-[#c9a558] font-semibold hover:underline">Showing ${_dashStatusFilter} below · clear ✕</button>`
     : `<span class="text-[11px] text-slate-500">Tap a status to filter the jobs below.</span>`;
   const donut = total > 0
-    ? `<div class="flex flex-col sm:flex-row items-center gap-5 text-slate-400">
-        <svg viewBox="0 0 240 240" style="width:180px;height:180px;flex-shrink:0;">${rings}
-          <text x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
-          <text x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
+    ? `<div class="flex flex-col sm:flex-row items-center gap-5 text-slate-400 dash-jobs-chart">
+        <svg viewBox="0 0 240 240" style="width:180px;height:180px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
+          <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
+          <text class="donut-center" data-countup="${total}" data-count-fmt="${metric === "value" ? "money" : "int"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
         </svg>
         <div class="flex-1 w-full space-y-0.5">${legend}</div>
       </div>`
@@ -9738,10 +9875,11 @@ function renderDashMaterials(jobs) {
   const seg = document.getElementById("dashMatSeg");
   if (seg) seg.addEventListener("click", (e) => {
     const b = e.target.closest("[data-matchart]");
-    if (!b) return;
+    if (!b || b.dataset.matchart === _dashMatChartMode) return;
     _dashMatChartMode = b.dataset.matchart;
     seg.querySelectorAll(".seg-btn").forEach(x => x.classList.toggle("active", x.dataset.matchart === _dashMatChartMode));
     renderDashMatChart();
+    dashPlayChart(document.getElementById("dashMatChart"));
   });
   return true;
 }
@@ -9766,7 +9904,7 @@ function matChartPieSVG(items) {
   let off = 0;
   const rings = items.map((m, i) => {
     const dash = (m.totalCost / total) * C;
-    const seg = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${MAT_COLORS[i % MAT_COLORS.length]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    const seg = `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${MAT_COLORS[i % MAT_COLORS.length]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
     off += dash;
     return seg;
   }).join("");
@@ -9777,9 +9915,9 @@ function matChartPieSVG(items) {
       <span class="font-bold" style="color:currentColor">${Math.round(m.totalCost / total * 100)}%</span>
     </div>`).join("");
   return `<div class="flex flex-col sm:flex-row items-center gap-6 text-slate-400">
-    <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;">${rings}
-      <text x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">Total materials</text>
-      <text x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:16px;font-weight:800;">${formatMoney(total)}</text>
+    <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
+      <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">Total materials</text>
+      <text class="donut-center" data-countup="${total}" data-count-fmt="money" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:16px;font-weight:800;">${formatMoney(total)}</text>
     </svg>
     <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5">${legend}</div>
   </div>`;
@@ -9798,7 +9936,7 @@ function matChartBarHTML(items) {
         <span style="color:currentColor">${formatMoney(m.totalCost)} · ${share}%</span>
       </div>
       <div style="height:10px;border-radius:6px;background:rgba(148,163,184,0.16);overflow:hidden;">
-        <div style="height:100%;width:${pct.toFixed(1)}%;border-radius:6px;background:${MAT_COLORS[i % MAT_COLORS.length]};"></div>
+        <div class="dash-bar-fill" style="height:100%;width:${pct.toFixed(1)}%;border-radius:6px;background:${MAT_COLORS[i % MAT_COLORS.length]};"></div>
       </div>
     </div>`;
   }).join("") + `</div>`;
@@ -9847,7 +9985,7 @@ function matChartTrendSVG(jobs) {
   const step = Math.max(1, Math.ceil(pts.length / 6));
   const xlabels = pts.map((p, i) => (i % step === 0 || i === pts.length - 1)
     ? `<text x="${xFor(i).toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" fill="currentColor" style="font-size:9px;opacity:0.6;">${escHtml(p.label)}</text>` : "").join("");
-  const dots = pts.map((p, i) => `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="2.6" fill="#c9a558"/>`).join("");
+  const dots = pts.map((p, i) => `<circle class="dash-trend-dot" cx="${xFor(i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="2.6" fill="#c9a558"/>`).join("");
   const first = pts[0].value, last = pts[pts.length - 1].value;
   const dir = last > first ? "up" : (last < first ? "down" : "flat");
   const pct = first > 0 ? Math.round((last - first) / first * 100) : 0;
@@ -9861,8 +9999,8 @@ function matChartTrendSVG(jobs) {
     </div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" preserveAspectRatio="none">
       ${grid}
-      <path d="${areaPath}" fill="#c9a558" fill-opacity="0.12"/>
-      <polyline points="${linePts}" fill="none" stroke="#c9a558" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <path class="dash-trend-area" d="${areaPath}" fill="#c9a558" fill-opacity="0.12"/>
+      <polyline class="dash-trend-line" points="${linePts}" fill="none" stroke="#c9a558" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
       ${dots}${xlabels}
     </svg>
   </div>`;
@@ -10565,7 +10703,14 @@ function wireDashboard() {
   const pipe = document.getElementById("dashPipelinePanel");
   if (pipe) pipe.addEventListener("click", (e) => {
     const seg = e.target.closest("[data-jobchart]");
-    if (seg) { _dashJobsMetric = seg.dataset.jobchart; renderDashJobsPanel(loadJobs()); return; }
+    if (seg) {
+      if (seg.dataset.jobchart !== _dashJobsMetric) {
+        _dashJobsMetric = seg.dataset.jobchart;
+        renderDashJobsPanel(loadJobs());
+        dashPlayPanel(document.getElementById("dashPipelinePanel"));
+      }
+      return;
+    }
     const f = e.target.closest("[data-dash-filter]");
     if (!f) return;
     _dashStatusFilter = (_dashStatusFilter === f.dataset.dashFilter) ? null : f.dataset.dashFilter;
@@ -10581,14 +10726,22 @@ function wireDashboard() {
   if (insightsTabs) insightsTabs.addEventListener("click", (e) => {
     const b = e.target.closest("[data-insight]");
     if (!b) return;
+    if (b.dataset.insight === _dashInsightTab) return;   // already active — don't replay
     _dashInsightTab = b.dataset.insight;
-    applyInsightTab();
+    applyInsightTab(true);
   });
   // Customers section: metric toggle (donut) + open a customer's detail modal.
   const cust = document.getElementById("dashCustomers");
   if (cust) cust.addEventListener("click", (e) => {
     const seg = e.target.closest("[data-custchart]");
-    if (seg) { _dashCustMode = seg.dataset.custchart; renderDashCustomers(loadJobs()); return; }
+    if (seg) {
+      if (seg.dataset.custchart !== _dashCustMode) {
+        _dashCustMode = seg.dataset.custchart;
+        renderDashCustomers(loadJobs());
+        dashPlayPanel(document.getElementById("dashCustomers"));
+      }
+      return;
+    }
     const open = e.target.closest("[data-cust-open]");
     if (open) { openCustomerStats(open.dataset.custOpen); return; }
   });
