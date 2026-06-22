@@ -637,6 +637,21 @@
   [data-theme="light"] .rail-field > label .lbl-impact.high + .info-tip { --tip-color: #e11d48; --tip-hover: #be123c; }
   [data-theme="light"] .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #97772e; --tip-hover: #b58f4a; }
   /* Reset-job pill at the bottom of the rail */
+  .rail-save-btn {
+    width: 100%;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 11px 12px;
+    border-radius: 999px;
+    font-size: 12.5px; font-weight: 800; letter-spacing: 0.01em;
+    color: #0b1120;
+    background: linear-gradient(180deg, #d8b96a, #b58f4a);
+    border: 0;
+    box-shadow: 0 8px 20px -10px rgba(181,143,74,0.7);
+    transition: filter .15s ease, transform .12s ease;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .rail-save-btn:hover, .rail-save-btn:focus-visible { filter: brightness(1.06); outline: none; }
+  .rail-save-btn:active { transform: translateY(1px); }
   .rail-reset-btn {
     width: 100%;
     display: inline-flex; align-items: center; justify-content: center;
@@ -4424,6 +4439,10 @@
           <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v9M6 8l4 4 4-4M4 15v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"/></svg>
           Export CSV
         </button>
+        <select id="dashJobSort" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Sort saved jobs">
+          <option value="recent">Most recent</option>
+          <option value="customer">By customer</option>
+        </select>
         <div class="relative">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
           <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 w-44 sm:w-64 placeholder:text-slate-600" />
@@ -4827,8 +4846,14 @@
       </div>
       <div id="materialsRow" class="hidden"></div>
 
-      <!-- Reset job — bottom of rail -->
+      <!-- Save + Reset — bottom of rail, so you don't have to scroll the page -->
       <div class="rail-field" style="margin-top: 18px;">
+        <button id="railSaveJobBtn" type="button" class="rail-save-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+          Save job
+        </button>
+      </div>
+      <div class="rail-field" style="margin-top: 8px;">
         <button id="railResetJobBtn" type="button" class="rail-reset-btn">Reset job</button>
       </div>
       <button id="railFeedbackBtn" type="button" class="rail-feedback-link">
@@ -5276,8 +5301,13 @@
         <p class="text-[11px] text-slate-500 mt-1.5">Pick one to auto-fill their details, or just type a new one below.</p>
       </div>
       <div>
-        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Customer / Job Name</label>
-        <input id="saveJobName" type="text" placeholder="Smith Residence" autocomplete="off"
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Customer</label>
+        <input id="saveJobName" type="text" placeholder="e.g. Acme Contracting" autocomplete="off"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+      </div>
+      <div>
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job name <span class="text-slate-600 normal-case tracking-normal">(this job)</span></label>
+        <input id="saveJobJobName" type="text" placeholder="e.g. Smith Residence · 123 Main St" autocomplete="off"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
@@ -9743,7 +9773,8 @@ function matChartTrendSVG(jobs) {
 function dashJobCard(j) {
   const st = jobStatus(j);
   const stCls = statusMeta(st).cls;
-  const name = j.customerName || j.name || "Untitled job";
+  const name = j.name || j.customerName || "Untitled job";   // job name is the title
+  const cust = (j.customerName && j.customerName !== name) ? j.customerName : "";   // customer shown when distinct
   const sub = [j.manufacturer, j.houseType, (j.totalLF != null ? `${j.totalLF} LF` : "")].filter(Boolean).join(" · ");
   const price = formatMoney(j.sellingPrice);
   const marginTxt = (j.margin != null && !isNaN(j.margin)) ? `${Math.round(j.margin)}% markup` : "";
@@ -9773,6 +9804,7 @@ function dashJobCard(j) {
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <div class="text-sm font-bold text-slate-100 truncate">${escHtml(name)}${draftPill}</div>
+            ${cust ? `<div class="text-[11px] text-[#c9a558]/90 truncate font-semibold">${escHtml(cust)}</div>` : ""}
             <div class="text-[11px] text-slate-500 truncate mt-0.5 font-medium">${escHtml(sub)}</div>
           </div>
           <div class="text-right shrink-0">
@@ -9810,7 +9842,28 @@ function renderDashJobs(jobs) {
     </div>`;
     return;
   }
-  grid.innerHTML = list.map(dashJobCard).join("");
+  const sort = document.getElementById("dashJobSort")?.value || "recent";
+  if (sort === "customer") {
+    // Group jobs under their customer, customers alphabetical, newest-first within.
+    const groups = new Map();
+    list.forEach(j => {
+      const key = (j.customerName || "").trim() || "— No customer —";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(j);
+    });
+    const keys = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
+    grid.innerHTML = keys.map(k => {
+      const cards = groups.get(k);
+      const header = `<div class="col-span-full flex items-center gap-3 mt-3 first:mt-0">
+          <span class="text-[12.5px] font-bold text-[#c9a558] tracking-tight truncate">${escHtml(k)}</span>
+          <span class="text-[10px] text-slate-500 font-semibold shrink-0">${cards.length} job${cards.length === 1 ? "" : "s"}</span>
+          <span class="flex-1 h-px bg-slate-800/70"></span>
+        </div>`;
+      return header + cards.map(dashJobCard).join("");
+    }).join("");
+  } else {
+    grid.innerHTML = list.map(dashJobCard).join("");
+  }
   hydratePhotoThumbs(grid);
 }
 
@@ -10419,6 +10472,7 @@ function wireDashboard() {
   });
   const search = document.getElementById("dashJobSearch");
   if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
+  { const _so = document.getElementById("dashJobSort"); if (_so) _so.addEventListener("change", () => renderDashJobs(loadJobs())); }
   // Insights card: swap between the Materials and Customers panels.
   const insightsTabs = document.getElementById("dashInsightsTabs");
   if (insightsTabs) insightsTabs.addEventListener("click", (e) => {
@@ -10540,7 +10594,8 @@ function saveJobDetailsEdits(id, silent) {
   j.customerEmail = g("jdEmail");
   j.customerAddress = g("jdAddress");
   j.customerNotes = g("jdNotes");
-  if (!j.name || j.name === "Untitled job") j.name = j.customerName || j.name;
+  // Job name is its own field now; fall back to customer/old name if cleared.
+  j.name = g("jdJobName") || j.customerName || j.name || "Untitled job";
   saveJobs(jobs);
   if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   if (STATE.currentJobId === id) {
@@ -10620,9 +10675,10 @@ function renderJobDetails(job) {
         <button type="button" id="jdPhoto" class="jd-photo" title="Upload a job photo">${photo}</button>
         <button type="button" id="jdGenThumb" class="btn w-full rounded-lg px-3 py-2 text-[11px] font-bold text-[#c9a558] border border-[#b58f4a]/40 bg-[#b58f4a]/[0.07] hover:bg-[#b58f4a]/[0.14] hover:border-[#b58f4a]/70 inline-flex items-center justify-center gap-1.5">✨ Generate AI thumbnail</button>
         <div class="jd-section">
-          <div class="jd-section-title">Customer contact</div>
+          <div class="jd-section-title">Job &amp; customer</div>
           <div class="space-y-2">
-            <input id="jdName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Customer / job name" value="${escHtml(job.customerName || "")}">
+            <input id="jdJobName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Job name (e.g. Smith Residence)" value="${escHtml(job.name || "")}">
+            <input id="jdName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Customer (e.g. Acme Contracting)" value="${escHtml(job.customerName || "")}">
             <input id="jdPhone" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Phone" value="${escHtml(job.customerPhone || "")}">
             <input id="jdEmail" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Email" value="${escHtml(job.customerEmail || "")}">
             <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Address" value="${escHtml(job.customerAddress || "")}">
@@ -10742,7 +10798,7 @@ function renderJobDetails(job) {
 function exportPipelineCSV() {
   const jobs = loadJobs().filter(j => !j.isDraft);
   if (!jobs.length) { toast("No saved jobs to export"); return; }
-  const cols = ["Job/Customer", "Status", "Phone", "Email", "Address", "Manufacturer", "Construction", "House", "Stories", "Glass", "LF", "Windows", "Sliding doors", "Bifold doors", "Swing doors", "Cost", "Selling price", "Markup %", "Profit", "Created"];
+  const cols = ["Job name", "Customer", "Status", "Phone", "Email", "Address", "Manufacturer", "Construction", "House", "Stories", "Glass", "LF", "Windows", "Sliding doors", "Bifold doors", "Swing doors", "Cost", "Selling price", "Markup %", "Profit", "Created"];
   const esc = (v) => {
     v = (v == null ? "" : String(v));
     // CSV formula-injection guard: a cell starting with = + - @ (or tab/CR)
@@ -10758,7 +10814,7 @@ function exportPipelineCSV() {
     const swt = normalizeSwingDoors(j.swingDoors).length;
     const cost = Number(j.totalCost) || 0, price = Number(j.sellingPrice) || 0;
     lines.push([
-      j.customerName || j.name || "", jobStatus(j), j.customerPhone || "", j.customerEmail || "", j.customerAddress || "",
+      j.name || j.customerName || "", j.customerName || "", jobStatus(j), j.customerPhone || "", j.customerEmail || "", j.customerAddress || "",
       j.manufacturer || "", j.constructionType || "", j.houseType || "", j.stories || "", j.impact || "",
       j.totalLF != null ? j.totalLF : "", j.windowCount || "", sgd || "", bfd || "", swt || "",
       cost.toFixed(2), price.toFixed(2), (j.margin != null && !isNaN(j.margin) ? Math.round(j.margin) : ""), (price - cost).toFixed(2),
@@ -11514,9 +11570,10 @@ function closeManageCustomers() {
 function openSaveJobModal() {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
-  // Pre-populate with the saved customerName if any, otherwise fall back to
-  // the working draft name (STATE.jobName) so the user doesn't retype it.
-  document.getElementById("saveJobName").value = STATE.customerName || STATE.jobName || "";
+  // Customer and job name are separate fields now: customer groups jobs, job name
+  // distinguishes them. Prefill both from STATE (a loaded job sets both).
+  document.getElementById("saveJobName").value = STATE.customerName || "";
+  { const _jn = document.getElementById("saveJobJobName"); if (_jn) _jn.value = STATE.jobName || ""; }
   document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
   { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
   { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
@@ -11547,12 +11604,14 @@ function closeSaveJobModal() {
 
 function confirmSaveJob() {
   const r = calculate();
-  const name = document.getElementById("saveJobName").value.trim();
+  const customer = document.getElementById("saveJobName").value.trim();   // "Customer" field
+  const jobName = (document.getElementById("saveJobJobName")?.value || "").trim();   // "Job name" field
   const address = document.getElementById("saveJobAddress").value.trim();
   const notes = document.getElementById("saveJobNotes").value.trim();
   const phone = (document.getElementById("saveJobPhone")?.value || "").trim();
   const email = (document.getElementById("saveJobEmail")?.value || "").trim();
-  STATE.customerName = name;
+  STATE.customerName = customer;
+  STATE.jobName = jobName;
   STATE.customerAddress = address;
   STATE.customerPhone = phone;
   STATE.customerEmail = email;
@@ -11582,8 +11641,8 @@ function confirmSaveJob() {
 
   const job = {
     id: reuseId,
-    name: name || `Job ${new Date().toLocaleDateString()}`,
-    customerName: name, customerAddress: address, customerPhone: phone, customerEmail: email, customerNotes: notes,
+    name: jobName || customer || `Job ${new Date().toLocaleDateString()}`,
+    customerName: customer, customerAddress: address, customerPhone: phone, customerEmail: email, customerNotes: notes,
     customerRecurring: !(document.getElementById("saveJobRecurring") && !document.getElementById("saveJobRecurring").checked),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
@@ -11861,6 +11920,7 @@ function applyJobToState(j) {
   STATE.liftDays = j.liftDays || "1";
   STATE.permitEnabled = j.permitEnabled || false;
   STATE.customerName = j.customerName || "";
+  STATE.jobName = j.name || "";   // job name is distinct from customer now
   STATE.customerAddress = j.customerAddress || "";
   STATE.customerPhone = j.customerPhone || "";
   STATE.customerEmail = j.customerEmail || "";
@@ -13882,7 +13942,8 @@ async function copySigningLinkFromFiles() {
   let saved = STATE.currentJobId && loadJobs().some(x => x.id === STATE.currentJobId && !x.isDraft);
   if (!saved) {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
-    set("saveJobName", STATE.customerName || STATE.jobName || "");
+    set("saveJobName", STATE.customerName || "");
+    set("saveJobJobName", STATE.jobName || "");
     set("saveJobAddress", STATE.customerAddress || "");
     set("saveJobPhone", STATE.customerPhone || "");
     set("saveJobEmail", STATE.customerEmail || "");
@@ -19525,6 +19586,7 @@ function init() {
   { const b = document.getElementById("pdfPreviewClose"); if (b) b.addEventListener("click", closePdfPreview); }
   { const m = document.getElementById("pdfPreviewModal"); if (m) m.addEventListener("click", e => { if (e.target.hasAttribute("data-close-pdf")) closePdfPreview(); }); }
   document.getElementById("saveJob").addEventListener("click", saveCurrentJob);
+  { const _rs = document.getElementById("railSaveJobBtn"); if (_rs) _rs.addEventListener("click", saveCurrentJob); }
   document.getElementById("resetAll").addEventListener("click", resetAll);
   const saveVerBtn = document.getElementById("saveAsNewVersionBtn");
   if (saveVerBtn) saveVerBtn.addEventListener("click", saveAsNewVersion);
