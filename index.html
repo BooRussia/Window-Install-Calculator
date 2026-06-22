@@ -307,6 +307,14 @@
   .mat-body { padding: 2px 14px 14px; }
   [data-theme="light"] .mat-card { border-color: #e2e8f0; background: #f8fafc; }
   [data-theme="light"] .mat-title { color: #64748b; }
+  /* Small in-quote toggle that sits next to Wood Bucking in the materials list. */
+  .buck-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 5px; border-radius: 9999px; border: 1px solid rgba(148,163,184,0.32); background: rgba(148,163,184,0.10); color: #94a3b8; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; transition: color .2s ease, background .2s ease, border-color .2s ease; -webkit-tap-highlight-color: transparent; }
+  .buck-toggle .buck-toggle-knob { width: 9px; height: 9px; border-radius: 50%; background: #64748b; transition: background .2s ease, box-shadow .2s ease; flex-shrink: 0; }
+  .buck-toggle:hover { border-color: rgba(201,165,88,0.6); color: #c9a558; }
+  .buck-toggle.on { border-color: rgba(181,143,74,0.5); background: rgba(181,143,74,0.14); color: #c9a558; }
+  .buck-toggle.on .buck-toggle-knob { background: #c9a558; box-shadow: 0 0 6px rgba(201,165,88,0.65); }
+  [data-theme="light"] .buck-toggle { border-color: #d6dae1; background: #eef1f5; color: #64748b; }
+  [data-theme="light"] .buck-toggle.on { border-color: rgba(181,143,74,0.55); background: rgba(181,143,74,0.16); color: #9a7636; }
   .seg-btn.active {
     background: rgba(181,143,74,0.18);
     color: var(--gold-hi);
@@ -4799,8 +4807,6 @@
         <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">House</span><span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
         <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
-      <div id="buckingRailField" class="rail-field hidden"><label><span class="lbl-impact high">Bucking</span><span class="info-tip" tabindex="0" role="button" aria-label="How bucking affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>On for a normal block job — includes the wood bucking, its concrete anchors, and the buck-install labor. Turn OFF when the opening was already bucked on site so the quote drops the buck material, anchors &amp; labor.</span></span></label>
-        <button id="buckingToggleBtn" type="button" class="toggle-pill active"><span class="lbl">Include bucking</span><span class="val">On</span></button></div>
       <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
         <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div></div>
       <div class="rail-field">
@@ -8443,19 +8449,6 @@ function updatePermitToggleUI() {
   valEl.textContent = STATE.permitEnabled ? "On" : "Off";
 }
 
-// Bucking toggle — only relevant on Block-Framed jobs, so the rail field is shown
-// only then. Reflects STATE.includeBucking (default ON).
-function updateBuckingUI() {
-  const field = document.getElementById("buckingRailField");
-  if (field) field.classList.toggle("hidden", STATE.houseType !== "Block Framed");
-  const btn = document.getElementById("buckingToggleBtn");
-  if (btn) {
-    const on = STATE.includeBucking !== false;
-    btn.classList.toggle("active", on);
-    const valEl = btn.querySelector(".val");
-    if (valEl) valEl.textContent = on ? "On" : "Off";
-  }
-}
 
 // Updates the collapsed-state label on the Job Extras pill so users can see at a
 // glance which extras are active without expanding ("Job Extras · Permit, Lift").
@@ -8502,7 +8495,6 @@ function render() {
   const r = calculate();
   document.getElementById("marginLabel").textContent = String(r.margin);
   updateBuckButtonVisibility();
-  updateBuckingUI();
   updateSwingDoorsUI();
 
   // Either footage OR swing-door units constitutes "have a quote"
@@ -8954,8 +8946,13 @@ let _matToggleOpen = true;
 function renderMaterialsToggle() {
   const wrap = document.getElementById("materialsRow");
   if (!wrap) return;
-  const multi = (DATA.costItems || []).filter(c =>
-    Array.isArray(c.variants) && c.variants.length > 1 && materialAppliesToJob(c));
+  const multi = (DATA.costItems || []).filter(c => {
+    if (!Array.isArray(c.variants) || c.variants.length <= 1) return false;
+    // Wood bucking carries its own in-quote toggle, so keep it listed on any
+    // Block-Framed job even when toggled OFF (otherwise the toggle would vanish).
+    if (c.id === "wood_bucking") return STATE.houseType === "Block Framed";
+    return materialAppliesToJob(c);
+  });
   if (!multi.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
   STATE.variants = STATE.variants || {};
   const rows = multi.map(item => {
@@ -8963,6 +8960,20 @@ function renderMaterialsToggle() {
     const btns = item.variants.map(v => `
       <button type="button" class="seg-btn ${active && v.id === active.id ? "active" : ""}"
         data-var-cat="${item.id}" data-var-id="${escHtml(v.id)}">${escHtml(v.brand)}</button>`).join("");
+    if (item.id === "wood_bucking") {
+      const on = buckingIncluded();
+      return `<div>
+        <div class="flex items-center justify-between gap-2 mb-1.5">
+          <span class="text-xs font-semibold text-slate-300">${escHtml(item.name)}</span>
+          <button type="button" data-buck-toggle role="switch" aria-checked="${on}" class="buck-toggle ${on ? "on" : ""}" title="Turn off if the opening was already bucked on site — drops the buck material, anchors &amp; labor from the quote">
+            <span class="buck-toggle-knob"></span><span class="buck-toggle-txt">${on ? "In quote" : "Pre-bucked"}</span>
+          </button>
+        </div>
+        ${on
+          ? `<div class="seg seg-rail" style="max-width:none">${btns}</div>`
+          : `<div class="text-[11px] text-slate-500 italic">Already bucked on site — material, anchors &amp; labor excluded.</div>`}
+      </div>`;
+    }
     return `<div>
       <div class="text-xs font-semibold text-slate-300 mb-1.5">${escHtml(item.name)}</div>
       <div class="seg seg-rail" style="max-width:none">${btns}</div>
@@ -11649,18 +11660,6 @@ function bindControls() {
   }
   updatePermitToggleUI();
   updateJobExtrasSummary();
-
-  // Bucking toggle (Block-Framed jobs only — drop buck material/anchors/labor when pre-bucked)
-  const buckBtn = document.getElementById("buckingToggleBtn");
-  if (buckBtn && !buckBtn._wired) {
-    buckBtn.addEventListener("click", () => {
-      STATE.includeBucking = !(STATE.includeBucking !== false);   // flip; default-on → off
-      updateBuckingUI();
-      render();
-    });
-    buckBtn._wired = true;
-  }
-  updateBuckingUI();
 
   // ---- Swing Doors rail wiring (list editor; mirrors sliding doors) ----
   const swList = document.getElementById("swingDoorsList");
@@ -20037,6 +20036,8 @@ function init() {
     t.addEventListener("click", () => showSettingsTab(t.dataset.tab)));
   // Per-job material variant toggle (delegated)
   document.getElementById("materialsRow").addEventListener("click", e => {
+    const tg = e.target.closest("[data-buck-toggle]");
+    if (tg) { STATE.includeBucking = !buckingIncluded(); render(); return; }   // in-quote ⇄ pre-bucked
     const btn = e.target.closest("[data-var-cat]");
     if (!btn) return;
     STATE.variants = STATE.variants || {};
