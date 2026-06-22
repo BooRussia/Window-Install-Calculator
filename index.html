@@ -608,6 +608,10 @@
     transition: max-height .32s cubic-bezier(0.16,1,0.3,1), padding .2s ease;
   }
   body.rail-tidy #jobRail .rail-acc.open .rail-acc-body { max-height: 4000px; padding: 2px 15px 16px; }
+  /* When a dropdown (e.g. Manufacturer) opens inside an accordion, let it spill
+     out over the sections below instead of being clipped by the collapse overflow. */
+  body.rail-tidy #jobRail .rail-acc.open:has(.dd.open) { overflow: visible; }
+  body.rail-tidy #jobRail .rail-acc.open:has(.dd.open) .rail-acc-body { overflow: visible; }
   /* Expand all / Collapse all — only meaningful in accordion mode */
   #jobRail .rail-expand-row { display: none; }
   body.rail-tidy #jobRail .rail-expand-row { display: flex; justify-content: flex-end; margin-top: -2px; }
@@ -20050,15 +20054,23 @@ function init() {
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
     t.addEventListener("click", () => showSettingsTab(t.dataset.tab)));
   // Per-job material variant toggle (delegated)
-  document.getElementById("materialsRow").addEventListener("click", e => {
-    const tg = e.target.closest("[data-buck-toggle]");
-    if (tg) { STATE.includeBucking = !buckingIncluded(); render(); return; }   // in-quote ⇄ pre-bucked
-    const btn = e.target.closest("[data-var-cat]");
-    if (!btn) return;
-    STATE.variants = STATE.variants || {};
-    STATE.variants[btn.dataset.varCat] = btn.dataset.varId;
-    render();
-  });
+  // Guard against double-attachment: init() can run more than once (offline
+  // fallback / post-login boot), and an unguarded flip handler would toggle an
+  // even number of times = no-op. Set from the switch's shown state so it's
+  // idempotent even if the listener ever does fire twice.
+  const _matRow = document.getElementById("materialsRow");
+  if (_matRow && !_matRow._wired) {
+    _matRow.addEventListener("click", e => {
+      const tg = e.target.closest("[data-buck-toggle]");
+      if (tg) { STATE.includeBucking = tg.getAttribute("aria-checked") !== "true"; render(); return; }
+      const btn = e.target.closest("[data-var-cat]");
+      if (!btn) return;
+      STATE.variants = STATE.variants || {};
+      STATE.variants[btn.dataset.varCat] = btn.dataset.varId;
+      render();
+    });
+    _matRow._wired = true;
+  }
   // Material brand variants — add / remove rows (delegated)
   document.getElementById("adminRatesBody").addEventListener("click", e => {
     const add = e.target.closest(".var-add");
