@@ -10,7 +10,7 @@
 // Response: 200 { ok:true, text }   ← text is byte-compatible with the existing
 //           parseOpenings / parseGrokResponse on the frontend.
 //
-// Secrets: XAI_API_KEY (required), XAI_MODEL (default grok-4), ADMIN_UID, ADMIN_EMAILS.
+// Secrets: XAI_API_KEY (required), XAI_MODEL (default grok-4.3), ADMIN_UID, ADMIN_EMAILS.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -58,7 +58,12 @@ async function refundExtraction(userId: string) {
 }
 
 const XAI_API_KEY = Deno.env.get("XAI_API_KEY") ?? "";
-const XAI_MODEL = Deno.env.get("XAI_MODEL") ?? "grok-4";
+// grok-4.3 is xAI's current flagship reasoning + vision model — newer, ~3x cheaper,
+// and the model the deprecated grok-4-0709 already redirects to (since 2026-05-15).
+// Coerce any legacy grok-4 / grok-4-0709 value (e.g. a stale XAI_MODEL secret) to
+// grok-4.3 so pricing + labeling are correct; a non-legacy override is respected.
+const _xaiModelRaw = (Deno.env.get("XAI_MODEL") ?? "grok-4.3").trim();
+const XAI_MODEL = /^grok-4(-0709)?$/i.test(_xaiModelRaw) ? "grok-4.3" : _xaiModelRaw;
 const XAI_BASE = "https://api.x.ai/v1";
 
 const ADMIN_UID = Deno.env.get("ADMIN_UID") ?? "";
