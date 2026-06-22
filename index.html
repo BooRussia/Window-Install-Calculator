@@ -4799,6 +4799,8 @@
         <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">House</span><span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
         <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
+      <div id="buckingRailField" class="rail-field hidden"><label><span class="lbl-impact high">Bucking</span><span class="info-tip" tabindex="0" role="button" aria-label="How bucking affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>On for a normal block job — includes the wood bucking, its concrete anchors, and the buck-install labor. Turn OFF when the opening was already bucked on site so the quote drops the buck material, anchors &amp; labor.</span></span></label>
+        <button id="buckingToggleBtn" type="button" class="toggle-pill active"><span class="lbl">Include bucking</span><span class="val">On</span></button></div>
       <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
         <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div></div>
       <div class="rail-field">
@@ -7309,6 +7311,7 @@ function buildState() {
     liftEnabled: false,
     liftDays: "1",
     permitEnabled: false,
+    includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
     customerName: "",
     customerAddress: "",
     customerPhone: "",
@@ -7356,12 +7359,18 @@ function getScrewsPerLF() {
   return getNailfinRate();
 }
 
+// Bucking is a Block-Framed-only scope (buck boards + their block anchors + the
+// buck-install labor premium). The per-job toggle lets a crew drop all of it when
+// the opening was already bucked on site. Default ON.
+function buckingIncluded() { return STATE.includeBucking !== false; }
+
 function getConcreteAnchorsPerLF() {
   const item = DATA.costItems.find(c => c.id === "concrete_anchors");
   if (!item) return 0;
   let total = 0;
-  // Block-framed buck-to-block anchoring — flat, brand-independent (it's about the block)
-  if (STATE.houseType === "Block Framed") total += item.rates["Block Framed"] ?? 0;
+  // Block-framed buck-to-block anchoring — flat, brand-independent (it's about the
+  // block). Skipped when bucking is off (the buck — and its anchors — are already in).
+  if (STATE.houseType === "Block Framed" && buckingIncluded()) total += item.rates["Block Framed"] ?? 0;
   // Through-frame window anchoring — manufacturer-specific, for non-nail-fin installs
   if (STATE.application === "Equal Leg" || STATE.application === "Unequal Leg") {
     total += getThroughFrameRate();
@@ -7381,9 +7390,12 @@ function getImpactLaborMultiplier() {
 
 function getLaborPerLF() {
   const item = DATA.costItems.find(c => c.id === "labor");
+  // The Block-Framed labor rate carries the buck-install premium; drop to the
+  // standard rate when the opening was already bucked on site (Remodel still wins).
+  const blockBuck = STATE.houseType === "Block Framed" && buckingIncluded();
   let base;
   if (STATE.constructionType === "Remodel" && item.rates["Remodel"] != null) base = item.rates["Remodel"];
-  else if (STATE.houseType === "Block Framed" && item.rates["Block Framed"] != null) base = item.rates["Block Framed"];
+  else if (blockBuck && item.rates["Block Framed"] != null) base = item.rates["Block Framed"];
   else base = item.rates.default ?? 0;
   return base * getStoriesMultiplier() * getImpactLaborMultiplier();
 }
@@ -7481,7 +7493,7 @@ function getQuantityPerLF(item) {
   }
   if (id === "concrete_anchors") return getConcreteAnchorsPerLF();
   if (id === "wood_bucking") {
-    return STATE.houseType === "Block Framed" ? (item.rates["Block Framed"] ?? 0) : 0;
+    return (STATE.houseType === "Block Framed" && buckingIncluded()) ? (item.rates["Block Framed"] ?? 0) : 0;
   }
   if (id === "flashing_tape") {
     return STATE.houseType === "Stick Framed" ? (item.rates["Stick Framed"] ?? 0) : 0;
@@ -7871,6 +7883,7 @@ function calculate() {
     // Wood bucking — use the AI cut list's exact board total when one exists
     if (item.id === "wood_bucking") {
       if (STATE.houseType !== "Block Framed") return; // bucking is block-framed only
+      if (!buckingIncluded()) return;                 // already bucked on site — skip it
       if (STATE.buckList && buckListBoardCount(STATE.buckList) > 0) {
         const boardLF = buckListTotalLF(STATE.buckList);
         const cost = boardLF * getUnitPrice(item);
@@ -8430,6 +8443,20 @@ function updatePermitToggleUI() {
   valEl.textContent = STATE.permitEnabled ? "On" : "Off";
 }
 
+// Bucking toggle — only relevant on Block-Framed jobs, so the rail field is shown
+// only then. Reflects STATE.includeBucking (default ON).
+function updateBuckingUI() {
+  const field = document.getElementById("buckingRailField");
+  if (field) field.classList.toggle("hidden", STATE.houseType !== "Block Framed");
+  const btn = document.getElementById("buckingToggleBtn");
+  if (btn) {
+    const on = STATE.includeBucking !== false;
+    btn.classList.toggle("active", on);
+    const valEl = btn.querySelector(".val");
+    if (valEl) valEl.textContent = on ? "On" : "Off";
+  }
+}
+
 // Updates the collapsed-state label on the Job Extras pill so users can see at a
 // glance which extras are active without expanding ("Job Extras · Permit, Lift").
 // Buck Cut List only applies to block-framed jobs — collapse the button
@@ -8437,7 +8464,8 @@ function updatePermitToggleUI() {
 function updateBuckButtonVisibility() {
   const wrap = document.getElementById("buckBtnWrap");
   if (!wrap) return;
-  wrap.classList.toggle("hidden", STATE.houseType !== "Block Framed");
+  // No bucking in the quote → no cut list to build.
+  wrap.classList.toggle("hidden", STATE.houseType !== "Block Framed" || !buckingIncluded());
 }
 
 function updateJobExtrasSummary() {
@@ -8474,6 +8502,7 @@ function render() {
   const r = calculate();
   document.getElementById("marginLabel").textContent = String(r.margin);
   updateBuckButtonVisibility();
+  updateBuckingUI();
   updateSwingDoorsUI();
 
   // Either footage OR swing-door units constitutes "have a quote"
@@ -8753,6 +8782,7 @@ function render() {
     liftEnabled: STATE.liftEnabled,
     liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
+    includeBucking: STATE.includeBucking,
     customerName: STATE.customerName,
     customerAddress: STATE.customerAddress,
     customerPhone: STATE.customerPhone,
@@ -11620,6 +11650,18 @@ function bindControls() {
   updatePermitToggleUI();
   updateJobExtrasSummary();
 
+  // Bucking toggle (Block-Framed jobs only — drop buck material/anchors/labor when pre-bucked)
+  const buckBtn = document.getElementById("buckingToggleBtn");
+  if (buckBtn && !buckBtn._wired) {
+    buckBtn.addEventListener("click", () => {
+      STATE.includeBucking = !(STATE.includeBucking !== false);   // flip; default-on → off
+      updateBuckingUI();
+      render();
+    });
+    buckBtn._wired = true;
+  }
+  updateBuckingUI();
+
   // ---- Swing Doors rail wiring (list editor; mirrors sliding doors) ----
   const swList = document.getElementById("swingDoorsList");
   if (swList && !swList._wired) {
@@ -11684,6 +11726,7 @@ function resetAll() {
     liftEnabled: false,
     liftDays: "1",
     permitEnabled: false,
+    includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
     customerName: "",
     customerAddress: "",
     customerPhone: "",
@@ -11809,9 +11852,10 @@ function onCustomerPick() {
   if (!c) return;   // "— New customer —" selected
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
   set("saveJobName", c.name);
-  set("saveJobAddress", c.address);
   set("saveJobPhone", c.phone);
   set("saveJobEmail", c.email);
+  // Job address is intentionally NOT auto-filled — a contractor works all over,
+  // so the address belongs to THIS job, not the customer. Leave whatever's there.
   // a picked customer is recurring by definition (they're in the list)
   const rec = document.getElementById("saveJobRecurring"); if (rec) rec.checked = true;
 }
@@ -11947,7 +11991,7 @@ function confirmSaveJob() {
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
@@ -12000,7 +12044,7 @@ function quickSaveOrPrompt() {
         manufacturer: STATE.manufacturer, application: STATE.application,
         houseType: STATE.houseType, constructionType: STATE.constructionType,
         impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-        liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+        liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
         permitEnabled: STATE.permitEnabled,
         swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
         totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
@@ -12059,7 +12103,7 @@ function saveAsNewVersion() {
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
@@ -12148,7 +12192,7 @@ function writeDraftJob(r) {
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
@@ -12215,6 +12259,7 @@ function applyJobToState(j) {
   STATE.liftEnabled = j.liftEnabled || false;
   STATE.liftDays = j.liftDays || "1";
   STATE.permitEnabled = j.permitEnabled || false;
+  STATE.includeBucking = j.includeBucking !== false;   // default ON for jobs saved before this toggle
   STATE.customerName = j.customerName || "";
   STATE.jobName = j.name || "";   // job name is distinct from customer now
   STATE.customerAddress = j.customerAddress || "";
