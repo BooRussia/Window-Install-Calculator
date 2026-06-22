@@ -4412,19 +4412,18 @@
       </button>
     </div>
 
-    <!-- Pipeline stats -->
-    <div id="dashPipeline" class="mb-9"></div>
-
-    <!-- Insights: Materials / Customers — one card, tab-swap to keep the page short -->
+    <!-- Insights: Jobs / Materials / Customers — one card, tab-swap to keep the page short -->
     <div id="dashInsights" class="card rounded-2xl overflow-hidden mb-9 hidden">
       <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
-        <div class="seg" id="dashInsightsTabs" style="max-width:260px;">
-          <button type="button" class="seg-btn active" data-insight="materials">Materials</button>
+        <div class="seg" id="dashInsightsTabs" style="max-width:340px;">
+          <button type="button" class="seg-btn active" data-insight="jobs">Jobs</button>
+          <button type="button" class="seg-btn" data-insight="materials">Materials</button>
           <button type="button" class="seg-btn" data-insight="customers">Customers</button>
         </div>
         <div id="dashInsightsMeta" class="text-right shrink-0"></div>
       </div>
-      <div id="dashMaterials"></div>
+      <div id="dashPipelinePanel"></div>
+      <div id="dashMaterials" class="hidden"></div>
       <div id="dashCustomers" class="hidden"></div>
     </div>
 
@@ -9062,46 +9061,43 @@ function renderDashboard() {
   const brand = (DATA.config && DATA.config.brand) || {};
   const greet = document.getElementById("dashGreeting");
   if (greet) greet.textContent = brand.companyName ? `Welcome back, ${brand.companyName}` : "Welcome back";
-  renderDashPipeline(jobs);
   renderDashInsights(jobs);
   renderDashJobs(jobs);
   renderDashEsign();
 }
 
-// Materials + Customers share one card with a tab toggle (keeps the dashboard
-// short). Each panel renders its own inner content (no card of its own); this
-// shows the active panel, hides a tab with no data, and mirrors the active
-// panel's callout (Top cost driver / Top by revenue) into the shared header.
-let _dashInsightTab = "materials";   // materials | customers
+// Jobs + Materials + Customers share one card with a tab toggle (keeps the
+// dashboard short). Each panel renders its own inner content (no card of its
+// own); this shows the active panel, hides a tab with no data, and mirrors the
+// active panel's callout into the shared header.
+const INSIGHT_TABS = ["jobs", "materials", "customers"];
+const INSIGHT_PANELS = { jobs: "dashPipelinePanel", materials: "dashMaterials", customers: "dashCustomers" };
+let _dashInsightTab = "jobs";   // jobs | materials | customers
 function renderDashInsights(jobs) {
-  const hasMat = renderDashMaterials(jobs);
-  const hasCust = renderDashCustomers(jobs);
+  const has = {
+    jobs: renderDashJobsPanel(jobs),
+    materials: renderDashMaterials(jobs),
+    customers: renderDashCustomers(jobs),
+  };
   const wrap = document.getElementById("dashInsights");
   if (!wrap) return;
-  if (!hasMat && !hasCust) { wrap.classList.add("hidden"); return; }
+  if (!INSIGHT_TABS.some(t => has[t])) { wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
   const tabs = document.getElementById("dashInsightsTabs");
   if (tabs) {
-    const mb = tabs.querySelector('[data-insight="materials"]');
-    const cb = tabs.querySelector('[data-insight="customers"]');
-    if (mb) mb.classList.toggle("hidden", !hasMat);
-    if (cb) cb.classList.toggle("hidden", !hasCust);
-    tabs.classList.toggle("hidden", !(hasMat && hasCust));   // only one view → no toggle needed
+    INSIGHT_TABS.forEach(t => { const b = tabs.querySelector(`[data-insight="${t}"]`); if (b) b.classList.toggle("hidden", !has[t]); });
+    tabs.classList.toggle("hidden", INSIGHT_TABS.filter(t => has[t]).length < 2);   // one view → no toggle
   }
-  if (_dashInsightTab === "materials" && !hasMat) _dashInsightTab = "customers";
-  if (_dashInsightTab === "customers" && !hasCust) _dashInsightTab = "materials";
+  if (!has[_dashInsightTab]) _dashInsightTab = INSIGHT_TABS.find(t => has[t]) || "jobs";
   applyInsightTab();
 }
 function applyInsightTab() {
   const tab = _dashInsightTab;
-  const mat = document.getElementById("dashMaterials");
-  const cust = document.getElementById("dashCustomers");
-  if (mat) mat.classList.toggle("hidden", tab !== "materials");
-  if (cust) cust.classList.toggle("hidden", tab !== "customers");
+  Object.entries(INSIGHT_PANELS).forEach(([t, id]) => { const el = document.getElementById(id); if (el) el.classList.toggle("hidden", t !== tab); });
   const tabs = document.getElementById("dashInsightsTabs");
   if (tabs) tabs.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.insight === tab));
   const meta = document.getElementById("dashInsightsMeta");
-  if (meta) { const active = tab === "materials" ? mat : cust; meta.innerHTML = (active && active._meta) || ""; }
+  if (meta) { const el = document.getElementById(INSIGHT_PANELS[tab]); meta.innerHTML = (el && el._meta) || ""; }
 }
 
 /* ============================================================
@@ -9521,21 +9517,22 @@ async function deleteSignRecord(token) {
   }
 }
 
-function renderDashPipeline(jobs) {
-  const wrap = document.getElementById("dashPipeline");
-  if (!wrap) return;
+// "Jobs" insights tab — the pipeline (Lead/Quoted/Approved/Won/Lost) condensed
+// into stat tiles + a status donut, instead of the old header stat bars. The
+// legend is clickable to filter the saved-jobs grid below.
+const STATUS_COLORS = { Lead: "#38bdf8", Quoted: "#c9a558", Approved: "#a78bfa", Won: "#34d399", Lost: "#fb7185" };
+let _dashJobsMetric = "count";   // count | value — drives the status donut
+function renderDashJobsPanel(jobs) {
+  const wrap = document.getElementById("dashPipelinePanel");
+  if (!wrap) return false;
   const real = (jobs || []).filter(j => !j.isDraft);
+  if (!real.length) { wrap.innerHTML = ""; wrap._meta = ""; return false; }
   const groups = {}; JOB_STATUSES.forEach(s => { groups[s] = []; });
   real.forEach(j => groups[jobStatus(j)].push(j));
-  if (!real.length) {
-    wrap.innerHTML = `<div class="card rounded-2xl px-5 py-10 text-center text-slate-500 text-sm">No saved jobs yet — your pipeline and stats land here once you save a quote.</div>`;
-    return;
-  }
   const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
   const openVal = sum(groups.Lead) + sum(groups.Quoted);
   const openCount = groups.Lead.length + groups.Quoted.length;
-  // Approved = the customer has e-signed, so count it as won (dollars + win rate)
-  // rather than letting signed work fall through every tile.
+  // Approved = the customer has e-signed, so it counts as won (dollars + win rate).
   const wonish = groups.Won.concat(groups.Approved || []);
   const wonVal = sum(wonish);
   const wonCount = wonish.length, lostCount = groups.Lost.length;
@@ -9543,6 +9540,10 @@ function renderDashPipeline(jobs) {
   const winRate = decided ? Math.round((wonCount / decided) * 100) : null;
   const margins = real.map(j => Number(j.margin)).filter(m => !isNaN(m));
   const avgMargin = margins.length ? Math.round(margins.reduce((s, m) => s + m, 0) / margins.length) : null;
+
+  wrap._meta = `<div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Win rate</div>
+    <div class="text-sm font-extrabold text-[#c9a558]">${winRate == null ? "—" : winRate + "%"}${decided ? ` · ${wonCount}W·${lostCount}L` : ""}</div>`;
+
   const tiles = [
     { label: "Open pipeline", val: formatMoney(openVal), sub: `${openCount} open deal${openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]" },
     { label: "Won", val: formatMoney(wonVal), sub: `${wonCount} job${wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300" },
@@ -9550,26 +9551,65 @@ function renderDashPipeline(jobs) {
     { label: "Avg markup", val: avgMargin == null ? "—" : avgMargin + "%", sub: `${real.length} saved job${real.length === 1 ? "" : "s"}`, accent: "text-slate-100" },
   ];
   const tilesHtml = tiles.map(t => `
-    <div class="card rounded-2xl px-4 py-4 text-center">
-      <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">${t.label}</div>
-      <div class="text-xl sm:text-2xl font-extrabold ${t.accent} mt-1" style="font-variant-numeric: tabular-nums;">${t.val}</div>
-      <div class="text-[11px] text-slate-500 mt-0.5">${t.sub}</div>
-    </div>`).join("");
-  const badge = "text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 border";
-  const funnel = JOB_STATUSES.map(s => {
-    const arr = groups[s], cnt = arr.length, val = sum(arr);
-    const active = _dashStatusFilter === s ? "border-[#b58f4a]/60" : "";
-    return `<button type="button" data-dash-filter="${s}" class="card rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-left transition hover:border-[#b58f4a]/40 ${active}">
-      <span class="${badge} ${statusMeta(s).cls}">${s}</span>
-      <span class="ml-auto text-right">
-        <span class="block text-sm font-extrabold text-slate-100" style="font-variant-numeric:tabular-nums;">${cnt}</span>
-        <span class="block text-[10px] text-slate-500" style="font-variant-numeric:tabular-nums;">${formatMoney(val)}</span>
-      </span>
-    </button>`;
+      <div class="rounded-xl border border-slate-800/70 px-3 py-2.5 text-center" style="background:rgba(15,23,42,0.35);">
+        <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500 font-bold">${t.label}</div>
+        <div class="text-base sm:text-lg font-extrabold ${t.accent} mt-0.5" style="font-variant-numeric:tabular-nums;">${t.val}</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">${escHtml(t.sub)}</div>
+      </div>`).join("");
+
+  const metric = _dashJobsMetric;
+  const metricVal = (s) => metric === "value" ? sum(groups[s]) : groups[s].length;
+  const total = JOB_STATUSES.reduce((t, s) => t + metricVal(s), 0);
+  const cx = 120, cy = 120, R = 82, W = 34, C = 2 * Math.PI * R;
+  let off = 0, rings = "";
+  JOB_STATUSES.forEach(s => {
+    const v = metricVal(s);
+    if (v <= 0) return;
+    const dash = (v / total) * C;
+    rings += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${STATUS_COLORS[s]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    off += dash;
+  });
+  const centerLabel = metric === "value" ? "Pipeline value" : "Total jobs";
+  const centerVal = metric === "value" ? formatMoney(total) : String(total);
+  const legend = JOB_STATUSES.map(s => {
+    const cnt = groups[s].length, val = sum(groups[s]);
+    const pct = total > 0 ? Math.round(metricVal(s) / total * 100) : 0;
+    const activeCls = _dashStatusFilter === s ? "border-[#b58f4a]/60 bg-[#b58f4a]/10" : "border-transparent hover:bg-slate-800/40";
+    return `<button type="button" data-dash-filter="${s}" class="w-full flex items-center gap-2 text-[12px] rounded-lg border ${activeCls} px-2 py-1.5 transition text-left">
+        <span style="width:10px;height:10px;border-radius:3px;background:${STATUS_COLORS[s]};flex-shrink:0;"></span>
+        <span class="flex-1 text-slate-300">${s}</span>
+        <span class="text-slate-100 font-bold" style="font-variant-numeric:tabular-nums;">${cnt}</span>
+        <span class="text-slate-500 w-16 text-right" style="font-variant-numeric:tabular-nums;">${formatMoney(val)}</span>
+        <span class="text-[#c9a558] font-bold w-9 text-right">${pct}%</span>
+      </button>`;
   }).join("");
-  wrap.innerHTML =
-    `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${tilesHtml}</div>` +
-    `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">${funnel}</div>`;
+  const filterNote = _dashStatusFilter
+    ? `<button type="button" data-dash-filter="${_dashStatusFilter}" class="text-[11px] text-[#c9a558] font-semibold hover:underline">Showing ${_dashStatusFilter} below · clear ✕</button>`
+    : `<span class="text-[11px] text-slate-500">Tap a status to filter the jobs below.</span>`;
+  const donut = total > 0
+    ? `<div class="flex flex-col sm:flex-row items-center gap-5 text-slate-400">
+        <svg viewBox="0 0 240 240" style="width:180px;height:180px;flex-shrink:0;">${rings}
+          <text x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
+          <text x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
+        </svg>
+        <div class="flex-1 w-full space-y-0.5">${legend}</div>
+      </div>`
+    : `<div class="text-center text-slate-500 text-sm py-8">No ${metric === "value" ? "pipeline value" : "jobs"} to chart yet.</div>`;
+
+  wrap.innerHTML = `
+      <div class="px-5 sm:px-6 pt-4 pb-4">
+        <p class="text-[11px] text-slate-500 mb-3 font-medium">${real.length} saved job${real.length === 1 ? "" : "s"} — your pipeline at a glance.</p>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">${tilesHtml}</div>
+        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <div class="seg" id="dashJobsSeg" style="max-width:220px;">
+            <button type="button" class="seg-btn ${metric === "count" ? "active" : ""}" data-jobchart="count">By count</button>
+            <button type="button" class="seg-btn ${metric === "value" ? "active" : ""}" data-jobchart="value">By value</button>
+          </div>
+          ${filterNote}
+        </div>
+        ${donut}
+      </div>`;
+  return true;
 }
 
 // Aggregate material consumption across saved jobs (from each job's saved rows).
@@ -10462,13 +10502,18 @@ function wireDashboard() {
       if (sel) { setJobStatus(sel.dataset.dashStatus, sel.value); renderDashboard(); }
     });
   }
-  const pipe = document.getElementById("dashPipeline");
+  // Jobs insights panel: count/value donut toggle + clickable status legend that
+  // filters the saved-jobs grid below.
+  const pipe = document.getElementById("dashPipelinePanel");
   if (pipe) pipe.addEventListener("click", (e) => {
+    const seg = e.target.closest("[data-jobchart]");
+    if (seg) { _dashJobsMetric = seg.dataset.jobchart; renderDashJobsPanel(loadJobs()); return; }
     const f = e.target.closest("[data-dash-filter]");
     if (!f) return;
     _dashStatusFilter = (_dashStatusFilter === f.dataset.dashFilter) ? null : f.dataset.dashFilter;
-    renderDashPipeline(loadJobs());
+    renderDashJobsPanel(loadJobs());
     renderDashJobs(loadJobs());
+    if (_dashStatusFilter) { const g = document.getElementById("dashJobsGrid"); if (g) g.scrollIntoView({ behavior: "smooth", block: "start" }); }
   });
   const search = document.getElementById("dashJobSearch");
   if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
