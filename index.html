@@ -1022,6 +1022,29 @@
     0% { opacity: .55; transform: translateY(2px); }
     100% { opacity: 1; transform: none; }
   }
+
+  /* ─── Premium motion: entrance animations on open / navigate. These play via
+     the display:none→shown trick (a keyframe restarts whenever a hidden element
+     becomes visible), so modals, screens, and tab panels ease in every time.
+     All disabled under prefers-reduced-motion (block at the bottom). ─── */
+  @keyframes aFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes aModalPop { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: none; } }
+  @keyframes aScreenIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes aSwap { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+  /* Modal open: backdrop fades, panel rises + settles (panel is the div right
+     after the .modal-backdrop in every modal). */
+  .modal-backdrop { animation: aFade .22s ease both; }
+  .modal-backdrop + div { animation: aModalPop .26s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
+  /* Page changes: the overlay screens ease in when shown. */
+  #dashboardScreen:not(.hidden), #learnScreen:not(.hidden),
+  #pricingScreen:not(.hidden), #setupScreen:not(.hidden) { animation: aScreenIn .32s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
+  /* Insights tab swap: the newly-shown panel fades/rises in. */
+  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden) { animation: aSwap .24s ease both; }
+  @media (prefers-reduced-motion: reduce) {
+    .modal-backdrop, .modal-backdrop + div,
+    #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen,
+    #dashMaterials, #dashCustomers, #dashPipelinePanel { animation: none !important; }
+  }
   /* Hide scrollbar on horizontal control row when it overflows */
   .controls-row { scrollbar-width: none; }
   .controls-row::-webkit-scrollbar { display: none; }
