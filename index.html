@@ -1028,20 +1028,34 @@
      becomes visible), so modals, screens, and tab panels ease in every time.
      All disabled under prefers-reduced-motion (block at the bottom). ─── */
   @keyframes aFade { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes aModalPop { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: none; } }
+  @keyframes aFadeOut { from { opacity: 1; } to { opacity: 0; } }
   @keyframes aScreenIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   @keyframes aSwap { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
-  /* Modal open: backdrop fades, panel rises + settles (panel is the div right
-     after the .modal-backdrop in every modal). */
+  /* Popups power on/off like a CRT/box: a bright slit snaps open and expands to
+     full on open, then folds back into a line and a point on close. The panel is
+     the div right after the .modal-backdrop in every modal; tvDismiss() (JS) adds
+     .tv-off + .modal-closing to drive the close, then hides it on animationend. */
+  @keyframes aTvOn {
+    0%   { opacity: 0; transform: scaleX(0.64) scaleY(0.008); }
+    46%  { opacity: 1; transform: scaleX(1) scaleY(0.016); }
+    100% { opacity: 1; transform: scaleX(1) scaleY(1); }
+  }
+  @keyframes aTvOff {
+    0%   { opacity: 1; transform: scaleX(1) scaleY(1); filter: brightness(1); }
+    52%  { opacity: 1; transform: scaleX(1) scaleY(0.016); filter: brightness(1.4); }
+    100% { opacity: 0; transform: scaleX(0) scaleY(0.014); filter: brightness(1.7); }
+  }
   .modal-backdrop { animation: aFade .22s ease both; }
-  .modal-backdrop + div { animation: aModalPop .26s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
+  .modal-backdrop + div { animation: aTvOn .4s cubic-bezier(0.2, 0.8, 0.25, 1) both; transform-origin: center center; }
+  .modal-closing .modal-backdrop { animation: aFadeOut .3s ease forwards; }
+  .modal-backdrop + div.tv-off { animation: aTvOff .34s cubic-bezier(0.5, 0, 0.7, 0.35) forwards; transform-origin: center center; }
   /* Page changes: the overlay screens ease in when shown. */
   #dashboardScreen:not(.hidden), #learnScreen:not(.hidden),
   #pricingScreen:not(.hidden), #setupScreen:not(.hidden) { animation: aScreenIn .32s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
   /* Insights tab swap: the newly-shown panel fades/rises in. */
   #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden) { animation: aSwap .24s ease both; }
   @media (prefers-reduced-motion: reduce) {
-    .modal-backdrop, .modal-backdrop + div,
+    .modal-backdrop, .modal-backdrop + div, .modal-backdrop + div.tv-off, .modal-closing .modal-backdrop,
     #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen,
     #dashMaterials, #dashCustomers, #dashPipelinePanel { animation: none !important; }
   }
@@ -9137,6 +9151,35 @@ let _dashInsightTab = "materials";   // materials | customers | jobs
 function dashReduceMotion() {
   return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
+
+// Close a modal with the CRT "power-off" fold-up: the panel collapses to a bright
+// line then a point while the backdrop fades, then it's actually hidden. Works on
+// any modal built as <backdrop/><card/> (card = .modal-backdrop + div). Falls back
+// to an instant hide when there's no card or under prefers-reduced-motion. onDone
+// runs after the panel is hidden (use it for content cleanup so nothing flickers
+// away mid-animation). Open is handled globally by the .modal-backdrop + div CSS.
+function tvDismiss(modalEl, onDone) {
+  if (!modalEl) { if (onDone) onDone(); return; }
+  const card = modalEl.querySelector(".modal-backdrop + div");
+  // Clear any close already in flight on this modal (e.g. a double-click on the X).
+  if (modalEl._tvCloseTimer) { clearTimeout(modalEl._tvCloseTimer); modalEl._tvCloseTimer = 0; }
+  if (card && card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; }
+  const finish = () => {
+    if (modalEl._tvCloseTimer) { clearTimeout(modalEl._tvCloseTimer); modalEl._tvCloseTimer = 0; }
+    if (card) { card.classList.remove("tv-off"); if (card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; } }
+    modalEl.classList.add("hidden");
+    modalEl.classList.remove("flex", "modal-closing");
+    if (onDone) onDone();
+  };
+  if (!card || dashReduceMotion()) { finish(); return; }
+  modalEl.classList.add("modal-closing");
+  card.classList.add("tv-off");
+  let fired = false;
+  const end = () => { if (fired) return; fired = true; finish(); };
+  card._tvEnd = end;
+  card.addEventListener("animationend", end);
+  modalEl._tvCloseTimer = setTimeout(end, 520);   // safety net if animationend doesn't fire
+}
 const DASH_COUNT_FMT = {
   money: (v) => formatMoney(v),
   int: (v) => String(Math.round(v)),
@@ -9149,16 +9192,17 @@ const DASH_COUNT_FMT = {
 function dashCountUp(el, to, fmtName, dur) {
   if (!el) return;
   const fmt = DASH_COUNT_FMT[fmtName] || DASH_COUNT_FMT.int;
-  if (dashReduceMotion()) { el.textContent = fmt(to); return; }
+  if (el._countRaf) cancelAnimationFrame(el._countRaf);   // kill any in-flight loop so rapid replays don't fight
+  if (dashReduceMotion()) { el.textContent = fmt(to); el._countRaf = 0; return; }
   const t0 = performance.now(), D = dur || 760;
   const ease = (t) => 1 - Math.pow(1 - t, 3);   // easeOutCubic
   function tick(now) {
     const p = Math.min(1, (now - t0) / D);
     el.textContent = fmt(to * ease(p));
-    if (p < 1) requestAnimationFrame(tick);
-    else el.textContent = fmt(to);
+    if (p < 1) el._countRaf = requestAnimationFrame(tick);
+    else { el.textContent = fmt(to); el._countRaf = 0; }
   }
-  requestAnimationFrame(tick);
+  el._countRaf = requestAnimationFrame(tick);
 }
 function dashRunCountUps(root) {
   if (!root) return;
@@ -9188,9 +9232,11 @@ function dashAnimateDonut(root) {
         { duration: 580, delay: 150 + i * 66, easing: "cubic-bezier(0.45,0,0.2,1)", fill: "backwards" });
     });
   });
-  // Center label + value fade up after the ring lands.
+  // Center label + value fade up after the ring lands. End at each element's own
+  // resolved opacity (the caption sits at 0.65) so there's no snap when fill reverts.
   root.querySelectorAll(".donut-center").forEach((t, i) => {
-    t.animate([{ opacity: 0 }, { opacity: 0 }, { opacity: 1 }],
+    const end = parseFloat(getComputedStyle(t).opacity) || 1;
+    t.animate([{ opacity: 0 }, { opacity: 0 }, { opacity: end }],
       { duration: 700, delay: 120 + i * 70, easing: "ease-out", fill: "backwards" });
   });
 }
@@ -9416,9 +9462,7 @@ function openCustomerStats(key) {
   m.classList.remove("hidden"); m.classList.add("flex");
 }
 function closeCustomerStats() {
-  const m = document.getElementById("customerStatsModal");
-  if (!m) return;
-  m.classList.add("hidden"); m.classList.remove("flex");
+  tvDismiss(document.getElementById("customerStatsModal"));
 }
 function renderCustomerStats(c, allStats) {
   const nameEl = document.getElementById("custStatsName");
@@ -10835,9 +10879,8 @@ function openJobDetails(id) {
   m.classList.remove("hidden"); m.classList.add("flex");
 }
 function closeJobDetails() {
-  const m = document.getElementById("jobDetailsModal");
-  if (m) { m.classList.add("hidden"); m.classList.remove("flex"); }
   _jdJobId = null;
+  tvDismiss(document.getElementById("jobDetailsModal"));
 }
 
 function saveJobDetailsEdits(id, silent) {
@@ -11818,9 +11861,8 @@ function openManageCustomers() {
 }
 
 function closeManageCustomers() {
-  const m = document.getElementById("manageCustomersModal");
-  m.classList.add("hidden"); m.classList.remove("flex");
   populateCustomerPicker();   // reflect any list changes back in the Save Job picker
+  tvDismiss(document.getElementById("manageCustomersModal"));
 }
 
 function openSaveJobModal() {
@@ -11853,9 +11895,7 @@ function openSaveJobModal() {
 }
 
 function closeSaveJobModal() {
-  const modal = document.getElementById("saveJobModal");
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
+  tvDismiss(document.getElementById("saveJobModal"));
 }
 
 function confirmSaveJob() {
@@ -12302,11 +12342,11 @@ async function showPdfPreview(doc, filename, meta) {
   try { window.track && window.track("pdf_previewed", { kind: (meta && meta.kind) || "" }); } catch (_) {}
 }
 function closePdfPreview() {
-  const modal = document.getElementById("pdfPreviewModal");
-  if (modal) { modal.classList.add("hidden"); modal.classList.remove("flex"); }
-  const pages = document.getElementById("pdfPreviewPages");
-  if (pages) pages.innerHTML = "";   // free canvases
   _pdfPreviewDoc = null; _pdfPreviewMeta = null;
+  tvDismiss(document.getElementById("pdfPreviewModal"), () => {
+    const pages = document.getElementById("pdfPreviewPages");
+    if (pages) pages.innerHTML = "";   // free canvases after the fold-up
+  });
 }
 
 // ── Centralized PDF share ───────────────────────────────────────────────────
@@ -13477,7 +13517,7 @@ function openAdmin() {
   showSettingsTab("brand");
   adminModal.classList.remove("hidden");
 }
-function closeAdmin() { adminModal.classList.add("hidden"); }
+function closeAdmin() { tvDismiss(adminModal); }
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
@@ -14166,7 +14206,7 @@ function openFL() {
     .then(() => { renderFLList(document.getElementById("flSearch")?.value || ""); })
     .catch(() => { /* surfaces in the search UI on retry */ });
 }
-function closeFL() { flModal.classList.add("hidden"); flModal.classList.remove("flex"); }
+function closeFL() { tvDismiss(flModal); }
 
 // Collapsible result cards (Full Breakdown / Labor Detail / Job Files): click the
 // big centered header to minimize (title-left + summary-right) or expand. The
@@ -14319,8 +14359,7 @@ function openFeedback() {
   try { window.track("feedback_opened"); } catch (_e) {}
 }
 function closeFeedback() {
-  const m = document.getElementById("feedbackModal");
-  if (m) { m.classList.add("hidden"); m.classList.remove("flex"); }
+  tvDismiss(document.getElementById("feedbackModal"));
 }
 function setFeedbackKind(k) {
   _feedbackKind = k === "bug" ? "bug" : "feature";
@@ -15727,9 +15766,7 @@ function openReadPlanModal() {
 }
 
 function closeReadPlanModal() {
-  const modal = document.getElementById("readPlanModal");
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
+  tvDismiss(document.getElementById("readPlanModal"));
 }
 
 async function openGrokWithPrompt() {
@@ -16904,9 +16941,7 @@ function openBuckModal() {
 }
 
 function closeBuckModal() {
-  const modal = document.getElementById("buckModal");
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
+  tvDismiss(document.getElementById("buckModal"));
 }
 
 // Shows the result panel (yard order + download) when a cut list exists
@@ -17236,9 +17271,7 @@ function openComparison() {
 }
 
 function closeComparison() {
-  const modal = document.getElementById("compareModal");
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
+  tvDismiss(document.getElementById("compareModal"));
 }
 
 function renderComparisonModal(jobA, jobB) {
@@ -17994,9 +18027,7 @@ function openAuth(mode) {
   setTimeout(() => document.getElementById("authEmail").focus(), 60);
 }
 function closeAuth() {
-  const a = document.getElementById("authScreen");
-  a.classList.add("hidden");
-  a.classList.remove("flex");
+  tvDismiss(document.getElementById("authScreen"));
 }
 
 // ====================================================================
@@ -18464,10 +18495,7 @@ function showUpsellModal(reason) {
 }
 
 function closeUpsellModal() {
-  const modal = document.getElementById("upsellModal");
-  if (!modal) return;
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
+  tvDismiss(document.getElementById("upsellModal"));
 }
 
 // --------------------------------------------------------------------
