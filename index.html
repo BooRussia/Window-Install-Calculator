@@ -12113,10 +12113,13 @@ function doSaveJob(overrideId) {
   }
 
   // ENTITLEMENTS — a fresh save consumes a quote; overwriting an existing job is
-  // free. If out of entitlement, attemptGenerateQuote() shows the upsell and we
-  // abort the save entirely (no job created, no doc unlocked).
-  if (!overwrite) {
-    if (!attemptGenerateQuote()) { closeSaveJobModal(); return; }
+  // free. CHECK the limit before building (block + upsell if out), but DON'T
+  // consume yet — the quote is spent only after the write succeeds (below), so a
+  // failed save never burns a credit.
+  const needsQuote = !overwrite && !isAdmin();
+  if (needsQuote) {
+    const chk = canGenerate();
+    if (!chk.allowed) { showUpsellModal(chk.reason); closeSaveJobModal(); return; }
   }
 
   const id = overwrite ? overwrite.id : crypto.randomUUID();
@@ -12160,7 +12163,11 @@ function doSaveJob(overrideId) {
   let next = jobs.filter(x => !x.isDraft);
   if (overwrite) next = next.map(x => x.id === id ? job : x);
   else next = next.concat([job]);
-  saveJobs(next);
+  if (!saveJobs(next)) {   // write failed (device storage full) → no job, so spend no credit
+    toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
+    return;
+  }
+  if (needsQuote) consumeQuote();   // spend the quote only after a confirmed write
   STATE.currentJobId = id;
 
   // Cancel any pending draft autosync and retire the promoted draft's cloud row
@@ -12221,7 +12228,9 @@ function quickSaveOrPrompt() {
         updatedAt: new Date().toISOString()
       };
       jobs[idx] = updated;
-      saveJobs(jobs);
+      if (!saveJobs(jobs)) {   // write failed → don't claim "Saved" (saveJobs already toasts the quota reason)
+        return;
+      }
       pushJobToCloud(updated);
       renderSavedJobs();
       toast("Saved");
@@ -12241,8 +12250,13 @@ function saveAsNewVersion() {
   if (!base) { toast("Original job not found"); return; }
 
   // A new version creates a new saved-job entry, so it counts as a new quote.
-  // LIVE ENFORCEMENT: abort if the user is out of entitlement.
-  if (!attemptGenerateQuote()) return;
+  // CHECK now (block + upsell if out), but consume only after a confirmed write
+  // below — a failed save must never burn a credit.
+  const needsQuote = !isAdmin();
+  if (needsQuote) {
+    const chk = canGenerate();
+    if (!chk.allowed) { showUpsellModal(chk.reason); return; }
+  }
 
   // Derive the base name (strip any trailing " vN") then find the next free vN
   const rawName = base.name || base.customerName || "Job";
@@ -12285,7 +12299,11 @@ function saveAsNewVersion() {
   newJob.photos = []; delete newJob.photosUpdatedAt;
   delete newJob.photoPath; delete newJob.photo; delete newJob.photoUpdatedAt;
   jobs.push(newJob);
-  saveJobs(jobs);
+  if (!saveJobs(jobs)) {   // write failed (device storage full) → no version, so spend no credit
+    toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
+    return;
+  }
+  if (needsQuote) consumeQuote();   // spend the quote only after a confirmed write
   STATE.currentJobId = newJob.id;
   pushJobToCloud(newJob);
   logQuoteEvent("saved_job_version");
