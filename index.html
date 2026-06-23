@@ -4324,12 +4324,13 @@
         <p class="text-xs text-slate-500 mt-1">These two drive most of every quote. Set them if you know them — or leave them and update later.</p>
         <div class="mt-4 space-y-4">
           <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Labor Rate</label>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Crew pay rate</label>
             <div class="flex items-center gap-2">
               <span class="text-slate-400 text-sm">$</span>
               <input id="setupLabor" type="number" step="1" min="0" inputmode="decimal" class="control rounded-xl px-4 py-3 w-32 text-sm text-slate-100" />
-              <span class="text-slate-400 text-sm">/ hour</span>
+              <span class="text-slate-400 text-sm">/ hr · per installer</span>
             </div>
+            <p class="text-[10px] text-slate-600 mt-1">What you pay each crew member hourly. Crew size lives in Settings → Labor Model.</p>
           </div>
           <div>
             <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Markup</label>
@@ -7441,17 +7442,16 @@ function getImpactLaborMultiplier() {
 
 function getLaborPerLF() {
   const item = DATA.costItems.find(c => c.id === "labor");
-  let base;
-  if (STATE.constructionType === "Remodel" && item.rates["Remodel"] != null) base = item.rates["Remodel"];
-  else if (STATE.houseType === "Block Framed" && item.rates["Block Framed"] != null) base = item.rates["Block Framed"];
-  else base = item.rates.default ?? 0;
-  // On a block house the labor premium over a standard wood install IS the
-  // buck work (cutting/placing boards + anchoring them to the block). Drop that
-  // premium when the opening was already bucked on site — for new construction
-  // AND remodels — so the crew time it saves comes out of the quote.
-  if (STATE.houseType === "Block Framed" && !buckingIncluded()) {
-    const buckPremium = (item.rates["Block Framed"] ?? 0) - (item.rates.default ?? 0);
-    base = Math.max(item.rates.default ?? 0, base - buckPremium);
+  const def = item.rates.default ?? 0;
+  // Construction-type base: remodel (tear-out) layers over the standard new-work rate.
+  let base = (STATE.constructionType === "Remodel" && item.rates["Remodel"] != null) ? item.rates["Remodel"] : def;
+  // Block houses ADD the buck-install premium (cut/place boards + anchor to block)
+  // ON TOP of the construction base — and it drops when the opening was already
+  // bucked on site. So block new-construction = default + premium (the legacy
+  // "Block Framed" rate); a block remodel = remodel + premium (previously the
+  // premium was lost because Remodel beat Block in a mutually-exclusive pick).
+  if (STATE.houseType === "Block Framed" && buckingIncluded()) {
+    base += ((item.rates["Block Framed"] ?? def) - def);
   }
   return base * getStoriesMultiplier() * getImpactLaborMultiplier();
 }
@@ -7497,8 +7497,9 @@ function estimateLaborBreakdown() {
   const setupHrs = openingCount * setupMin / 60;
   // Window install — LF × hr/LF (rate already folds in stories + impact).
   const windowInstallHrs = lf * getLaborPerLF();
-  // Swing-door install — minutes per door from the swing-door config.
-  const doorInstallHrs = (sd.laborMinutes || 0) / 60;
+  // Swing-door install — minutes per door from the swing-door config, with the
+  // same impact-glass labor premium that windows/sliders/bifolds already get.
+  const doorInstallHrs = ((sd.laborMinutes || 0) / 60) * getImpactLaborMultiplier();
   // Sliding-door install — panels × hrs/panel × impact (set heavy panels, snap
   // covers; the inspection return trip is a separate line below).
   const sgdInstallHrs = sgd.laborHours || 0;
@@ -7696,11 +7697,13 @@ function computeSwingDoors() {
   const dLaborMin = dR.labor || 0;
   const sMat = sR.materialsBase || 0;
   const dMat = dR.materialsBase || 0;
-  // Labor: minutes → hours → $ via the "labor" cost item's hourly price.
-  const laborItem = DATA.costItems.find(c => c.id === "labor");
-  const hourly = (laborItem && laborItem.unitPrice) || 0;
+  // Door install time bills through the unified labor line (via laborMinutes);
+  // this laborCost is only for the rail's door-subtotal chip, so price it at the
+  // real crew cost (crewSize × crew pay), matching the quote — not labor.unitPrice.
+  const _LM = (DATA.config && DATA.config.laborModel) || {};
+  const crewCostPerHr = Math.max(1, _LM.crewSize ?? 2) * (_LM.crewPayRatePerHr ?? 30);
   const laborMinutes = single * sLaborMin + double * dLaborMin;
-  const laborCost = (laborMinutes / 60) * hourly * getImpactLaborMultiplier();
+  const laborCost = (laborMinutes / 60) * crewCostPerHr * getImpactLaborMultiplier();
   const materialsCost = single * sMat + double * dMat;
   // Sill flashing — now PER DOOR: only doors flagged with flashing add their width.
   const singleW = cfg.singleDoorWidthLF != null ? cfg.singleDoorWidthLF : 3;
@@ -19840,8 +19843,7 @@ function showSetupStep(n) {
 }
 
 function showSetupWizard() {
-  const laborItem = DATA.costItems.find(c => c.id === "labor");
-  document.getElementById("setupLabor").value = laborItem ? laborItem.unitPrice : 75;
+  document.getElementById("setupLabor").value = (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30;
   document.getElementById("setupMargin").value = DATA.config.defaultMargin ?? 35;
   document.getElementById("setupMfrBody").dataset.filled = "";
   showSetupStep(1);
@@ -19869,8 +19871,12 @@ function setupBack() {
 function completeSetup(viaSkip) {
   const labor = parseFloat(document.getElementById("setupLabor").value);
   const margin = parseFloat(document.getElementById("setupMargin").value);
-  const laborItem = DATA.costItems.find(c => c.id === "labor");
-  if (laborItem && !isNaN(labor) && labor >= 0) laborItem.unitPrice = labor;
+  // Write to the crew-pay rate that actually drives the quote's labor line
+  // (estimateLaborBreakdown), not the legacy labor.unitPrice which calculate() ignores.
+  if (!isNaN(labor) && labor >= 0) {
+    DATA.config.laborModel = DATA.config.laborModel || {};
+    DATA.config.laborModel.crewPayRatePerHr = labor;
+  }
   if (!isNaN(margin) && margin >= 0) DATA.config.defaultMargin = margin;
   // Manufacturers — only if the step was opened/populated
   const body = document.getElementById("setupMfrBody");
