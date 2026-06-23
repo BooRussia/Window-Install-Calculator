@@ -6498,10 +6498,11 @@ const DEFAULT_DATA = {
       impact: "Impact",
       stories: "1 Story"
     },
-    // Swing doors — priced per UNIT, not per LF. Section hidden until enabled.
+    // Swing doors — priced per UNIT, not per LF. Enabled by default (like sliding
+    // & bifold) so the everyday entry/French door is visible in the Openings rail.
     // Defaults below are construction-shop estimates; tune in Settings → Rates.
     swingDoors: {
-      enabled: false,
+      enabled: true,
       rates: {
         single: {
           labor: 75,           // minutes per single-leaf door
@@ -8162,7 +8163,7 @@ function calculate() {
     });
   }
 
-  const margin = DATA.config.defaultMargin || 35;
+  const margin = DATA.config.defaultMargin ?? 35;   // honor an intentional 0% (?? not ||)
   const sellingPrice = totalCost * (1 + margin / 100);
   const profit = sellingPrice - totalCost;
 
@@ -12197,6 +12198,13 @@ function quickSaveOrPrompt() {
       const existing = jobs[idx];
       const updated = {
         ...existing,
+        // Carry the live rail/customer edits so a rename (or contact tweak) persists on Cmd+S.
+        name: (STATE.jobName != null && STATE.jobName !== "") ? STATE.jobName : existing.name,
+        customerName: (STATE.customerName != null && STATE.customerName !== "") ? STATE.customerName : existing.customerName,
+        customerAddress: STATE.customerAddress != null ? STATE.customerAddress : existing.customerAddress,
+        customerPhone: STATE.customerPhone != null ? STATE.customerPhone : existing.customerPhone,
+        customerEmail: STATE.customerEmail != null ? STATE.customerEmail : existing.customerEmail,
+        customerNotes: STATE.customerNotes != null ? STATE.customerNotes : existing.customerNotes,
         buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
         variants: clone(STATE.variants || {}),
         manufacturer: STATE.manufacturer, application: STATE.application,
