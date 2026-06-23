@@ -2115,6 +2115,9 @@
   .set-panel.active { display: block; animation: fadeIn .25s ease both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
   .set-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+  /* Settings → Customers editable cards */
+  .cust-edit { border: 1px solid rgba(51,65,85,0.6); border-radius: 14px; padding: 14px; margin-bottom: 12px; background: rgba(15,23,42,0.35); max-width: 44rem; }
+  [data-theme="light"] .cust-edit { border-color: #e2e8f0; background: #f8fafc; }
   /* Mobile: settings sidebar collapses into a horizontal scroll strip so the
      content panel gets the full screen width instead of being crammed into a
      narrow column beside the rail. */
@@ -5435,6 +5438,21 @@
   </div>
 </div>
 
+<!-- Save conflict — a saved job already has this job name + customer. Layers
+     above the Save Job modal (z-70). -->
+<div id="saveConflictModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[70]">
+  <div class="absolute inset-0 modal-backdrop" data-close-conflict></div>
+  <div class="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-6">
+    <h3 class="text-base font-bold text-slate-100">This job already exists</h3>
+    <p id="saveConflictMsg" class="text-sm text-slate-400 mt-2 leading-relaxed"></p>
+    <div class="mt-5 space-y-2">
+      <button id="saveConflictOverwrite" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Overwrite the existing job</button>
+      <button id="saveConflictNew" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-slate-800 text-slate-100 border border-slate-700 hover:border-[#b58f4a]/50">Save as a new quote</button>
+      <button data-close-conflict type="button" class="btn w-full rounded-xl px-4 py-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Manage Customers Modal — toggle which saved customers appear in the
      quick-pick list. Unchecking only hides them from the picker; the job and
      its contact details are never touched. Layers above the Save Job modal. -->
@@ -5565,6 +5583,7 @@
         <button type="button" class="set-tab active" data-tab="brand">Brand</button>
         <button type="button" class="set-tab" data-tab="defaults">Job Defaults</button>
         <button type="button" class="set-tab" data-tab="manufacturers">Manufacturers</button>
+        <button type="button" class="set-tab" data-tab="customers">Customers</button>
         <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
         <button type="button" class="set-tab" data-tab="subscription">Subscription</button>
         <button type="button" class="set-tab" data-tab="account">Account</button>
@@ -5685,6 +5704,13 @@
           <p class="text-[11px] text-amber-400/80 mb-4">Through-frame values are placeholder estimates — verify per brand.</p>
           <div id="mfrEditorBody"></div>
           <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
+        </div>
+
+        <!-- Customers -->
+        <div class="set-panel" data-panel="customers">
+          <div class="set-h">Customers</div>
+          <div class="set-sub mb-5">Edit a customer's name and contact details. Changes apply to all of that customer's saved jobs.</div>
+          <div id="customersBody"></div>
         </div>
 
         <!-- Rates & Pricing -->
@@ -10772,8 +10798,10 @@ async function generateJobThumbnail(jobId, btn) {
     const { data, error } = await sb.functions.invoke("generate-house-image", { body: {} });
     if (error) throw error;
     if (!data || !data.ok || !data.image) throw new Error((data && data.error) || "generation failed");
-    const title = job.customerName || job.name || "Window Job";
-    const subtitle = (job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "";
+    // Job name is the headline (big), customer name confirms it just below.
+    const title = job.name || job.customerName || "Window Job";
+    const cust = (job.customerName && job.customerName !== title) ? job.customerName : "";
+    const subtitle = cust || ((job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "");
     const thumb = await composeJobThumbnail(data.image, title, subtitle);
     await saveJobPhoto(jobId, thumb);   // uploads to Storage + re-renders
     try { if (typeof window.track === "function") window.track("ai_thumbnail_generated"); } catch (_) {}
@@ -11846,6 +11874,60 @@ function setCustomerRecurring(key, recurring) {
   return true;
 }
 
+// Edit a customer's name + contact info across ALL of their saved jobs, so the
+// rolled-up customer record stays unified (and a rename regroups their analytics
+// instead of splitting into two customers).
+function setCustomerContact(oldKey, fields) {
+  const jobs = loadJobs();
+  const changed = [];
+  for (const j of jobs) {
+    if (!j || j.isDraft) continue;
+    if ((j.customerName || "").trim().toLowerCase() !== oldKey) continue;
+    if (fields.name != null && fields.name.trim()) j.customerName = fields.name.trim();
+    if (fields.phone != null) j.customerPhone = fields.phone.trim();
+    if (fields.email != null) j.customerEmail = fields.email.trim();
+    if (fields.address != null) j.customerAddress = fields.address.trim();
+    if (fields.recurring != null) j.customerRecurring = !!fields.recurring;
+    changed.push(j);
+  }
+  if (!changed.length) return 0;
+  saveJobs(jobs);
+  changed.forEach(j => { try { pushJobToCloud(j); } catch (_) {} });
+  return changed.length;
+}
+
+// Settings → Customers: an editable card per customer (name / phone / email /
+// address + recurring), saving back across all their jobs.
+function renderCustomersSettings() {
+  const wrap = document.getElementById("customersBody");
+  if (!wrap) return;
+  const list = getCustomerEntries();
+  if (!list.length) {
+    wrap.innerHTML = `<div class="text-sm text-slate-500 py-6">No customers yet — they appear here once you save a job with a customer name.</div>`;
+    return;
+  }
+  const lbl = "text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1";
+  const inp = "control rounded-lg px-3 py-2 w-full text-sm text-slate-100";
+  wrap.innerHTML = list.map(c => `
+    <div class="cust-edit" data-cust-key="${escHtml(c.key)}">
+      <div class="flex items-center justify-between gap-2 mb-2.5">
+        <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500 font-bold">${c.count} job${c.count === 1 ? "" : "s"}</span>
+        <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none">
+          <input type="checkbox" data-cust-field="recurring" ${c.recurring ? "checked" : ""} style="accent-color:#b58f4a;"> Recurring (in quick-pick)
+        </label>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div><label class="${lbl}">Name</label><input data-cust-field="name" type="text" value="${escHtml(c.name)}" class="${inp}"></div>
+        <div><label class="${lbl}">Phone</label><input data-cust-field="phone" type="tel" value="${escHtml(c.phone)}" class="${inp}"></div>
+        <div><label class="${lbl}">Email</label><input data-cust-field="email" type="email" value="${escHtml(c.email)}" class="${inp}"></div>
+        <div><label class="${lbl}">Address</label><input data-cust-field="address" type="text" value="${escHtml(c.address)}" class="${inp}"></div>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <button type="button" data-cust-save class="btn rounded-lg px-5 py-1.5 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
+      </div>
+    </div>`).join("");
+}
+
 // (Re)build the "Use a saved customer" picker in the Save Job modal. Hides the
 // whole row when there are no saved customers yet (first-time users).
 function populateCustomerPicker() {
@@ -11965,51 +12047,70 @@ function closeSaveJobModal() {
   tvDismiss(document.getElementById("saveJobModal"));
 }
 
+// Save dispatcher: reads the form into STATE, then decides whether to update the
+// loaded job in place, overwrite a name+customer twin, or save fresh.
 function confirmSaveJob() {
-  const r = calculate();
   const customer = document.getElementById("saveJobName").value.trim();   // "Customer" field
   const jobName = (document.getElementById("saveJobJobName")?.value || "").trim();   // "Job name" field
-  const address = document.getElementById("saveJobAddress").value.trim();
-  const notes = document.getElementById("saveJobNotes").value.trim();
-  const phone = (document.getElementById("saveJobPhone")?.value || "").trim();
-  const email = (document.getElementById("saveJobEmail")?.value || "").trim();
   STATE.customerName = customer;
   STATE.jobName = jobName;
-  STATE.customerAddress = address;
-  STATE.customerPhone = phone;
-  STATE.customerEmail = email;
-  STATE.customerNotes = notes;
+  STATE.customerAddress = document.getElementById("saveJobAddress").value.trim();
+  STATE.customerPhone = (document.getElementById("saveJobPhone")?.value || "").trim();
+  STATE.customerEmail = (document.getElementById("saveJobEmail")?.value || "").trim();
+  STATE.customerNotes = document.getElementById("saveJobNotes").value.trim();
 
   const jobs = loadJobs();
-  // Promote the working draft to a saved job under a FRESH id (and retire the
-  // draft's cloud row below). A new id means a late cross-device draft autosync
-  // can never clobber this saved job back into a draft.
+  const norm = s => (s || "").trim().toLowerCase();
+  const effName = (jobName || customer).trim();
+  const loaded = STATE.currentJobId ? jobs.find(j => j.id === STATE.currentJobId && !j.isDraft) : null;
+  // A saved (non-draft) job carrying the same job name + customer.
+  const twin = effName ? jobs.find(j => j && !j.isDraft
+      && norm(j.name) === norm(effName) && norm(j.customerName) === norm(customer)) : null;
+
+  if (loaded) {
+    // Editing a job we loaded: update it in place. If it was renamed onto a
+    // DIFFERENT existing job, ask what to do with that collision instead.
+    if (twin && twin.id !== loaded.id) { showSaveConflict(twin); return; }
+    doSaveJob(loaded.id);
+    return;
+  }
+  // Fresh quote: if it collides with an existing saved job, ask; else save new.
+  if (twin) { showSaveConflict(twin); return; }
+  doSaveJob(null);
+}
+
+// Persist the working draft as a saved job. overrideId != null overwrites that
+// existing job in place (keeps its id, created date + photos, spends no new
+// quote); null promotes the draft to a brand-new saved job under a fresh id.
+function doSaveJob(overrideId) {
+  const r = calculate();
+  const customer = STATE.customerName, jobName = STATE.jobName, address = STATE.customerAddress,
+        phone = STATE.customerPhone, email = STATE.customerEmail, notes = STATE.customerNotes;
+  const jobs = loadJobs();
   const draftIdx = jobs.findIndex(x => x.isDraft);
   const oldDraftId = (draftIdx >= 0 && jobs[draftIdx]) ? jobs[draftIdx].id : null;
-  const reuseId = crypto.randomUUID();
+  const overwrite = overrideId ? jobs.find(x => x.id === overrideId && !x.isDraft) : null;
 
-  // ENTITLEMENTS (Phase 2) — count this as a NEW quote only if it's not an
-  // edit-and-resave of an existing saved job. STATE.currentJobId matching a
-  // non-draft entry means the user is updating, which is free. Anything else
-  // (fresh save, draft promotion, brand-new) consumes one quote.
-  // LIVE ENFORCEMENT: a fresh save consumes a quote. If the user is out of
-  // entitlement, attemptGenerateQuote() shows the upsell and returns false —
+  // ENTITLEMENTS — a fresh save consumes a quote; overwriting an existing job is
+  // free. If out of entitlement, attemptGenerateQuote() shows the upsell and we
   // abort the save entirely (no job created, no doc unlocked).
-  const _existing = STATE.currentJobId
-    ? jobs.find(x => x.id === STATE.currentJobId && !x.isDraft)
-    : null;
-  if (!_existing) {
+  if (!overwrite) {
     if (!attemptGenerateQuote()) { closeSaveJobModal(); return; }
   }
 
+  const id = overwrite ? overwrite.id : crypto.randomUUID();
+  const createdAt = overwrite
+    ? (overwrite.createdAt || new Date().toISOString())
+    : ((draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString());
+
   const job = {
-    id: reuseId,
+    id,
     name: jobName || customer || `Job ${new Date().toLocaleDateString()}`,
     customerName: customer, customerAddress: address, customerPhone: phone, customerEmail: email, customerNotes: notes,
     customerRecurring: !(document.getElementById("saveJobRecurring") && !document.getElementById("saveJobRecurring").checked),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
-    createdAt: (draftIdx >= 0 && jobs[draftIdx].createdAt) || new Date().toISOString(),
+    createdAt,
     updatedAt: new Date().toISOString(),
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
@@ -12023,8 +12124,9 @@ function confirmSaveJob() {
   };
 
   // Photos + cover live only on the job (never in rail STATE), so carry them
-  // across draft-promotion / re-save — otherwise installation photos vanish.
-  const _photoSrc = (draftIdx >= 0) ? jobs[draftIdx] : _existing;
+  // across draft-promotion / overwrite — otherwise installation photos vanish.
+  const _photoSrc = overwrite || (draftIdx >= 0 ? jobs[draftIdx]
+    : (STATE.currentJobId ? jobs.find(x => x.id === STATE.currentJobId && !x.isDraft) : null));
   if (_photoSrc) {
     if (Array.isArray(_photoSrc.photos)) job.photos = _photoSrc.photos;
     if (_photoSrc.photosUpdatedAt) job.photosUpdatedAt = _photoSrc.photosUpdatedAt;
@@ -12032,9 +12134,14 @@ function confirmSaveJob() {
     if (_photoSrc.photo) job.photo = _photoSrc.photo;
     if (_photoSrc.photoUpdatedAt) job.photoUpdatedAt = _photoSrc.photoUpdatedAt;
   }
-  if (draftIdx >= 0) jobs[draftIdx] = job; else jobs.push(job);
-  saveJobs(jobs);
-  STATE.currentJobId = job.id;
+
+  // Drop the working draft, then overwrite the target in place or append fresh.
+  let next = jobs.filter(x => !x.isDraft);
+  if (overwrite) next = next.map(x => x.id === id ? job : x);
+  else next = next.concat([job]);
+  saveJobs(next);
+  STATE.currentJobId = id;
+
   // Cancel any pending draft autosync and retire the promoted draft's cloud row
   // so the just-saved job can't be reverted by a stale background draft push.
   clearTimeout(_draftCloudTimer); _draftCloudTimer = 0;
@@ -12045,8 +12152,19 @@ function confirmSaveJob() {
   closeSaveJobModal();
   renderSavedJobs();
   updateSaveVersionVisibility();
-  toast(draftIdx >= 0 ? "Draft saved as job" : "Job saved");
+  toast(overwrite ? "Job updated" : (draftIdx >= 0 ? "Draft saved as job" : "Job saved"));
 }
+
+// Save-conflict prompt: a saved job already carries this job name + customer.
+let _saveConflictTargetId = null;
+function showSaveConflict(twin) {
+  _saveConflictTargetId = twin.id;
+  const msg = document.getElementById("saveConflictMsg");
+  if (msg) msg.textContent = `A saved job named “${twin.name || "Untitled"}”${twin.customerName ? ` for ${twin.customerName}` : ""} already exists. Overwrite it with this quote, or keep both by saving a new one?`;
+  const m = document.getElementById("saveConflictModal");
+  if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
+}
+function closeSaveConflict() { tvDismiss(document.getElementById("saveConflictModal")); }
 
 function saveCurrentJob() { openSaveJobModal(); }
 
@@ -13600,6 +13718,7 @@ function showSettingsTab(name) {
   if (name === "feedback") { renderAdminFeedback(); markFeedbackSeen(); }
   if (name === "subscription") renderSubscriptionPanel();
   if (name === "resources") renderResources();
+  if (name === "customers") renderCustomersSettings();
 }
 
 // Resources tab — plain-English guide to how the app works. Lazy-loaded from a
@@ -19959,6 +20078,14 @@ function init() {
   const saveModal = document.getElementById("saveJobModal");
   saveModal.addEventListener("click", e => { if (e.target.dataset.closeSave !== undefined) closeSaveJobModal(); });
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
+  // Save-conflict prompt (overwrite existing vs save a new quote)
+  const _conf = document.getElementById("saveConflictModal");
+  if (_conf && !_conf._wired) {
+    _conf.addEventListener("click", e => { if (e.target.dataset.closeConflict !== undefined) closeSaveConflict(); });
+    document.getElementById("saveConflictOverwrite").addEventListener("click", () => { const id = _saveConflictTargetId; closeSaveConflict(); doSaveJob(id); });
+    document.getElementById("saveConflictNew").addEventListener("click", () => { closeSaveConflict(); doSaveJob(null); });
+    _conf._wired = true;
+  }
   document.getElementById("saveJobName").addEventListener("keydown", e => { if (e.key === "Enter") confirmSaveJob(); });
   { const _cp = document.getElementById("saveJobCustomerPick"); if (_cp) _cp.addEventListener("change", onCustomerPick); }
 
@@ -20058,6 +20185,31 @@ function init() {
   document.getElementById("settingsSignOut").addEventListener("click", handleSignOut);
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
     t.addEventListener("click", () => showSettingsTab(t.dataset.tab)));
+  // Settings → Customers: save a customer's edits across all their jobs (delegated, guarded)
+  const _custBody = document.getElementById("customersBody");
+  if (_custBody && !_custBody._wired) {
+    _custBody.addEventListener("click", e => {
+      const btn = e.target.closest("[data-cust-save]");
+      if (!btn) return;
+      const card = btn.closest("[data-cust-key]");
+      if (!card) return;
+      const val = f => { const el = card.querySelector(`[data-cust-field="${f}"]`); return el ? el.value : ""; };
+      const fields = {
+        name: val("name"), phone: val("phone"), email: val("email"), address: val("address"),
+        recurring: card.querySelector('[data-cust-field="recurring"]')?.checked
+      };
+      if (!fields.name.trim()) { toast("Customer name can't be empty"); return; }
+      const n = setCustomerContact(card.dataset.custKey, fields);
+      if (n) {
+        toast(`Customer updated across ${n} job${n === 1 ? "" : "s"}`);
+        renderCustomersSettings();
+        try { renderSavedJobs(); } catch (_) {}
+        try { if (typeof renderDashboard === "function" && !document.getElementById("dashboardScreen")?.classList.contains("hidden")) renderDashboard(); } catch (_) {}
+        try { populateCustomerPicker(); } catch (_) {}
+      } else { toast("Nothing to update"); }
+    });
+    _custBody._wired = true;
+  }
   // Per-job material variant toggle (delegated)
   // Guard against double-attachment: init() can run more than once (offline
   // fallback / post-login boot), and an unguarded flip handler would toggle an
