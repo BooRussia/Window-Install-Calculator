@@ -12627,6 +12627,8 @@ function exportCustomerPDF(mode) {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const M = 56; // page margin
+  // Break to a new page before content would overrun the footer band.
+  const ensure = (need) => { if (y + need > pageH - 70) { doc.addPage(); y = M; } };
 
   // ---------- Header ----------
   const brand = DATA.config.brand || {};
@@ -12706,6 +12708,7 @@ function exportCustomerPDF(mode) {
   }
 
   // ---------- Scope of work (two-column key/value) ----------
+  ensure(60);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(140, 140, 140);
@@ -12761,6 +12764,7 @@ function exportCustomerPDF(mode) {
   }
   const labelX = M, valueX = M + 130;
   scope.forEach(([label, value]) => {
+    ensure(18);
     doc.setTextColor(110, 110, 110);
     doc.text(label, labelX, y);
     doc.setTextColor(20, 20, 20);
@@ -12774,11 +12778,13 @@ function exportCustomerPDF(mode) {
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
     const noteLines = doc.splitTextToSize(STATE.customerNotes, pageW - M * 2);
-    noteLines.forEach(line => { doc.text(line, M, y); y += 12; });
+    noteLines.forEach(line => { ensure(14); doc.text(line, M, y); y += 12; });
     doc.setFont("helvetica", "normal");
   }
   y += 18;
 
+  // Keep the divider + price hero together on one page.
+  ensure(150);
   doc.setDrawColor(210, 210, 210);
   doc.setLineWidth(0.5);
   doc.line(M, y, pageW - M, y);
@@ -12811,23 +12817,29 @@ function exportCustomerPDF(mode) {
   y += 22;
 
   // ---------- Terms ----------
+  ensure(40);
   doc.setFontSize(9);
   doc.setTextColor(110, 110, 110);
   doc.text("This quote is valid for 30 days from the date above.", M, y);
   y += 13;
   doc.text("Final pricing subject to change if scope changes upon inspection.", M, y);
 
-  // ---------- Footer (text only, no fill) ----------
-  doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
+  // ---------- Footer (text only, no fill) — drawn on EVERY page ----------
   const footerLine = brandFooterLine(true);
   const contactLine = brandContactLine();
-  if (contactLine) {
-    doc.text(footerLine, pageW / 2, pageH - 42, { align: "center" });
-    doc.setFontSize(7);
-    doc.text(contactLine, pageW / 2, pageH - 28, { align: "center" });
-  } else {
-    doc.text(footerLine, pageW / 2, pageH - 36, { align: "center" });
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    if (contactLine) {
+      doc.text(footerLine, pageW / 2, pageH - 42, { align: "center" });
+      doc.setFontSize(7);
+      doc.text(contactLine, pageW / 2, pageH - 28, { align: "center" });
+    } else {
+      doc.text(footerLine, pageW / 2, pageH - 36, { align: "center" });
+    }
   }
 
   const safeName = (STATE.customerName || "Quote").replace(/[^a-z0-9]/gi, "-").substring(0, 30);
@@ -13168,11 +13180,15 @@ async function createSignLink(jobId, detailLevel) {
   // Persist (RLS: owner-only insert via the user's JWT).
   let token = null;
   try {
+    const validDays = Number(snapshot.validDays) || 30;
     const { data, error } = await sb.from("shared_quotes").insert({
       user_id: currentUser.id,
       job_id: _SIGN_UUID_RE.test(String(job.id)) ? job.id : null,
       snapshot,
       detail_level: snapshot.detailLevel,
+      // Expire the link in lock-step with the quote's stated validity, so a stale
+      // link can't be signed at an old price (the sign-quote fn honors expires_at).
+      expires_at: new Date(Date.now() + validDays * 86400000).toISOString(),
     }).select("id").single();
     if (error) throw error;
     token = data.id;
