@@ -10896,8 +10896,11 @@ function wireDashboard() {
       // Brand the uploaded photo like a Grok thumbnail — blurred background with
       // the job title overlaid — so every dashboard tile looks consistent.
       const job = loadJobs().find(x => x.id === id);
-      const title = (job && (job.customerName || job.name)) || "Window Job";
-      const subtitle = (job && job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "";
+      // Job name is the headline; customer name confirms it just below (matches
+      // the Grok-thumbnail + job-card hierarchy).
+      const title = (job && (job.name || job.customerName)) || "Window Job";
+      const cust = (job && job.customerName && job.customerName !== title) ? job.customerName : "";
+      const subtitle = cust || ((job && job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "");
       let thumb = dataUrl;
       // Half the blur of a Grok thumbnail (radius 3 vs 6) — a real uploaded job
       // photo should stay recognizable behind the title.
