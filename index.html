@@ -15739,6 +15739,10 @@ function saveAdmin() {
   // Job defaults
   if (!DATA.config.jobDefaults) DATA.config.jobDefaults = {};
   DATA.config.jobDefaults.manufacturer = document.getElementById("defaultMfg").value;
+  // Re-clamp in case the dropdown held a since-renamed/removed name (don't write a dead default).
+  if (Array.isArray(DATA.manufacturers) && DATA.manufacturers.length && !DATA.manufacturers.includes(DATA.config.jobDefaults.manufacturer)) {
+    DATA.config.jobDefaults.manufacturer = DATA.manufacturers[0];
+  }
   DATA.config.jobDefaults.application = document.getElementById("defaultApp").value;
   DATA.config.jobDefaults.houseType = document.getElementById("defaultHouse").value;
   DATA.config.jobDefaults.constructionType = document.getElementById("defaultConstruction").value;
@@ -15899,8 +15903,12 @@ function saveAdmin() {
 }
 
 function restoreDefaults() {
-  if (!confirm("Restore all default rates? Your brand info will also reset.")) return;
+  if (!confirm("Restore default rates?\n\nThis also resets your brand info, manufacturers, labor model, tax, and any custom FL approval screw patterns. Your subscription/plan and saved jobs are kept.")) return;
+  // Entitlements (plan, trial clock, usage) live in the synced profile blob —
+  // never reset them via a rates restore or a paying user drops back to trial.
+  const ent = (DATA && DATA.config && DATA.config.entitlements) ? clone(DATA.config.entitlements) : null;
   DATA = clone(DEFAULT_DATA);
+  if (ent) DATA.config.entitlements = ent;
   saveData(DATA);
   buildAdminUI();
   applyBrandToUI();
@@ -19795,6 +19803,19 @@ function readMfrCards(containerId) {
   return { names, rates };
 }
 
+// Keep the "default manufacturer" dropdown in sync with the live editor cards so
+// a just-added/renamed manufacturer is immediately selectable (and a rename can't
+// leave a stale name that saveAdmin would write back).
+function refreshDefaultMfgOptions() {
+  const sel = document.getElementById("defaultMfg");
+  if (!sel) return;
+  const names = readMfrCards("mfrEditorBody").names;
+  if (!names.length) return;
+  const cur = sel.value;
+  sel.innerHTML = names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join("");
+  sel.value = names.includes(cur) ? cur : names[0];
+}
+
 function showSetupStep(n) {
   setupStep = Math.max(1, Math.min(SETUP_STEPS, n));
   document.querySelectorAll("#setupScreen .setup-step").forEach(el => {
@@ -20347,13 +20368,17 @@ function init() {
     });
     document.getElementById(bodyId).addEventListener("click", e => {
       const del = e.target.closest(".mfr-del");
-      if (del) del.closest(".mfr-card").remove();
+      if (del) { del.closest(".mfr-card").remove(); refreshDefaultMfgOptions(); }
     });
     // "Builds to impact spec" checkbox greys out the non-impact column
     document.getElementById(bodyId).addEventListener("change", e => {
       if (e.target.classList.contains("mfr-always")) {
         e.target.closest(".mfr-card").classList.toggle("always", e.target.checked);
       }
+    });
+    // Keep the default-manufacturer dropdown current as cards are renamed
+    document.getElementById(bodyId).addEventListener("input", e => {
+      if (e.target.classList.contains("mfr-name")) refreshDefaultMfgOptions();
     });
   }
   wireMfrEditor("mfrAddBtn", "mfrEditorBody");
