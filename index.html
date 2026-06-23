@@ -7032,7 +7032,7 @@ const DEFAULT_DATA = {
           procurement: { caseSize: 320, packName: "case", packPlural: "cases",
             intermediate: { label: "sausage", labelPlural: "sausages", perBase: 20, perPack: 16 } } }
       ] },
-    { id: "shims", name: "Shims", unit: "each",
+    { id: "shims", name: "Shims", unit: "each", unverified: true,
       rates: { default: 0.0, "Nail-fin": 1.333, "Equal Leg": 3.0, "Unequal Leg": 3.0 },
       calculationMethod: { "Nail-fin": "fixed_per_LF", "Equal Leg": "per_screw", "Unequal Leg": "per_screw" },
       defaultVariant: "shims__1",
@@ -7040,19 +7040,19 @@ const DEFAULT_DATA = {
         { id: "shims__1", brand: "Plastic Shims (1/16\")", unitPrice: 0.07,
           procurement: { caseSize: 2000, packName: "case", packPlural: "cases" } }
       ] },
-    { id: "backer_rod", name: "Backer Rod", unit: "LF", rates: { default: 1.0 },
+    { id: "backer_rod", name: "Backer Rod", unit: "LF", rates: { default: 1.0 }, unverified: true,
       defaultVariant: "backer_rod__1",
       variants: [
         { id: "backer_rod__1", brand: "Backer Rod (5/8\")", unitPrice: 0.28,
           procurement: { caseSize: 1400, packName: "roll", packPlural: "rolls" } }
       ] },
-    { id: "flashing_tape", name: "Flashing Tape", unit: "LF", rates: { default: 0, "Stick Framed": 1.0 },
+    { id: "flashing_tape", name: "Flashing Tape", unit: "LF", rates: { default: 0, "Stick Framed": 1.0 }, unverified: true,
       defaultVariant: "flashing_tape__1",
       variants: [
         { id: "flashing_tape__1", brand: "Zip System Flashing Tape (6\")", unitPrice: 2.23,
           procurement: { caseSize: 75, packName: "roll", packPlural: "rolls" } }
       ] },
-    { id: "wood_bucking", name: "Wood Bucking", unit: "LF", rates: { default: 0, "Block Framed": 1.25 },
+    { id: "wood_bucking", name: "Wood Bucking", unit: "LF", rates: { default: 0, "Block Framed": 1.25 }, unverified: true,
       defaultVariant: "wood_bucking__1",
       variants: [
         { id: "wood_bucking__1", brand: "2x6 PT", unitPrice: 0.95,
@@ -7069,7 +7069,7 @@ const DEFAULT_DATA = {
         { id: "block_sealer__1", brand: "Block Sealer", unitPrice: 40,
           procurement: { caseSize: 1, packName: "gallon", packPlural: "gallons" } }
       ] },
-    { id: "screws", name: "Nail-Fin Screws", unit: "each", rates: { default: 2.0 },
+    { id: "screws", name: "Nail-Fin Screws", unit: "each", rates: { default: 2.0 }, unverified: true,
       defaultVariant: "screws__1",
       variants: [
         { id: "screws__1", brand: "Daggerz (Nail-fin)", unitPrice: 0.127,
@@ -7082,10 +7082,10 @@ const DEFAULT_DATA = {
         { id: "concrete_anchors__1", brand: "Dewalt Ultracons (2-3/4\")", unitPrice: 0.20,
           procurement: { caseSize: 1000, packName: "case", packPlural: "cases" } }
       ] },
-    { id: "disposal", name: "Old Window Disposal", unit: "window", unitPrice: 45, rates: { default: 0 } },
-    { id: "permit", name: "Permit Fee", unit: "job", unitPrice: 250, rates: { default: 0 } },
-    { id: "lift_rental", name: "Lift Rental", unit: "day", unitPrice: 450, rates: { default: 0 } },
-    { id: "labor", name: "Labor (install + cleanup)", unit: "hour", unitPrice: 75,
+    { id: "disposal", name: "Old Window Disposal", unit: "window", unitPrice: 45, rates: { default: 0 }, unverified: true },
+    { id: "permit", name: "Permit Fee", unit: "job", unitPrice: 250, rates: { default: 0 }, unverified: true },
+    { id: "lift_rental", name: "Lift Rental", unit: "day", unitPrice: 450, rates: { default: 0 }, unverified: true },
+    { id: "labor", name: "Labor (install + cleanup)", unit: "hour", unitPrice: 75, unverified: true,
       rates: { default: 0.1667, "Block Framed": 0.4167, "Remodel": 0.6667 } }
   ]
 };
@@ -15784,7 +15784,11 @@ function saveAdmin() {
   const crewSz = parseInt(document.getElementById("adminCrewSize").value, 10);
   if (!isNaN(crewSz) && crewSz >= 1 && crewSz <= 30) DATA.config.laborModel.crewSize = crewSz;
   const crewRate = parseFloat(document.getElementById("adminCrewPayRatePerHr").value);
-  if (!isNaN(crewRate) && crewRate >= 0) DATA.config.laborModel.crewPayRatePerHr = crewRate;
+  if (!isNaN(crewRate) && crewRate >= 0) {
+    const li = DATA.costItems.find(c => c.id === "labor");
+    if (li && li.unverified && crewRate !== DATA.config.laborModel.crewPayRatePerHr) li.unverified = false;
+    DATA.config.laborModel.crewPayRatePerHr = crewRate;
+  }
   DATA.config.laborModel.showLaborHoursInPDF = !!document.getElementById("adminShowLaborHoursInPDF").checked;
   document.querySelectorAll("[data-unitprice]").forEach(inp => {
     const it = DATA.costItems.find(c => c.id === inp.dataset.unitprice);
@@ -19892,6 +19896,7 @@ function completeSetup(viaSkip) {
   if (!isNaN(labor) && labor >= 0) {
     DATA.config.laborModel = DATA.config.laborModel || {};
     DATA.config.laborModel.crewPayRatePerHr = labor;
+    const li = DATA.costItems.find(c => c.id === "labor"); if (li) li.unverified = false;   // they've set their crew pay
   }
   if (!isNaN(margin) && margin >= 0) DATA.config.defaultMargin = margin;
   // Manufacturers — only if the step was opened/populated
