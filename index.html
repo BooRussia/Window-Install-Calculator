@@ -12066,19 +12066,24 @@ function confirmSaveJob() {
   const norm = s => (s || "").trim().toLowerCase();
   const effName = (jobName || customer).trim();
   const loaded = STATE.currentJobId ? jobs.find(j => j.id === STATE.currentJobId && !j.isDraft) : null;
-  // A saved (non-draft) job carrying the same job name + customer.
-  const twin = effName ? jobs.find(j => j && !j.isDraft
+  // Find a saved (non-draft) job with the same job name + customer, EXCLUDING the
+  // one we have open — so a plain re-save never collides with itself, and a
+  // pre-existing duplicate (the very thing this feature cleans up) can't trick
+  // jobs.find() into targeting the wrong record by array order.
+  const twin = (id) => effName ? jobs.find(j => j && !j.isDraft && j.id !== id
       && norm(j.name) === norm(effName) && norm(j.customerName) === norm(customer)) : null;
 
   if (loaded) {
-    // Editing a job we loaded: update it in place. If it was renamed onto a
-    // DIFFERENT existing job, ask what to do with that collision instead.
-    if (twin && twin.id !== loaded.id) { showSaveConflict(twin); return; }
+    // Re-saving the open job under its own name+customer is always an in-place
+    // update; only a rename onto a DIFFERENT existing job asks what to do.
+    const unchanged = norm(loaded.name) === norm(effName) && norm(loaded.customerName) === norm(customer);
+    if (!unchanged) { const other = twin(loaded.id); if (other) { showSaveConflict(other); return; } }
     doSaveJob(loaded.id);
     return;
   }
   // Fresh quote: if it collides with an existing saved job, ask; else save new.
-  if (twin) { showSaveConflict(twin); return; }
+  const dup = twin(null);
+  if (dup) { showSaveConflict(dup); return; }
   doSaveJob(null);
 }
 
@@ -12093,6 +12098,15 @@ function doSaveJob(overrideId) {
   const draftIdx = jobs.findIndex(x => x.isDraft);
   const oldDraftId = (draftIdx >= 0 && jobs[draftIdx]) ? jobs[draftIdx].id : null;
   const overwrite = overrideId ? jobs.find(x => x.id === overrideId && !x.isDraft) : null;
+  // The overwrite target was requested but no longer exists (e.g. deleted on
+  // another device while the prompt was open). Abort instead of silently spending
+  // a quote and appending a fresh duplicate — the opposite of what was clicked.
+  if (overrideId && !overwrite) {
+    closeSaveJobModal();
+    toast("That job no longer exists — nothing was saved");
+    try { renderSavedJobs(); } catch (_) {}
+    return;
+  }
 
   // ENTITLEMENTS — a fresh save consumes a quote; overwriting an existing job is
   // free. If out of entitlement, attemptGenerateQuote() shows the upsell and we
@@ -14434,9 +14448,13 @@ async function copySigningLinkFromFiles() {
     set("saveJobPhone", STATE.customerPhone || "");
     set("saveJobEmail", STATE.customerEmail || "");
     set("saveJobNotes", STATE.customerNotes || "");
-    confirmSaveJob();   // quota-checked save; sets STATE.currentJobId, or shows the upsell + aborts
+    confirmSaveJob();   // quota-checked save; sets STATE.currentJobId, shows the upsell, OR opens the save-conflict prompt
     saved = STATE.currentJobId && loadJobs().some(x => x.id === STATE.currentJobId && !x.isDraft);
-    if (!saved) return; // blocked by quota or failed — confirmSaveJob already messaged
+    if (!saved) {
+      const conf = document.getElementById("saveConflictModal");
+      if (conf && !conf.classList.contains("hidden")) toast("Resolve the save conflict, then tap “Copy signing link” again");
+      return; // conflict prompt is open (toast above), or save was blocked/quota-checked (confirmSaveJob already messaged)
+    }
   }
   _jdSignExclude = new Set();                    // no per-customer hidden rows for the quick link
   await createSignLink(STATE.currentJobId, _jdSignDetail || "summary");
