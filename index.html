@@ -4934,7 +4934,7 @@
       </div>
       <!-- /accordion -->
       <div id="remodelNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
-        ↑ Enter window count to include disposal cost
+        ↑ Enter window count for accurate setup labor &amp; materials
       </div>
       <div id="materialsRow" class="hidden"></div>
 
@@ -8819,9 +8819,12 @@ function render() {
     hintEl.classList.add("hidden");
   }
 
-  // Remodel nudge
+  // Window-count nudge (F2) — a blank count silently omits per-opening SETUP
+  // LABOR (every construction type, not just remodel) plus caulk/screws and, on
+  // a remodel, disposal. Footage alone can't supply the opening count, so prompt
+  // whenever footage is entered without a count.
   const nudgeEl = document.getElementById("remodelNudge");
-  const showNudge = STATE.constructionType === "Remodel" && wc_ === 0;
+  const showNudge = lf_ > 0 && wc_ === 0;
   nudgeEl.classList.toggle("hidden", !showNudge);
 
   // Per-job material variant toggles
