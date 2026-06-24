@@ -7672,6 +7672,17 @@ function buckListTotalLF(bl) {
 function buckListBoardCount(bl) {
   return (bl && bl.totalBoards) ? bl.totalBoards : 0;
 }
+// Slider/bifold frame footage already represented IN a cut list — same perimeter
+// formula as live doors (computeSlidingDoors / computeBifoldDoors), so we can tell
+// which door footage the snapshot already bucks vs. what still needs a per-LF
+// allowance (E1).
+function buckListDoorFrameLF(bl) {
+  if (!bl || !Array.isArray(bl.openings)) return 0;
+  return bl.openings.reduce((s, o) =>
+    (o && (o.isSlider || o.isBifold))
+      ? s + (o.qty || 1) * 2 * ((o.width || 0) + (o.height || 0)) / 12
+      : s, 0);
+}
 // The buck lumber name to display (2x6 PT / 2x8 PT / 2x10 PT) — follows the
 // chosen Wood Bucking variant in Settings → Rates. Cut-list lengths/board counts
 // are identical across sizes (all dimensional 2x lumber is 1.5" thick); only the
@@ -7973,11 +7984,22 @@ function calculate() {
       if (!buckingIncluded()) return;                 // already bucked on site — skip it
       if (STATE.buckList && buckListBoardCount(STATE.buckList) > 0) {
         const boardLF = buckListTotalLF(STATE.buckList);
-        const cost = boardLF * getUnitPrice(item);
+        // E1 — the cut list is a snapshot. Live slider/bifold frame footage it
+        // doesn't already include (e.g. doors added in the rail after the list was
+        // built, or a windows-only list) still needs bucking. Add a per-LF
+        // allowance for the UNCOVERED door footage so the total matches the
+        // no-cut-list path — no slider/bifold bucking silently dropped.
+        const liveDoorLF = (sgd.sgdLF || 0) + (bifold.bifoldLF || 0);
+        const coveredDoorLF = buckListDoorFrameLF(STATE.buckList);
+        const uncoveredDoorLF = Math.max(0, liveDoorLF - coveredDoorLF);
+        const extraBoardLF = getQuantityPerLF(item) * uncoveredDoorLF;
+        const totalBoardLF = boardLF + extraBoardLF;
+        const cost = totalBoardLF * getUnitPrice(item);
         rows.push({
-          id: item.id, name: itemDisplayName(item), rateLabel: "AI cut list",
+          id: item.id, name: itemDisplayName(item),
+          rateLabel: extraBoardLF > 0 ? "AI cut list + door footage" : "AI cut list",
           ratePerLF: lf > 0 ? cost / lf : 0,
-          quantity: boardLF, unit: "LF", totalCost: cost,
+          quantity: Math.round(totalBoardLF * 10) / 10, unit: "LF", totalCost: cost,
           isFixed: false, fromBuckList: true
         });
         totalCost += cost;
