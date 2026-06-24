@@ -7453,8 +7453,19 @@ function getStoriesMultiplier() {
   return 1.0;
 }
 
+// True when the INSTALLATION is to impact spec — either the job is impact glass,
+// or the brand is flagged alwaysImpactSpec (it attaches to impact spec regardless
+// of glass type). Mirrors useImpactPattern() so labor and materials agree.
+function isImpactInstall() {
+  const mr = (DATA.manufacturerRates || {})[STATE.manufacturer];
+  return useImpactPattern(mr);
+}
 function getImpactLaborMultiplier() {
-  return STATE.impact === "Impact" ? (DATA.config.impactLaborMultiplier ?? 1.15) : 1.0;
+  // F6: the impact labor premium is for the impact-spec ATTACHMENT (denser/heavier
+  // anchoring), not the glass. Follow the install spec so an always-impact brand on
+  // a Non-Impact job gets the same labor premium its impact materials already imply
+  // — no more impact materials priced against non-impact labor.
+  return isImpactInstall() ? (DATA.config.impactLaborMultiplier ?? 1.15) : 1.0;
 }
 
 function getLaborPerLF() {
