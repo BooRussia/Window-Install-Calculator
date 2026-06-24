@@ -7203,7 +7203,11 @@ const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1
   profileSyncedAt: "wcc.profileSyncedAt.v1", profileDirty: "wcc.profileDirty.v1",
   // B5: persisted set of saved-job ids whose cloud push hasn't been confirmed
   // (offline saves). Survives reload; flushed on reconnect / focus / after sync.
-  pendingPush: "wcc.pendingPush.v1" };
+  pendingPush: "wcc.pendingPush.v1",
+  // B13: set once this device has pulled >=1 saved job from the cloud. Lets us
+  // tell "interrupted first-login migration (never synced jobs)" from "user
+  // deleted all jobs elsewhere (cloud authoritatively empty)".
+  jobsSyncedOnce: "wcc.jobsSyncedOnce.v1" };
 
 function loadData() {
   try {
@@ -12525,6 +12529,7 @@ function deleteJob(id) {
   if (target && target.isDraft) { clearTimeout(_draftCloudTimer); _draftCloudTimer = 0; }
   const jobs = all.filter(x => x.id !== id);
   saveJobs(jobs);
+  removePendingPush(id);    // drop any offline-retry entry so a flush can't resurrect it
   deleteJobFromCloud(id);   // best-effort cloud sync
   if (STATE.currentJobId === id) STATE.currentJobId = null;
   renderSavedJobs();
@@ -16442,7 +16447,11 @@ async function handlePlanUpload(files, source) {
     // meter can never drift below the server's count even if the merged reply
     // turns out to be unusable on this side. Otherwise the user is silently
     // charged server-side while the local meter still shows the credit available.
-    if (!adminUser && okChunks) {
+    // BUT skip this when hitCap fired: the block above already pinned the meter to
+    // the full cap (which accounts for every debit up to the limit), so mirroring
+    // okChunks on top would push it to cap+okChunks > cap and lock the user out of
+    // reads they paid for until the cycle resets.
+    if (!adminUser && okChunks && !hitCap) {
       for (let k = 0; k < okChunks; k++) bumpAiReadUsed();
       renderAiReadsMeter();
     }
@@ -18061,6 +18070,7 @@ async function handleSignOut() {
   localStorage.removeItem(LS_KEYS.profileSyncedAt);
   localStorage.removeItem(LS_KEYS.profileDirty);
   localStorage.removeItem(LS_KEYS.pendingPush);
+  localStorage.removeItem(LS_KEYS.jobsSyncedOnce);
   localStorage.removeItem(LS_SIGN_SEEN);
   location.reload();
 }
@@ -18160,6 +18170,30 @@ function reconcileDrafts(cloudJobs, pushKept) {
   }
 }
 
+// Entitlements (plan, subscription status, billing cycle, usage counters) are
+// SERVER-authoritative: the Stripe webhook and the AI-credit RPC write them
+// directly into the cloud profile, sometimes without bumping profiles.updated_at.
+// So they must NOT ride the settings last-write-wins timestamp gate — overlay the
+// cloud's plan/cycle onto localData whenever we read a cloud profile. Within the
+// same billing cycle keep the HIGHER usage counters (so an offline consume on
+// this device isn't lost); a newer cloud cycle replaces them wholesale.
+// Returns true if localData.config.entitlements actually changed.
+function adoptCloudEntitlements(localData, cloudData) {
+  const ce = cloudData && cloudData.config && cloudData.config.entitlements;
+  if (!ce) return false;
+  localData.config = localData.config || {};
+  const le = localData.config.entitlements || {};
+  const before = JSON.stringify(le);
+  const merged = clone(ce);
+  if (le.cycleResetAt && ce.cycleResetAt && le.cycleResetAt === ce.cycleResetAt) {
+    const hi = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
+    merged.quotesUsedThisCycle = hi(le.quotesUsedThisCycle, ce.quotesUsedThisCycle);
+    merged.aiExtractionsUsedThisCycle = hi(le.aiExtractionsUsedThisCycle, ce.aiExtractionsUsedThisCycle);
+  }
+  localData.config.entitlements = merged;
+  return JSON.stringify(merged) !== before;
+}
+
 async function syncFromCloud() {
   try {
     const { data: { user } } = await sb.auth.getUser();
@@ -18181,30 +18215,44 @@ async function syncFromCloud() {
       const hasBaseline = !!localStorage.getItem(LS_KEYS.profileSyncedAt);
       const dirty = localStorage.getItem(LS_KEYS.profileDirty) === "1";
       const cloudNewer = cloudStamp > appliedStamp;
-      if (!dirty && (!hasBaseline || cloudNewer)) {
-        // Adopt the cloud copy (first sync on this device, or cloud genuinely newer).
+      // First contact on this device (no baseline) → the cloud is authoritative even
+      // if local was flagged dirty: a never-synced device's profile is demo-derived
+      // and must not clobber real cloud settings.
+      if (!hasBaseline || (!dirty && cloudNewer)) {
+        // Adopt the cloud copy wholesale (entitlements included — they're the cloud's).
         localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
         try {
           localStorage.setItem(LS_KEYS.profileSyncedAt, prof.updated_at || new Date(cloudStamp || Date.now()).toISOString());
           localStorage.removeItem(LS_KEYS.profileDirty);
         } catch (_) {}
-      } else if (dirty) {
-        // Local has edits the cloud lacks (or a conflict) — local wins; push it up.
-        try { pushProfileToCloud(loadData()); } catch (_) {}
+      } else {
+        // Keep local SETTINGS (user-authoritative, maybe edited offline), but
+        // ENTITLEMENTS are server-authoritative — always overlay the cloud's plan so
+        // a purchase/cancel/AI-debit lands here even when updated_at didn't advance.
+        const local = loadData();
+        const entChanged = adoptCloudEntitlements(local, prof.data);
+        if (entChanged) localStorage.setItem(LS_KEYS.data, JSON.stringify(local));
+        // Push local up only when genuinely dirty; it now carries the cloud's
+        // entitlements, so a stale local plan can't overwrite the server's.
+        if (dirty) { try { pushProfileToCloud(local); } catch (_) {} }
       }
       const { data: jobRows, error: jErr } = await sb.from("jobs")
         .select("id,data").eq("user_id", user.id);
       if (jErr) throw jErr;
       const jobs = (jobRows || []).map(row => ({ ...row.data, id: row.id }));
-      // B13 — a returning-user profile with ZERO cloud jobs is the fingerprint of
-      // an interrupted first-login migration (profile written, jobs not — possible
-      // for accounts migrated before the jobs-first reorder above). Don't let
-      // reconcileDrafts treat that emptiness as authoritative and drop local saved
-      // jobs: queue every local saved job for (re)upload so it's preserved here
-      // and flushed to the cloud below.
-      if (!jobs.length) {
+      const realCloudJobs = jobs.filter(j => !j.isDraft).length;
+      // B13 — ZERO cloud jobs is ambiguous: it's either an interrupted first-login
+      // migration (this device never synced its jobs up) OR the user deleted all
+      // their jobs on another device (cloud authoritatively empty). Only treat it as
+      // the former — and preserve+requeue local saved jobs — when this device has
+      // NEVER pulled a saved job from the cloud (no jobsSyncedOnce flag). A device
+      // that has synced jobs before treats an empty cloud as a real delete-all and
+      // lets reconcileDrafts drop the now-stale local copies.
+      const syncedJobsBefore = !!localStorage.getItem(LS_KEYS.jobsSyncedOnce);
+      if (!realCloudJobs && !syncedJobsBefore) {
         loadJobs().forEach(j => { if (!j.isDraft && j.id) addPendingPush(j.id); });
       }
+      if (realCloudJobs) { try { localStorage.setItem(LS_KEYS.jobsSyncedOnce, "1"); } catch (_) {} }
       // The working draft now syncs too — reconcile to a single newest draft
       // across devices and push the survivor back so the cloud stays canonical.
       reconcileDrafts(jobs, true);
@@ -18239,6 +18287,9 @@ async function firstLoginMigration(userId) {
     await sb.from("jobs").upsert(rows);   // upsert (not insert) → safe to re-run
     localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
   }
+  // This device has now reconciled its jobs with the cloud — record it so a later
+  // empty-cloud pull is read as a real delete-all, not an interrupted migration (B13).
+  try { localStorage.setItem(LS_KEYS.jobsSyncedOnce, "1"); } catch (_) {}
   // Profile LAST — the migration-complete signal. Stamp it so this device records
   // a sync baseline (B3) and the next pull won't round-trip our own upload.
   const localData = loadData();
@@ -18252,6 +18303,11 @@ async function firstLoginMigration(userId) {
 
 async function pushProfileToCloud(d) {
   if (!sb || !currentUser) return;
+  // Don't push before this device has seen the cloud once (no baseline): the local
+  // profile may still be demo defaults, and an eager push would clobber real cloud
+  // settings before the initial syncFromCloud (adopt) or firstLoginMigration runs.
+  // Both of those establish the baseline, after which pushes resume normally.
+  if (!localStorage.getItem(LS_KEYS.profileSyncedAt)) return;
   const stamp = new Date().toISOString();
   try {
     await trackCloud(sb.from("profiles").upsert({
