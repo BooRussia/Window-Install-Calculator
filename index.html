@@ -18196,6 +18196,15 @@ async function syncFromCloud() {
         .select("id,data").eq("user_id", user.id);
       if (jErr) throw jErr;
       const jobs = (jobRows || []).map(row => ({ ...row.data, id: row.id }));
+      // B13 — a returning-user profile with ZERO cloud jobs is the fingerprint of
+      // an interrupted first-login migration (profile written, jobs not — possible
+      // for accounts migrated before the jobs-first reorder above). Don't let
+      // reconcileDrafts treat that emptiness as authoritative and drop local saved
+      // jobs: queue every local saved job for (re)upload so it's preserved here
+      // and flushed to the cloud below.
+      if (!jobs.length) {
+        loadJobs().forEach(j => { if (!j.isDraft && j.id) addPendingPush(j.id); });
+      }
       // The working draft now syncs too — reconcile to a single newest draft
       // across devices and push the survivor back so the cloud stays canonical.
       reconcileDrafts(jobs, true);
@@ -18214,26 +18223,31 @@ async function syncFromCloud() {
 }
 
 async function firstLoginMigration(userId) {
+  // B13 — ORDER MATTERS. The profile row is what flips syncFromCloud into the
+  // "returning user" branch, so it must be written LAST: only after the jobs are
+  // safely in the cloud. If we wrote the profile first and the jobs upload was
+  // then interrupted (network drop / tab close), the next login would see a
+  // profile, take the returning-user branch, pull ZERO jobs, and reconcile the
+  // local jobs away. Uploading jobs first (with upsert, so a re-run after a
+  // partial migration is idempotent) makes an interrupted migration converge.
+  const localJobs = loadJobs();
+  if (localJobs.length) {
+    const rows = localJobs.map(j => {
+      const id = j.isDraft ? draftIdFor({ id: userId }) : (isUuid(j.id) ? j.id : crypto.randomUUID());
+      return { id, user_id: userId, data: { ...j, id } };
+    });
+    await sb.from("jobs").upsert(rows);   // upsert (not insert) → safe to re-run
+    localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
+  }
+  // Profile LAST — the migration-complete signal. Stamp it so this device records
+  // a sync baseline (B3) and the next pull won't round-trip our own upload.
   const localData = loadData();
-  // Stamp the seed write so this device records a sync baseline (B3) — keeps the
-  // very next pull from treating our own upload as "newer" and round-tripping it.
   const stamp = new Date().toISOString();
   await sb.from("profiles").upsert({ id: userId, data: localData, updated_at: stamp });
   try {
     localStorage.setItem(LS_KEYS.profileSyncedAt, stamp);
     localStorage.removeItem(LS_KEYS.profileDirty);
   } catch (_) {}
-  const localJobs = loadJobs();
-  // Upload everything including the working draft so it follows the user. The
-  // draft takes the canonical per-account id so other devices converge on one row.
-  if (localJobs.length) {
-    const rows = localJobs.map(j => {
-      const id = j.isDraft ? draftIdFor({ id: userId }) : (isUuid(j.id) ? j.id : crypto.randomUUID());
-      return { id, user_id: userId, data: { ...j, id } };
-    });
-    await sb.from("jobs").insert(rows);
-    localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
-  }
 }
 
 async function pushProfileToCloud(d) {
