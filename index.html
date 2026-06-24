@@ -7200,7 +7200,10 @@ const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1
   // cloud updated_at we're in sync with; profileDirty marks local settings edits
   // that haven't been confirmed pushed (so an offline edit isn't clobbered on the
   // next pull).
-  profileSyncedAt: "wcc.profileSyncedAt.v1", profileDirty: "wcc.profileDirty.v1" };
+  profileSyncedAt: "wcc.profileSyncedAt.v1", profileDirty: "wcc.profileDirty.v1",
+  // B5: persisted set of saved-job ids whose cloud push hasn't been confirmed
+  // (offline saves). Survives reload; flushed on reconnect / focus / after sync.
+  pendingPush: "wcc.pendingPush.v1" };
 
 function loadData() {
   try {
@@ -17812,7 +17815,11 @@ function trackCloud(promise) {
 // "offline" warning would be misleading.
 if (typeof window !== "undefined") {
   window.addEventListener("offline", () => { if (sb) markCloudError(new Error("navigator offline")); });
-  window.addEventListener("online", () => { if (sb) _cloudRetryPing(); });
+  window.addEventListener("online", () => { if (sb) { _cloudRetryPing(); flushPendingPush(); } });
+  // Coming back to the tab is a good moment to drain the offline-save retry queue.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && sb && currentUser) flushPendingPush();
+  });
 }
 
 function setAuthMsg(text, kind) {
@@ -18053,6 +18060,7 @@ async function handleSignOut() {
   localStorage.removeItem(LS_KEYS.jobs);
   localStorage.removeItem(LS_KEYS.profileSyncedAt);
   localStorage.removeItem(LS_KEYS.profileDirty);
+  localStorage.removeItem(LS_KEYS.pendingPush);
   localStorage.removeItem(LS_SIGN_SEEN);
   location.reload();
 }
@@ -18077,6 +18085,34 @@ function draftIdFor(u) {
 const _recentWrites = new Map();
 function markWritten(id) { if (id) _recentWrites.set(id, Date.now()); }
 
+// B5 — durable retry queue for saved jobs whose cloud push failed (offline).
+// Unlike _recentWrites (in-memory, 20s), this survives reload, so an offline-saved
+// job is both retried on reconnect AND protected from reconcileDrafts dropping it
+// for being absent from the cloud.
+function loadPendingPush() {
+  try { return JSON.parse(localStorage.getItem(LS_KEYS.pendingPush)) || []; } catch { return []; }
+}
+function savePendingPush(ids) {
+  try { localStorage.setItem(LS_KEYS.pendingPush, JSON.stringify([...new Set(ids)])); } catch (_) {}
+}
+function addPendingPush(id) { if (id) { const s = loadPendingPush(); if (!s.includes(id)) { s.push(id); savePendingPush(s); } } }
+function removePendingPush(id) { if (id) savePendingPush(loadPendingPush().filter(x => x !== id)); }
+let _flushingPending = false;
+async function flushPendingPush() {
+  if (!sb || !currentUser || _flushingPending) return;
+  const ids = loadPendingPush();
+  if (!ids.length) return;
+  _flushingPending = true;
+  try {
+    const jobs = loadJobs();
+    for (const id of ids) {
+      const job = jobs.find(j => j.id === id);
+      if (!job) { removePendingPush(id); continue; }   // gone locally — nothing to retry
+      try { await pushJobToCloud(job, true); } catch (_) {}   // removes from queue on success
+    }
+  } finally { _flushingPending = false; }
+}
+
 // Reconcile drafts after a cloud pull. Cloud is authoritative for SAVED jobs; the
 // working draft is merged on top. Rules that keep data safe:
 //  - never drop a saved job we wrote in the last ~20s but that the pull is missing
@@ -18091,9 +18127,15 @@ function reconcileDrafts(cloudJobs, pushKept) {
   const realIds = new Set(real.map(j => j.id));
   const localAll = loadJobs();
   const now = Date.now();
-  // Preserve a just-saved local job the pull hasn't caught up to yet.
+  const pending = new Set(loadPendingPush());
+  // Preserve a local saved job the cloud lacks when we have a reason to believe it
+  // is unsynced rather than deleted-elsewhere: either it was written in the last
+  // ~20s (its upsert may still be in flight) OR it's in the durable pending-push
+  // queue (an offline save that hasn't reached the cloud). Mere absence is NOT
+  // enough to drop it — that's what previously lost offline-saved jobs (B5).
   localAll.forEach(j => {
-    if (!j.isDraft && !realIds.has(j.id) && _recentWrites.has(j.id) && (now - _recentWrites.get(j.id) < 20000)) {
+    if (!j.isDraft && !realIds.has(j.id) &&
+        ((_recentWrites.has(j.id) && (now - _recentWrites.get(j.id) < 20000)) || pending.has(j.id))) {
       real.push(j); realIds.add(j.id);
     }
   });
@@ -18162,6 +18204,8 @@ async function syncFromCloud() {
       await firstLoginMigration(user.id);
     }
     markCloudOk();
+    // Drain any offline-saved jobs now that we've confirmed a working connection.
+    flushPendingPush();
   } catch (e) {
     // Auth failures aren't connectivity issues — don't flag offline for those
     if (e && e.message !== "Not signed in") markCloudError(e);
@@ -18216,8 +18260,11 @@ async function pushJobToCloud(job, silent) {
     // explicit-save-upgrades of a draft id both succeed instead of colliding
     // on the primary key.
     await trackCloud(sb.from("jobs").upsert({ id: job.id, user_id: currentUser.id, data: job }));
+    removePendingPush(job.id);   // confirmed in the cloud — clear any retry entry
     return true;
   } catch (e) {
+    // Queue for retry on reconnect, and keep it safe from reconcileDrafts until then.
+    addPendingPush(job.id);
     // Header pill already shows offline state. The toast is for foreground
     // actions; background draft autosync passes silent=true to avoid spam.
     if (!silent) toast("Saved locally — cloud sync failed");
