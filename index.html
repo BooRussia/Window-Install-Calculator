@@ -7195,7 +7195,12 @@ function setupCountyCombobox(prefix) {
 /* ============================================================
    STATE + STORAGE
    ============================================================ */
-const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1" };
+const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1",
+  // B3: profile sync is no longer blind last-write-wins. profileSyncedAt holds the
+  // cloud updated_at we're in sync with; profileDirty marks local settings edits
+  // that haven't been confirmed pushed (so an offline edit isn't clobbered on the
+  // next pull).
+  profileSyncedAt: "wcc.profileSyncedAt.v1", profileDirty: "wcc.profileDirty.v1" };
 
 function loadData() {
   try {
@@ -7242,6 +7247,11 @@ function loadData() {
 }
 function saveData(d) {
   localStorage.setItem(LS_KEYS.data, JSON.stringify(d));
+  // Mark the local profile dirty so a failed (offline) push isn't silently
+  // overwritten by the next cloud pull. Only when signed in — boot-time
+  // normalization before login must not look like a user edit. Cleared by
+  // pushProfileToCloud once the write is confirmed.
+  if (currentUser) { try { localStorage.setItem(LS_KEYS.profileDirty, "1"); } catch (_) {} }
   pushProfileToCloud(d);   // best-effort cloud sync
 }
 function loadState() {
@@ -18041,6 +18051,8 @@ async function handleSignOut() {
   localStorage.removeItem(LS_KEYS.data);
   localStorage.removeItem(LS_KEYS.state);
   localStorage.removeItem(LS_KEYS.jobs);
+  localStorage.removeItem(LS_KEYS.profileSyncedAt);
+  localStorage.removeItem(LS_KEYS.profileDirty);
   localStorage.removeItem(LS_SIGN_SEEN);
   location.reload();
 }
@@ -18113,11 +18125,31 @@ async function syncFromCloud() {
     if (!user) throw new Error("Not signed in");
 
     const { data: prof, error: pErr } = await sb.from("profiles")
-      .select("data").eq("id", user.id).maybeSingle();
+      .select("data, updated_at").eq("id", user.id).maybeSingle();
     if (pErr) throw pErr;
 
     if (prof && prof.data && Object.keys(prof.data).length) {
-      localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
+      // B3 — settings sync is NOT blind last-write-wins. Only let the cloud
+      // overwrite local settings when it's strictly newer than the cloud state
+      // this device last synced to AND there are no unsynced local edits. If the
+      // local copy is dirty (edited offline) or no newer cloud exists, the local
+      // copy is at least as fresh — push it up instead of clobbering it.
+      const cloudStamp = Date.parse(prof.updated_at || "") || 0;
+      const appliedStamp = Date.parse(localStorage.getItem(LS_KEYS.profileSyncedAt) || "") || 0;
+      const hasBaseline = !!localStorage.getItem(LS_KEYS.profileSyncedAt);
+      const dirty = localStorage.getItem(LS_KEYS.profileDirty) === "1";
+      const cloudNewer = cloudStamp > appliedStamp;
+      if (!dirty && (!hasBaseline || cloudNewer)) {
+        // Adopt the cloud copy (first sync on this device, or cloud genuinely newer).
+        localStorage.setItem(LS_KEYS.data, JSON.stringify(prof.data));
+        try {
+          localStorage.setItem(LS_KEYS.profileSyncedAt, prof.updated_at || new Date(cloudStamp || Date.now()).toISOString());
+          localStorage.removeItem(LS_KEYS.profileDirty);
+        } catch (_) {}
+      } else if (dirty) {
+        // Local has edits the cloud lacks (or a conflict) — local wins; push it up.
+        try { pushProfileToCloud(loadData()); } catch (_) {}
+      }
       const { data: jobRows, error: jErr } = await sb.from("jobs")
         .select("id,data").eq("user_id", user.id);
       if (jErr) throw jErr;
@@ -18139,7 +18171,14 @@ async function syncFromCloud() {
 
 async function firstLoginMigration(userId) {
   const localData = loadData();
-  await sb.from("profiles").upsert({ id: userId, data: localData });
+  // Stamp the seed write so this device records a sync baseline (B3) — keeps the
+  // very next pull from treating our own upload as "newer" and round-tripping it.
+  const stamp = new Date().toISOString();
+  await sb.from("profiles").upsert({ id: userId, data: localData, updated_at: stamp });
+  try {
+    localStorage.setItem(LS_KEYS.profileSyncedAt, stamp);
+    localStorage.removeItem(LS_KEYS.profileDirty);
+  } catch (_) {}
   const localJobs = loadJobs();
   // Upload everything including the working draft so it follows the user. The
   // draft takes the canonical per-account id so other devices converge on one row.
@@ -18155,11 +18194,18 @@ async function firstLoginMigration(userId) {
 
 async function pushProfileToCloud(d) {
   if (!sb || !currentUser) return;
+  const stamp = new Date().toISOString();
   try {
     await trackCloud(sb.from("profiles").upsert({
-      id: currentUser.id, data: d, updated_at: new Date().toISOString()
+      id: currentUser.id, data: d, updated_at: stamp
     }));
-  } catch (e) { /* error already routed via trackCloud */ }
+    // Write confirmed — this is now the cloud state we're in sync with, so a
+    // later pull won't treat it as "newer" and clobber, and the dirty flag clears.
+    try {
+      localStorage.setItem(LS_KEYS.profileSyncedAt, stamp);
+      localStorage.removeItem(LS_KEYS.profileDirty);
+    } catch (_) {}
+  } catch (e) { /* error routed via trackCloud; dirty flag stays set so the next sync re-pushes */ }
 }
 
 async function pushJobToCloud(job, silent) {
