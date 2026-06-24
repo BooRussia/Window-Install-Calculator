@@ -10791,28 +10791,47 @@ function composeJobThumbnail(bgDataUrl, title, subtitle, blurRadius) {
 
 // Generate a house image via the edge fn, composite the job name on it, and
 // save it as the job's thumbnail (stored in Storage like an uploaded photo).
+// The edge fn charges an AI-image credit the moment it returns an image, so we
+// cache that image per-job: if the LOCAL steps (canvas compositing / Storage
+// upload) fail afterward, a retry reuses the cached image instead of paying for
+// a brand-new generation. Cleared on success so a later regen makes a fresh one.
+const _aiThumbCache = Object.create(null);   // jobId -> generated bg image (data URL)
 async function generateJobThumbnail(jobId, btn) {
   if (!sb || !currentUser) { toast("Sign in to generate a thumbnail"); return; }
   const job = loadJobs().find(x => x.id === jobId);
   if (!job) { toast("Job not found"); return; }
   const prev = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
-  toast("Generating thumbnail… (~20s)");
   try {
-    const { data, error } = await sb.functions.invoke("generate-house-image", { body: {} });
-    if (error) throw error;
-    if (!data || !data.ok || !data.image) throw new Error((data && data.error) || "generation failed");
+    // Reuse a paid-for image from a previous attempt that failed locally; only
+    // invoke (and get billed by) the edge fn when we have nothing cached.
+    let image = _aiThumbCache[jobId];
+    if (image) {
+      toast("Finishing your thumbnail…");
+    } else {
+      toast("Generating thumbnail… (~20s)");
+      const { data, error } = await sb.functions.invoke("generate-house-image", { body: {} });
+      if (error) throw error;
+      if (!data || !data.ok || !data.image) throw new Error((data && data.error) || "generation failed");
+      image = data.image;
+      _aiThumbCache[jobId] = image;   // cache BEFORE the local steps that can fail
+    }
     // Job name is the headline (big), customer name confirms it just below.
     const title = job.name || job.customerName || "Window Job";
     const cust = (job.customerName && job.customerName !== title) ? job.customerName : "";
     const subtitle = cust || ((job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "");
-    const thumb = await composeJobThumbnail(data.image, title, subtitle);
+    const thumb = await composeJobThumbnail(image, title, subtitle);
     await saveJobPhoto(jobId, thumb);   // uploads to Storage + re-renders
+    delete _aiThumbCache[jobId];        // saved — drop the cache so a future regen is fresh
     try { if (typeof window.track === "function") window.track("ai_thumbnail_generated"); } catch (_) {}
     toast("Thumbnail generated");
   } catch (e) {
     console.warn("thumbnail generation failed", e);
-    toast("Couldn't generate a thumbnail — try again");
+    // If the image was already generated (and billed), the retry only re-runs the
+    // local compositing/upload — make that clear so the user isn't afraid to retry.
+    toast(_aiThumbCache[jobId]
+      ? "Couldn't finish saving — tap Generate again to retry (no new credit used)"
+      : "Couldn't generate a thumbnail — try again");
     if (btn) { btn.disabled = false; btn.textContent = prev; }
   }
 }
