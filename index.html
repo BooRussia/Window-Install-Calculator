@@ -16240,7 +16240,7 @@ function setPlanUploadStatus(elId, msg, kind) {
 async function invokePlanExtraction(body) {
   const { data, error } = await sb.functions.invoke("extract-plan-openings", { body });
   if (error) {
-    let status = 0, msg = "", debug = null;
+    let status = 0, msg = "", debug = null, code = "";
     try {
       const ctx = error.context;
       if (ctx && typeof ctx.json === "function") {
@@ -16248,12 +16248,13 @@ async function invokePlanExtraction(body) {
         const j = await ctx.json();
         if (j && j.error) msg = j.error;
         if (j && j.debug) debug = j.debug;
+        if (j && j.code) code = j.code;   // "cap_reached" vs "rate_limited" — both are 429
       }
     } catch (_) {}
     // Friction signal: the AI plan read failed (status tells us why — 429 cap,
     // 422 unreadable, 502/504 upstream). Feeds the admin Sticking-Points view.
     try { if (typeof window.track === "function") window.track("plan_ai_failed", { status }); } catch (_) {}
-    return { ok: false, status, msg: msg || error.message || "Couldn't read that plan.", debug };
+    return { ok: false, status, code, msg: msg || error.message || "Couldn't read that plan.", debug };
   }
   return { ok: true, data };
 }
@@ -16425,7 +16426,10 @@ async function handlePlanUpload(files, source) {
         res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
       }
       if (res.ok) { texts[idx] = (res.data && res.data.text) || ""; okChunks++; }
-      else { failChunks++; lastFail = res; if (res.status === 429) hitCap = true; }
+      // Only a TRUE cap (code "cap_reached") pins the meter. A transient 429
+      // ("AI is busy") is refunded server-side, so treating it as hitCap would
+      // wrongly pin the local meter to the cap and lock the user out for the cycle.
+      else { failChunks++; lastFail = res; if (res.status === 429 && res.code === "cap_reached") hitCap = true; }
     };
     // concurrency-limited parallel run (respects xAI rate limits)
     let nextIdx = 0;
@@ -17824,10 +17828,10 @@ function trackCloud(promise) {
 // "offline" warning would be misleading.
 if (typeof window !== "undefined") {
   window.addEventListener("offline", () => { if (sb) markCloudError(new Error("navigator offline")); });
-  window.addEventListener("online", () => { if (sb) { _cloudRetryPing(); flushPendingPush(); } });
+  window.addEventListener("online", () => { if (sb) { _cloudRetryPing(); _drainCloud(); } });
   // Coming back to the tab is a good moment to drain the offline-save retry queue.
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && sb && currentUser) flushPendingPush();
+    if (!document.hidden && sb && currentUser) _drainCloud();
   });
 }
 
@@ -18107,6 +18111,19 @@ function savePendingPush(ids) {
 }
 function addPendingPush(id) { if (id) { const s = loadPendingPush(); if (!s.includes(id)) { s.push(id); savePendingPush(s); } } }
 function removePendingPush(id) { if (id) savePendingPush(loadPendingPush().filter(x => x !== id)); }
+// On reconnect / tab-focus: if this device never established a sync baseline (its
+// boot syncFromCloud failed while offline), run a FULL sync now so the cloud
+// profile + jobs are adopted and the baseline is set — otherwise pushProfileToCloud
+// stays gated and this session's settings edits would never reach the cloud. Once a
+// baseline exists, just drain the offline-save job queue.
+function _drainCloud() {
+  if (!sb || !currentUser) return;
+  if (!localStorage.getItem(LS_KEYS.profileSyncedAt)) {
+    try { syncFromCloud().catch(() => {}); } catch (_) {}
+  } else {
+    flushPendingPush();
+  }
+}
 let _flushingPending = false;
 async function flushPendingPush() {
   if (!sb || !currentUser || _flushingPending) return;
@@ -18186,9 +18203,17 @@ function adoptCloudEntitlements(localData, cloudData) {
   const before = JSON.stringify(le);
   const merged = clone(ce);
   if (le.cycleResetAt && ce.cycleResetAt && le.cycleResetAt === ce.cycleResetAt) {
+    // Same billing cycle → keep the higher counters (don't lose an offline consume).
     const hi = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
     merged.quotesUsedThisCycle = hi(le.quotesUsedThisCycle, ce.quotesUsedThisCycle);
     merged.aiExtractionsUsedThisCycle = hi(le.aiExtractionsUsedThisCycle, ce.aiExtractionsUsedThisCycle);
+  } else if (le.cycleResetAt && ce.cycleResetAt && le.cycleResetAt > ce.cycleResetAt) {
+    // The client already rolled into a NEWER cycle (cycleNeedsReset ran before the
+    // server's invoice.paid webhook caught up). Keep the local fresh cycle + counters
+    // so the user's quota isn't transiently reverted to the old cycle's usage.
+    merged.cycleResetAt = le.cycleResetAt;
+    merged.quotesUsedThisCycle = Number(le.quotesUsedThisCycle) || 0;
+    merged.aiExtractionsUsedThisCycle = Number(le.aiExtractionsUsedThisCycle) || 0;
   }
   localData.config.entitlements = merged;
   return JSON.stringify(merged) !== before;
@@ -18287,17 +18312,17 @@ async function firstLoginMigration(userId) {
     await sb.from("jobs").upsert(rows);   // upsert (not insert) → safe to re-run
     localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
   }
-  // This device has now reconciled its jobs with the cloud — record it so a later
-  // empty-cloud pull is read as a real delete-all, not an interrupted migration (B13).
-  try { localStorage.setItem(LS_KEYS.jobsSyncedOnce, "1"); } catch (_) {}
   // Profile LAST — the migration-complete signal. Stamp it so this device records
   // a sync baseline (B3) and the next pull won't round-trip our own upload.
   const localData = loadData();
   const stamp = new Date().toISOString();
   await sb.from("profiles").upsert({ id: userId, data: localData, updated_at: stamp });
+  // Set the sync markers only AFTER the profile (migration-complete) write resolves,
+  // so an interrupted migration leaves NEITHER set and re-runs cleanly (B13).
   try {
     localStorage.setItem(LS_KEYS.profileSyncedAt, stamp);
     localStorage.removeItem(LS_KEYS.profileDirty);
+    localStorage.setItem(LS_KEYS.jobsSyncedOnce, "1");
   } catch (_) {}
 }
 

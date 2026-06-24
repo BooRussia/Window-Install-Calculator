@@ -25,8 +25,11 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
-function errorResponse(message: string, status = 400): Response {
-  return jsonResponse({ error: message }, status);
+function errorResponse(message: string, status = 400, code?: string): Response {
+  // `code` lets the client distinguish 429s: a true cap ("cap_reached") vs a
+  // transient upstream rate-limit ("rate_limited", which we refund) — so the
+  // client only pins its local AI-read meter to the cap on a genuine cap.
+  return jsonResponse(code ? { error: message, code } : { error: message }, status);
 }
 function handlePreflight(req: Request): Response | null {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -269,7 +272,7 @@ Deno.serve(async (req) => {
         return errorResponse("Usage check failed — try again.", 500);
       }
       if (!okDebit) {
-        return errorResponse("You've used all your AI plan reads for this billing cycle.", 429);
+        return errorResponse("You've used all your AI plan reads for this billing cycle.", 429, "cap_reached");
       }
       debited = true;
     }
@@ -309,6 +312,9 @@ Deno.serve(async (req) => {
           ? "The AI is busy right now — try again in a moment."
           : "The AI couldn't process that plan. Try again or paste it into Grok.",
         status,
+        // transient upstream rate-limit — already refunded above, so the client
+        // must NOT treat this 429 as a real cap.
+        status === 429 ? "rate_limited" : undefined,
       );
     }
     const aiJson = await aiRes.json();
