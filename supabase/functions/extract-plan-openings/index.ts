@@ -135,7 +135,21 @@ APPROVAL | FL22193.1 | 8000 Series Sliding Glass Door (SGD1)
 Read the dimensions and quantities directly off the drawing. Only if there are genuinely no openings visible at all, reply with just "MANUFACTURER: <name>". Otherwise reply with the MANUFACTURER line, one OPENING line per opening, and one APPROVAL line per approval number you find.`;
 
 function looksValid(text: string): boolean {
-  return !!text && /OPENING\s*\|/i.test(text);
+  if (!text) return false;
+  // Require at least one OPENING line the client can actually USE — i.e. with a
+  // positive numeric width AND height. The client's parseOpenings() drops any
+  // opening missing real dimensions, so a reply that only has dimensionless
+  // OPENING lines would be billed server-side but yield nothing on the client.
+  // Matching that rule here keeps the debit and the local meter in lock-step:
+  // an unusable read is refunded (422) instead of silently charged.
+  for (const raw of text.split(/\r?\n/)) {
+    if (!/^\s*OPENING\s*\|/i.test(raw)) continue;
+    const parts = raw.split("|").map((p) => p.trim());
+    const w = parseFloat(parts[2]);
+    const h = parseFloat(parts[3]);
+    if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) return true;
+  }
+  return false;
 }
 
 function isAdminUser(user: { id?: string; email?: string } | null): boolean {

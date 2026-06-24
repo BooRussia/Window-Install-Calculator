@@ -16404,14 +16404,27 @@ async function handlePlanUpload(files, source) {
       else setErr((lastFail && lastFail.msg) || "Couldn't read that plan — try clearer pages, or just the schedule sheets.", lastFail && lastFail.debug);
       return;
     }
-    const mergedText = mergePlanExtractions(texts.filter(Boolean));
-    const ok = applyFullExtraction(mergedText, source);   // fills the calc + toasts a summary
-    if (!ok) { setErr("Couldn't read any openings — try clearer pages, or just the schedule sheets."); return; }
-
-    // Meter: the server debited one credit per SUCCESSFUL chunk; mirror locally.
-    if (!adminUser) {
+    // Meter FIRST: the server already debited one credit per SUCCESSFUL chunk
+    // (it refunds chunks it couldn't read, which come back as failChunks). Mirror
+    // those debits locally NOW — before we try to apply the text — so the local
+    // meter can never drift below the server's count even if the merged reply
+    // turns out to be unusable on this side. Otherwise the user is silently
+    // charged server-side while the local meter still shows the credit available.
+    if (!adminUser && okChunks) {
       for (let k = 0; k < okChunks; k++) bumpAiReadUsed();
       renderAiReadsMeter();
+    }
+
+    const mergedText = mergePlanExtractions(texts.filter(Boolean));
+    const ok = applyFullExtraction(mergedText, source);   // fills the calc + toasts a summary
+    if (!ok) {
+      const rem = !adminUser ? getAiReadsRemaining() : Infinity;
+      setErr("Couldn't read any openings — try clearer pages, or just the schedule sheets."
+        + (rem !== Infinity ? ` (${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left.)` : ""));
+      return;
+    }
+
+    if (!adminUser) {
       const rem = getAiReadsRemaining();
       if (rem !== Infinity) toast(`${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
     }
