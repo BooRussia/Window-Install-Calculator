@@ -416,6 +416,41 @@
   @media (min-width: 1024px) { #jobSpecsFab { display: none !important; } }
   body.rail-open #jobSpecsFab { opacity: 0; pointer-events: none; transform: translateY(8px); }
 
+  /* Mobile-only sticky live TOTAL bar — keeps the selling price in the thumb
+     zone while you edit, so the number reacts to every choice without leaving
+     the drawer. (frontend-design skill: components.md §1, mobile-patterns §7.) */
+  #mtotalBar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+    background: rgba(7,12,24,0.93);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid rgba(181,143,74,0.30);
+    box-shadow: 0 -12px 32px -18px rgba(0,0,0,0.8);
+    transform: translateY(115%);
+    transition: transform .32s cubic-bezier(0.16,1,0.3,1);
+  }
+  #mtotalBar.show { transform: translateY(0); }
+  #mtotalBtn {
+    width: 100%; min-height: 56px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px max(16px, env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    background: transparent; border: 0; cursor: pointer; text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #mtotalBar .mtotal-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  #mtotalBar .mtotal-cap { font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #94a3b8; }
+  #mtotalBar .mtotal-sub { font-size: 11px; font-weight: 600; color: #94a3b8; font-variant-numeric: tabular-nums; }
+  #mtotalBar .mtotal-amount { margin-left: auto; font-size: 22px; font-weight: 800; color: #f8fafc; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; line-height: 1; }
+  #mtotalBar .mtotal-chev { flex-shrink: 0; color: #c9a558; }
+  .mtotal-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  @media (min-width: 1024px) { #mtotalBar { display: none !important; } }
+  /* When the bar is up (mobile only), clear the drawer's bottom controls and
+     lift the FAB above it so nothing is covered. */
+  @media (max-width: 1023px) {
+    body.mtotal-on #jobRail > .overflow-y-auto { padding-bottom: 88px; }
+    body.mtotal-on #jobSpecsFab { bottom: calc(88px + env(safe-area-inset-bottom)); }
+  }
+  @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
+
   #jobRail {
     position: fixed; top: 3.5rem; bottom: 0; left: 0;
     width: 19rem; max-width: 86vw;
@@ -4975,6 +5010,18 @@
 <div id="jobRailBackdrop"></div>
 <div id="railHotzone" aria-hidden="true"><span class="rail-grip"></span></div>
 
+<!-- Mobile-only sticky live total — persistent price in the thumb zone; tap to view the full breakdown. -->
+<div id="mtotalBar">
+  <button id="mtotalBtn" type="button" aria-controls="results" aria-label="View the full price breakdown">
+    <span class="mtotal-meta">
+      <span class="mtotal-cap">Selling price</span>
+      <span class="mtotal-sub">@ <span id="mtotalMargin">35</span>% markup</span>
+    </span>
+    <output id="mtotalOut" class="mtotal-amount" aria-live="polite" aria-atomic="true"><span class="mtotal-sr">Selling price </span><span id="mtotalAmount">$0.00</span></output>
+    <svg class="mtotal-chev" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 8 14 12"/></svg>
+  </button>
+</div>
+
 <div id="appBody">
 
 <!-- Demo-data reminder banner -->
@@ -8635,6 +8682,9 @@ function render() {
   const empty = document.getElementById("emptyState");
   results.classList.toggle("hidden", !hasInput);
   empty.classList.toggle("hidden", hasInput);
+  // Mobile sticky total bar mirrors results visibility (thumb-zone live price).
+  { const _mbar = document.getElementById("mtotalBar");
+    if (_mbar) { _mbar.classList.toggle("show", hasInput); document.body.classList.toggle("mtotal-on", hasInput); } }
   // The recap band sits above results/empty and should always reflect STATE.
   renderLiveRecap();
   // Wire the accordion + open a section BEFORE the empty-job early-return below,
@@ -8643,6 +8693,8 @@ function render() {
   if (!hasInput) { fitAll(); return; }
 
   document.getElementById("sellingPrice").textContent = formatMoney(r.sellingPrice);
+  { const _ma = document.getElementById("mtotalAmount"); if (_ma) _ma.textContent = formatMoney(r.sellingPrice);
+    const _mm = document.getElementById("mtotalMargin"); if (_mm) _mm.textContent = String(r.margin); }
   document.getElementById("totalCost").textContent = formatMoney(r.totalCost);
   document.getElementById("profit").textContent = formatMoney(r.profit);
   document.getElementById("perLfBadge").textContent = `${formatMoney(r.perLfCost)} / LF`;
@@ -20999,6 +21051,12 @@ function init() {
   document.getElementById("jobRailToggle").addEventListener("click", railHeaderAction);
   document.getElementById("railToggleHeader").addEventListener("click", toggleRail);
   document.getElementById("jobRailBackdrop").addEventListener("click", closeJobRail);
+  // Mobile sticky total bar → close the drawer (if open) and reveal the full breakdown.
+  document.getElementById("mtotalBtn")?.addEventListener("click", () => {
+    closeJobRail();
+    const res = document.getElementById("results");
+    if (res && !res.classList.contains("hidden")) res.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   const _hotzone = document.getElementById("railHotzone");
   _hotzone.addEventListener("mouseenter", railPeek);
   _hotzone.addEventListener("click", () => { if (isDesktopRail()) toggleRailPin(); });
