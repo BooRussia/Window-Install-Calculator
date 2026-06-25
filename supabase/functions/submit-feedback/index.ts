@@ -65,6 +65,17 @@ Deno.serve(async (req) => {
   if (message.length > 4000) return json({ ok: false, error: "That's a bit long — keep it under 4000 characters." }, 400);
   const ctx = (body.context && typeof body.context === "object") ? body.context : {};
 
+  // ── Optional photo attachments. The client uploads compressed images straight
+  // into its own folder of the private `feedback-photos` bucket and sends the
+  // resulting storage paths here. Trust nothing: require each path to be a short
+  // string scoped to THIS user's folder so a caller can't attach someone else's
+  // (or an arbitrary) object. Cap to 6 (matches the DB constraint).
+  const photos: string[] = (Array.isArray(body.photos) ? body.photos : [])
+    .filter((p: unknown): p is string => typeof p === "string")
+    .map((p: string) => p.trim())
+    .filter((p: string) => p.length > 0 && p.length <= 300 && p.startsWith(`${user.id}/feedback/`))
+    .slice(0, 6);
+
   // ── Pull authoritative submitter info from the profile (not the request body)
   let plan = "unknown";
   let company = String(ctx.company ?? "").slice(0, 120) || null;
@@ -84,6 +95,7 @@ Deno.serve(async (req) => {
     plan,
     kind,
     message,
+    photos,
     context: {
       url: String(ctx.url ?? "").slice(0, 500),
       ua: String(ctx.ua ?? "").slice(0, 400),
@@ -111,6 +123,7 @@ Deno.serve(async (req) => {
       `<tr><td><b>Company</b></td><td style="padding-left:10px">${escapeHtml(company ?? "—")}</td></tr>` +
       `<tr><td><b>Plan</b></td><td style="padding-left:10px">${escapeHtml(plan)}</td></tr>` +
       `<tr><td><b>Page</b></td><td style="padding-left:10px">${escapeHtml(row.context.url)}</td></tr>` +
+      (photos.length ? `<tr><td><b>Photos</b></td><td style="padding-left:10px">${photos.length} attached — view them in the in-app feedback inbox</td></tr>` : "") +
       `</table>`;
     try {
       const res = await fetch("https://api.resend.com/emails", {

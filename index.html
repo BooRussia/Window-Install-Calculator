@@ -653,6 +653,24 @@
   }
   [data-theme="light"] .fb-item { background: #f8fafc; border-color: #e6e8ec; }
   [data-theme="light"] .fb-msg { color: #1e293b; }
+  /* Feedback photo picker (submit form) + admin thumbnails */
+  .fb-photo-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+  .fb-thumb { position: relative; width: 64px; height: 64px; border-radius: 9px; overflow: hidden;
+    border: 1px solid rgba(181,143,74,0.35); background: #0b1220; flex: none; }
+  .fb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .fb-thumb-x { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 999px;
+    border: none; background: rgba(2,6,23,0.78); color: #fff; font-size: 13px; line-height: 16px; cursor: pointer; padding: 0; }
+  .fb-thumb-x:hover { background: #f43f5e; }
+  .fb-addphoto { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600;
+    color: #94a3b8; background: transparent; border: 1px dashed rgba(71,85,105,0.7); border-radius: 10px;
+    padding: 8px 14px; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
+  .fb-addphoto:hover { border-color: rgba(181,143,74,0.6); color: #c9a558; }
+  .fb-addphoto:disabled { opacity: 0.45; cursor: not-allowed; }
+  /* Admin: feedback photo thumbnails */
+  .fb-photos { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+  .fb-photos a { width: 58px; height: 58px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(51,65,85,0.7); display: block; }
+  .fb-photos img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0b1220; }
+  [data-theme="light"] .fb-addphoto { color: #64748b; }
   /* Impact level — tint ONLY the "?" help icon so the cue is glanceable but
      stays out of the title text. High = rose, medium = gold; low/neutral fields
      keep the default slate icon (no marker). The tint is the icon's RESTING
@@ -6172,6 +6190,15 @@
       </div>
       <textarea id="feedbackMessage" rows="5" maxlength="4000" placeholder="What would make Anchor better for you?"
         class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" style="resize:vertical;min-height:120px;"></textarea>
+      <div>
+        <div id="feedbackPhotoStrip" class="fb-photo-strip" style="margin-bottom:8px"></div>
+        <button id="feedbackAddPhoto" type="button" class="fb-addphoto">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          Add photos
+        </button>
+        <input id="feedbackPhotoInput" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" />
+        <p class="text-[11px] text-slate-600 mt-1.5">Optional — attach up to 6 screenshots to show what you mean.</p>
+      </div>
       <div class="flex items-center justify-between gap-3">
         <span id="feedbackError" class="text-xs text-rose-400"></span>
         <button id="feedbackSubmit" type="button" class="btn rounded-full px-6 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] disabled:opacity-50 ml-auto">Send</button>
@@ -14673,12 +14700,60 @@ function jfMenuAction(fileKey, act) {
 
 // ── Feedback: suggest a feature / report a bug ───────────────────────────────
 let _feedbackKind = "feature";
+
+// Photo attachments. Compressed locally on pick; uploaded to the private
+// feedback-photos bucket only on submit — so abandoning the form leaves no
+// orphaned objects. The owner views them (signed URLs) in the feedback inbox.
+const FEEDBACK_BUCKET = "feedback-photos";
+const FEEDBACK_MAX_PHOTOS = 6;
+let _feedbackPhotos = [];   // array of compressed JPEG data URLs (staged, not uploaded)
+
+function resetFeedbackPhotos() {
+  _feedbackPhotos = [];
+  renderFeedbackPhotoStrip();
+  const inp = document.getElementById("feedbackPhotoInput"); if (inp) inp.value = "";
+}
+function renderFeedbackPhotoStrip() {
+  const strip = document.getElementById("feedbackPhotoStrip");
+  if (!strip) return;
+  strip.innerHTML = _feedbackPhotos.map((src, i) =>
+    `<div class="fb-thumb"><img src="${src}" alt="attachment ${i + 1}"><button type="button" class="fb-thumb-x" data-fbphoto-remove="${i}" aria-label="Remove photo">×</button></div>`
+  ).join("");
+  const add = document.getElementById("feedbackAddPhoto");
+  if (add) { const full = _feedbackPhotos.length >= FEEDBACK_MAX_PHOTOS; add.disabled = full; add.style.display = full ? "none" : ""; }
+}
+async function onFeedbackPhotosPicked(files) {
+  const err = document.getElementById("feedbackError"); if (err) err.textContent = "";
+  const list = [...(files || [])].filter(f => /^image\//.test(f.type));
+  for (const f of list) {
+    if (_feedbackPhotos.length >= FEEDBACK_MAX_PHOTOS) { if (err) err.textContent = `Up to ${FEEDBACK_MAX_PHOTOS} photos.`; break; }
+    try { _feedbackPhotos.push(await compressJobPhoto(f, 1400, 0.8)); }
+    catch (_e) { if (err) err.textContent = "Couldn't read one of those images."; }
+  }
+  renderFeedbackPhotoStrip();
+  const inp = document.getElementById("feedbackPhotoInput"); if (inp) inp.value = "";
+}
+// Upload the staged photos into the user's own feedback-photos folder; returns paths.
+async function uploadFeedbackPhotos() {
+  if (!_feedbackPhotos.length || !sb || !sb.storage || !currentUser) return [];
+  const paths = [];
+  for (let i = 0; i < _feedbackPhotos.length; i++) {
+    const path = `${currentUser.id}/feedback/${Date.now()}_${i}.jpg`;
+    const { error } = await sb.storage.from(FEEDBACK_BUCKET)
+      .upload(path, dataURLToBlob(_feedbackPhotos[i]), { upsert: true, contentType: "image/jpeg" });
+    if (error) throw error;
+    paths.push(path);
+  }
+  return paths;
+}
+
 function openFeedback() {
   const m = document.getElementById("feedbackModal");
   if (!m) return;
   document.getElementById("feedbackForm").classList.remove("hidden");
   document.getElementById("feedbackThanks").classList.add("hidden");
   const err = document.getElementById("feedbackError"); if (err) err.textContent = "";
+  resetFeedbackPhotos();
   setFeedbackKind(_feedbackKind);
   m.classList.remove("hidden"); m.classList.add("flex");
   setTimeout(() => { const t = document.getElementById("feedbackMessage"); if (t) t.focus(); }, 60);
@@ -14711,12 +14786,16 @@ async function submitFeedback() {
   }
   if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
   try {
+    let photoPaths = [];
+    try { photoPaths = await uploadFeedbackPhotos(); }
+    catch (_up) { throw new Error("Couldn't upload the photos — remove them or try again."); }
     const brand = (DATA && DATA.config && DATA.config.brand) || {};
     const ent = (DATA && DATA.config && DATA.config.entitlements) || {};
     const { data, error } = await sb.functions.invoke("submit-feedback", {
       body: {
         kind: _feedbackKind,
         message: msg,
+        photos: photoPaths,
         context: {
           company: brand.companyName || "",
           plan: ent.plan || "",
@@ -14732,7 +14811,8 @@ async function submitFeedback() {
     document.getElementById("feedbackForm").classList.add("hidden");
     document.getElementById("feedbackThanks").classList.remove("hidden");
     if (ta) ta.value = "";
-    try { window.track("feedback_submitted", { kind: _feedbackKind }); } catch (_e) {}
+    resetFeedbackPhotos();
+    try { window.track("feedback_submitted", { kind: _feedbackKind, photos: photoPaths.length }); } catch (_e) {}
   } catch (e) {
     if (err) err.textContent = (e && e.message) || "Couldn't send — try again.";
   } finally {
@@ -14741,6 +14821,27 @@ async function submitFeedback() {
 }
 
 // ── Admin: feedback list (owner-only; reads via admin RLS + live realtime) ────
+// Signed URLs for attached screenshots (admin reads via the bucket's admin-read
+// policy). Cached ~50 min like the job-photo resolver.
+const _fbUrlCache = {};
+async function resolveSignedFeedbackURL(path) {
+  if (!path || !sb || !sb.storage) return "";
+  const now = Date.now();
+  const c = _fbUrlCache[path];
+  if (c && c.exp > now) return c.url;
+  try {
+    const { data, error } = await sb.storage.from(FEEDBACK_BUCKET).createSignedUrl(path, 3600);
+    if (error || !data || !data.signedUrl) return "";
+    _fbUrlCache[path] = { url: data.signedUrl, exp: now + 50 * 60 * 1000 };
+    return data.signedUrl;
+  } catch (_e) { return ""; }
+}
+function hydrateFeedbackThumbs(root) {
+  (root || document).querySelectorAll("img[data-fbphoto-path]:not([data-fbphoto-done])").forEach((img) => {
+    img.setAttribute("data-fbphoto-done", "1");
+    resolveSignedFeedbackURL(img.dataset.fbphotoPath).then((url) => { if (url) img.src = url; });
+  });
+}
 let _fbRealtimeWired = false;
 async function renderAdminFeedback() {
   const body = document.getElementById("adminFeedbackBody");
@@ -14771,6 +14872,8 @@ async function renderAdminFeedback() {
         <span class="fb-meta" style="margin-left:auto">${escHtml(when)}</span>
       </div>
       <div class="fb-msg">${escHtml(r.message || "")}</div>
+      ${Array.isArray(r.photos) && r.photos.length ? `<div class="fb-photos">${r.photos.map(p =>
+        `<a href="#" data-fbphoto-open="${escHtml(p)}" title="Open full size"><img data-fbphoto-path="${escHtml(p)}" alt="attachment"></a>`).join("")}</div>` : ""}
       ${r.user_email ? `<div class="fb-meta" style="margin-top:6px">${escHtml(r.user_email)}</div>` : ""}
       <div class="fb-actions">
         <button class="fb-act" data-fbact="done" data-fbid="${r.id}">${done ? "Reopen" : "Mark done"}</button>
@@ -14778,6 +14881,7 @@ async function renderAdminFeedback() {
       </div>
     </div>`;
   }).join("");
+  hydrateFeedbackThumbs(body);
   if (!_fbRealtimeWired) {
     try {
       sb.channel("feedback-admin")
@@ -14836,10 +14940,23 @@ async function markFeedbackSeen() {
   if (kind) kind.addEventListener("click", e => { const b = e.target.closest("[data-fbkind]"); if (b) setFeedbackKind(b.dataset.fbkind); });
   const sub = document.getElementById("feedbackSubmit"); if (sub) sub.addEventListener("click", submitFeedback);
   const done = document.getElementById("feedbackDone"); if (done) done.addEventListener("click", closeFeedback);
+  // Photo picker: open the file dialog, ingest picks, remove staged thumbs.
+  const addPhoto = document.getElementById("feedbackAddPhoto");
+  const photoInp = document.getElementById("feedbackPhotoInput");
+  if (addPhoto && photoInp) addPhoto.addEventListener("click", () => photoInp.click());
+  if (photoInp) photoInp.addEventListener("change", () => onFeedbackPhotosPicked(photoInp.files));
+  const strip = document.getElementById("feedbackPhotoStrip");
+  if (strip) strip.addEventListener("click", e => {
+    const x = e.target.closest("[data-fbphoto-remove]"); if (!x) return;
+    const i = parseInt(x.dataset.fbphotoRemove, 10);
+    if (i >= 0 && i < _feedbackPhotos.length) { _feedbackPhotos.splice(i, 1); renderFeedbackPhotoStrip(); }
+  });
   const modal = document.getElementById("feedbackModal");
   if (modal) modal.addEventListener("click", e => { if (e.target.dataset.fbclose !== undefined) closeFeedback(); });
   const fbBody = document.getElementById("adminFeedbackBody");
   if (fbBody) fbBody.addEventListener("click", e => {
+    const open = e.target.closest("[data-fbphoto-open]");
+    if (open) { e.preventDefault(); resolveSignedFeedbackURL(open.dataset.fbphotoOpen).then(u => { if (u) window.open(u, "_blank", "noopener"); }); return; }
     const a = e.target.closest("[data-fbact]"); if (!a) return;
     feedbackAction(a.dataset.fbid, a.dataset.fbact);
   });
