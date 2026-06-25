@@ -14733,16 +14733,23 @@ async function onFeedbackPhotosPicked(files) {
   renderFeedbackPhotoStrip();
   const inp = document.getElementById("feedbackPhotoInput"); if (inp) inp.value = "";
 }
-// Upload the staged photos into the user's own feedback-photos folder; returns paths.
+// Upload the staged photos into the user's own feedback-photos folder; returns
+// paths. On a mid-batch failure, remove whatever already landed so a failed send
+// can't orphan objects in the bucket.
 async function uploadFeedbackPhotos() {
   if (!_feedbackPhotos.length || !sb || !sb.storage || !currentUser) return [];
   const paths = [];
-  for (let i = 0; i < _feedbackPhotos.length; i++) {
-    const path = `${currentUser.id}/feedback/${Date.now()}_${i}.jpg`;
-    const { error } = await sb.storage.from(FEEDBACK_BUCKET)
-      .upload(path, dataURLToBlob(_feedbackPhotos[i]), { upsert: true, contentType: "image/jpeg" });
-    if (error) throw error;
-    paths.push(path);
+  try {
+    for (let i = 0; i < _feedbackPhotos.length; i++) {
+      const path = `${currentUser.id}/feedback/${Date.now()}_${i}.jpg`;
+      const { error } = await sb.storage.from(FEEDBACK_BUCKET)
+        .upload(path, dataURLToBlob(_feedbackPhotos[i]), { upsert: true, contentType: "image/jpeg" });
+      if (error) throw error;
+      paths.push(path);
+    }
+  } catch (e) {
+    if (paths.length) { try { await sb.storage.from(FEEDBACK_BUCKET).remove(paths); } catch (_) {} }
+    throw e;
   }
   return paths;
 }
@@ -14785,8 +14792,8 @@ async function submitFeedback() {
     if (err) err.textContent = "Please sign in to send feedback."; return;
   }
   if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  let photoPaths = [];
   try {
-    let photoPaths = [];
     try { photoPaths = await uploadFeedbackPhotos(); }
     catch (_up) { throw new Error("Couldn't upload the photos — remove them or try again."); }
     const brand = (DATA && DATA.config && DATA.config.brand) || {};
@@ -14814,6 +14821,11 @@ async function submitFeedback() {
     resetFeedbackPhotos();
     try { window.track("feedback_submitted", { kind: _feedbackKind, photos: photoPaths.length }); } catch (_e) {}
   } catch (e) {
+    // Submit failed AFTER the photos uploaded → remove them so a retry (or an
+    // abandoned attempt) doesn't leave orphaned objects in the bucket.
+    if (photoPaths.length && sb && sb.storage) {
+      try { await sb.storage.from(FEEDBACK_BUCKET).remove(photoPaths); } catch (_) {}
+    }
     if (err) err.textContent = (e && e.message) || "Couldn't send — try again.";
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Send"; }
