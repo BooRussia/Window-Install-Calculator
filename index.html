@@ -5562,6 +5562,11 @@
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
+        <label for="saveJobCompany" class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Company <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+        <input id="saveJobCompany" type="text" placeholder="e.g. Acme Contracting LLC" autocomplete="organization"
+          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+      </div>
+      <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job name <span class="text-slate-600 normal-case tracking-normal">(this job)</span></label>
         <input id="saveJobJobName" type="text" placeholder="e.g. Smith Residence · 123 Main St" autocomplete="off"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
@@ -7585,6 +7590,7 @@ function buildState() {
     includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
     customerName: "",
     customerAddress: "",
+    customerCompany: "",
     customerPhone: "",
     customerEmail: "",
     customerNotes: "",
@@ -9090,6 +9096,7 @@ function render() {
     includeBucking: STATE.includeBucking,
     customerName: STATE.customerName,
     customerAddress: STATE.customerAddress,
+    customerCompany: STATE.customerCompany,
     customerPhone: STATE.customerPhone,
     customerEmail: STATE.customerEmail,
     customerNotes: STATE.customerNotes,
@@ -11268,6 +11275,7 @@ function saveJobDetailsEdits(id, silent) {
   if (!j) return;
   const g = (x) => (document.getElementById(x)?.value || "").trim();
   j.customerName = g("jdName");
+  j.customerCompany = g("jdCompany");
   j.customerPhone = g("jdPhone");
   j.customerEmail = g("jdEmail");
   j.customerAddress = g("jdAddress");
@@ -11277,7 +11285,7 @@ function saveJobDetailsEdits(id, silent) {
   saveJobs(jobs);
   if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   if (STATE.currentJobId === id) {
-    STATE.customerName = j.customerName; STATE.customerPhone = j.customerPhone;
+    STATE.customerName = j.customerName; STATE.customerCompany = j.customerCompany; STATE.customerPhone = j.customerPhone;
     STATE.customerEmail = j.customerEmail; STATE.customerAddress = j.customerAddress;
     STATE.customerNotes = j.customerNotes;
   }
@@ -11357,6 +11365,7 @@ function renderJobDetails(job) {
           <div class="space-y-2">
             <input id="jdJobName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Job name (e.g. Smith Residence)" value="${escHtml(job.name || "")}">
             <input id="jdName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Customer (e.g. Acme Contracting)" value="${escHtml(job.customerName || "")}">
+            <input id="jdCompany" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Company (optional)" autocomplete="organization" value="${escHtml(job.customerCompany || "")}">
             <input id="jdPhone" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Phone" value="${escHtml(job.customerPhone || "")}">
             <input id="jdEmail" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Email" value="${escHtml(job.customerEmail || "")}">
             <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Address" value="${escHtml(job.customerAddress || "")}">
@@ -12066,6 +12075,7 @@ function resetAll() {
     includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
     customerName: "",
     customerAddress: "",
+    customerCompany: "",
     customerPhone: "",
     customerEmail: "",
     customerNotes: "",
@@ -12318,6 +12328,7 @@ function onCustomerPick() {
   if (!c) return;   // "— New customer —" selected
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
   set("saveJobName", c.name);
+  set("saveJobCompany", c.company);
   set("saveJobPhone", c.phone);
   set("saveJobEmail", c.email);
   // Job address is intentionally NOT auto-filled — a contractor works all over,
@@ -12381,6 +12392,7 @@ function openSaveJobModal() {
   // Customer and job name are separate fields now: customer groups jobs, job name
   // distinguishes them. Prefill both from STATE (a loaded job sets both).
   document.getElementById("saveJobName").value = STATE.customerName || "";
+  { const _co = document.getElementById("saveJobCompany"); if (_co) _co.value = STATE.customerCompany || ""; }
   { const _jn = document.getElementById("saveJobJobName"); if (_jn) _jn.value = STATE.jobName || ""; }
   document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
   { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
@@ -12416,6 +12428,7 @@ function confirmSaveJob() {
   STATE.customerName = customer;
   STATE.jobName = jobName;
   STATE.customerAddress = document.getElementById("saveJobAddress").value.trim();
+  STATE.customerCompany = (document.getElementById("saveJobCompany")?.value || "").trim();
   STATE.customerPhone = (document.getElementById("saveJobPhone")?.value || "").trim();
   STATE.customerEmail = (document.getElementById("saveJobEmail")?.value || "").trim();
   STATE.customerNotes = document.getElementById("saveJobNotes").value.trim();
@@ -12451,7 +12464,7 @@ function confirmSaveJob() {
 function doSaveJob(overrideId) {
   const r = calculate();
   const customer = STATE.customerName, jobName = STATE.jobName, address = STATE.customerAddress,
-        phone = STATE.customerPhone, email = STATE.customerEmail, notes = STATE.customerNotes;
+        company = STATE.customerCompany, phone = STATE.customerPhone, email = STATE.customerEmail, notes = STATE.customerNotes;
   const jobs = loadJobs();
   const draftIdx = jobs.findIndex(x => x.isDraft);
   const oldDraftId = (draftIdx >= 0 && jobs[draftIdx]) ? jobs[draftIdx].id : null;
@@ -12484,7 +12497,7 @@ function doSaveJob(overrideId) {
   const job = {
     id,
     name: jobName || customer || `Job ${new Date().toLocaleDateString()}`,
-    customerName: customer, customerAddress: address, customerPhone: phone, customerEmail: email, customerNotes: notes,
+    customerName: customer, customerAddress: address, customerCompany: company, customerPhone: phone, customerEmail: email, customerNotes: notes,
     customerRecurring: !(document.getElementById("saveJobRecurring") && !document.getElementById("saveJobRecurring").checked),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
@@ -12566,6 +12579,7 @@ function quickSaveOrPrompt() {
         name: (STATE.jobName != null && STATE.jobName !== "") ? STATE.jobName : existing.name,
         customerName: (STATE.customerName != null && STATE.customerName !== "") ? STATE.customerName : existing.customerName,
         customerAddress: STATE.customerAddress != null ? STATE.customerAddress : existing.customerAddress,
+        customerCompany: STATE.customerCompany != null ? STATE.customerCompany : existing.customerCompany,
         customerPhone: STATE.customerPhone != null ? STATE.customerPhone : existing.customerPhone,
         customerEmail: STATE.customerEmail != null ? STATE.customerEmail : existing.customerEmail,
         customerNotes: STATE.customerNotes != null ? STATE.customerNotes : existing.customerNotes,
@@ -12723,6 +12737,7 @@ function writeDraftJob(r) {
     name: draftName,
     customerName: STATE.customerName || "",
     customerAddress: STATE.customerAddress || "",
+    customerCompany: STATE.customerCompany || "",
     customerPhone: STATE.customerPhone || "",
     customerEmail: STATE.customerEmail || "",
     customerNotes: STATE.customerNotes || "",
@@ -12804,6 +12819,7 @@ function applyJobToState(j) {
   STATE.customerName = j.customerName || "";
   STATE.jobName = j.name || "";   // job name is distinct from customer now
   STATE.customerAddress = j.customerAddress || "";
+  STATE.customerCompany = j.customerCompany || "";
   STATE.customerPhone = j.customerPhone || "";
   STATE.customerEmail = j.customerEmail || "";
   STATE.customerNotes = j.customerNotes || "";
@@ -14851,6 +14867,7 @@ async function copySigningLinkFromFiles() {
     set("saveJobName", STATE.customerName || "");
     set("saveJobJobName", STATE.jobName || "");
     set("saveJobAddress", STATE.customerAddress || "");
+    set("saveJobCompany", STATE.customerCompany || "");
     set("saveJobPhone", STATE.customerPhone || "");
     set("saveJobEmail", STATE.customerEmail || "");
     set("saveJobNotes", STATE.customerNotes || "");
