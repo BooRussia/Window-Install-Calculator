@@ -453,6 +453,29 @@
   }
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
 
+  /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
+     Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
+     keeps the centered dialog. CSS-only — no change to open/close logic. */
+  @media (max-width: 639px) {
+    .sheet-on-mobile { align-items: flex-end !important; padding: 0 !important; }
+    .sheet-on-mobile > .card {
+      width: 100%; max-width: 100%;
+      max-height: 92svh; overflow-y: auto;
+      border-radius: 20px 20px 0 0;
+      padding-bottom: max(env(safe-area-inset-bottom), 8px);
+      animation: sheetUp .34s cubic-bezier(0.16,1,0.3,1);
+      overscroll-behavior: contain;
+    }
+    /* grab handle — pinned at the top of the scrolling sheet */
+    .sheet-on-mobile > .card::before {
+      content: ""; position: sticky; top: 0; z-index: 5;
+      display: block; width: 40px; height: 4px; margin: 8px auto -2px;
+      border-radius: 999px; background: rgba(148,163,184,0.45);
+    }
+  }
+  @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .sheet-on-mobile > .card { animation: none; } }
+
   #jobRail {
     position: fixed; top: 3.5rem; bottom: 0; left: 0;
     width: 19rem; max-width: 86vw;
@@ -5366,7 +5389,7 @@
 </div><!-- /#appBody -->
 
 <!-- Read from Plan / Schedule Modal -->
-<div id="readPlanModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+<div id="readPlanModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50 sheet-on-mobile">
   <div class="absolute inset-0 modal-backdrop" data-close-read></div>
   <div class="relative card rounded-3xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
@@ -5396,7 +5419,7 @@
 </div>
 
 <!-- Buck Cut List Modal -->
-<div id="buckModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+<div id="buckModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50 sheet-on-mobile">
   <div class="absolute inset-0 modal-backdrop" data-close-buck></div>
   <div class="relative card rounded-3xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
@@ -5447,7 +5470,7 @@
 </div>
 
 <!-- Save Job Modal -->
-<div id="saveJobModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+<div id="saveJobModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50 sheet-on-mobile">
   <div class="absolute inset-0 modal-backdrop" data-close-save></div>
   <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
@@ -6276,7 +6299,7 @@
      ============================================================ -->
 <!-- z-[79]: FL Lookup is reachable from the dashboard (z-74), so like the
      Settings modal it must open ABOVE it — at z-50 it opened invisibly behind. -->
-<div id="flModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[79]">
+<div id="flModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[79] sheet-on-mobile">
   <div class="absolute inset-0 modal-backdrop" data-close></div>
   <div class="relative card rounded-3xl w-full max-w-3xl max-h-[88vh] overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between gap-3">
