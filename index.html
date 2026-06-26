@@ -5773,8 +5773,7 @@
         <button type="button" class="set-tab active" data-tab="setup">Setup</button>
         <button type="button" class="set-tab" data-tab="customers">Customers</button>
         <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
-        <button type="button" class="set-tab" data-tab="subscription">Subscription</button>
-        <button type="button" class="set-tab" data-tab="account">Account</button>
+        <button type="button" class="set-tab" data-tab="account">Account &amp; Plan</button>
         <button type="button" class="set-tab hidden" data-tab="feedback" id="feedbackTabBtn">Feedback<span id="feedbackTabBadge" class="fb-badge hidden">0</span></button>
         <button type="button" class="set-tab hidden" data-tab="resources" id="resourcesTabBtn">Resources</button>
         <button type="button" class="set-tab hidden" data-tab="admin" id="adminTabBtn">Admin</button>
@@ -6283,58 +6282,66 @@
           </div><!-- /ratesShell grid -->
         </div>
 
-        <!-- Subscription (Phase 2 — read-only. Phase 3 wires Stripe.) -->
-        <div class="set-panel" data-panel="subscription">
-          <div class="set-h">Subscription</div>
-          <div class="set-sub mb-5">Your current plan and quote usage. Plan changes land in the next release.</div>
-          <div class="card rounded-xl p-5 max-w-2xl">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-              <div>
-                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Plan</div>
-                <div id="subPlanName" class="text-base font-bold text-slate-100">—</div>
-                <div id="subPlanStatus" class="text-xs text-slate-400 mt-0.5">—</div>
-              </div>
-              <div>
-                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Quotes this cycle</div>
-                <div id="subUsage" class="text-base font-bold text-slate-100">—</div>
-                <div id="subUsageBar" class="mt-1.5 h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-                  <div id="subUsageFill" class="h-full bg-[#b58f4a] transition-all" style="width:0%"></div>
+        <!-- Account & Plan — Plan + Account grouped as leaves (mirrors the Setup tab). -->
+        <div class="set-panel" data-panel="account">
+          <div id="accountLeafNav" class="rleaf-nav">
+            <button type="button" class="rleaf-btn active" data-accountleaf-btn="plan" onclick="showAccountLeaf('plan')">Plan</button>
+            <button type="button" class="rleaf-btn" data-accountleaf-btn="account" onclick="showAccountLeaf('account')">Account</button>
+          </div>
+
+          <!-- Plan (was the Subscription panel — Phase 2 read-only; Phase 3 wires Stripe.) -->
+          <div data-accountleaf="plan">
+            <div class="set-h">Subscription</div>
+            <div class="set-sub mb-5">Your current plan and quote usage. Plan changes land in the next release.</div>
+            <div class="card rounded-xl p-5 max-w-2xl">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Plan</div>
+                  <div id="subPlanName" class="text-base font-bold text-slate-100">—</div>
+                  <div id="subPlanStatus" class="text-xs text-slate-400 mt-0.5">—</div>
+                </div>
+                <div>
+                  <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Quotes this cycle</div>
+                  <div id="subUsage" class="text-base font-bold text-slate-100">—</div>
+                  <div id="subUsageBar" class="mt-1.5 h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                    <div id="subUsageFill" class="h-full bg-[#b58f4a] transition-all" style="width:0%"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Cycle resets</div>
+                  <div id="subCycleResets" class="text-sm text-slate-200">—</div>
+                </div>
+                <div id="subTrialBlock">
+                  <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Trial started</div>
+                  <div id="subTrialStarted" class="text-sm text-slate-200">—</div>
                 </div>
               </div>
-              <div>
-                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Cycle resets</div>
-                <div id="subCycleResets" class="text-sm text-slate-200">—</div>
-              </div>
-              <div id="subTrialBlock">
-                <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Trial started</div>
-                <div id="subTrialStarted" class="text-sm text-slate-200">—</div>
+              <div class="mt-5 pt-4 border-t border-slate-800 flex flex-wrap gap-2">
+                <button id="subOpenPricing" type="button" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/55 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]">See all plans &rarr;</button>
               </div>
             </div>
-            <div class="mt-5 pt-4 border-t border-slate-800 flex flex-wrap gap-2">
-              <button id="subOpenPricing" type="button" class="btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/55 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]">See all plans &rarr;</button>
+            <!-- DEV ONLY — enable by pasting `window.__ANCHOR_DEV = true` in DevTools console, then reopen Settings. -->
+            <div id="subDevTools" class="hidden mt-7 pt-5 border-t border-slate-800 max-w-2xl">
+              <div class="text-[11px] uppercase tracking-[0.16em] text-amber-400/80 font-bold mb-1">Dev tools</div>
+              <p class="text-[11px] text-slate-600 mb-3">Reset your entitlement record to a fresh trial — for testing the badge + upsell flow.</p>
+              <button id="subResetEntitlements" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2">↻ Reset entitlements (DEV)</button>
             </div>
           </div>
-          <!-- DEV ONLY — enable by pasting `window.__ANCHOR_DEV = true` in DevTools console, then reopen Settings. -->
-          <div id="subDevTools" class="hidden mt-7 pt-5 border-t border-slate-800 max-w-2xl">
-            <div class="text-[11px] uppercase tracking-[0.16em] text-amber-400/80 font-bold mb-1">Dev tools</div>
-            <p class="text-[11px] text-slate-600 mb-3">Reset your entitlement record to a fresh trial — for testing the badge + upsell flow.</p>
-            <button id="subResetEntitlements" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2">↻ Reset entitlements (DEV)</button>
-          </div>
-        </div>
 
-        <!-- Account -->
-        <div class="set-panel" data-panel="account">
-          <div class="set-h">Account</div>
-          <div class="set-sub mb-5">Your sign-in and workspace tools.</div>
-          <div class="card rounded-xl p-4 max-w-md">
-            <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Signed in as</div>
-            <div id="acctEmailSettings" class="text-sm text-slate-200 font-semibold break-all">—</div>
-            <button id="settingsSignOut" type="button" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-rose-500/50 hover:text-rose-300">Sign Out</button>
-          </div>
-          <div class="mt-7 pt-5 border-t border-slate-800 max-w-md">
-            <div class="text-[11px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-1">Testing tools</div>
-            <p class="text-[11px] text-slate-600 mb-3">Re-run the profile + setup wizard. Brand info, rates, and saved jobs are kept.</p>
-            <button id="adminResetSetup" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2" title="Re-run the profile + setup wizard (testing)">↻ Reset Setup</button>
+          <!-- Account (was the Account panel) -->
+          <div data-accountleaf="account" style="display:none">
+            <div class="set-h">Account</div>
+            <div class="set-sub mb-5">Your sign-in and workspace tools.</div>
+            <div class="card rounded-xl p-4 max-w-md">
+              <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Signed in as</div>
+              <div id="acctEmailSettings" class="text-sm text-slate-200 font-semibold break-all">—</div>
+              <button id="settingsSignOut" type="button" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-rose-500/50 hover:text-rose-300">Sign Out</button>
+            </div>
+            <div class="mt-7 pt-5 border-t border-slate-800 max-w-md">
+              <div class="text-[11px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-1">Testing tools</div>
+              <p class="text-[11px] text-slate-600 mb-3">Re-run the profile + setup wizard. Brand info, rates, and saved jobs are kept.</p>
+              <button id="adminResetSetup" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2" title="Re-run the profile + setup wizard (testing)">↻ Reset Setup</button>
+            </div>
           </div>
         </div>
 
@@ -14169,7 +14176,7 @@ function showSettingsTab(name) {
   document.getElementById("settingsFooter").style.display = dataTab ? "" : "none";
   if (name === "admin") renderAdminPanel();
   if (name === "feedback") { renderAdminFeedback(); markFeedbackSeen(); }
-  if (name === "subscription") renderSubscriptionPanel();
+  if (name === "account") renderSubscriptionPanel();
   if (name === "resources") renderResources();
   if (name === "customers") renderCustomersSettings();
 }
@@ -16016,6 +16023,12 @@ function showDoorType(type) {
 function showSetupLeaf(name) {
   document.querySelectorAll('#setupLeafNav [data-setupleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.setupleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="setup"] [data-setupleaf]').forEach(el => { el.style.display = (el.dataset.setupleaf === name) ? '' : 'none'; });
+}
+
+// Account & Plan leaf switcher — Plan / Account under one merged tab (mirrors showSetupLeaf).
+function showAccountLeaf(name) {
+  document.querySelectorAll('#accountLeafNav [data-accountleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.accountleafBtn === name));
+  document.querySelectorAll('.set-panel[data-panel="account"] [data-accountleaf]').forEach(el => { el.style.display = (el.dataset.accountleaf === name) ? '' : 'none'; });
 }
 
 function buildRatesNav() {
@@ -21295,7 +21308,8 @@ function init() {
   if (pfpMyPlanBtn) pfpMyPlanBtn.addEventListener("click", () => {
     closePfpMenu();
     openAdmin();
-    showSettingsTab("subscription");
+    showSettingsTab("account");
+    showAccountLeaf("plan");
   });
 
   // PFP menu → "Manage subscription" — Stripe Customer Portal
