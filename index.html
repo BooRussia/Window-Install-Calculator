@@ -2234,6 +2234,21 @@
   /* Settings → Customers editable cards */
   .cust-edit { border: 1px solid rgba(51,65,85,0.6); border-radius: 14px; padding: 14px; margin-bottom: 12px; background: rgba(15,23,42,0.35); max-width: 44rem; }
   [data-theme="light"] .cust-edit { border-color: #e2e8f0; background: #f8fafc; }
+  /* Customers master-detail (clean list -> per-customer page) */
+  .cust-list { display: flex; flex-direction: column; gap: 6px; max-width: 44rem; }
+  .cust-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(51,65,85,0.55); background: rgba(15,23,42,0.35); cursor: pointer; transition: border-color .15s, background .15s; }
+  .cust-row:hover { border-color: rgba(181,143,74,0.45); background: rgba(15,23,42,0.6); }
+  .cust-row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+  .cust-row-name { font-size: 15px; font-weight: 700; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust-row-sub { font-size: 12px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust-row-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 11px; color: #64748b; font-weight: 600; }
+  .cust-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 14px; font-size: 13px; font-weight: 600; color: #94a3b8; background: none; border: 0; cursor: pointer; padding: 4px 0; }
+  .cust-back:hover { color: var(--gold-hi); }
+  .cust-job { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(51,65,85,0.55); background: rgba(15,23,42,0.4); cursor: pointer; transition: border-color .15s, transform .15s; }
+  .cust-job:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-1px); }
+  .cust-job-name { font-size: 14px; font-weight: 700; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust-job-sub { font-size: 11px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust-job-price { font-size: 14px; font-weight: 800; color: var(--gold-hi); margin-top: 2px; font-variant-numeric: tabular-nums; }
   /* Mobile: settings sidebar collapses into a horizontal scroll strip so the
      content panel gets the full screen width instead of being crammed into a
      narrow column beside the rail. */
@@ -5857,7 +5872,7 @@
         <!-- Customers -->
         <div class="set-panel" data-panel="customers">
           <div class="set-h">Customers</div>
-          <div class="set-sub mb-5">Edit a customer's name and contact details. Changes apply to all of that customer's saved jobs.</div>
+          <div class="set-sub mb-5">Tap a customer to open their page — edit their info or browse their jobs. Changes apply to all of that customer's saved jobs.</div>
           <div id="customersBody"></div>
         </div>
 
@@ -12093,6 +12108,7 @@ function getCustomerEntries() {
     if (!prev) {
       map.set(key, {
         key, name,
+        company: (j.customerCompany || "").trim(),
         address: (j.customerAddress || "").trim(),
         phone:   (j.customerPhone   || "").trim(),
         email:   (j.customerEmail   || "").trim(),
@@ -12101,6 +12117,7 @@ function getCustomerEntries() {
       });
     } else {
       prev.count++;
+      { const _co = (j.customerCompany || "").trim(); if (_co) prev.company = _co; }  // keep any non-empty company
       if (ts >= prev._ts) {   // newest job wins for display + flag
         prev._ts = ts; prev.name = name;
         prev.address = (j.customerAddress || "").trim();
@@ -12147,6 +12164,7 @@ function setCustomerContact(oldKey, fields) {
     if (!j || j.isDraft) continue;
     if ((j.customerName || "").trim().toLowerCase() !== oldKey) continue;
     if (fields.name != null && fields.name.trim()) j.customerName = fields.name.trim();
+    if (fields.company != null) j.customerCompany = fields.company.trim();
     if (fields.phone != null) j.customerPhone = fields.phone.trim();
     if (fields.email != null) j.customerEmail = fields.email.trim();
     if (fields.address != null) j.customerAddress = fields.address.trim();
@@ -12159,36 +12177,87 @@ function setCustomerContact(oldKey, fields) {
   return changed.length;
 }
 
-// Settings → Customers: an editable card per customer (name / phone / email /
-// address + recurring), saving back across all their jobs.
+// Settings → Customers: a clean list of customers; tap one to open their page
+// (editable info incl. Company, propagated across all their jobs via
+// setCustomerContact) with their saved jobs as tap-to-open thumbnails.
+let _custDetailKey = null;
 function renderCustomersSettings() {
   const wrap = document.getElementById("customersBody");
   if (!wrap) return;
   const list = getCustomerEntries();
   if (!list.length) {
+    _custDetailKey = null;
     wrap.innerHTML = `<div class="text-sm text-slate-500 py-6">No customers yet — they appear here once you save a job with a customer name.</div>`;
     return;
   }
-  const lbl = "text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1";
-  const inp = "control rounded-lg px-3 py-2 w-full text-sm text-slate-100";
-  wrap.innerHTML = list.map(c => `
-    <div class="cust-edit" data-cust-key="${escHtml(c.key)}">
-      <div class="flex items-center justify-between gap-2 mb-2.5">
-        <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500 font-bold">${c.count} job${c.count === 1 ? "" : "s"}</span>
-        <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none">
-          <input type="checkbox" data-cust-field="recurring" ${c.recurring ? "checked" : ""} style="accent-color:#b58f4a;"> Recurring (in quick-pick)
-        </label>
+  if (_custDetailKey) {
+    const c = list.find(x => x.key === _custDetailKey);
+    if (c) { wrap.innerHTML = custDetailHTML(c); return; }
+    _custDetailKey = null;  // customer gone (e.g. renamed) → fall back to the list
+  }
+  wrap.innerHTML = `<div class="cust-list">` + list.map(c => {
+    const sub = c.company || c.address || `${c.count} job${c.count === 1 ? "" : "s"}`;
+    return `<button type="button" class="cust-row" data-cust-open="${escHtml(c.key)}">
+      <span class="cust-row-main">
+        <span class="cust-row-name">${escHtml(c.name)}</span>
+        <span class="cust-row-sub">${escHtml(sub)}</span>
+      </span>
+      <span class="cust-row-meta">${c.count} job${c.count === 1 ? "" : "s"}
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="8 5 13 10 8 15"/></svg>
+      </span>
+    </button>`;
+  }).join("") + `</div>`;
+}
+
+function custDetailHTML(c) {
+  const jobs = ((typeof loadJobs === "function") ? loadJobs() : [])
+    .filter(j => j && !j.isDraft && (j.customerName || "").trim().toLowerCase() === c.key)
+    .sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0));
+  const inp = "control rounded-lg px-3 py-2 w-full text-slate-100";
+  const jobCards = jobs.length
+    ? jobs.map(custJobThumb).join("")
+    : `<div class="text-[12px] text-slate-500 py-2">No saved jobs for this customer yet.</div>`;
+  return `
+    <div data-cust-key="${escHtml(c.key)}">
+      <button type="button" class="cust-back" data-cust-back>
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="12 5 7 10 12 15"/></svg>
+        All customers
+      </button>
+      <div class="set-card">
+        <div class="flex items-center justify-between gap-2">
+          <div class="set-card-head">${escHtml(c.name)}</div>
+          <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none">
+            <input type="checkbox" data-cust-field="recurring" ${c.recurring ? "checked" : ""} style="accent-color:#b58f4a;"> Recurring
+          </label>
+        </div>
+        <div class="set-grid cols-2">
+          <div class="set-field"><label class="set-label">Company</label><input data-cust-field="company" type="text" value="${escHtml(c.company || "")}" placeholder="(optional)" class="${inp}"></div>
+          <div class="set-field"><label class="set-label">Customer name</label><input data-cust-field="name" type="text" value="${escHtml(c.name)}" class="${inp}"></div>
+          <div class="set-field"><label class="set-label">Phone</label><input data-cust-field="phone" type="text" inputmode="tel" value="${escHtml(c.phone)}" class="${inp}"></div>
+          <div class="set-field"><label class="set-label">Email</label><input data-cust-field="email" type="email" value="${escHtml(c.email)}" class="${inp}"></div>
+          <div class="set-field" style="grid-column:1 / -1"><label class="set-label">Address</label><input data-cust-field="address" type="text" value="${escHtml(c.address)}" class="${inp}"></div>
+        </div>
+        <div class="mt-3 flex justify-end">
+          <button type="button" data-cust-save class="btn rounded-lg px-5 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
+        </div>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        <div><label class="${lbl}">Name</label><input data-cust-field="name" type="text" value="${escHtml(c.name)}" class="${inp}"></div>
-        <div><label class="${lbl}">Phone</label><input data-cust-field="phone" type="tel" value="${escHtml(c.phone)}" class="${inp}"></div>
-        <div><label class="${lbl}">Email</label><input data-cust-field="email" type="email" value="${escHtml(c.email)}" class="${inp}"></div>
-        <div><label class="${lbl}">Address</label><input data-cust-field="address" type="text" value="${escHtml(c.address)}" class="${inp}"></div>
+      <div class="mt-5">
+        <div class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Jobs (${jobs.length})</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${jobCards}</div>
       </div>
-      <div class="mt-3 flex justify-end">
-        <button type="button" data-cust-save class="btn rounded-lg px-5 py-1.5 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
-      </div>
-    </div>`).join("");
+    </div>`;
+}
+
+function custJobThumb(j) {
+  const st = (typeof jobStatus === "function") ? jobStatus(j) : (j.status || "Quoted");
+  const name = j.name || j.customerName || "Untitled job";
+  const bits = [st, j.manufacturer, (j.totalLF != null ? `${j.totalLF} LF` : "")].filter(Boolean).join(" · ");
+  const price = (typeof formatMoney === "function") ? formatMoney(j.sellingPrice) : ("$" + (j.sellingPrice || 0));
+  return `<button type="button" class="cust-job" data-cust-job="${escHtml(String(j.id))}">
+    <span class="cust-job-name">${escHtml(name)}</span>
+    <span class="cust-job-sub">${escHtml(bits)}</span>
+    <span class="cust-job-price">${price}</span>
+  </button>`;
 }
 
 // (Re)build the "Use a saved customer" picker in the Save Job modal. Hides the
@@ -20852,19 +20921,25 @@ function init() {
   const _custBody = document.getElementById("customersBody");
   if (_custBody && !_custBody._wired) {
     _custBody.addEventListener("click", e => {
+      const openBtn = e.target.closest("[data-cust-open]");
+      if (openBtn) { _custDetailKey = openBtn.dataset.custOpen; renderCustomersSettings(); return; }
+      if (e.target.closest("[data-cust-back]")) { _custDetailKey = null; renderCustomersSettings(); return; }
+      const jobBtn = e.target.closest("[data-cust-job]");
+      if (jobBtn) { try { openJobDetails(jobBtn.dataset.custJob); } catch (_) {} return; }
       const btn = e.target.closest("[data-cust-save]");
       if (!btn) return;
       const card = btn.closest("[data-cust-key]");
       if (!card) return;
       const val = f => { const el = card.querySelector(`[data-cust-field="${f}"]`); return el ? el.value : ""; };
       const fields = {
-        name: val("name"), phone: val("phone"), email: val("email"), address: val("address"),
+        company: val("company"), name: val("name"), phone: val("phone"), email: val("email"), address: val("address"),
         recurring: card.querySelector('[data-cust-field="recurring"]')?.checked
       };
       if (!fields.name.trim()) { toast("Customer name can't be empty"); return; }
       const n = setCustomerContact(card.dataset.custKey, fields);
       if (n) {
         toast(`Customer updated across ${n} job${n === 1 ? "" : "s"}`);
+        _custDetailKey = (fields.name || "").trim().toLowerCase() || _custDetailKey;
         renderCustomersSettings();
         try { renderSavedJobs(); } catch (_) {}
         try { if (typeof renderDashboard === "function" && !document.getElementById("dashboardScreen")?.classList.contains("hidden")) renderDashboard(); } catch (_) {}
