@@ -14313,7 +14313,7 @@ function openSettingsToItem(itemId) {
     // Labor — now lives in its own Labor section (#adminLaborRateBody),
     // not in the Materials body. Land on the bill-rate input there.
     if (itemId === "labor") {
-      highlight = document.querySelector('#adminLaborRateBody [data-unitprice="labor"]');
+      highlight = document.querySelector('#adminLaborRateBody [data-labor-min]');
       target = document.getElementById("rates-section-labor") || highlight;
     } else
     // Swing-door rows — jump to the Swing Doors editor (sibling of #adminRatesBody)
@@ -16024,18 +16024,23 @@ function buildAdminUI() {
   const laborItem = DATA.costItems.find(c => c.id === "labor");
   const laborBody = document.getElementById("adminLaborRateBody");
   if (laborItem && laborBody) {
-    const RATE_LABELS = { "default": "New construction", "Block Framed": "Block", "Remodel": "Remodel" };
-    const laborRateRows = Object.entries(laborItem.rates).map(([k, v]) => `
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 w-36 truncate">${RATE_LABELS[k] || k}</span>
-        <input data-labor-min data-key="${k}" type="number" step="1" min="0" value="${Math.round((Number(v) || 0) * 60)}" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-        <span class="text-[11px] text-slate-500">min / LF</span>
-      </div>`).join("");
+    const RATE_LABELS = { "default": "Stick Framed", "Block Framed": "Block Framed", "Remodel": "Remodel" };
+    const laborRateRows = Object.entries(laborItem.rates).map(([k, v]) => {
+      const safeId = "adminLaborMin_" + k.replace(/[^a-zA-Z0-9]/g, "_");
+      return `
+      <div class="set-field">
+        <label class="set-label" for="${safeId}">${RATE_LABELS[k] || k}</label>
+        <div class="flex items-center gap-2">
+          <input id="${safeId}" data-labor-min data-key="${k}" type="text" inputmode="numeric" autocomplete="off" value="${Math.round((Number(v) || 0) * 60)}" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+          <span class="set-hint whitespace-nowrap flex-shrink-0">min / LF</span>
+        </div>
+      </div>`;
+    }).join("");
     laborBody.innerHTML = `
-      <div class="rounded-xl border border-slate-800 p-4" id="rates-item-labor" data-rates-item>
-        <div class="text-sm font-semibold text-slate-100 mb-1">Install speed</div>
-        <div class="text-[11px] text-slate-500 mb-3">How long the crew takes per linear foot, by job type. (2-story and impact glass add time automatically.)</div>
-        <div class="grid sm:grid-cols-3 gap-2">${laborRateRows}</div>
+      <div class="set-card" id="rates-item-labor" data-rates-item>
+        <div class="set-card-head">Install speed</div>
+        <div class="set-card-desc">How long the crew takes per linear foot, by job type. (2-story and impact glass add time automatically.)</div>
+        <div class="set-grid cols-3">${laborRateRows}</div>
       </div>`;
   }
 
