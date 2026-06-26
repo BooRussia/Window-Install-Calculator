@@ -4940,7 +4940,8 @@
         </button>
         <div class="rail-acc-body space-y-3">
       <div class="rail-field">
-        <label for="totalLF">Linear footage</label>
+        <label for="totalLF">Total window width <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span></label>
+        <p class="mt-0.5 mb-2 text-[11px] leading-snug text-slate-500">Add up the width of every window opening, in feet.</p>
         <div class="rail-lf-input-wrap">
           <input
             id="totalLF"
@@ -5087,7 +5088,7 @@
 
   <!-- Live recap band — one-line spec summary; the LF input now lives in the rail -->
   <section class="mt-2 sm:mt-4">
-    <div id="liveRecap" class="is-empty">Set linear footage in the panel to start</div>
+    <div id="liveRecap" class="is-empty">Add your window footage to see your price</div>
     <div class="mt-3 h-px max-w-[480px] mx-auto bg-gradient-to-r from-transparent via-slate-700 to-transparent"></div>
   </section>
 
@@ -5350,20 +5351,26 @@
 
   <!-- Empty state -->
   <section id="emptyState" class="mt-16 text-center">
-    <h2 class="text-xl sm:text-2xl font-black tracking-tight text-slate-100">Start a job in seconds</h2>
-    <p class="mt-2 text-slate-500 text-sm">Pick a typical FL install to prefill the calculator — or enter your own linear footage in the rail.</p>
+    <h2 class="text-xl sm:text-2xl font-black tracking-tight text-slate-100">Get an instant price</h2>
+    <p class="mt-2 text-slate-500 text-sm">Tap a sample job below to fill it in instantly — or enter your own in a few taps.</p>
     <div id="emptyStateChips" class="mt-6 flex flex-wrap justify-center gap-2 max-w-2xl mx-auto px-4">
       <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
         data-lf="240" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="2 Story" data-lift="false">
-        240 LF &middot; Block &middot; Impact &middot; 2-story
+        240 ft &middot; Concrete block &middot; Impact glass &middot; 2-story
       </button>
       <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
         data-lf="180" data-construction="New Construction" data-house="Stick Framed" data-impact="Non-Impact" data-stories="1 Story" data-lift="false">
-        180 LF &middot; Stick &middot; Non-impact &middot; 1-story
+        180 ft &middot; Wood frame &middot; Standard glass &middot; 1-story
       </button>
       <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
         data-lf="320" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="3 Story" data-lift="true">
-        320 LF &middot; Block &middot; Impact &middot; 3-story &middot; Lift
+        320 ft &middot; Concrete block &middot; Impact glass &middot; 3-story &middot; Lift
+      </button>
+    </div>
+    <div class="mt-6 lg:hidden">
+      <button id="emptyStateEnterBtn" type="button" class="btn inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold bg-[#c9a558] text-[#0b1020] border border-[#b58f4a] hover:bg-[#d4b063]">
+        Enter job details
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg>
       </button>
     </div>
     <button id="emptyStateScanLink" type="button" class="btn mt-5 inline-flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-[#c9a558] underline underline-offset-4 decoration-slate-700 hover:decoration-[#c9a558]">
@@ -9046,7 +9053,7 @@ function renderLiveRecap() {
   const { size, spec } = jobSummaryTiers();
   if (!size.length && !spec.length) {
     el.classList.add("is-empty");
-    el.textContent = "Set linear footage in the panel to start";
+    el.textContent = "Add your window footage to see your price";
     return;
   }
   el.classList.remove("is-empty");
@@ -21091,6 +21098,8 @@ function init() {
     const res = document.getElementById("results");
     if (res && !res.classList.contains("hidden")) res.scrollIntoView({ behavior: "smooth", block: "start" });
   });
+  // Empty-state "Enter job details" → open the input drawer (mobile path made obvious).
+  document.getElementById("emptyStateEnterBtn")?.addEventListener("click", openJobRail);
   const _hotzone = document.getElementById("railHotzone");
   _hotzone.addEventListener("mouseenter", railPeek);
   _hotzone.addEventListener("click", () => { if (isDesktopRail()) toggleRailPin(); });
