@@ -2249,6 +2249,10 @@
   .cust-job-name { font-size: 14px; font-weight: 700; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cust-job-sub { font-size: 11px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cust-job-price { font-size: 14px; font-weight: 800; color: var(--gold-hi); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  /* Customer avatar — initials placeholder now; drops in an uploaded logo later */
+  .cust-avatar { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; overflow: hidden; background: rgba(181,143,74,0.14); border: 1px solid rgba(181,143,74,0.30); }
+  .cust-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .cust-avatar-initials { color: var(--gold-hi); font-weight: 800; letter-spacing: 0.02em; }
   /* Mobile: settings sidebar collapses into a horizontal scroll strip so the
      content panel gets the full screen width instead of being crammed into a
      narrow column beside the rail. */
@@ -12198,6 +12202,7 @@ function renderCustomersSettings() {
   wrap.innerHTML = `<div class="cust-list">` + list.map(c => {
     const sub = c.company || c.address || `${c.count} job${c.count === 1 ? "" : "s"}`;
     return `<button type="button" class="cust-row" data-cust-open="${escHtml(c.key)}">
+      ${custAvatar(c, 40)}
       <span class="cust-row-main">
         <span class="cust-row-name">${escHtml(c.name)}</span>
         <span class="cust-row-sub">${escHtml(sub)}</span>
@@ -12225,8 +12230,8 @@ function custDetailHTML(c) {
       </button>
       <div class="set-card">
         <div class="flex items-center justify-between gap-2">
-          <div class="set-card-head">${escHtml(c.name)}</div>
-          <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none">
+          <div class="flex items-center gap-3 min-w-0">${custAvatar(c, 44)}<div class="set-card-head truncate">${escHtml(c.name)}</div></div>
+          <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none flex-shrink-0">
             <input type="checkbox" data-cust-field="recurring" ${c.recurring ? "checked" : ""} style="accent-color:#b58f4a;"> Recurring
           </label>
         </div>
@@ -12246,6 +12251,18 @@ function custDetailHTML(c) {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${jobCards}</div>
       </div>
     </div>`;
+}
+
+// Customer avatar: an uploaded per-customer logo if present, else initials.
+// (Logos live in DATA.config.customerLogos — upload wiring is the next slice.)
+function custAvatar(c, px) {
+  const size = px || 40;
+  const logo = (window.DATA && DATA.config && DATA.config.customerLogos) ? DATA.config.customerLogos[c.key] : "";
+  if (logo && /^data:image\//i.test(logo)) {
+    return `<span class="cust-avatar" style="width:${size}px;height:${size}px"><img src="${escHtml(logo)}" alt=""></span>`;
+  }
+  const initials = ((c.name || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("") || "?").toUpperCase();
+  return `<span class="cust-avatar cust-avatar-initials" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px">${escHtml(initials)}</span>`;
 }
 
 function custJobThumb(j) {
