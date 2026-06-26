@@ -5722,9 +5722,7 @@
     <div class="flex-1 flex flex-col sm:flex-row overflow-hidden">
       <!-- Tab rail — horizontal scroll strip on mobile, sidebar on desktop -->
       <nav id="settingsNav" class="flex sm:block flex-shrink-0 sm:w-52 border-b sm:border-b-0 sm:border-r border-slate-800 p-2 sm:p-3 gap-1 sm:gap-0 sm:space-y-1 overflow-x-auto sm:overflow-y-auto">
-        <button type="button" class="set-tab active" data-tab="brand">Brand</button>
-        <button type="button" class="set-tab" data-tab="defaults">Job Defaults</button>
-        <button type="button" class="set-tab" data-tab="manufacturers">Manufacturers</button>
+        <button type="button" class="set-tab active" data-tab="setup">Setup</button>
         <button type="button" class="set-tab" data-tab="customers">Customers</button>
         <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
         <button type="button" class="set-tab" data-tab="subscription">Subscription</button>
@@ -5737,8 +5735,15 @@
       <!-- Content -->
       <div class="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
 
+        <!-- Setup: Brand · Job Defaults · Manufacturers grouped as leaves -->
+        <div class="set-panel active" data-panel="setup">
+          <div id="setupLeafNav" class="rleaf-nav">
+            <button type="button" class="rleaf-btn active" data-setupleaf-btn="brand" onclick="showSetupLeaf('brand')">Brand</button>
+            <button type="button" class="rleaf-btn" data-setupleaf-btn="defaults" onclick="showSetupLeaf('defaults')">Job Defaults</button>
+            <button type="button" class="rleaf-btn" data-setupleaf-btn="manufacturers" onclick="showSetupLeaf('manufacturers')">Manufacturers</button>
+          </div>
         <!-- Brand -->
-        <div class="set-panel active" data-panel="brand">
+        <div data-setupleaf="brand">
           <div class="set-h">Brand &amp; Company</div>
           <div class="set-sub mb-5">Appears on customer quotes and the materials list.</div>
           <div class="mb-4 flex items-center gap-3">
@@ -5794,7 +5799,7 @@
         </div>
 
         <!-- Job Defaults -->
-        <div class="set-panel" data-panel="defaults">
+        <div data-setupleaf="defaults" style="display:none">
           <div class="set-h">Job Defaults</div>
           <div class="set-sub mb-5">Your typical setup. Clicking <span class="text-slate-300 font-semibold">New Job</span> returns to these values.</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
@@ -5840,13 +5845,14 @@
         </div>
 
         <!-- Manufacturers -->
-        <div class="set-panel" data-panel="manufacturers">
+        <div data-setupleaf="manufacturers" style="display:none">
           <div class="set-h">Window Manufacturers</div>
           <div class="set-sub mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</div>
           <p class="text-[11px] text-amber-400/80 mb-4">Through-frame values are placeholder estimates — verify per brand.</p>
           <div id="mfrEditorBody"></div>
           <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
         </div>
+        </div><!-- /Setup panel -->
 
         <!-- Customers -->
         <div class="set-panel" data-panel="customers">
@@ -14013,7 +14019,7 @@ function openAdmin() {
   document.getElementById("feedbackTabBtn").classList.toggle("hidden", !isAdmin());
   { const rb = document.getElementById("resourcesTabBtn"); if (rb) rb.classList.toggle("hidden", !isAdmin()); }
   if (isAdmin()) updateFeedbackBadge();
-  showSettingsTab("brand");
+  showSettingsTab("setup");
   adminModal.classList.remove("hidden");
 }
 function closeAdmin() { tvDismiss(adminModal); }
@@ -14025,7 +14031,7 @@ function showSettingsTab(name) {
     t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll("#adminModal .set-panel").forEach(p =>
     p.classList.toggle("active", p.dataset.panel === name));
-  const dataTab = ["brand", "defaults", "manufacturers", "rates"].includes(name);
+  const dataTab = ["setup", "rates"].includes(name);
   document.getElementById("settingsFooter").style.display = dataTab ? "" : "none";
   if (name === "admin") renderAdminPanel();
   if (name === "feedback") { renderAdminFeedback(); markFeedbackSeen(); }
@@ -15861,6 +15867,12 @@ function showDoorType(type) {
   window._rDoorType = type;
   document.querySelectorAll('#ratesShell [data-rdoor-btn]').forEach(b => b.classList.toggle('active', b.dataset.rdoorBtn === type));
   document.querySelectorAll('#ratesShell [data-dtype]').forEach(el => { el.style.display = (el.dataset.dtype === type) ? '' : 'none'; });
+}
+
+// Setup leaf switcher — Brand / Job Defaults / Manufacturers under one Setup tab.
+function showSetupLeaf(name) {
+  document.querySelectorAll('#setupLeafNav [data-setupleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.setupleafBtn === name));
+  document.querySelectorAll('.set-panel[data-panel="setup"] [data-setupleaf]').forEach(el => { el.style.display = (el.dataset.setupleaf === name) ? '' : 'none'; });
 }
 
 function buildRatesNav() {
