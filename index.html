@@ -15887,18 +15887,26 @@ function buildAdminUI() {
         variantRowHTML(item.id, item.unit, v, v.id === item.defaultVariant)).join("");
       const variantCount = (item.variants || []).length;
       const def = (item.variants || []).find(v => v.id === item.defaultVariant) || (item.variants || [])[0] || {};
-      const summary = variantCount
-        ? `${variantCount} brand${variantCount === 1 ? "" : "s"}${def.brand ? ` · ${escHtml(def.brand)}` : ""}${def.unitPrice != null ? ` $${(+def.unitPrice).toFixed(3)}/${item.unit}` : ""}`
+      // Closed-row summary: active/default variant name (left, truncates) +
+      // its price (right, tabular-nums so prices align down the column).
+      const summaryName = variantCount
+        ? (def.brand ? escHtml(def.brand) : `${variantCount} brand${variantCount === 1 ? "" : "s"}`)
         : "no variants yet";
-      // Default-collapsed if 2+ variants AND user hasn't explicitly opened it
+      const summaryPrice = (variantCount && def.unitPrice != null)
+        ? `$${(+def.unitPrice).toFixed(3)}/${escHtml(item.unit)}`
+        : "";
+      // Collapsed by default — every card opens to a tidy summary row, so a
+      // one-brand shop sees ~8 calm rows instead of ~70 open inputs. The user's
+      // explicit per-card open/closed choice (remembered in rates_collapse) still wins.
       const userPref = collapsePrefs[item.id];
-      const collapsed = userPref != null ? userPref : (variantCount >= 2);
+      const collapsed = userPref != null ? userPref : true;
       return `
         <details class="rounded-xl border border-slate-800 bg-slate-950/30 group" id="rates-item-${item.id}" data-cat="${item.id}" data-rates-item data-variant-count="${variantCount}" ${collapsed ? "" : "open"}>
           <summary class="cursor-pointer select-none px-4 py-3 flex items-center gap-2.5 list-none">
             <svg class="text-slate-500 group-open:rotate-90 transition-transform flex-shrink-0" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 4 13 10 7 16"/></svg>
             <span class="text-sm font-semibold text-slate-100 flex-shrink-0">${escHtml(item.name)}</span>
-            <span class="group-open:hidden flex-1 min-w-0 text-[11px] text-slate-500 truncate" data-summary>${summary}</span>
+            <span class="group-open:hidden flex-1 min-w-0 text-[11px] text-slate-500 truncate" data-summary>${summaryName}</span>
+            ${summaryPrice ? `<span class="group-open:hidden flex-shrink-0 text-[11px] font-semibold text-slate-300 tabular-nums" style="font-variant-numeric: tabular-nums;">${summaryPrice}</span>` : ""}
             <span class="ml-auto inline-flex items-center gap-1.5 flex-shrink-0">
               <span class="text-[10px] font-bold text-slate-500 bg-slate-800/60 rounded-full px-2 py-0.5">${variantCount}</span>
             </span>
