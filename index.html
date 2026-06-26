@@ -2241,6 +2241,32 @@
   .rleaf-btn { flex: 0 0 auto; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
   .rleaf-btn:hover { color: #e2e8f0; border-color: #475569; }
   .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
+
+  /* ── Settings search (combobox above the tab rail) ───────────────────── */
+  .set-search-wrap { position: relative; z-index: 40; }
+  /* 16px input kills iOS zoom-on-focus and matches the settings field size */
+  #settingsSearch { font-size: 16px; }
+  .set-search-results {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 70;
+    max-height: 320px; overflow-y: auto;
+    background: #0b1120; border: 1px solid #1e293b; border-radius: 12px;
+    box-shadow: 0 24px 48px -12px rgba(0,0,0,0.7); padding: 4px;
+  }
+  .set-sr-opt {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    min-height: 44px; padding: 8px 10px; border-radius: 8px;
+    text-align: left; cursor: pointer; background: transparent; border: 0;
+  }
+  .set-sr-opt:hover, .set-sr-opt.active { background: var(--gold-soft); }
+  .set-sr-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .set-sr-label { font-size: 14px; font-weight: 600; color: #e2e8f0; line-height: 1.2; }
+  .set-sr-opt:hover .set-sr-label, .set-sr-opt.active .set-sr-label { color: var(--gold-hi); }
+  .set-sr-path { font-size: 11px; color: #64748b; line-height: 1.3; margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .set-sr-kind { flex-shrink: 0; font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #64748b; background: rgba(30,41,59,0.7);
+    border-radius: 9999px; padding: 2px 7px; }
+  .set-sr-empty { padding: 12px 10px; font-size: 12px; color: #64748b; text-align: center; }
   .rleaf-doornav { display: flex; gap: 6px; margin-bottom: 16px; }
   .rdoor-btn { flex: 0 0 auto; padding: 6px 15px; border-radius: 999px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
   .rdoor-btn:hover { color: #e2e8f0; border-color: #475569; }
@@ -5768,6 +5794,19 @@
 
     <!-- Body: rail + content (stacks to single column on mobile) -->
     <div class="flex-1 flex flex-col sm:flex-row overflow-hidden">
+      <!-- Settings search — combobox above the tab rail; jumps straight to a
+           tab/leaf/section/field. Index built lazily from the same data the
+           panels render from (static registry + DATA.costItems). -->
+      <div id="settingsSearchWrap" class="set-search-wrap flex-shrink-0 sm:w-52 border-b sm:border-r border-slate-800 p-2 sm:p-3">
+        <div class="relative">
+          <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+          <input id="settingsSearch" type="text" role="combobox" autocomplete="off" spellcheck="false"
+            aria-label="Search settings" aria-expanded="false" aria-controls="settingsSearchResults" aria-autocomplete="list"
+            placeholder="Search settings…" class="control rounded-lg pl-8 pr-2 py-2 w-full text-slate-100 placeholder:text-slate-600" />
+          <div id="settingsSearchResults" role="listbox" aria-label="Settings search results" class="set-search-results hidden"></div>
+        </div>
+        <div id="settingsSearchStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+      </div>
       <!-- Tab rail — horizontal scroll strip on mobile, sidebar on desktop -->
       <nav id="settingsNav" class="flex sm:block flex-shrink-0 sm:w-52 border-b sm:border-b-0 sm:border-r border-slate-800 p-2 sm:p-3 gap-1 sm:gap-0 sm:space-y-1 overflow-x-auto sm:overflow-y-auto">
         <button type="button" class="set-tab active" data-tab="setup">Setup</button>
@@ -14161,6 +14200,11 @@ function openAdmin() {
   { const rb = document.getElementById("resourcesTabBtn"); if (rb) rb.classList.toggle("hidden", !isAdmin()); }
   if (isAdmin()) updateFeedbackBadge();
   showSettingsTab("setup");
+  // Settings search: wire once, then reset query + force a fresh index next focus.
+  wireSettingsSearch();
+  _setSearchIdx = null; _setSearchHits = []; _setSearchActive = -1;
+  { const si = document.getElementById("settingsSearch"); if (si) si.value = ""; }
+  renderSettingsSearch();
   adminModal.classList.remove("hidden");
 }
 function closeAdmin() { tvDismiss(adminModal); }
@@ -16029,6 +16073,229 @@ function showSetupLeaf(name) {
 function showAccountLeaf(name) {
   document.querySelectorAll('#accountLeafNav [data-accountleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.accountleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="account"] [data-accountleaf]').forEach(el => { el.style.display = (el.dataset.accountleaf === name) ? '' : 'none'; });
+}
+
+/* ============================================================
+   SETTINGS SEARCH — combobox above the tab rail
+   ------------------------------------------------------------
+   Index = a small static registry (tabs / leaves / sections /
+   key fields) + DATA-derived entries (material names, job fees)
+   so it stays in sync with what the panels actually render.
+   Selecting a result reuses the existing jump helpers:
+   showSettingsTab / showSetupLeaf / showRatesLeaf / showDoorType
+   + the rates-pulse / settings-highlight pulse.
+   ============================================================ */
+
+// One entry = one searchable destination.
+function buildSettingsSearchIndex() {
+  const idx = [];
+  const add = e => { if (e && e.label && typeof e.go === "function") idx.push(e); };
+
+  // Reusable jump: switch tab/leaf, then (after layout settles) scroll the
+  // target into view and flash the gold pulse. Mirrors openSettingsToItem's
+  // double-rAF + setTimeout so the overflow container has mounted.
+  const jump = (tab, opts = {}) => {
+    try { showSettingsTab(tab); } catch (_) {}
+    try { if (opts.setupLeaf) showSetupLeaf(opts.setupLeaf); } catch (_) {}
+    try { if (opts.ratesLeaf) showRatesLeaf(opts.ratesLeaf); } catch (_) {}
+    try { if (opts.doorType) showDoorType(opts.doorType); } catch (_) {}
+    if (!opts.targetId) return;
+    // Expand a collapsed card synchronously (mirrors openSettingsToItem) so the
+    // jump lands even if rAF is throttled; scroll + pulse settle on later frames.
+    const tNow = document.getElementById(opts.targetId);
+    if (tNow && tNow.tagName === "DETAILS" && !tNow.open) tNow.open = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+      const t = document.getElementById(opts.targetId);
+      if (!t) return;
+      try { t.scrollIntoView({ behavior: "smooth", block: opts.block || "center" }); }
+      catch { t.scrollIntoView(); }
+      const cls = opts.pulse === "highlight" ? "settings-highlight" : "rates-pulse";
+      t.classList.remove(cls); void t.offsetWidth; t.classList.add(cls);
+      setTimeout(() => t.classList.remove(cls), 1600);
+    }, 60)));
+  };
+
+  // ---- Top tabs (labels read straight off the rendered nav) ----
+  document.querySelectorAll("#settingsNav .set-tab").forEach(btn => {
+    if (btn.classList.contains("hidden")) return;        // skip admin-only/hidden tabs
+    const tab = btn.dataset.tab;
+    const label = (btn.textContent || "").replace(/\d+$/, "").trim();   // strip badge count
+    if (!tab || !label) return;
+    add({ label, kind: "Tab", path: "Settings", keywords: tab, go: () => jump(tab) });
+  });
+
+  // ---- Setup leaves ----
+  add({ label: "Brand & Company", kind: "Leaf", path: "Setup", keywords: "logo company name tagline city county phone email website",
+    go: () => jump("setup", { setupLeaf: "brand" }) });
+  add({ label: "Job Defaults", kind: "Leaf", path: "Setup", keywords: "default brand manufacturer application stories construction",
+    go: () => jump("setup", { setupLeaf: "defaults" }) });
+  add({ label: "Manufacturers", kind: "Leaf", path: "Setup", keywords: "brands window makers fl approvals",
+    go: () => jump("setup", { setupLeaf: "manufacturers" }) });
+
+  // ---- Rates leaves + sections (ids are stable rates-section-* anchors) ----
+  add({ label: "Money & Tax", kind: "Leaf", path: "Rates & Pricing", keywords: "markup margin tax materials surtax county profit",
+    go: () => jump("rates", { ratesLeaf: "money", targetId: "rates-section-pricing", block: "start" }) });
+  add({ label: "Labor", kind: "Leaf", path: "Rates & Pricing", keywords: "labor rate bill install hourly impact crew",
+    go: () => jump("rates", { ratesLeaf: "labor", targetId: "rates-section-labor", block: "start" }) });
+  add({ label: "Window Rates", kind: "Leaf", path: "Rates & Pricing", keywords: "materials consumption variants brand price",
+    go: () => jump("rates", { ratesLeaf: "materials", targetId: "rates-section-materials", block: "start" }) });
+  add({ label: "Doors", kind: "Leaf", path: "Rates & Pricing", keywords: "swing sliding bifold glass door",
+    go: () => jump("rates", { ratesLeaf: "doors", targetId: "rates-section-doors", block: "start" }) });
+
+  // Door types (swing / sliding / bifold) — each its own section
+  add({ label: "Swing Doors", kind: "Section", path: "Rates › Doors", keywords: "single double french hinged",
+    go: () => jump("rates", { ratesLeaf: "doors", doorType: "swing", targetId: "rates-section-doors", block: "start" }) });
+  add({ label: "Sliding Glass Doors", kind: "Section", path: "Rates › Doors", keywords: "slider sgd patio",
+    go: () => jump("rates", { ratesLeaf: "doors", doorType: "sliding", targetId: "rates-section-sliders", block: "start" }) });
+  add({ label: "Bifold Doors", kind: "Section", path: "Rates › Doors", keywords: "folding accordion",
+    go: () => jump("rates", { ratesLeaf: "doors", doorType: "bifold", targetId: "rates-section-bifold", block: "start" }) });
+
+  // ---- Key fields in Money & Tax (real input ids) ----
+  add({ label: "Markup %", kind: "Field", path: "Rates › Money & Tax", keywords: "margin profit",
+    go: () => jump("rates", { ratesLeaf: "money", targetId: "adminMargin", pulse: "highlight" }) });
+  add({ label: "Materials tax %", kind: "Field", path: "Rates › Money & Tax", keywords: "sales tax surtax county",
+    go: () => jump("rates", { ratesLeaf: "money", targetId: "adminTax", pulse: "highlight" }) });
+  add({ label: "Impact labor ×", kind: "Field", path: "Rates › Money & Tax", keywords: "hurricane multiplier impact glass",
+    go: () => jump("rates", { ratesLeaf: "money", targetId: "adminImpactLabor", pulse: "highlight" }) });
+
+  // ---- DATA-derived: material names + job fees (can't drift from DATA) ----
+  (DATA.costItems || []).forEach(item => {
+    if (item.id === "labor") return;                      // labor handled as a leaf/field above
+    const cardId = "rates-item-" + item.id;
+    if (MATERIAL_IDS.includes(item.id)) {
+      add({ label: item.name, kind: "Material", path: "Rates › Window Rates",
+        keywords: (item.variants || []).map(v => v.brand).join(" "),
+        go: () => jump("rates", { ratesLeaf: "materials", targetId: cardId, pulse: "highlight" }) });
+    } else {
+      // Job fee (disposal / permit / lift rental) — single unit-price card
+      add({ label: item.name, kind: "Fee", path: "Rates › Window Rates", keywords: item.unit,
+        go: () => jump("rates", { ratesLeaf: "materials", targetId: cardId, pulse: "highlight" }) });
+    }
+  });
+
+  return idx;
+}
+
+// Score + filter the index against a query. Word-prefix matches rank highest,
+// then label-substring, then keyword-substring. Empty query → [].
+function searchSettings(idx, qRaw) {
+  const q = (qRaw || "").trim().toLowerCase();
+  if (!q) return [];
+  const scored = [];
+  for (const e of idx) {
+    const label = e.label.toLowerCase();
+    const kw = (e.keywords || "").toLowerCase();
+    let s = 0;
+    if (label === q) s = 100;
+    else if (label.startsWith(q)) s = 80;
+    else if (new RegExp("\\b" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(label)) s = 60;
+    else if (label.includes(q)) s = 45;
+    else if (kw.includes(q)) s = 25;
+    if (s) scored.push({ e, s });
+  }
+  scored.sort((a, b) => b.s - a.s || a.e.label.localeCompare(b.e.label));
+  return scored.slice(0, 12).map(x => x.e);
+}
+
+// ---- Combobox state + wiring (lazy, once) ----
+let _setSearchIdx = null;
+let _setSearchHits = [];
+let _setSearchActive = -1;
+
+function renderSettingsSearch() {
+  const box = document.getElementById("settingsSearchResults");
+  const input = document.getElementById("settingsSearch");
+  const status = document.getElementById("settingsSearchStatus");
+  if (!box || !input) return;
+  const hits = _setSearchHits;
+  if (!input.value.trim()) {
+    box.classList.add("hidden"); box.innerHTML = "";
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+    if (status) status.textContent = "";
+    return;
+  }
+  if (!hits.length) {
+    box.innerHTML = '<div class="set-sr-empty">No matches</div>';
+    box.classList.remove("hidden");
+    input.setAttribute("aria-expanded", "true");
+    input.removeAttribute("aria-activedescendant");
+    if (status) status.textContent = "No matches";
+    return;
+  }
+  box.innerHTML = hits.map((h, i) => `
+    <button type="button" role="option" id="setSrOpt${i}" data-i="${i}"
+      class="set-sr-opt${i === _setSearchActive ? " active" : ""}" aria-selected="${i === _setSearchActive}">
+      <span class="set-sr-main">
+        <span class="set-sr-label">${escHtml(h.label)}</span>
+        <span class="set-sr-path">${escHtml(h.path || "")}</span>
+      </span>
+      <span class="set-sr-kind">${escHtml(h.kind || "")}</span>
+    </button>`).join("");
+  box.classList.remove("hidden");
+  input.setAttribute("aria-expanded", "true");
+  if (_setSearchActive >= 0) input.setAttribute("aria-activedescendant", "setSrOpt" + _setSearchActive);
+  else input.removeAttribute("aria-activedescendant");
+  if (status) status.textContent = hits.length + (hits.length === 1 ? " result" : " results");
+}
+
+function chooseSettingsSearch(i) {
+  const h = _setSearchHits[i];
+  if (!h) return;
+  const input = document.getElementById("settingsSearch");
+  const box = document.getElementById("settingsSearchResults");
+  if (input) { input.value = ""; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); input.blur(); }
+  if (box) { box.classList.add("hidden"); box.innerHTML = ""; }
+  _setSearchHits = []; _setSearchActive = -1;
+  try { window.track && window.track("settings_search_jump", { kind: h.kind, label: h.label }); } catch (_) {}
+  h.go();
+}
+
+function wireSettingsSearch() {
+  const input = document.getElementById("settingsSearch");
+  const box = document.getElementById("settingsSearchResults");
+  if (!input || input._wired) return;
+  input._wired = true;
+
+  const recompute = () => {
+    if (!_setSearchIdx) _setSearchIdx = buildSettingsSearchIndex();
+    _setSearchHits = searchSettings(_setSearchIdx, input.value);
+    _setSearchActive = _setSearchHits.length ? 0 : -1;
+    renderSettingsSearch();
+  };
+
+  // Rebuild the index on focus so DATA edits / renamed variants are current.
+  input.addEventListener("focus", () => { _setSearchIdx = buildSettingsSearchIndex(); });
+  input.addEventListener("input", recompute);
+
+  input.addEventListener("keydown", e => {
+    const n = _setSearchHits.length;
+    if (e.key === "ArrowDown") { if (!n) return; e.preventDefault(); _setSearchActive = (_setSearchActive + 1) % n; renderSettingsSearch(); }
+    else if (e.key === "ArrowUp") { if (!n) return; e.preventDefault(); _setSearchActive = (_setSearchActive - 1 + n) % n; renderSettingsSearch(); }
+    else if (e.key === "Home") { if (!n) return; e.preventDefault(); _setSearchActive = 0; renderSettingsSearch(); }
+    else if (e.key === "End") { if (!n) return; e.preventDefault(); _setSearchActive = n - 1; renderSettingsSearch(); }
+    else if (e.key === "Enter") { if (_setSearchActive >= 0) { e.preventDefault(); chooseSettingsSearch(_setSearchActive); } }
+    else if (e.key === "Escape") {
+      if (input.value) { e.preventDefault(); e.stopPropagation(); input.value = ""; _setSearchHits = []; _setSearchActive = -1; renderSettingsSearch(); }
+    }
+  });
+
+  // Click / tap a result (pointerdown so it fires before the input's blur).
+  box.addEventListener("pointerdown", e => {
+    const opt = e.target.closest(".set-sr-opt");
+    if (!opt) return;
+    e.preventDefault();
+    chooseSettingsSearch(parseInt(opt.dataset.i, 10));
+  });
+
+  // Close the popover when focus leaves the search wrap.
+  input.addEventListener("blur", () => setTimeout(() => {
+    const wrap = document.getElementById("settingsSearchWrap");
+    if (wrap && !wrap.contains(document.activeElement)) {
+      box.classList.add("hidden");
+      input.setAttribute("aria-expanded", "false");
+    }
+  }, 120));
 }
 
 function buildRatesNav() {
