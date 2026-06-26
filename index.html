@@ -2221,6 +2221,16 @@
   .set-hint { font-size: 11px; line-height: 1.4; color: #64748b; }
   /* settings inputs ride >=16px to stop iOS zoom-on-focus + keep one size */
   .set-field input, .set-field select, .set-field textarea { font-size: 16px; }
+  /* Rates leaf sub-navigation (redesign: split Rates into focused leaves) */
+  .rleaf-nav { display: flex; gap: 6px; margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .rleaf-nav::-webkit-scrollbar { display: none; }
+  .rleaf-btn { flex: 0 0 auto; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
+  .rleaf-btn:hover { color: #e2e8f0; border-color: #475569; }
+  .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
+  .rleaf-doornav { display: flex; gap: 6px; margin-bottom: 16px; }
+  .rdoor-btn { flex: 0 0 auto; padding: 6px 15px; border-radius: 999px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+  .rdoor-btn:hover { color: #e2e8f0; border-color: #475569; }
+  .rdoor-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
   /* Settings → Customers editable cards */
   .cust-edit { border: 1px solid rgba(51,65,85,0.6); border-radius: 14px; padding: 14px; margin-bottom: 12px; background: rgba(15,23,42,0.35); max-width: 44rem; }
   [data-theme="light"] .cust-edit { border-color: #e2e8f0; background: #f8fafc; }
@@ -5848,17 +5858,25 @@
         <!-- Rates & Pricing -->
         <div class="set-panel" data-panel="rates">
           <div class="set-h">Rates &amp; Pricing</div>
-          <div class="set-sub mb-5">Margins, taxes, and what every material costs.</div>
+          <div class="set-sub mb-5">Margins, taxes, labor, and what every material costs.</div>
+          <div id="ratesLeafNav" class="rleaf-nav">
+            <button type="button" class="rleaf-btn active" data-rleaf-btn="money" onclick="showRatesLeaf('money')">Money &amp; Tax</button>
+            <button type="button" class="rleaf-btn" data-rleaf-btn="labor" onclick="showRatesLeaf('labor')">Labor</button>
+            <button type="button" class="rleaf-btn" data-rleaf-btn="materials" onclick="showRatesLeaf('materials')">Window Rates</button>
+            <button type="button" class="rleaf-btn" data-rleaf-btn="doors" onclick="showRatesLeaf('doors')">Doors</button>
+          </div>
 
           <!-- ═══ Two-pane layout: sticky left nav + scrollable right content ═══
                The nav is built dynamically in buildRatesNav() (called after
                render) so it stays in sync as material cards / variant counts
                change. Each section has a stable id="rates-section-*" anchor.
           -->
-          <div class="grid lg:grid-cols-[210px_1fr] gap-x-6 gap-y-3" id="ratesShell">
+          <div id="ratesShell">
 
-            <!-- LEFT: sticky nav ────────────────────────────────────────── -->
-            <aside class="hidden lg:block">
+            <!-- LEFT: legacy section-nav retired by the leaf system; kept hidden so
+                 buildRatesNav() (which now early-returns: #ratesNav id removed) and
+                 the filter helpers don't error. -->
+            <aside class="hidden" aria-hidden="true">
               <div class="sticky top-0 -mt-1 pt-1 pb-3 max-h-[calc(100vh-220px)] overflow-y-auto">
                 <!-- Show-All toggle: click a category to focus on it, click here to reset.
                      Default state ("All") shows every section + every material card.
@@ -5874,20 +5892,20 @@
                   <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
                   <input id="ratesNavSearch" type="search" placeholder="Filter…" class="control rounded-lg pl-8 pr-2 py-1.5 w-full text-[12px] text-slate-100 placeholder:text-slate-600" />
                 </div>
-                <nav id="ratesNav" class="space-y-0.5 text-[12px]"></nav>
+                <nav class="space-y-0.5 text-[12px]"></nav>
               </div>
             </aside>
 
-            <!-- Mobile-only pill nav (above content on <lg) -->
-            <div class="lg:hidden -mt-1 mb-2 flex flex-wrap gap-1.5" id="ratesNavMobile">
-              <button id="ratesShowAllMobile" type="button" class="rates-show-all-mobile inline-flex text-[11px] font-bold tracking-tight px-3 py-1.5 rounded-full bg-slate-900/60 border border-slate-700 text-slate-300 hover:border-[#b58f4a]">All</button>
+            <!-- Mobile pill nav retired by the leaf system -->
+            <div class="hidden" id="ratesNavMobile" aria-hidden="true">
+              <button id="ratesShowAllMobile" type="button" class="rates-show-all-mobile">All</button>
             </div>
 
             <!-- RIGHT: stacked sections ─────────────────────────────────── -->
             <div class="space-y-7 min-w-0">
 
             <!-- ═══ Section: Pricing & Markup ═══ -->
-            <section id="rates-section-pricing" data-rates-section data-nav-label="Money &amp; Tax">
+            <section id="rates-section-pricing" data-rleaf="money" data-rates-section data-nav-label="Money &amp; Tax">
               <div class="set-card">
                 <div class="set-card-head">Money &amp; Tax</div>
                 <div class="set-card-desc">The numbers that drive every quote — change these first.</div>
@@ -5915,7 +5933,7 @@
             <!-- ═══ Section: Labor — all labor cost lives here: the per-LF
                  billing rate (rendered into #adminLaborRateBody by the
                  renderer) PLUS the crew-pay / hours model. ═══ -->
-            <section id="rates-section-labor" data-rates-section data-nav-label="Labor">
+            <section id="rates-section-labor" data-rleaf="labor" style="display:none" data-rates-section data-nav-label="Labor">
             <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Labor</h4>
 
             <!-- Billing rate + per-LF hours (the "labor" cost item, pulled
@@ -5962,9 +5980,9 @@
             <!-- ═══ Section: Materials (the dynamic list — each card gets
                  id="rates-item-<itemId>" from the renderer so the nav can
                  jump to it) ═══ -->
-            <section id="rates-section-materials" data-rates-section data-nav-label="Materials" data-nav-group="true">
+            <section id="rates-section-materials" data-rleaf="materials" style="display:none" data-rates-section data-nav-label="Window Rates" data-nav-group="true">
               <div class="flex items-center justify-between mb-3 gap-3">
-                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Materials</h4>
+                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Window Rates</h4>
                 <div class="flex items-center gap-1.5 flex-shrink-0">
                   <button type="button" id="adminChecklistView" class="btn rounded-full px-2.5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-[#c9a558] uppercase tracking-[0.1em]">View</button>
                   <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
@@ -5974,7 +5992,12 @@
             </section>
 
             <!-- ═══ Section: Swing Doors ═══ -->
-            <section id="rates-section-doors" data-rates-section data-nav-label="Swing Doors">
+            <div class="rleaf-doornav" data-rleaf="doors" style="display:none">
+              <button type="button" class="rdoor-btn active" data-rdoor-btn="swing" onclick="showDoorType('swing')">Swing</button>
+              <button type="button" class="rdoor-btn" data-rdoor-btn="sliding" onclick="showDoorType('sliding')">Sliding</button>
+              <button type="button" class="rdoor-btn" data-rdoor-btn="bifold" onclick="showDoorType('bifold')">Bifold</button>
+            </div>
+            <section id="rates-section-doors" data-rleaf="doors" data-dtype="swing" style="display:none" data-rates-section data-nav-label="Swing Doors">
             <div class="pt-2">
             <div class="flex items-center justify-between mb-3 gap-3">
               <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Swing Doors</h4>
@@ -6055,7 +6078,7 @@
             </section>
 
             <!-- ═══ Section: Sliding Glass Doors ═══ -->
-            <section id="rates-section-sliders" data-rates-section data-nav-label="Sliding Glass Doors">
+            <section id="rates-section-sliders" data-rleaf="doors" data-dtype="sliding" style="display:none" data-rates-section data-nav-label="Sliding Glass Doors">
             <div class="pt-2">
             <div class="flex items-center justify-between mb-3 gap-3">
               <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Sliding Glass Doors</h4>
@@ -6130,7 +6153,7 @@
             </section>
 
             <!-- ═══ Section: Bifold Doors ═══ -->
-            <section id="rates-section-bifold" data-rates-section data-nav-label="Bifold Doors">
+            <section id="rates-section-bifold" data-rleaf="doors" data-dtype="bifold" style="display:none" data-rates-section data-nav-label="Bifold Doors">
             <div class="pt-2">
             <div class="flex items-center justify-between mb-3 gap-3">
               <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Bifold Doors</h4>
@@ -14073,9 +14096,15 @@ function openSettingsToItem(itemId) {
   window.track("rate_edited_from_breakdown", { row_id: String(itemId) });
   openAdmin();
   showSettingsTab("rates");
-  // Reset the rates filter to "all" so the target card isn't hidden by a
-  // previously-active focus filter, and expand it if it's a collapsed card.
-  try { if (typeof setRatesFilter === "function") setRatesFilter("all"); } catch (_) {}
+  // Activate the leaf that holds this item so the leaf system doesn't keep it hidden,
+  // then expand it if it's a collapsed card.
+  try {
+    let _leaf = "materials";
+    if (itemId === "labor") _leaf = "labor";
+    else if (String(itemId).startsWith("swing_doors")) _leaf = "doors";
+    if (typeof showRatesLeaf === "function") showRatesLeaf(_leaf);
+    if (_leaf === "doors" && typeof showDoorType === "function") showDoorType("swing");
+  } catch (_) {}
   try {
     const det = document.querySelector(`#adminRatesBody details[data-cat="${itemId}"]`);
     if (det && !det.open) det.open = true;
@@ -15820,6 +15849,20 @@ function buildAdminUI() {
 // section, highlights the active one via IntersectionObserver, supports
 // filter-by-typing in the search box. Per-card variant collapse is remembered
 // in localStorage (see rates_collapse key).
+// Rates leaf switcher — show one focused group at a time (Money & Tax / Labor /
+// Window Rates / Doors). Replaces the old in-panel section-nav + filter. Wired via
+// inline onclick so it works regardless of the (sign-in-gated) init().
+function showRatesLeaf(name) {
+  document.querySelectorAll('#ratesLeafNav [data-rleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.rleafBtn === name));
+  document.querySelectorAll('#ratesShell [data-rleaf]').forEach(el => { el.style.display = (el.dataset.rleaf === name) ? '' : 'none'; });
+  if (name === 'doors') showDoorType(window._rDoorType || 'swing');
+}
+function showDoorType(type) {
+  window._rDoorType = type;
+  document.querySelectorAll('#ratesShell [data-rdoor-btn]').forEach(b => b.classList.toggle('active', b.dataset.rdoorBtn === type));
+  document.querySelectorAll('#ratesShell [data-dtype]').forEach(el => { el.style.display = (el.dataset.dtype === type) ? '' : 'none'; });
+}
+
 function buildRatesNav() {
   const nav = document.getElementById("ratesNav");
   const mobile = document.getElementById("ratesNavMobile");
