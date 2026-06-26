@@ -2253,6 +2253,10 @@
   .cust-avatar { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; overflow: hidden; background: rgba(181,143,74,0.14); border: 1px solid rgba(181,143,74,0.30); }
   .cust-avatar img { width: 100%; height: 100%; object-fit: cover; }
   .cust-avatar-initials { color: var(--gold-hi); font-weight: 800; letter-spacing: 0.02em; }
+  .cust-logo-btn { font-size: 11px; font-weight: 600; color: var(--gold-hi); background: none; border: 0; padding: 0; cursor: pointer; }
+  .cust-logo-btn:hover { text-decoration: underline; }
+  .cust-logo-remove { color: #94a3b8; }
+  .cust-logo-remove:hover { color: #fb7185; }
   /* Mobile: settings sidebar collapses into a horizontal scroll strip so the
      content panel gets the full screen width instead of being crammed into a
      narrow column beside the rail. */
@@ -12215,6 +12219,7 @@ function renderCustomersSettings() {
 }
 
 function custDetailHTML(c) {
+  const hasLogo = !!(typeof DATA !== "undefined" && DATA.config && DATA.config.customerLogos && DATA.config.customerLogos[c.key]);
   const jobs = ((typeof loadJobs === "function") ? loadJobs() : [])
     .filter(j => j && !j.isDraft && (j.customerName || "").trim().toLowerCase() === c.key)
     .sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0));
@@ -12230,7 +12235,14 @@ function custDetailHTML(c) {
       </button>
       <div class="set-card">
         <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center gap-3 min-w-0">${custAvatar(c, 44)}<div class="set-card-head truncate">${escHtml(c.name)}</div></div>
+          <div class="flex items-center gap-3 min-w-0">${custAvatar(c, 44)}<div class="min-w-0">
+            <div class="set-card-head truncate">${escHtml(c.name)}</div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <button type="button" class="cust-logo-btn" data-cust-logo-upload>${hasLogo ? "Change logo" : "Add logo"}</button>
+              ${hasLogo ? `<button type="button" class="cust-logo-btn cust-logo-remove" data-cust-logo-remove>Remove</button>` : ""}
+              <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" data-cust-logo-input>
+            </div>
+          </div></div>
           <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none flex-shrink-0">
             <input type="checkbox" data-cust-field="recurring" ${c.recurring ? "checked" : ""} style="accent-color:#b58f4a;"> Recurring
           </label>
@@ -12257,7 +12269,7 @@ function custDetailHTML(c) {
 // (Logos live in DATA.config.customerLogos — upload wiring is the next slice.)
 function custAvatar(c, px) {
   const size = px || 40;
-  const logo = (window.DATA && DATA.config && DATA.config.customerLogos) ? DATA.config.customerLogos[c.key] : "";
+  const logo = (typeof DATA !== "undefined" && DATA.config && DATA.config.customerLogos) ? DATA.config.customerLogos[c.key] : "";
   if (logo && /^data:image\//i.test(logo)) {
     return `<span class="cust-avatar" style="width:${size}px;height:${size}px"><img src="${escHtml(logo)}" alt=""></span>`;
   }
@@ -20943,6 +20955,16 @@ function init() {
       if (e.target.closest("[data-cust-back]")) { _custDetailKey = null; renderCustomersSettings(); return; }
       const jobBtn = e.target.closest("[data-cust-job]");
       if (jobBtn) { try { openJobDetails(jobBtn.dataset.custJob); } catch (_) {} return; }
+      if (e.target.closest("[data-cust-logo-upload]")) {
+        const inp = e.target.closest("[data-cust-key]")?.querySelector("[data-cust-logo-input]");
+        if (inp) inp.click();
+        return;
+      }
+      if (e.target.closest("[data-cust-logo-remove]")) {
+        if (DATA.config && DATA.config.customerLogos) { delete DATA.config.customerLogos[_custDetailKey]; saveData(DATA); }
+        renderCustomersSettings();
+        return;
+      }
       const btn = e.target.closest("[data-cust-save]");
       if (!btn) return;
       const card = btn.closest("[data-cust-key]");
@@ -20962,6 +20984,19 @@ function init() {
         try { if (typeof renderDashboard === "function" && !document.getElementById("dashboardScreen")?.classList.contains("hidden")) renderDashboard(); } catch (_) {}
         try { populateCustomerPicker(); } catch (_) {}
       } else { toast("Nothing to update"); }
+    });
+    _custBody.addEventListener("change", async e => {
+      const inp = e.target.closest("[data-cust-logo-input]");
+      if (!inp || !inp.files || !inp.files[0]) return;
+      try {
+        const url = await resizeImageToDataURL(inp.files[0], 320);
+        if (!DATA.config) DATA.config = {};
+        DATA.config.customerLogos = DATA.config.customerLogos || {};
+        DATA.config.customerLogos[_custDetailKey] = url;
+        saveData(DATA);
+        renderCustomersSettings();
+        toast("Logo saved");
+      } catch (_) { toast("Couldn't read that image"); }
     });
     _custBody._wired = true;
   }
