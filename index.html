@@ -2219,6 +2219,20 @@
   .set-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .set-label { font-size: 12px; font-weight: 600; color: #cbd5e1; }
   .set-hint { font-size: 11px; line-height: 1.4; color: #64748b; }
+  /* Quiet autosave indicator in the Settings header (states-and-feedback §5):
+     pre-mounted polite live region, invisible at rest, fades in on save and
+     settles. Never a modal action, never focus-grabbed. */
+  .settings-saved {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 600; color: #6ee7b7;
+    opacity: 0; transform: translateY(2px);
+    transition: opacity .2s ease, transform .2s ease;
+    pointer-events: none; user-select: none;
+  }
+  .settings-saved.show { opacity: 1; transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .settings-saved { transition: opacity .01ms linear; transform: none; }
+  }
   /* settings inputs ride >=16px to stop iOS zoom-on-focus + keep one size */
   .set-field input, .set-field select, .set-field textarea { font-size: 16px; }
   /* Rates leaf sub-navigation (redesign: split Rates into focused leaves) */
@@ -5743,7 +5757,13 @@
         </span>
         <h3 class="text-base font-bold text-slate-100 tracking-tight">Settings</h3>
       </div>
-      <button class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] min-h-[44px]" data-close>Done</button>
+      <div class="flex items-center gap-3">
+        <span id="settingsSavedFlag" class="settings-saved" role="status" aria-live="polite" aria-atomic="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          <span>Saved</span>
+        </span>
+        <button class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558] min-h-[44px]" data-close>Done</button>
+      </div>
     </div>
 
     <!-- Body: rail + content (stacks to single column on mobile) -->
@@ -16257,7 +16277,10 @@ function updateCrewCostReadout() {
     : "—";
 }
 
-function saveAdmin() {
+// Reads the entire admin form into DATA and persists. Every field is range/NaN
+// guarded, so an autosave fired mid-edit on one field can't write a partial or
+// invalid value — it just skips the in-flight one. Silent: no close, no toast.
+function commitAdmin() {
   // Brand
   if (!DATA.config.brand) DATA.config.brand = {};
   DATA.config.brand.companyName = document.getElementById("brandCompanyName").value.trim();
@@ -16441,14 +16464,53 @@ function saveAdmin() {
   // Saving real rates counts as customizing — clears the demo banner
   DATA.config.ratesCustomized = true;
   saveData(DATA);
-  closeAdmin();
   applyBrandToUI();
   bindControls();
   renderDemoBanner();
   renderSlidingDoors();
   renderBifoldDoors();
   render();
-  toast("Settings saved");
+}
+
+// Manual Save button + autosave both route here. Persists silently (no modal
+// close, no toast) and flashes the quiet "Saved" indicator in the header.
+function saveAdmin() {
+  commitAdmin();
+  flashSettingsSaved();
+}
+
+// Flash the quiet "Saved" header indicator, then settle (states-and-feedback
+// §1: brief success, never a permanent badge). The node is pre-mounted as a
+// polite live region so SR users hear "Saved" without focus moving.
+function flashSettingsSaved() {
+  const el = document.getElementById("settingsSavedFlag");
+  if (!el) return;
+  el.classList.add("show");
+  clearTimeout(flashSettingsSaved._t);
+  flashSettingsSaved._t = setTimeout(() => el.classList.remove("show"), 1800);
+}
+
+// Autosave-on-blur for the editable Settings panels (Setup, Rates). Delegated on
+// the stable #adminModal node so it covers dynamically-added rows (manufacturer
+// cards, material variants). commitAdmin() reads the WHOLE form and guards every
+// value, so committing on any one field's blur is safe and never partial. The
+// ~600ms debounce only coalesces rapid tab-throughs to limit cloud-sync churn.
+function wireSettingsAutosave() {
+  const modal = document.getElementById("adminModal");
+  if (!modal || modal._autosaveWired) return;
+  modal._autosaveWired = true;
+  const inEditablePanel = t =>
+    t && t.closest && t.closest('.set-panel[data-panel="setup"], .set-panel[data-panel="rates"]');
+  let t = null;
+  const queueSave = target => {
+    if (!inEditablePanel(target)) return;
+    clearTimeout(t);
+    t = setTimeout(() => { commitAdmin(); flashSettingsSaved(); }, 600);
+  };
+  // focusout = blur for text/number inputs (bubbles, unlike blur).
+  modal.addEventListener("focusout", e => queueSave(e.target));
+  // change = selects, checkboxes, radios commit instantly.
+  modal.addEventListener("change", e => queueSave(e.target));
 }
 
 function restoreDefaults() {
@@ -20961,6 +21023,7 @@ function init() {
   { const b = document.getElementById("pfpFeedbackInbox"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("feedback"); } catch (_) {} }); }
   { const b = document.getElementById("pfpResources"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("resources"); } catch (_) {} }); }
   document.getElementById("adminSave").addEventListener("click", saveAdmin);
+  wireSettingsAutosave();
   // Live crew-cost readout in the Labor settings
   ["adminCrewSize", "adminCrewPayRatePerHr"].forEach(id => {
     const el = document.getElementById(id);
