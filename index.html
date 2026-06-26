@@ -2202,6 +2202,25 @@
   .set-panel.active { display: block; animation: fadeIn .25s ease both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
   .set-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+  /* ── Settings: one shared component layer (redesign Phase 1) ───────────────
+     .set-card / .set-card-head / .set-card-desc / .set-grid / .set-field /
+     .set-label / .set-hint — the single section+field+card template applied
+     across every settings panel so they stop diverging. */
+  .set-card { border: 1px solid rgba(51,65,85,0.6); border-radius: 14px; background: rgba(15,23,42,0.35); padding: 16px; }
+  [data-theme="light"] .set-card { border-color: #e2e8f0; background: #f8fafc; }
+  .set-card + .set-card { margin-top: 16px; }
+  .set-card-head { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: #f1f5f9; }
+  .set-card-desc { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .set-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
+  @media (min-width: 480px) {
+    .set-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .set-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .set-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .set-label { font-size: 12px; font-weight: 600; color: #cbd5e1; }
+  .set-hint { font-size: 11px; line-height: 1.4; color: #64748b; }
+  /* settings inputs ride >=16px to stop iOS zoom-on-focus + keep one size */
+  .set-field input, .set-field select, .set-field textarea { font-size: 16px; }
   /* Settings → Customers editable cards */
   .cust-edit { border: 1px solid rgba(51,65,85,0.6); border-radius: 14px; padding: 14px; margin-bottom: 12px; background: rgba(15,23,42,0.35); max-width: 44rem; }
   [data-theme="light"] .cust-edit { border-color: #e2e8f0; background: #f8fafc; }
@@ -5868,20 +5887,26 @@
             <div class="space-y-7 min-w-0">
 
             <!-- ═══ Section: Pricing & Markup ═══ -->
-            <section id="rates-section-pricing" data-rates-section data-nav-label="Pricing &amp; Markup">
-              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Pricing &amp; Markup</h4>
-              <div class="flex flex-wrap gap-4">
-                <div class="flex items-center gap-3">
-                  <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Markup %</label>
-                  <input id="adminMargin" type="number" step="0.1" min="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-                </div>
-                <div class="flex items-center gap-3">
-                  <label class="text-xs uppercase tracking-[0.14em] text-slate-500">Materials Tax %</label>
-                  <input id="adminTax" type="number" step="0.1" min="0" max="100" placeholder="0" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
-                </div>
-                <div class="flex items-center gap-3">
-                  <label class="text-xs uppercase tracking-[0.14em] text-slate-500" title="Labor multiplier applied to impact-glass jobs">Impact Labor ×</label>
-                  <input id="adminImpactLabor" type="number" step="0.05" min="1" placeholder="1.15" class="control rounded-lg px-3 py-2 w-24 text-sm text-slate-100" />
+            <section id="rates-section-pricing" data-rates-section data-nav-label="Money &amp; Tax">
+              <div class="set-card">
+                <div class="set-card-head">Money &amp; Tax</div>
+                <div class="set-card-desc">The numbers that drive every quote — change these first.</div>
+                <div class="set-grid cols-3">
+                  <div class="set-field">
+                    <label class="set-label" for="adminMargin">Markup %</label>
+                    <input id="adminMargin" type="text" inputmode="decimal" autocomplete="off" placeholder="35" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                    <span class="set-hint">Added on top of your cost to get the selling price.</span>
+                  </div>
+                  <div class="set-field">
+                    <label class="set-label" for="adminTax">Materials tax %</label>
+                    <input id="adminTax" type="text" inputmode="decimal" autocomplete="off" placeholder="0" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                    <span class="set-hint">Sales tax on materials — auto-set from your county on the Brand tab.</span>
+                  </div>
+                  <div class="set-field">
+                    <label class="set-label" for="adminImpactLabor">Impact labor ×</label>
+                    <input id="adminImpactLabor" type="text" inputmode="decimal" autocomplete="off" placeholder="1.15" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                    <span class="set-hint">Extra labor multiplier for hurricane-impact jobs.</span>
+                  </div>
                 </div>
               </div>
             </section>
