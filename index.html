@@ -4972,7 +4972,6 @@
         <!-- Settings / Plan / Sign out now live in the account (avatar) menu. -->
         <button id="dashFL" type="button" class="dash-nav-btn hidden sm:inline-flex">FL Lookup</button>
         <button id="dashOpenCalc" type="button" class="lp-btn-gold btn rounded-full text-[12.5px] sm:text-[15px] font-black tracking-tight px-3 sm:px-5 py-2 sm:py-2.5 ml-0.5 sm:ml-1 whitespace-nowrap shrink-0"><span class="sm:hidden">Calculator →</span><span class="hidden sm:inline">Open Calculator →</span></button>
-        <button data-theme-toggle type="button" class="btn w-10 h-10 sm:w-9 sm:h-9 rounded-full inline-flex items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition shrink-0 ml-1 sm:ml-2" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
         <button id="dashPfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800 shrink-0 ml-1" aria-label="Account menu" aria-haspopup="true">
           <span id="dashPfpInner" class="w-full h-full flex items-center justify-center"></span>
         </button>
@@ -9186,6 +9185,12 @@ function setupThemeToggles() {
     b.dataset.themeWired = "1";
     b.addEventListener("click", toggleTheme);
   });
+  // Account-menu theme row: keeps its text label (so it can't use the icon-only
+  // [data-theme-toggle] path, which overwrites innerHTML). Wired here — at page
+  // load, not in the sign-in-gated app init — so it always works. stopPropagation
+  // keeps the dropdown open on toggle.
+  { const t = document.getElementById("pfpThemeToggle");
+    if (t && !t.dataset.themeWired) { t.dataset.themeWired = "1"; t.addEventListener("click", (e) => { e.stopPropagation(); toggleTheme(); }); } }
   updateThemeToggleIcon();
 }
 setupThemeToggles();
@@ -22235,8 +22240,7 @@ function init() {
   window.addEventListener("resize", closePfpMenu);
   // New account-menu entries
   { const b = document.getElementById("pfpCalc"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { closeDashboard(); } catch (_) {} }); }
-  // Theme toggle lives in this menu now — flip in place, keep the menu open so the change is visible.
-  { const b = document.getElementById("pfpThemeToggle"); if (b) b.addEventListener("click", (e) => { e.stopPropagation(); toggleTheme(); }); }
+  // (Theme toggle is wired in setupThemeToggles so it works regardless of app init.)
   { const b = document.getElementById("pfpSendFeedback"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openFeedback(); } catch (_) {} }); }
   { const b = document.getElementById("pfpAdmin"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("admin"); } catch (_) {} }); }
   { const b = document.getElementById("pfpFeedbackInbox"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("feedback"); } catch (_) {} }); }
