@@ -5033,8 +5033,8 @@
   </nav>
 
   <div class="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
-    <!-- Hero -->
-    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+    <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
+    <div id="dashHero" class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
       <div>
         <span class="lp-eyebrow">Dashboard</span>
         <h1 id="dashGreeting" class="text-2xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-3">Welcome back</h1>
@@ -10197,9 +10197,13 @@ function renderDashLaunchpad(jobs) {
 // Show the launchpad home or a single drilled-in section.
 function applyDashView() {
   const home = _dashView === "home";
+  const hero = document.getElementById("dashHero");
   const launch = document.getElementById("dashLaunchpad");
   const section = document.getElementById("dashSection");
   const stats = document.getElementById("dashStats");
+  // The "Welcome back" hero belongs to the home only; drilling in pulls the
+  // section header to the top for a less-cluttered, more focused view.
+  if (hero) hero.classList.toggle("hidden", !home);
   if (launch) launch.classList.toggle("hidden", !home);
   if (section) section.classList.toggle("hidden", home);
   // KPI strip belongs to the glance/home; hide it inside a focused section.
