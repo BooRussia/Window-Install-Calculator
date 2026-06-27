@@ -2910,6 +2910,36 @@
   .calib-dismiss { font-size: 12.5px; font-weight: 700; border-radius: 9999px; padding: 9px 15px; cursor: pointer; background: transparent; color: #94a3b8; border: 1px solid #334155; transition: all .15s ease; min-height: 42px; }
   .calib-dismiss:hover { color: #cbd5e1; border-color: #475569; }
   .calib-info { border-radius: 12px; border: 1px solid rgba(51,65,85,0.6); background: rgba(2,6,23,0.4); padding: 11px 13px; }
+  /* Calibration: accuracy summary */
+  .calib-acc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .calib-acc-cell { border: 1px solid #1e293b; border-radius: 14px; background: rgba(15,23,42,0.5); padding: 12px 14px; text-align: center; }
+  .calib-acc-k { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.13em; color: #64748b; font-weight: 800; }
+  .calib-acc-v { font-size: 20px; font-weight: 800; color: #f1f5f9; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .calib-acc-sub { font-size: 13px; font-weight: 700; color: #64748b; }
+  /* Calibration: per-job log list */
+  .calib-joblist { display: flex; flex-direction: column; gap: 8px; }
+  .calib-job { border: 1px solid #1e293b; border-radius: 14px; background: rgba(15,23,42,0.5); overflow: hidden; }
+  .calib-job-head { display: flex; align-items: center; gap: 10px; width: 100%; cursor: pointer; background: transparent; border: 0; padding: 13px 15px; min-height: 52px; text-align: left; }
+  .calib-job-head:hover { background: rgba(30,41,59,0.4); }
+  .calib-job-name { display: block; font-size: 13.5px; font-weight: 700; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calib-job-sub { display: block; font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calib-job-chev { color: #475569; flex-shrink: 0; transition: transform .18s ease; }
+  .calib-job-head[aria-expanded="true"] .calib-job-chev { transform: rotate(180deg); }
+  .calib-chip { flex-shrink: 0; font-size: 10.5px; font-weight: 800; border-radius: 9999px; padding: 3px 10px; border: 1px solid; font-variant-numeric: tabular-nums; }
+  .calib-chip.todo { color: #c9a558; border-color: rgba(181,143,74,0.45); background: rgba(181,143,74,0.1); }
+  .calib-chip.logged { color: #34d399; border-color: rgba(52,211,153,0.4); background: rgba(52,211,153,0.1); }
+  .calib-job-body { padding: 0 15px 14px; }
+  /* E-signatures: send-any-job picker */
+  .esign-send { border: 1px solid rgba(181,143,74,0.25); border-radius: 16px; background: rgba(181,143,74,0.05); padding: 15px 16px; }
+  .esign-send-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .esign-send-row > select { flex: 1 1 220px; min-height: 44px; }
+  .esign-send-result { margin-top: 12px; }
+  @media (max-width: 560px) { .esign-send-row > .jd-detail-seg, .esign-send-row > #dashEsignSendBtn { flex: 1 1 auto; } .esign-send-row > #dashEsignSendBtn { width: 100%; } }
+  [data-theme="light"] .calib-acc-cell, [data-theme="light"] .calib-job { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .calib-acc-v, [data-theme="light"] .calib-job-name { color: #0f172a; }
+  [data-theme="light"] .calib-job-head:hover { background: #f1f3f6; }
+  [data-theme="light"] .calib-empty { border-color: #d8dde6; }
+  [data-theme="light"] .esign-send { background: #faf6ee; border-color: #e7dcc4; }
   [data-theme="light"] .dash-launch-card { background: #ffffff; border-color: #e6e8ec; }
   [data-theme="light"] .dash-launch-title { color: #0f172a; }
   [data-theme="light"] .dash-launch-preview { color: #64748b; }
@@ -10004,6 +10034,7 @@ function openDashboard() {
   d.classList.remove("hidden");
   d.scrollTop = 0;
   _dashView = "home";   // always land on the launchpad
+  _dashEsignLastUrl = "";   // don't resurface a stale "last created" link on a fresh open
   renderDashboard();
   try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}   // premium count-up + chart entrance
   try { renderPfp(); } catch (_) {}   // paint the dashboard avatar + admin gate
@@ -10243,19 +10274,66 @@ function computeCalibrationSuggestions(jobs) {
   return { suggestions, informational, actualsJobs: real.length };
 }
 
+// Overall estimate accuracy across logged jobs (mean absolute per-row variance).
+function calibAccuracy(jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft && jobReconcilableRows(j).length);
+  let logged = 0, sumAbs = 0, n = 0;
+  real.forEach(j => {
+    const a = (j.actuals && typeof j.actuals === "object") ? j.actuals : {};
+    let any = false;
+    jobReconcilableRows(j).forEach(r => {
+      const act = a[r.id] && Number(a[r.id].used);
+      const est = Number(r.quantity) || 0;
+      if (act > 0 && est > 0) { any = true; sumAbs += Math.abs((act - est) / est); n++; }
+    });
+    if (any) logged++;
+  });
+  return { totalJobs: real.length, loggedJobs: logged, avgAbsPct: n ? (sumAbs / n) : null };
+}
+// Average absolute variance for ONE job (for its row chip), or null if nothing logged.
+function calibJobVariance(job) {
+  const a = (job.actuals && typeof job.actuals === "object") ? job.actuals : {};
+  let s = 0, n = 0;
+  jobReconcilableRows(job).forEach(r => {
+    const act = a[r.id] && Number(a[r.id].used), est = Number(r.quantity) || 0;
+    if (act > 0 && est > 0) { s += Math.abs((act - est) / est); n++; }
+  });
+  return n ? (s / n) : null;
+}
+// A job's inline actuals editor for the calibration page (reuses the jd-recon styles).
+function calibJobEditorHTML(job) {
+  const rows = jobReconcilableRows(job);
+  const actuals = (job.actuals && typeof job.actuals === "object") ? job.actuals : {};
+  const body = rows.map(r => {
+    const est = Number(r.quantity) || 0, unit = r.unit || "";
+    const a = actuals[r.id]; const used = (a && Number(a.used) > 0) ? Number(a.used) : ""; const has = used !== "";
+    const nameCls = r.isLabor ? "jd-recon-name labor" : "jd-recon-name";
+    return `<div class="jd-recon-row">
+      <span class="${nameCls}">${escHtml(r.name)}</span>
+      <span class="jd-recon-est">${formatQty(est)} ${escHtml(unit)}</span>
+      <input type="text" inputmode="decimal" class="jd-recon-input" data-recon-input="${escHtml(r.id)}" data-recon-est="${est}" value="${has ? escHtml(String(used)) : ""}" placeholder="—" aria-label="Actual ${escHtml(unit)} used for ${escHtml(r.name)}">
+      <span class="jd-recon-var ${has ? reconVarCls(est, used) : ""}" data-recon-var="${escHtml(r.id)}">${has ? reconVarText(est, used) : "—"}</span>
+    </div>`;
+  }).join("");
+  return `<div class="jd-recon" data-recon-scope>
+      <div class="jd-recon-head"><span>Item</span><span>Estimated</span><span>Actual used</span><span>Variance</span></div>
+      ${body}
+      <div class="jd-recon-actions">
+        <span class="text-[11px] text-slate-500 hidden sm:inline">Enter what your crew actually used.</span>
+        <button type="button" class="btn rounded-full px-4 py-2 text-[12.5px] font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] ml-auto" data-calib-save="${escHtml(job.id)}">Save actuals</button>
+      </div>
+    </div>`;
+}
+
+// The Pricing-calibration workspace: rate suggestions + an accuracy summary +
+// a job list you log actuals into inline — everything happens on this page.
 function renderDashCalibration(jobs) {
   const wrap = document.getElementById("dashCalibration");
   if (!wrap) return;
-  const { suggestions, informational, actualsJobs } = computeCalibrationSuggestions(jobs);
+  const { suggestions, informational } = computeCalibrationSuggestions(jobs);
   const live = suggestions.filter(s => !_dashCalibDismissed.has(s.itemId + "|" + s.rateKey));
-  if (!actualsJobs) {
-    wrap.innerHTML = `<div class="calib-empty">
-      <div class="text-slate-300 text-sm font-semibold">No actuals logged yet.</div>
-      <div class="text-xs mt-1.5 max-w-sm mx-auto">Open a job → <b>Materials &amp; labor used</b> and enter what your crew actually used. After a few jobs, Anchor blends the numbers and suggests sharper per-foot rates here.</div>
-    </div>`;
-    return;
-  }
   const fmtPct = (d) => Math.round(Math.abs(d) * 100) + "% " + (d > 0 ? "over" : "under");
+
   const cards = live.map(s => {
     const cls = s.delta > 0 ? "calib-delta-up" : "calib-delta-down";
     const scope = s.rateKey !== "default" ? ` · ${escHtml(s.rateKey)}` : "";
@@ -10282,9 +10360,51 @@ function renderDashCalibration(jobs) {
       <div class="text-[12.5px] text-slate-300 leading-relaxed"><b>${escHtml(o.name)}</b>: actual usage ran <b class="${cls}">${fmtPct(o.delta)}</b> your estimate across ${o.jobs} jobs.${tail}</div>
     </div>`;
   }).join("");
+
+  const acc = calibAccuracy(jobs);
+  const accPct = acc.avgAbsPct == null ? null : Math.round(acc.avgAbsPct * 100);
+  const accHTML = `<div class="calib-acc">
+      <div class="calib-acc-cell"><div class="calib-acc-k">Jobs logged</div><div class="calib-acc-v">${acc.loggedJobs}<span class="calib-acc-sub"> / ${acc.totalJobs}</span></div></div>
+      <div class="calib-acc-cell"><div class="calib-acc-k">Avg accuracy</div><div class="calib-acc-v">${accPct == null ? "—" : "±" + accPct + "%"}</div></div>
+      <div class="calib-acc-cell"><div class="calib-acc-k">Rate suggestions</div><div class="calib-acc-v">${live.length}</div></div>
+    </div>`;
+
+  const reconJobs = (jobs || []).filter(j => j && !j.isDraft && jobReconcilableRows(j).length);
+  const hasAct = j => !!(j.actuals && Object.keys(j.actuals).length);
+  const jts = j => Date.parse(j.updatedAt || j.createdAt || "") || 0;
+  reconJobs.sort((a, b) => (hasAct(a) ? 1 : 0) - (hasAct(b) ? 1 : 0) || jts(b) - jts(a));   // un-logged first
+  const chev = `<svg class="calib-job-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 8 10 12 14 8"/></svg>`;
+  const jobRows = reconJobs.map(j => {
+    const name = j.name || j.customerName || "Untitled job";
+    const lf = (j.totalLF != null && j.totalLF !== "") ? `${j.totalLF} LF` : "";
+    const sub = [(j.customerName && j.customerName !== name) ? j.customerName : "", lf].filter(Boolean).join(" · ");
+    const v = calibJobVariance(j);
+    const chip = (v == null)
+      ? `<span class="calib-chip todo">Log actuals</span>`
+      : `<span class="calib-chip logged">±${Math.round(v * 100)}%</span>`;
+    return `<div class="calib-job" data-calib-jobrow="${escHtml(j.id)}">
+      <button type="button" class="calib-job-head" data-calib-toggle="${escHtml(j.id)}" aria-expanded="false">
+        <span class="min-w-0 flex-1 text-left">
+          <span class="calib-job-name">${escHtml(name)}</span>
+          ${sub ? `<span class="calib-job-sub">${escHtml(sub)}</span>` : ""}
+        </span>
+        ${chip}${chev}
+      </button>
+      <div class="calib-job-body hidden" data-calib-jobbody="${escHtml(j.id)}"></div>
+    </div>`;
+  }).join("");
+
   wrap.innerHTML = `
-    <p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Anchor learns from what you actually use. Suggestions appear once ${CALIB_MIN_JOBS}+ jobs of the same type diverge more than ${Math.round(CALIB_THRESHOLD * 100)}% from your rate. Updating only changes that construction type's rate — review every suggestion before applying.</p>
-    ${live.length ? cards : `<div class="calib-info mb-4"><div class="text-[12.5px] text-slate-400">No rate changes suggested yet — your quotes are tracking close to what your crews actually use${actualsJobs < CALIB_MIN_JOBS ? `, and you have ${actualsJobs} of ${CALIB_MIN_JOBS} jobs logged so far` : ""}.</div></div>`}
+    <p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Anchor learns from what you actually use. Log materials below; once ${CALIB_MIN_JOBS}+ jobs of the same type diverge more than ${Math.round(CALIB_THRESHOLD * 100)}% from your rate, a suggestion appears. Updating only changes that one rate — review every suggestion before applying.</p>
+    ${accHTML}
+    <div class="mt-5">
+      <div class="jd-section-title mb-2">Rate suggestions</div>
+      ${live.length ? cards : `<div class="calib-info"><div class="text-[12.5px] text-slate-400">No rate changes suggested yet — your quotes are tracking close to what your crews actually use.</div></div>`}
+    </div>
+    <div class="mt-5">
+      <div class="jd-section-title mb-2">Log materials used</div>
+      ${reconJobs.length ? `<div class="calib-joblist">${jobRows}</div>` : `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No jobs to log yet.</div><div class="text-xs mt-1.5">Save a quote and it'll show up here to log actuals against.</div></div>`}
+    </div>
     ${infos ? `<div class="mt-5"><div class="jd-section-title mb-2">For your review</div>${infos}</div>` : ""}`;
 }
 
@@ -10708,6 +10828,8 @@ function renderCustomerStats(c, allStats) {
    ============================================================ */
 let _esignWired = false;
 let _esignRows = {};   // id -> last-rendered row, so action handlers can read status/signer
+let _dashEsignDetail = "summary";   // detail level for the dashboard's "send any job" picker
+let _dashEsignLastUrl = "";         // last link created from the e-sign page (re-shown across re-renders)
 function esignStatusMeta(s) {
   return ({
     sent:     { label: "Sent",     cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
@@ -10728,7 +10850,11 @@ function esignDate(v, withTime) {
 async function renderDashEsign() {
   const wrap = document.getElementById("dashEsign");
   if (!wrap) return;
-  if (!sb || !currentUser) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
+  wrap.classList.remove("hidden");   // it's a drill-in workspace now — always render
+  if (!sb || !currentUser) {
+    wrap.innerHTML = `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">Sign in to send and track e-signatures.</div></div>`;
+    return;
+  }
 
   let rows = [];
   try {
@@ -10740,12 +10866,10 @@ async function renderDashEsign() {
     if (error) throw error;
     rows = Array.isArray(data) ? data : [];
   } catch (e) {
-    // Quiet failure — the panel just stays hidden if the table can't be read.
-    wrap.classList.add("hidden"); wrap.innerHTML = ""; return;
+    // Quiet failure — still show the sender so you can create a link.
+    rows = [];
   }
 
-  if (!rows.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
-  wrap.classList.remove("hidden");
   _esignRows = {};
   rows.forEach(r => { _esignRows[r.id] = r; });
 
@@ -10753,13 +10877,44 @@ async function renderDashEsign() {
   const signed = rows.filter(r => r.status === "signed").length;
 
   const head =
-    `<div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
+    `<div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
        <h2 class="text-sm uppercase tracking-[0.18em] text-slate-400 font-bold">E-signatures</h2>
        <div class="flex items-center gap-2 text-[11px] font-bold">
          <span class="rounded-full px-2.5 py-1 border border-[#b58f4a]/40 bg-[#b58f4a]/10 text-[#c9a558]">${awaiting} awaiting</span>
          <span class="rounded-full px-2.5 py-1 border border-emerald-500/40 bg-emerald-500/10 text-emerald-300">${signed} signed</span>
        </div>
      </div>`;
+
+  // ── Send ANY saved job for signature, without opening it ──
+  const sendJobs = loadJobs().filter(j => j && !j.isDraft);
+  const jobOpts = sendJobs.map(j => {
+    const name = j.name || j.customerName || "Untitled job";
+    const cust = (j.customerName && j.customerName !== name) ? ` · ${j.customerName}` : "";
+    const price = (j.sellingPrice != null && !isNaN(j.sellingPrice)) ? ` — ${formatMoney(j.sellingPrice)}` : "";
+    return `<option value="${escHtml(j.id)}">${escHtml(name + cust + price)}</option>`;
+  }).join("");
+  const resultHTML = _dashEsignLastUrl ? `
+      <div class="esign-send-result">
+        <div class="flex items-center gap-2">
+          <input id="dashEsignUrl" readonly class="control rounded-lg px-3 py-2 w-full text-xs text-slate-200 font-mono" value="${escHtml(_dashEsignLastUrl)}">
+          <button type="button" data-esign-copylink class="btn shrink-0 rounded-lg px-3 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]">Copy</button>
+        </div>
+        <p class="text-[10px] text-emerald-300/80 mt-1.5">Link created — text or email it to your customer. It also appears in the list below.</p>
+      </div>` : "";
+  const sender = sendJobs.length ? `
+    <div class="esign-send">
+      <div class="jd-section-title mb-2">Send a quote for signature</div>
+      <div class="esign-send-row">
+        <select id="dashEsignJobPick" class="control rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-100 flex-1 min-w-0"><option value="">Choose a saved job…</option>${jobOpts}</select>
+        <div class="jd-detail-seg inline-flex rounded-lg overflow-hidden border border-slate-700 shrink-0">
+          <button type="button" data-esign-detail="summary" class="jd-detail-btn ${_dashEsignDetail === "summary" ? "active" : ""}">Summary</button>
+          <button type="button" data-esign-detail="itemized" class="jd-detail-btn ${_dashEsignDetail === "itemized" ? "active" : ""}">Itemized</button>
+        </div>
+        <button type="button" id="dashEsignSendBtn" data-esign-send class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] shrink-0">Create signing link</button>
+      </div>
+      ${resultHTML}
+      <p class="text-[10px] text-slate-600 mt-2">Pick any saved job and generate a link — the customer reviews and approves with a typed name + drawn signature, no login on their end.</p>
+    </div>` : `<div class="esign-send"><div class="jd-section-title mb-1">Send a quote for signature</div><p class="text-[12px] text-slate-500">Save a quote first, then send it for signature right here.</p></div>`;
 
   const list = rows.map(r => {
     const s = r.snapshot || {};
@@ -10820,12 +10975,22 @@ async function renderDashEsign() {
       </div>`;
   }).join("");
 
-  wrap.innerHTML = head + `<div class="esign-list">${list}</div>`;
+  const listHTML = rows.length
+    ? `<div class="esign-list">${list}</div>`
+    : `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No quotes sent yet.</div><div class="text-xs mt-1.5">Send one above — sent, viewed, and signed quotes track here.</div></div>`;
+
+  wrap.innerHTML = head + sender + `<div class="jd-section-title mt-5 mb-2">Sent &amp; signed</div>` + listHTML;
 
   if (!_esignWired) {
     // Delegate all panel actions (survives re-renders since we bind once on the
     // stable container, checking dataset on the clicked target).
     wrap.addEventListener("click", (e) => {
+      // Sender controls (send any job, detail toggle, copy the created link)
+      if (e.target.closest("[data-esign-send]")) { dashEsignSend(); return; }
+      const det = e.target.closest("[data-esign-detail]");
+      if (det) { _dashEsignDetail = det.dataset.esignDetail; wrap.querySelectorAll("[data-esign-detail]").forEach(b => b.classList.toggle("active", b === det)); return; }
+      if (e.target.closest("[data-esign-copylink]")) { copyTextToClipboard(_dashEsignLastUrl, e.target.closest("[data-esign-copylink]")); return; }
+      // Sent/signed list actions
       const t = e.target.closest("[data-esign-pdf],[data-esign-copy],[data-esign-void],[data-esign-delete],[data-esign-job],[data-esign-audit]");
       if (!t) return;
       if (t.dataset.esignPdf) { exportSignedQuoteById(t.dataset.esignPdf); }
@@ -10840,6 +11005,26 @@ async function renderDashEsign() {
     });
     _esignWired = true;
   }
+}
+
+// Create a signing link for the job picked in the E-signatures workspace.
+function dashEsignSend() {
+  const pick = document.getElementById("dashEsignJobPick");
+  const jobId = pick ? pick.value : "";
+  if (!jobId) { toast("Choose a job to send"); return; }
+  createSignLink(jobId, _dashEsignDetail, {
+    btn: document.getElementById("dashEsignSendBtn"),
+    exclude: new Set(),   // send the full quote from the dashboard (no Customize step here)
+    onResult: (url) => { _dashEsignLastUrl = url; renderDashEsign(); },
+  });
+}
+async function copyTextToClipboard(text, btn) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+    else { const i = document.getElementById("dashEsignUrl"); if (i) { i.select(); document.execCommand("copy"); } }
+    if (btn) { const o = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = o; }, 1600); }
+  } catch (e) { toast("Could not copy"); }
 }
 
 function buildSignLinkURL(token) {
@@ -11936,12 +12121,39 @@ function wireDashboard() {
   if (backBtn) backBtn.addEventListener("click", () => dashGoTo("home"));
   // Pricing calibration: apply a suggested rate or dismiss it.
   const calib = document.getElementById("dashCalibration");
-  if (calib) calib.addEventListener("click", (e) => {
-    const ap = e.target.closest("[data-calib-apply]");
-    if (ap) { applyCalibration(ap.dataset.calibApply, ap.dataset.calibKey, parseFloat(ap.dataset.calibValue)); return; }
-    const dm = e.target.closest("[data-calib-dismiss]");
-    if (dm) { _dashCalibDismissed.add(dm.dataset.calibDismiss); renderDashboard(); return; }
-  });
+  if (calib) {
+    calib.addEventListener("click", (e) => {
+      const ap = e.target.closest("[data-calib-apply]");
+      if (ap) { applyCalibration(ap.dataset.calibApply, ap.dataset.calibKey, parseFloat(ap.dataset.calibValue)); return; }
+      const dm = e.target.closest("[data-calib-dismiss]");
+      if (dm) { _dashCalibDismissed.add(dm.dataset.calibDismiss); renderDashboard(); return; }
+      const sv = e.target.closest("[data-calib-save]");
+      if (sv) { saveJobActuals(sv.dataset.calibSave, sv.closest("[data-recon-scope]")); return; }
+      const tg = e.target.closest("[data-calib-toggle]");
+      if (tg) {
+        const id = tg.dataset.calibToggle;
+        const body = calib.querySelector(`[data-calib-jobbody="${(window.CSS && CSS.escape) ? CSS.escape(id) : id}"]`);
+        if (!body) return;
+        const opening = body.classList.contains("hidden");
+        // Accordion: collapse any other open editor first.
+        calib.querySelectorAll("[data-calib-jobbody]").forEach(b => { if (b !== body) { b.classList.add("hidden"); } });
+        calib.querySelectorAll("[data-calib-toggle]").forEach(h => { if (h !== tg) h.setAttribute("aria-expanded", "false"); });
+        if (opening && !body.dataset.filled) {
+          const job = loadJobs().find(x => x.id === id);
+          if (job) { body.innerHTML = calibJobEditorHTML(job); body.dataset.filled = "1"; }
+        }
+        body.classList.toggle("hidden", !opening);
+        tg.setAttribute("aria-expanded", String(opening));
+        if (opening) body.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+    });
+    // Live per-row variance as you type in an inline editor.
+    calib.addEventListener("input", (e) => {
+      const inp = e.target.closest("[data-recon-input]");
+      if (inp) updateReconVar(inp);
+    });
+  }
   const grid = document.getElementById("dashJobsGrid");
   if (grid) {
     grid.addEventListener("click", (e) => {
@@ -12180,11 +12392,26 @@ function jobReconHTML(job) {
       </div>
     </div>`;
 }
-// Read the actuals inputs from the open modal onto a job object.
-function applyActualsToJob(j) {
+// Recompute one reconciliation row's variance label from its input (live as you type).
+function updateReconVar(inp) {
+  if (!inp) return;
+  const est = Number(inp.dataset.reconEst) || 0;
+  const v = parseFloat((inp.value || "").replace(/[^0-9.]/g, ""));
+  const scope = inp.closest("[data-recon-scope]") || document;
+  const id = (window.CSS && CSS.escape) ? CSS.escape(inp.dataset.reconInput) : inp.dataset.reconInput;
+  const varEl = scope.querySelector(`[data-recon-var="${id}"]`);
+  if (!varEl) return;
+  if (isFinite(v) && v > 0) { varEl.textContent = reconVarText(est, v); varEl.className = "jd-recon-var " + reconVarCls(est, v); }
+  else { varEl.textContent = "—"; varEl.className = "jd-recon-var"; }
+}
+// Read the actuals inputs within `root` (the open modal, or a calibration-page
+// editor) onto a job object. Defaults to the Job Details modal.
+function applyActualsToJob(j, root) {
+  root = root || document.getElementById("jobDetailsBody");
+  if (!root) return;
   const prev = (j.actuals && typeof j.actuals === "object") ? j.actuals : {};
   const actuals = {};
-  document.querySelectorAll("#jobDetailsBody [data-recon-input]").forEach(inp => {
+  root.querySelectorAll("[data-recon-input]").forEach(inp => {
     const v = parseFloat((inp.value || "").replace(/[^0-9.]/g, ""));
     if (!(isFinite(v) && v > 0)) return;
     const id = inp.dataset.reconInput;
@@ -12195,11 +12422,11 @@ function applyActualsToJob(j) {
   if (Object.keys(actuals).length) { j.actuals = actuals; j.actualsUpdatedAt = new Date().toISOString(); }
   else { delete j.actuals; delete j.actualsUpdatedAt; }
 }
-function saveJobActuals(id) {
+function saveJobActuals(id, root) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j) return;
-  applyActualsToJob(j);
+  applyActualsToJob(j, root);
   if (!saveJobs(jobs)) return;   // storage-full guard (saveJobs toasts the reason)
   if (!j.isDraft) { try { pushJobToCloud(j, true); } catch (_) {} }
   toast("Actuals saved");
@@ -14487,19 +14714,26 @@ function showSignLinkResult(url) {
 
 const _SIGN_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function createSignLink(jobId, detailLevel) {
+// opts (all optional): { btn, exclude (Set of scope:/item: keys to hide), onResult(url) }.
+// Defaults target the Job Details modal so existing callers are unchanged; the
+// dashboard E-signatures page passes its own button + result renderer + no
+// exclusions so you can send any job's quote without opening it.
+async function createSignLink(jobId, detailLevel, opts) {
+  opts = opts || {};
   if (!sb || !currentUser) { toast("Sign in to send a quote for e-signature"); return; }
   const job = loadJobs().find((x) => x.id === jobId);
   if (!job) { toast("Job not found"); return; }
 
-  const btn = document.getElementById("jdSignBtn");
+  const btn = opts.btn || document.getElementById("jdSignBtn");
+  const excludeSet = opts.exclude || _jdSignExclude;
+  const onResult = opts.onResult || showSignLinkResult;
   const prevLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Creating link…"; }
 
   // Build the snapshot against THIS job's numbers, then apply the installer's
   // Customize choices (hidden scope rows / line items).
   let snapshot = await buildSignSnapshotForJob(jobId, detailLevel);
-  if (snapshot) snapshot = applySignExclusions(snapshot, _jdSignExclude);
+  if (snapshot) snapshot = applySignExclusions(snapshot, excludeSet);
   if (!snapshot) { toast("Couldn't build the quote snapshot"); if (btn) { btn.disabled = false; btn.textContent = prevLabel; } return; }
 
   // Persist (RLS: owner-only insert via the user's JWT).
@@ -14531,7 +14765,7 @@ async function createSignLink(jobId, detailLevel) {
   try { if (typeof window.track === "function") window.track("sign_link_created", { detail: snapshot.detailLevel }); } catch (_) {}
 
   if (btn) { btn.disabled = false; btn.textContent = prevLabel; }
-  showSignLinkResult(url);
+  onResult(url);
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(url);
     toast("Signing link copied — send it to your customer");
