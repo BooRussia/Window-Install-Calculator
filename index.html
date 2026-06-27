@@ -1080,6 +1080,47 @@
   }
   .row-alt:nth-child(even) { background: rgba(15,23,42,0.35); }
 
+  /* ── N-way Job Comparison table (scoped .cmp-*) ──────────────────────────
+     Wide comparison grid: the first column (line-item / metric labels) stays
+     pinned while the per-job columns scroll horizontally. Sticky cells MUST be
+     opaque (the card surface is semi-transparent, so without a solid fill the
+     scrolling job columns bleed through the label column). z-index layers so
+     the header > sticky-label > body, and the top-left intersection sits above
+     everything. Scoped to .cmp-table so no other table is affected. */
+  .cmp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cmp-scroll:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; border-radius: 12px; }
+  .cmp-table { border-collapse: separate; border-spacing: 0; }
+  /* opaque navy that reads as the card surface; covers bleed-through */
+  .cmp-table th.cmp-sticky,
+  .cmp-table td.cmp-sticky {
+    position: sticky; left: 0; z-index: 2;
+    background: #0b1120;
+    box-shadow: 1px 0 0 0 rgba(30,41,59,0.9);   /* hairline seam at the freeze edge */
+  }
+  /* tint the sticky cell to match its row stripe so the freeze edge is seamless */
+  .cmp-table tr.row-alt:nth-child(even) td.cmp-sticky { background: #0d1526; }
+  .cmp-table thead th { position: sticky; top: 0; z-index: 3; background: #0b1120; }
+  .cmp-table thead th.cmp-sticky { z-index: 4; }   /* intersection above both */
+  .cmp-table tfoot td { background: #0b1120; }
+  .cmp-table tfoot td.cmp-sticky { z-index: 2; }
+  /* emerald "best price" highlight on the cheapest selling-price cell */
+  .cmp-best { background: rgba(16,185,129,0.12) !important; }
+  .cmp-best-badge {
+    display: inline-block; margin-left: 6px; vertical-align: middle;
+    font-size: 8px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #34d399; border: 1px solid rgba(16,185,129,0.45);
+    background: rgba(16,185,129,0.12); border-radius: 9999px; padding: 1px 6px;
+  }
+  [data-theme="light"] .cmp-table th.cmp-sticky,
+  [data-theme="light"] .cmp-table td.cmp-sticky,
+  [data-theme="light"] .cmp-table thead th,
+  [data-theme="light"] .cmp-table tfoot td { background: #ffffff; }
+  [data-theme="light"] .cmp-table tr.row-alt:nth-child(even) td.cmp-sticky { background: #f6f7f9; }
+  [data-theme="light"] .cmp-table th.cmp-sticky,
+  [data-theme="light"] .cmp-table td.cmp-sticky { box-shadow: 1px 0 0 0 #e6e8ec; }
+  [data-theme="light"] .cmp-best { background: rgba(16,185,129,0.10) !important; }
+  [data-theme="light"] .cmp-best-badge { color: #047857; }
+
   /* Pencil "edit this rate" button at the end of each breakdown row.
      Subtle slate by default; hovering the row warms it a little so the
      affordance is discoverable without competing for attention. */
@@ -9492,6 +9533,17 @@ let compareSet = new Set();
 // sign-quote edge function). It sits between Quoted and Won in the funnel.
 const JOB_STATUSES = ["Lead", "Quoted", "Approved", "Won", "Lost"];
 function jobStatus(j) { return (j && JOB_STATUSES.includes(j.status)) ? j.status : "Quoted"; }
+// Side-by-side comparison cap is tiered: Starter 2 · Pro & trial 5 · Shop 10.
+// Owner (admin) gets the top tier. Mirrors getAiReadCap's plan/admin handling.
+function compareCap() {
+  if (typeof isAdmin === "function" && isAdmin()) return 10;        // owner exempt → top tier
+  const plan = (typeof getEntitlements === "function"
+    ? getEntitlements()
+    : ((DATA && DATA.config && DATA.config.entitlements) || {})).plan;
+  if (plan === "unlimited") return 10;                              // Shop
+  if (plan === "pro" || plan === "trial") return 5;                 // Pro, and trial = full Pro access
+  return 2;                                                         // Starter (and any unknown)
+}
 function statusMeta(s) {
   return ({
     Lead:     { cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
@@ -9559,7 +9611,8 @@ function renderSavedJobs() {
   if (!list.length) { wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
   renderJobsDashboard(list);
-  const atCap = compareSet.size >= 2;
+  const cap = compareCap();
+  const atCap = compareSet.size >= cap;
   el.innerHTML = list.slice().reverse().map(j => {
     const inCompare = compareSet.has(j.id);
     const details = [j.manufacturer, j.application, j.houseType, j.constructionType,
@@ -9577,13 +9630,13 @@ function renderSavedJobs() {
     else if (capLocked) compareCls += "text-slate-700 cursor-not-allowed";
     else compareCls += "text-slate-500 hover:text-slate-300";
     const compareLabel = inCompare
-      ? `✓ Compare (${compareSet.size}/2)`
+      ? `✓ Compare (${compareSet.size}/${cap})`
       : (compareSet.size === 0
-          ? `Compare <span class="text-slate-700 font-normal">(2 max)</span>`
-          : `Compare (${compareSet.size}/2)`);
+          ? `Compare <span class="text-slate-700 font-normal">(${cap} max)</span>`
+          : `Compare (${compareSet.size}/${cap})`);
     const compareTitle = capLocked
-      ? `title="Remove one job from comparison first"`
-      : (inCompare ? `title="Click to remove from comparison"` : `title="Add to side-by-side comparison (up to 2)"`);
+      ? `title="You can compare up to ${cap} jobs on your plan — remove one first"`
+      : (inCompare ? `title="Click to remove from comparison"` : `title="Add to side-by-side comparison (up to ${cap})"`);
     const st = jobStatus(j);
     const statusSel = j.isDraft ? "" :
       `<select data-status="${j.id}" class="job-status-sel ${statusMeta(st).cls}" title="Set deal status">` +
@@ -9614,7 +9667,7 @@ function renderSavedJobs() {
     const id = b.dataset.compare;
     if (compareSet.has(id)) { compareSet.delete(id); }
     else {
-      if (compareSet.size >= 2) { toast("Remove one job from comparison first"); return; }
+      if (compareSet.size >= cap) { toast(`You can compare up to ${cap} jobs on your plan — remove one first`); return; }
       compareSet.add(id);
     }
     renderSavedJobs();
@@ -18551,13 +18604,12 @@ function exportCutListPDF(mode) {
    JOB COMPARISON
    ============================================================ */
 function openComparison() {
-  const jobs = loadJobs();
-  const ids = [...compareSet];
-  const jobA = jobs.find(j => j.id === ids[0]);
-  const jobB = jobs.find(j => j.id === ids[1]);
-  if (!jobA || !jobB) { toast("Job not found"); return; }
-  renderComparisonModal(jobA, jobB);
-  window.track("compare_jobs_opened", { count: 2 });
+  const all = loadJobs();
+  // preserve the user's selection order; resolve to job objects, drop misses
+  const jobs = [...compareSet].map(id => all.find(j => j.id === id)).filter(Boolean);
+  if (jobs.length < 2) { toast("Pick at least 2 jobs to compare"); return; }
+  renderComparisonModal(jobs);
+  window.track("compare_jobs_opened", { count: jobs.length });
   const modal = document.getElementById("compareModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -18567,90 +18619,95 @@ function closeComparison() {
   tvDismiss(document.getElementById("compareModal"));
 }
 
-function renderComparisonModal(jobA, jobB) {
+function renderComparisonModal(jobs) {
   const body = document.getElementById("compareBody");
-  const allIds = [...new Set([...(jobA.rows || []).map(r => r.id), ...(jobB.rows || []).map(r => r.id)])];
+  // union of all line-item ids, in first-seen order across jobs (left → right)
+  const allIds = [];
+  const seen = new Set();
+  jobs.forEach(j => (j.rows || []).forEach(r => { if (!seen.has(r.id)) { seen.add(r.id); allIds.push(r.id); } }));
   const getRow = (job, id) => (job.rows || []).find(r => r.id === id);
+  const jobName = (j, i) => j.name || `Job ${i + 1}`;
   const jobDetail = j => [j.manufacturer, j.application, j.houseType, j.constructionType,
-    j.stories || "1 Story", `${j.totalLF} LF`, ...(j.windowCount > 0 ? [`${j.windowCount} windows`] : [])].join(" · ");
-  const diff = jobB.sellingPrice - jobA.sellingPrice;
-  const diffStr = (diff >= 0 ? "+" : "") + formatMoney(diff);
-  const diffColor = diff > 0 ? "text-rose-400" : diff < 0 ? "text-emerald-400" : "text-slate-400";
+    j.stories || "1 Story", `${j.totalLF} LF`, ...(j.windowCount > 0 ? [`${j.windowCount} windows`] : [])]
+    .filter(Boolean).join(" · ");
+
+  // "best price" = lowest selling price; spread = cheapest vs priciest
+  const prices = jobs.map(j => j.sellingPrice);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const bestIdx = prices.indexOf(minPrice);           // first job at the lowest price
+  const spread = maxPrice - minPrice;
+  // min-width per job column so columns never crush; first column is wider
+  const jobColMin = jobs.length >= 6 ? 120 : 140;
 
   body.innerHTML = `
-    <div class="grid grid-cols-2 gap-3 mb-6">
-      <div class="card rounded-xl p-4">
-        <div class="text-sm font-bold text-slate-100 truncate">${escHtml(jobA.name || "Job A")}</div>
-        <div class="text-[11px] text-slate-500 mt-1 leading-relaxed">${escHtml(jobDetail(jobA))}</div>
+    <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+      <div class="text-[11px] uppercase tracking-[0.14em] text-slate-500 font-bold">
+        Comparing ${jobs.length} jobs
       </div>
-      <div class="card rounded-xl p-4">
-        <div class="text-sm font-bold text-slate-100 truncate">${escHtml(jobB.name || "Job B")}</div>
-        <div class="text-[11px] text-slate-500 mt-1 leading-relaxed">${escHtml(jobDetail(jobB))}</div>
-      </div>
+      ${spread > 0 ? `<div class="text-[11px] text-slate-400">
+        Price spread <span class="font-bold text-slate-200" style="font-variant-numeric:tabular-nums;">${formatMoney(spread)}</span>
+        <span class="text-slate-600">·</span>
+        cheapest <span class="font-bold text-emerald-400" style="font-variant-numeric:tabular-nums;">${formatMoney(minPrice)}</span>
+      </div>` : ``}
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm" style="font-variant-numeric: tabular-nums;">
+    <div class="cmp-scroll rounded-xl border border-slate-800/70" role="region" aria-labelledby="cmpCap" tabindex="0">
+      <table class="cmp-table w-full text-sm" style="font-variant-numeric: tabular-nums;">
+        <caption id="cmpCap" class="sr-only">Side-by-side job comparison across ${jobs.length} jobs</caption>
         <thead>
           <tr class="text-[11px] uppercase tracking-[0.14em] text-slate-500 border-b border-slate-800">
-            <th class="text-left font-medium py-3 pr-4 pl-1">Item</th>
-            <th class="text-right font-medium py-3 px-3">${escHtml(jobA.name || "Job A")}</th>
-            <th class="text-right font-medium py-3 pl-3">${escHtml(jobB.name || "Job B")}</th>
+            <th class="cmp-sticky text-left font-medium py-3 pr-4 pl-3 align-bottom" style="min-width:200px;">Item</th>
+            ${jobs.map((j, i) => `<th class="text-right font-medium py-3 px-3 align-bottom ${i === bestIdx ? "cmp-best" : ""}" style="min-width:${jobColMin}px;">
+              <div class="text-slate-200 font-bold normal-case tracking-normal text-[13px] truncate" title="${escHtml(jobName(j, i))}">${escHtml(jobName(j, i))}${i === bestIdx ? `<span class="cmp-best-badge">Best price</span>` : ``}</div>
+              <div class="text-[10px] text-slate-500 mt-1 normal-case tracking-normal font-normal leading-snug whitespace-normal">${escHtml(jobDetail(j))}</div>
+            </th>`).join("")}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-800/60">
           ${allIds.map(id => {
-            const rA = getRow(jobA, id);
-            const rB = getRow(jobB, id);
-            const name = rA?.name || rB?.name || id;
+            const name = jobs.map(j => getRow(j, id)).find(r => r)?.name || id;
             return `<tr class="row-alt">
-              <td class="py-3 pr-4 pl-1 text-slate-300">${escHtml(name)}</td>
-              <td class="text-right py-3 px-3 ${rA ? "text-slate-100" : "text-slate-700"}">${rA ? formatMoney(rA.totalCost) : "—"}</td>
-              <td class="text-right py-3 pl-3 ${rB ? "text-slate-100" : "text-slate-700"}">${rB ? formatMoney(rB.totalCost) : "—"}</td>
+              <td class="cmp-sticky py-3 pr-4 pl-3 text-slate-300">${escHtml(name)}</td>
+              ${jobs.map(j => {
+                const r = getRow(j, id);
+                return `<td class="text-right py-3 px-3 ${r ? "text-slate-100" : "text-slate-700"}">${r ? formatMoney(r.totalCost) : "—"}</td>`;
+              }).join("")}
             </tr>`;
           }).join("")}
         </tbody>
         <tfoot class="border-t border-slate-700">
           <tr class="text-slate-400 text-xs uppercase tracking-[0.14em]">
-            <td class="py-3 pr-4 pl-1">Total Cost</td>
-            <td class="text-right py-3 px-3 font-semibold text-slate-100">${formatMoney(jobA.totalCost)}</td>
-            <td class="text-right py-3 pl-3 font-semibold text-slate-100">${formatMoney(jobB.totalCost)}</td>
+            <td class="cmp-sticky py-3 pr-4 pl-3">Total Cost</td>
+            ${jobs.map(j => `<td class="text-right py-3 px-3 font-semibold text-slate-100">${formatMoney(j.totalCost)}</td>`).join("")}
           </tr>
           <tr>
-            <td class="py-3 pr-4 pl-1 text-xs uppercase tracking-[0.14em] text-slate-400">Selling Price</td>
-            <td class="text-right py-3 px-3 font-extrabold accent-glow text-lg">${formatMoney(jobA.sellingPrice)}</td>
-            <td class="text-right py-3 pl-3 font-extrabold accent-glow text-lg">${formatMoney(jobB.sellingPrice)}</td>
+            <td class="cmp-sticky py-3 pr-4 pl-3 text-xs uppercase tracking-[0.14em] text-slate-400">Selling Price</td>
+            ${jobs.map((j, i) => `<td class="text-right py-3 px-3 font-extrabold text-lg ${i === bestIdx ? "cmp-best text-emerald-300" : "accent-glow"}">${formatMoney(j.sellingPrice)}</td>`).join("")}
           </tr>
           <tr class="text-slate-400 text-xs uppercase tracking-[0.14em]">
-            <td class="py-3 pr-4 pl-1">Profit</td>
-            <td class="text-right py-3 px-3 text-slate-100">${formatMoney(jobA.profit)}</td>
-            <td class="text-right py-3 pl-3 text-slate-100">${formatMoney(jobB.profit)}</td>
+            <td class="cmp-sticky py-3 pr-4 pl-3">Profit</td>
+            ${jobs.map(j => `<td class="text-right py-3 px-3 text-slate-100">${formatMoney(j.profit)}</td>`).join("")}
           </tr>
           <tr class="text-slate-400 text-xs uppercase tracking-[0.14em]">
-            <td class="py-3 pr-4 pl-1">Markup</td>
-            <td class="text-right py-3 px-3 text-slate-100">${jobA.margin}%</td>
-            <td class="text-right py-3 pl-3 text-slate-100">${jobB.margin}%</td>
-          </tr>
-          <tr>
-            <td class="py-4 pr-4 pl-1 text-xs uppercase tracking-[0.14em] text-slate-500">Price Difference</td>
-            <td class="py-4 px-3"></td>
-            <td class="text-right py-4 pl-3 font-bold ${diffColor}">${diffStr}</td>
+            <td class="cmp-sticky py-3 pr-4 pl-3">Markup</td>
+            ${jobs.map(j => `<td class="text-right py-3 px-3 text-slate-100">${j.margin}%</td>`).join("")}
           </tr>
         </tfoot>
       </table>
     </div>
   `;
-  // store on modal for PDF export
-  document.getElementById("compareModal")._jobA = jobA;
-  document.getElementById("compareModal")._jobB = jobB;
+  // store the full jobs array on the modal for PDF export
+  document.getElementById("compareModal")._jobs = jobs;
 }
 
 function exportComparisonPDF(mode) {
   const modal = document.getElementById("compareModal");
-  const jobA = modal._jobA;
-  const jobB = modal._jobB;
-  if (!jobA || !jobB) return;
+  const jobs = modal._jobs;
+  if (!jobs || jobs.length < 2) return;
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  // landscape once the columns stop fitting portrait (≥4 jobs)
+  const orientation = jobs.length >= 4 ? "landscape" : "portrait";
+  const doc = new jsPDF({ unit: "pt", format: "letter", orientation });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const brand = DATA.config.brand || {};
@@ -18676,28 +18733,45 @@ function exportComparisonPDF(mode) {
   doc.line(M, y, pageW - M, y);
   y += 14;
 
-  const allIds = [...new Set([...(jobA.rows || []).map(r => r.id), ...(jobB.rows || []).map(r => r.id)])];
+  // union of line-item ids in first-seen order (matches the on-screen table)
+  const allIds = [];
+  const seen = new Set();
+  jobs.forEach(j => (j.rows || []).forEach(r => { if (!seen.has(r.id)) { seen.add(r.id); allIds.push(r.id); } }));
   const getRow = (job, id) => (job.rows || []).find(r => r.id === id);
+  const jobName = (j, i) => j.name || `Job ${i + 1}`;
+  const bestIdx = (() => {
+    const prices = jobs.map(j => j.sellingPrice);
+    return prices.indexOf(Math.min(...prices));
+  })();
+
   const tableRows = allIds.map(id => {
-    const rA = getRow(jobA, id);
-    const rB = getRow(jobB, id);
-    return [rA?.name || rB?.name || id, rA ? formatMoney(rA.totalCost) : "—", rB ? formatMoney(rB.totalCost) : "—"];
+    const name = jobs.map(j => getRow(j, id)).find(r => r)?.name || id;
+    return [name, ...jobs.map(j => { const r = getRow(j, id); return r ? formatMoney(r.totalCost) : "—"; })];
   });
-  tableRows.push(["Total Cost", formatMoney(jobA.totalCost), formatMoney(jobB.totalCost)]);
-  tableRows.push(["Selling Price", formatMoney(jobA.sellingPrice), formatMoney(jobB.sellingPrice)]);
-  tableRows.push(["Profit", formatMoney(jobA.profit), formatMoney(jobB.profit)]);
-  tableRows.push(["Markup", `${jobA.margin}%`, `${jobB.margin}%`]);
+  tableRows.push(["Total Cost", ...jobs.map(j => formatMoney(j.totalCost))]);
+  tableRows.push(["Selling Price", ...jobs.map(j => formatMoney(j.sellingPrice))]);
+  tableRows.push(["Profit", ...jobs.map(j => formatMoney(j.profit))]);
+  tableRows.push(["Markup", ...jobs.map(j => `${j.margin}%`)]);
+
+  // right-align every job column; bold + emerald tint on the cheapest job
+  const columnStyles = { 0: { fontStyle: "bold", cellWidth: orientation === "landscape" ? 130 : 110 } };
+  jobs.forEach((j, i) => {
+    columnStyles[i + 1] = { halign: "right" };
+    if (i === bestIdx) { columnStyles[i + 1].fontStyle = "bold"; columnStyles[i + 1].textColor = [4, 120, 87]; }
+  });
+
   doc.autoTable({
     startY: y,
-    head: [["Item", jobA.name || "Job A", jobB.name || "Job B"]],
+    head: [["Item", ...jobs.map((j, i) => jobName(j, i))]],
     body: tableRows,
     theme: "striped",
     headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: "bold", fontSize: 8, cellPadding: 5 },
-    bodyStyles: { textColor: [40, 40, 40], fontSize: 9, cellPadding: 5 },
+    bodyStyles: { textColor: [40, 40, 40], fontSize: jobs.length >= 6 ? 7.5 : 9, cellPadding: jobs.length >= 6 ? 3.5 : 5 },
     alternateRowStyles: { fillColor: [250, 250, 250] },
-    columnStyles: { 1: { halign: "right" }, 2: { halign: "right", fontStyle: "bold" } },
-    styles: { lineWidth: 0 },
-    margin: { left: M, right: M }
+    columnStyles,
+    styles: { lineWidth: 0, overflow: "linebreak" },
+    margin: { left: M, right: M },
+    tableWidth: "auto"
   });
   // Footer
   doc.setFont("helvetica", "normal");
