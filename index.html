@@ -1076,9 +1076,19 @@
      your" / "Reel in your" stay fixed. Vertical roll, transform-only (GPU). The
      period lives inside each word cell so it scrolls with the word. Each cell has
      descender headroom (1.3 line-height) so g/p/j/y aren't clipped, and the loop
-     splices a clone of the first word so it always rolls one direction. */
-  .hero-line { white-space: nowrap; }
-  .hero-roll { display: inline-block; overflow: hidden; height: 1.3em; line-height: 1.3em; vertical-align: top; transition: width .42s cubic-bezier(0.4, 0, 0.2, 1); }
+     splices a clone of the first word so it always rolls one direction.
+     The slot is shrink-to-fit, so its width = the WIDEST word and never changes:
+     the word's left edge stays anchored and the centered line doesn't reflow as
+     words swap (each word is left-aligned inside the fixed slot). On narrow
+     screens the line wraps BETWEEN the fixed prefix and the rolling slot (each
+     kept intact via nowrap), so the prefix sits on its own line above the word
+     instead of clipping off-screen — no media query needed. */
+  .hero-line { white-space: normal; }
+  /* Match the rolling cells' 1.3 line-height so prefix + word share a baseline.
+     The h1's Tailwind `sm:text-7xl` forces line-height:1 at the sm breakpoint,
+     which would otherwise drop the word ~0.3em below "Anchor your" on desktop. */
+  .hero-pre { white-space: nowrap; line-height: 1.3; }
+  .hero-roll { display: inline-block; overflow: hidden; height: 1.3em; line-height: 1.3em; vertical-align: top; text-align: left; white-space: nowrap; }
   .hero-roll .hero-stack { display: block; transform: translateY(calc(var(--i, 0) * -1.3em)); transition: transform .42s cubic-bezier(0.4, 0, 0.2, 1); }
   .hero-roll .hero-stack > span { display: block; width: max-content; height: 1.3em; line-height: 1.3em; }
   @media (prefers-reduced-motion: reduce) {
@@ -4148,7 +4158,7 @@
   <section class="max-w-4xl mx-auto px-5 sm:px-6 pt-16 sm:pt-24 pb-24 sm:pb-32 text-center">
     <div class="lp-reveal"><span class="lp-eyebrow">Built for window &amp; door installers</span></div>
     <h1 class="lp-reveal text-[2.65rem] leading-[1.3] sm:text-7xl font-black tracking-tightest mt-6 text-slate-100">
-      <span aria-hidden="true"><span class="hero-line">Anchor your <span class="hero-roll"><span class="hero-stack" id="heroRollA"><span>profit.</span><span>margins.</span><span>pricing.</span><span>numbers.</span><span>bids.</span><span>profit.</span></span></span></span><br><span class="hero-line"><span class="gold-glow">Reel in your </span><span class="hero-roll"><span class="hero-stack" id="heroRollB"><span class="gold-glow">time.</span><span class="gold-glow">hours.</span><span class="gold-glow">jobs.</span><span class="gold-glow">money.</span><span class="gold-glow">weekends.</span><span class="gold-glow">time.</span></span></span></span></span><span class="sr-only">Anchor your profit. Reel in your time.</span>
+      <span aria-hidden="true"><span class="hero-line"><span class="hero-pre">Anchor your</span> <span class="hero-roll"><span class="hero-stack" id="heroRollA"><span>profit.</span><span>margins.</span><span>pricing.</span><span>numbers.</span><span>bids.</span><span>profit.</span></span></span></span><br><span class="hero-line"><span class="hero-pre gold-glow">Reel in your</span> <span class="hero-roll"><span class="hero-stack" id="heroRollB"><span class="gold-glow">time.</span><span class="gold-glow">hours.</span><span class="gold-glow">jobs.</span><span class="gold-glow">money.</span><span class="gold-glow">weekends.</span><span class="gold-glow">time.</span></span></span></span></span><span class="sr-only">Anchor your profit. Reel in your time.</span>
     </h1>
     <p class="lp-reveal text-slate-300 text-base sm:text-lg max-w-xl mx-auto mt-6 leading-relaxed">
       Price a whole window or door job in under a minute — materials, labor, and your markup — then hand the homeowner a clean quote and your crew the cut list. <span class="text-[#c9a558] font-semibold">Built for Florida installers.</span>
@@ -9319,32 +9329,25 @@ if (document.readyState === "loading") document.addEventListener("DOMContentLoad
   var A = document.getElementById("heroRollA"), B = document.getElementById("heroRollB");
   if (!A || !B) return;
   if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return; // static first word
+  // The slot is CSS shrink-to-fit, so its width is the WIDEST word and is fixed:
+  // the word's left edge stays anchored and the centered line never reflows as
+  // words swap. We only drive the vertical roll (--i) here — no width logic.
   function roller(el){ return { el: el, n: el.children.length - 1, i: 0 }; }
-  // Slot width = the visible word, so it sits snug after "your" and the centered
-  // line re-centers as words change. To avoid clipping a wider word mid-roll, the
-  // slot is pre-expanded to fit BOTH the outgoing and incoming word, then settles
-  // to the new word after the roll completes.
-  function widthAt(r, idx){ var c = r.el.children[idx]; return c ? c.offsetWidth : 0; }
-  function setSlot(r, w, animate){ var P = r.el.parentNode; if (!w) return; if (!animate) P.style.transition = "none"; P.style.width = w + "px"; if (!animate) { void P.offsetWidth; P.style.transition = ""; } }
   function step(r){
-    var ni = r.i + 1;
-    setSlot(r, Math.max(widthAt(r, r.i), widthAt(r, ni)), false);  // pre-expand so neither word clips during the roll
-    r.i = ni;
+    r.i += 1;
     r.el.style.setProperty("--i", r.i);
-    var landed = r.i;
-    setTimeout(function(){ if (r.i === landed) setSlot(r, widthAt(r, landed), true); }, 470);  // settle (smooth) to the new word
     if (r.i === r.n) {                       // rolled into the cloned first word → snap back invisibly
+      var landed = r.i;
       setTimeout(function(){
+        if (r.i !== landed) return;
         r.el.style.transition = "none";
         r.i = 0; r.el.style.setProperty("--i", "0");
         void r.el.offsetWidth;              // force reflow so the reset isn't animated
         r.el.style.transition = "";
-        setSlot(r, widthAt(r, 0), false);   // clone == first word; keep the width exact
       }, 480);                              // just after the .42s roll completes
     }
   }
   var rA = roller(A), rB = roller(B), timer = null;
-  setSlot(rA, widthAt(rA, 0), false); setSlot(rB, widthAt(rB, 0), false);  // size to the first word, no opening animation
   function tick(){ step(rA); step(rB); }     // synced pairs
   function start(){ if (!timer) timer = setInterval(tick, 2600); }
   function stop(){ clearInterval(timer); timer = null; }
