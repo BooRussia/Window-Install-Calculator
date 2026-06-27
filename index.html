@@ -2349,10 +2349,30 @@
   .county-combo-opt:hover, .county-combo-opt.active { background: var(--gold-soft); color: var(--gold-hi); }
   .county-combo-opt .ct-tax { color: #64748b; font-size: 11px; flex-shrink: 0; }
   .county-combo-opt:hover .ct-tax, .county-combo-opt.active .ct-tax { color: var(--gold-hi); }
-  /* Hide native disclosure arrow on the material card summary
-     (we render our own chevron) */
-  #adminRatesBody details > summary::-webkit-details-marker { display: none; }
-  #adminRatesBody details > summary { list-style: none; }
+  /* Hide native disclosure arrow on collapsible cards (we render our own chevron).
+     Covers both the dynamic material cards (#adminRatesBody) and the universal
+     .set-collapse sections used across every Settings leaf. */
+  #adminRatesBody details > summary::-webkit-details-marker,
+  .set-collapse > summary::-webkit-details-marker { display: none; }
+  #adminRatesBody details > summary,
+  .set-collapse > summary { list-style: none; }
+
+  /* ── Universal collapse-by-default section (matches .set-card look) ── */
+  .set-collapse { border: 1px solid rgba(51,65,85,0.6); border-radius: 14px; background: rgba(15,23,42,0.35); overflow: hidden; }
+  [data-theme="light"] .set-collapse { border-color: #e2e8f0; background: #f8fafc; }
+  .set-collapse + .set-collapse { margin-top: 12px; }
+  .set-collapse-summary { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; padding: 13px 16px; min-height: 44px; }
+  .set-collapse-summary:hover { background: rgba(148,163,184,0.05); }
+  .set-collapse-chev { color: #64748b; flex-shrink: 0; transition: transform .15s ease; }
+  .set-collapse[open] > .set-collapse-summary .set-collapse-chev { transform: rotate(90deg); }
+  .set-collapse-title { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: #f1f5f9; flex-shrink: 0; }
+  .set-collapse-sub { flex: 1 1 auto; min-width: 0; text-align: right; font-size: 11px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .set-collapse[open] > .set-collapse-summary .set-collapse-sub { display: none; }
+  .set-collapse-body { padding: 0 16px 16px; }
+  /* Neutralize the legacy .set-card chrome when a card is nested directly inside
+     a collapse body (the .set-collapse already draws the border/bg/pad). */
+  .set-collapse-body > .set-card { border: 0; background: transparent; border-radius: 0; padding: 0; }
+  .set-collapse-body > .set-card + .set-card { margin-top: 20px; }
 
   /* ------- App header + profile menu ------- */
   .pfp-item {
@@ -5830,7 +5850,13 @@
           </div>
         <!-- Brand -->
         <div data-setupleaf="brand">
-          <div class="set-h">Brand &amp; Company</div>
+        <details class="set-collapse group" id="sc-setup-brand" data-collapse-key="setup-brand">
+          <summary class="set-collapse-summary">
+            <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+            <span class="set-collapse-title">Brand &amp; Company</span>
+            <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Logo, company name &amp; contact info</span>
+          </summary>
+          <div class="set-collapse-body">
           <div class="set-sub mb-5">Appears on customer quotes and the materials list.</div>
           <div class="mb-4 flex items-center gap-3">
             <div id="adminLogoPreview" class="w-14 h-14 rounded-lg border border-slate-700 bg-slate-900/60 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -5882,11 +5908,19 @@
               <input id="brandWebsite" type="text" autocomplete="url" placeholder="yourcompany.com" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-700" />
             </div>
           </div>
+          </div><!-- /set-collapse-body -->
+        </details>
         </div>
 
         <!-- Job Defaults -->
         <div data-setupleaf="defaults" style="display:none">
-          <div class="set-h">Job Defaults</div>
+        <details class="set-collapse group" id="sc-setup-defaults" data-collapse-key="setup-defaults">
+          <summary class="set-collapse-summary">
+            <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+            <span class="set-collapse-title">Job Defaults</span>
+            <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Default brand, application &amp; door toggles</span>
+          </summary>
+          <div class="set-collapse-body">
           <div class="set-sub mb-5">Your typical setup. Clicking <span class="text-slate-300 font-semibold">New Job</span> returns to these values.</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
             <div>
@@ -5928,15 +5962,25 @@
               <span>Enable bifold / folding doors in The Job rail <span class="text-slate-600">&middot; rates live in Rates &amp; Pricing</span></span>
             </label>
           </div>
+          </div><!-- /set-collapse-body -->
+        </details>
         </div>
 
         <!-- Manufacturers -->
         <div data-setupleaf="manufacturers" style="display:none">
-          <div class="set-h">Window Manufacturers</div>
+        <details class="set-collapse group" id="sc-setup-manufacturers" data-collapse-key="setup-manufacturers">
+          <summary class="set-collapse-summary">
+            <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+            <span class="set-collapse-title">Window Manufacturers</span>
+            <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Per-brand screw patterns &amp; impact spec</span>
+          </summary>
+          <div class="set-collapse-body">
           <div class="set-sub mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</div>
           <p class="text-[11px] text-amber-400/80 mb-4">Through-frame values are placeholder estimates — verify per brand.</p>
           <div id="mfrEditorBody"></div>
           <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
+          </div><!-- /set-collapse-body -->
+        </details>
         </div>
         </div><!-- /Setup panel -->
 
@@ -5998,8 +6042,13 @@
 
             <!-- ═══ Section: Pricing & Markup ═══ -->
             <section id="rates-section-pricing" data-rleaf="money" data-rates-section data-nav-label="Money &amp; Tax">
-              <div class="set-card">
-                <div class="set-card-head">Money &amp; Tax</div>
+              <details class="set-collapse group" id="sc-rates-money" data-collapse-key="rates-money">
+                <summary class="set-collapse-summary">
+                  <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+                  <span class="set-collapse-title">Money &amp; Tax</span>
+                  <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Markup, materials tax &amp; impact labor</span>
+                </summary>
+                <div class="set-collapse-body">
                 <div class="set-card-desc">The numbers that drive every quote — change these first.</div>
                 <div class="set-grid cols-3">
                   <div class="set-field">
@@ -6018,7 +6067,8 @@
                     <span class="set-hint">Extra labor multiplier for hurricane-impact jobs.</span>
                   </div>
                 </div>
-              </div>
+                </div><!-- /set-collapse-body -->
+              </details>
             </section>
 
             <!-- ═══ Section: Crew Pay & Labor Hours (Model 4) ═══ -->
@@ -6026,7 +6076,13 @@
                  billing rate (rendered into #adminLaborRateBody by the
                  renderer) PLUS the crew-pay / hours model. ═══ -->
             <section id="rates-section-labor" data-rleaf="labor" style="display:none" data-rates-section data-nav-label="Labor">
-            <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold mb-3">Labor</h4>
+            <details class="set-collapse group" id="sc-rates-labor" data-collapse-key="rates-labor">
+            <summary class="set-collapse-summary">
+              <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+              <span class="set-collapse-title">Labor</span>
+              <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Install speed, crew size &amp; pay</span>
+            </summary>
+            <div class="set-collapse-body">
 
             <!-- Billing rate + per-LF hours (the "labor" cost item, pulled
                  out of Materials and rendered here by renderAdminRates) -->
@@ -6067,6 +6123,8 @@
               <span class="text-[12px] text-slate-300">Show labor hours line on the customer's quote PDF <span class="text-slate-600">(default off — customer sees only the labor total)</span></span>
             </label>
             </div>
+            </div><!-- /set-collapse-body -->
+            </details>
             </section>
 
             <!-- ═══ Section: Materials (the dynamic list — each card gets
@@ -6090,9 +6148,15 @@
               <button type="button" class="rdoor-btn" data-rdoor-btn="bifold" onclick="showDoorType('bifold')">Bifold</button>
             </div>
             <section id="rates-section-doors" data-rleaf="doors" data-dtype="swing" style="display:none" data-rates-section data-nav-label="Swing Doors">
+            <details class="set-collapse group" id="sc-rates-doors-swing" data-collapse-key="rates-doors-swing">
+            <summary class="set-collapse-summary">
+              <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+              <span class="set-collapse-title">Swing Doors</span>
+              <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Single / double leaf, sill flashing</span>
+            </summary>
+            <div class="set-collapse-body">
             <div class="pt-2">
             <div class="flex items-center justify-between mb-3 gap-3">
-              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Swing Doors</h4>
               <label class="flex items-center gap-2 text-xs text-slate-400">
                 <input id="adminSwingEnabled" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
                 <span>Enable in rail</span>
@@ -6167,13 +6231,21 @@
               </div>
             </div>
             </div>
+            </div><!-- /set-collapse-body -->
+            </details>
             </section>
 
             <!-- ═══ Section: Sliding Glass Doors ═══ -->
             <section id="rates-section-sliders" data-rleaf="doors" data-dtype="sliding" style="display:none" data-rates-section data-nav-label="Sliding Glass Doors">
+            <details class="set-collapse group" id="sc-rates-doors-sliding" data-collapse-key="rates-doors-sliding">
+            <summary class="set-collapse-summary">
+              <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+              <span class="set-collapse-title">Sliding Glass Doors</span>
+              <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Labor, panel size &amp; screw inspection</span>
+            </summary>
+            <div class="set-collapse-body">
             <div class="pt-2">
             <div class="flex items-center justify-between mb-3 gap-3">
-              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Sliding Glass Doors</h4>
               <label class="flex items-center gap-2 text-xs text-slate-400">
                 <input id="adminSgdEnabled" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
                 <span>Enable in rail</span>
@@ -6242,13 +6314,21 @@
               </div>
             </div>
             </div>
+            </div><!-- /set-collapse-body -->
+            </details>
             </section>
 
             <!-- ═══ Section: Bifold Doors ═══ -->
             <section id="rates-section-bifold" data-rleaf="doors" data-dtype="bifold" style="display:none" data-rates-section data-nav-label="Bifold Doors">
+            <details class="set-collapse group" id="sc-rates-doors-bifold" data-collapse-key="rates-doors-bifold">
+            <summary class="set-collapse-summary">
+              <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+              <span class="set-collapse-title">Bifold Doors</span>
+              <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Labor, panel size &amp; screw inspection</span>
+            </summary>
+            <div class="set-collapse-body">
             <div class="pt-2">
             <div class="flex items-center justify-between mb-3 gap-3">
-              <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Bifold Doors</h4>
               <label class="flex items-center gap-2 text-xs text-slate-400">
                 <input id="adminBfEnabled" type="checkbox" class="w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" />
                 <span>Enable in rail</span>
@@ -6315,6 +6395,8 @@
               </div>
             </div>
             </div>
+            </div><!-- /set-collapse-body -->
+            </details>
             </section>
 
             </div><!-- /right content -->
@@ -6330,7 +6412,13 @@
 
           <!-- Plan (was the Subscription panel — Phase 2 read-only; Phase 3 wires Stripe.) -->
           <div data-accountleaf="plan">
-            <div class="set-h">Subscription</div>
+          <details class="set-collapse group" id="sc-account-plan" data-collapse-key="account-plan">
+            <summary class="set-collapse-summary">
+              <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+              <span class="set-collapse-title">Subscription</span>
+              <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Plan, usage &amp; billing cycle</span>
+            </summary>
+            <div class="set-collapse-body">
             <div class="set-sub mb-5">Your current plan and quote usage. Plan changes land in the next release.</div>
             <div class="card rounded-xl p-5 max-w-2xl">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
@@ -6365,11 +6453,19 @@
               <p class="text-[11px] text-slate-600 mb-3">Reset your entitlement record to a fresh trial — for testing the badge + upsell flow.</p>
               <button id="subResetEntitlements" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2">↻ Reset entitlements (DEV)</button>
             </div>
+            </div><!-- /set-collapse-body -->
+          </details>
           </div>
 
           <!-- Account (was the Account panel) -->
           <div data-accountleaf="account" style="display:none">
-            <div class="set-h">Account</div>
+          <details class="set-collapse group" id="sc-account-account" data-collapse-key="account-account">
+            <summary class="set-collapse-summary">
+              <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+              <span class="set-collapse-title">Account</span>
+              <span class="group-open:hidden set-collapse-sub" data-collapse-summary>Sign-in &amp; workspace tools</span>
+            </summary>
+            <div class="set-collapse-body">
             <div class="set-sub mb-5">Your sign-in and workspace tools.</div>
             <div class="card rounded-xl p-4 max-w-md">
               <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">Signed in as</div>
@@ -6381,6 +6477,8 @@
               <p class="text-[11px] text-slate-600 mb-3">Re-run the profile + setup wizard. Brand info, rates, and saved jobs are kept.</p>
               <button id="adminResetSetup" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2" title="Re-run the profile + setup wizard (testing)">↻ Reset Setup</button>
             </div>
+            </div><!-- /set-collapse-body -->
+          </details>
           </div>
         </div>
 
@@ -14205,6 +14303,7 @@ function openAdmin() {
   _setSearchIdx = null; _setSearchHits = []; _setSearchActive = -1;
   { const si = document.getElementById("settingsSearch"); if (si) si.value = ""; }
   renderSettingsSearch();
+  applyStaticCollapseState();
   adminModal.classList.remove("hidden");
 }
 function closeAdmin() { tvDismiss(adminModal); }
@@ -14297,8 +14396,17 @@ function openSettingsToItem(itemId) {
     if (_leaf === "doors" && typeof showDoorType === "function") showDoorType("swing");
   } catch (_) {}
   try {
-    const det = document.querySelector(`#adminRatesBody details[data-cat="${itemId}"]`);
+    const det = document.querySelector(`#adminRatesBody details[data-cat="${itemId}"], #adminRatesBody details[id="rates-item-${itemId}"]`);
     if (det && !det.open) det.open = true;
+    // Also force-open the static .set-collapse that holds non-material targets
+    // (labor section + door editors), so the scroll/highlight lands on a visible field.
+    let scKey = null;
+    if (itemId === "labor") scKey = "rates-labor";
+    else if (String(itemId).startsWith("swing_doors")) scKey = "rates-doors-swing";
+    if (scKey) {
+      const sc = document.querySelector(`.set-collapse[data-collapse-key="${scKey}"]`);
+      if (sc && !sc.open) sc.open = true;
+    }
   } catch (_) {}
 
   // Two rAFs let the panel layout settle before we measure scroll offsets,
@@ -16003,18 +16111,30 @@ function buildAdminUI() {
           </div>
         `).join("")
       : "";
+    // Non-material single-price item (disposal, permit, lift rental) — now a
+    // uniform collapse-by-default card, keyed by item id (sc:<id> in the store,
+    // same default-collapsed-with-saved-override logic as material cards).
+    const _np = collapsePrefs["sc:" + item.id];
+    const _npCollapsed = _np != null ? _np : true;
+    const _npSummary = `$${(+item.unitPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })}/${escHtml(item.unit)}`;
     return `
-      <div class="rounded-xl border border-slate-800 p-4" id="rates-item-${item.id}" data-rates-item>
-        <div class="flex items-center justify-between mb-3">
-          <div class="text-sm font-semibold text-slate-100">${escHtml(item.name)}</div>
-          <div class="flex items-center gap-2">
-            <span class="text-[11px] text-slate-500">Unit Price</span>
-            <input data-unitprice="${item.id}" type="number" step="0.001" value="${item.unitPrice}" class="control rounded-lg px-3 py-2 w-28 text-sm text-slate-100" />
-            <span class="text-[11px] text-slate-500">$/${item.unit}</span>
+      <details class="set-collapse group" id="rates-item-${item.id}" data-collapse-key="${item.id}" data-rates-item ${_npCollapsed ? "" : "open"}>
+        <summary class="set-collapse-summary">
+          <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+          <span class="set-collapse-title">${escHtml(item.name)}</span>
+          <span class="group-open:hidden set-collapse-sub" data-collapse-summary>${_npSummary}</span>
+        </summary>
+        <div class="set-collapse-body">
+          <div class="flex items-center justify-end mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] text-slate-500">Unit Price</span>
+              <input data-unitprice="${item.id}" type="number" step="0.001" value="${item.unitPrice}" class="control rounded-lg px-3 py-2 w-28 text-sm text-slate-100" />
+              <span class="text-[11px] text-slate-500">$/${item.unit}</span>
+            </div>
           </div>
+          <div class="grid sm:grid-cols-2 gap-2">${rateRows}${appPriceRows}</div>
         </div>
-        <div class="grid sm:grid-cols-2 gap-2">${rateRows}${appPriceRows}</div>
-      </div>
+      </details>
     `;
   }).join("");
 
@@ -16108,7 +16228,12 @@ function buildSettingsSearchIndex() {
     // Expand a collapsed card synchronously (mirrors openSettingsToItem) so the
     // jump lands even if rAF is throttled; scroll + pulse settle on later frames.
     const tNow = document.getElementById(opts.targetId);
-    if (tNow && tNow.tagName === "DETAILS" && !tNow.open) tNow.open = true;
+    if (tNow) {
+      // Target may be the <details> itself (material card) OR a <section> that
+      // wraps a .set-collapse (labor/money/doors) — open whichever applies.
+      const det = tNow.tagName === "DETAILS" ? tNow : tNow.querySelector(".set-collapse");
+      if (det && det.tagName === "DETAILS" && !det.open) det.open = true;
+    }
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
       const t = document.getElementById(opts.targetId);
       if (!t) return;
@@ -16526,16 +16651,32 @@ function filterRatesNav(query) {
   });
 }
 
-// Persist per-card collapse state when user clicks <summary>
+// Persist per-card collapse state when user clicks <summary>. Covers the dynamic
+// material cards (#adminRatesBody [data-cat]) AND every universal .set-collapse
+// section (keyed by data-collapse-key) — all share the rates_collapse store.
 document.addEventListener("toggle", (e) => {
   const el = e.target;
-  if (!el.matches?.("#adminRatesBody [data-cat]")) return;
-  const id = el.getAttribute("data-cat");
+  let id = null;
+  if (el.matches?.("#adminRatesBody [data-cat]")) id = el.getAttribute("data-cat");
+  else if (el.matches?.(".set-collapse[data-collapse-key]")) id = "sc:" + el.getAttribute("data-collapse-key");
+  if (id == null) return;
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
   prefs[id] = !el.open;
   try { localStorage.setItem("rates_collapse", JSON.stringify(prefs)); } catch (_) {}
 }, true);
+
+// Apply remembered open/closed state to every static .set-collapse section.
+// Default = collapsed; an explicit saved choice wins (mirrors the material-card
+// logic). Called from openAdmin() after the panels exist in the DOM.
+function applyStaticCollapseState() {
+  let prefs = {};
+  try { prefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
+  document.querySelectorAll("#adminModal .set-collapse[data-collapse-key]").forEach(el => {
+    const pref = prefs["sc:" + el.getAttribute("data-collapse-key")];
+    el.open = (pref != null) ? !pref : false;   // pref===true means collapsed
+  });
+}
 
 // One editable brand-variant row inside a material category card
 function variantRowHTML(catId, unit, v, isDefault) {
