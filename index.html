@@ -5858,7 +5858,7 @@
           </div>
         <!-- Brand -->
         <div data-setupleaf="brand">
-        <details class="set-collapse group" id="sc-setup-brand" data-collapse-key="setup-brand">
+        <details class="set-collapse group" id="sc-setup-brand" data-collapse-key="setup-brand" data-collapse-open>
           <summary class="set-collapse-summary">
             <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
             <span class="set-collapse-title">Brand &amp; Company</span>
@@ -5922,7 +5922,7 @@
 
         <!-- Job Defaults -->
         <div data-setupleaf="defaults" style="display:none">
-        <details class="set-collapse group" id="sc-setup-defaults" data-collapse-key="setup-defaults">
+        <details class="set-collapse group" id="sc-setup-defaults" data-collapse-key="setup-defaults" data-collapse-open>
           <summary class="set-collapse-summary">
             <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
             <span class="set-collapse-title">Job Defaults</span>
@@ -5976,7 +5976,7 @@
 
         <!-- Manufacturers -->
         <div data-setupleaf="manufacturers" style="display:none">
-        <details class="set-collapse group" id="sc-setup-manufacturers" data-collapse-key="setup-manufacturers">
+        <details class="set-collapse group" id="sc-setup-manufacturers" data-collapse-key="setup-manufacturers" data-collapse-open>
           <summary class="set-collapse-summary">
             <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
             <span class="set-collapse-title">Window Manufacturers</span>
@@ -6050,7 +6050,7 @@
 
             <!-- ═══ Section: Pricing & Markup ═══ -->
             <section id="rates-section-pricing" data-rleaf="money" data-rates-section data-nav-label="Money &amp; Tax">
-              <details class="set-collapse group" id="sc-rates-money" data-collapse-key="rates-money">
+              <details class="set-collapse group" id="sc-rates-money" data-collapse-key="rates-money" data-collapse-open>
                 <summary class="set-collapse-summary">
                   <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
                   <span class="set-collapse-title">Money &amp; Tax</span>
@@ -6420,7 +6420,7 @@
 
           <!-- Plan (was the Subscription panel — Phase 2 read-only; Phase 3 wires Stripe.) -->
           <div data-accountleaf="plan">
-          <details class="set-collapse group" id="sc-account-plan" data-collapse-key="account-plan">
+          <details class="set-collapse group" id="sc-account-plan" data-collapse-key="account-plan" data-collapse-open>
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Subscription</span>
@@ -6467,7 +6467,7 @@
 
           <!-- Account (was the Account panel) -->
           <div data-accountleaf="account" style="display:none">
-          <details class="set-collapse group" id="sc-account-account" data-collapse-key="account-account">
+          <details class="set-collapse group" id="sc-account-account" data-collapse-key="account-account" data-collapse-open>
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Account</span>
@@ -16682,7 +16682,10 @@ function applyStaticCollapseState() {
   try { prefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
   document.querySelectorAll("#adminModal .set-collapse[data-collapse-key]").forEach(el => {
     const pref = prefs["sc:" + el.getAttribute("data-collapse-key")];
-    el.open = (pref != null) ? !pref : false;   // pref===true means collapsed
+    // Single-section leaves (data-collapse-open) start expanded — no point hiding
+    // the only thing in the leaf; multi-card areas (Labor, Doors, Window Rates
+    // fees) start collapsed. An explicit saved open/closed choice always wins.
+    el.open = (pref != null) ? !pref : el.hasAttribute("data-collapse-open");
   });
 }
 
