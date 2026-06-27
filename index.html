@@ -1829,18 +1829,39 @@
      component mounts into #lpHeroSlogan) and CTAs sit beneath it on the void. */
   .lp-hero { position: relative; min-height: 84vh; min-height: 84svh; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; padding: 44px 0 36px; }
-  .lp-hero-mark { height: 60px; width: auto; margin: 0 auto; }
-  @media (min-width: 640px) { .lp-hero-mark { height: 88px; } }
+  /* Wordmark is the centerpiece — larger, with a clean gold outer glow that
+     hugs the individual letterforms (drop-shadow follows the PNG alpha). */
+  .lp-hero-mark { height: 78px; width: auto; margin: 0 auto;
+    filter: drop-shadow(0 0 20px rgba(201,165,88,0.40)) drop-shadow(0 0 6px rgba(223,192,122,0.55)); }
+  @media (min-width: 640px) { .lp-hero-mark { height: 120px; } }
   .lp-hero-slogan { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; letter-spacing: -0.012em;
-    line-height: 1.08; font-size: clamp(1.7rem, 5.4vw, 2.9rem); color: #eef2f8; margin-top: 26px; max-width: 20ch; }
+    line-height: 1.12; font-size: clamp(1.75rem, 5.6vw, 3rem); color: #eef2f8; margin-top: 30px; }
+  .lp-hero-slogan > * { display: block; }          /* slogan on its own two lines */
   .lp-hero-sub { margin-top: 22px; }
-  .lp-scrollcue { margin-top: 50px; width: 26px; height: 42px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.35);
-    display: inline-flex; align-items: flex-start; justify-content: center; padding-top: 8px; cursor: pointer; background: transparent;
-    transition: border-color .15s ease; }
-  .lp-scrollcue:hover { border-color: rgba(181,143,74,0.6); }
-  .lp-scrollcue-line { width: 2px; height: 9px; border-radius: 2px; background: #c9a558; animation: lpCue 1.9s ease-in-out infinite; }
-  @keyframes lpCue { 0%,100% { transform: translateY(0); opacity: .35; } 50% { transform: translateY(8px); opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .lp-scrollcue-line { animation: none; opacity: .7; } }
+
+  /* Scroll cue — a nautical "sounding line": a thin gold plumb-line down which a
+     small bob descends and fades, like dropping a line to sound the depth.
+     On-brand for the dive, and not the generic blinking mouse pill. */
+  .lp-sound { margin-top: 58px; background: transparent; border: 0; cursor: pointer; padding: 8px 12px; display: inline-flex; }
+  .lp-sound-track { position: relative; display: block; width: 1px; height: 60px;
+    background: linear-gradient(180deg, rgba(201,165,88,0.5), rgba(201,165,88,0)); }
+  .lp-sound-bob { position: absolute; left: 50%; top: -2px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%;
+    background: #dfc07a; box-shadow: 0 0 8px rgba(223,192,122,0.8); animation: lpSound 2.8s cubic-bezier(0.45,0,0.2,1) infinite; }
+  @keyframes lpSound { 0% { top: -3px; opacity: 0; } 14% { opacity: 1; } 74% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+  .lp-sound:hover .lp-sound-track { background: linear-gradient(180deg, rgba(223,192,122,0.85), rgba(223,192,122,0)); }
+  @media (prefers-reduced-motion: reduce) { .lp-sound-bob { animation: none; top: 27px; opacity: .9; } }
+
+  /* Cinematic descent — a fixed gold light that SINKS and dims as you scroll,
+     plus a deepening vignette so going down the page feels like sinking. Driven
+     by --lp-scroll (0..1), set by a throttled rAF scroll handler. GPU-only. */
+  .lp-deepglow, .lp-deepen { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .lp-deepglow::before { content: ""; position: absolute; left: 50%; top: -14%; width: 132vw; max-width: 1700px; height: 92vh;
+    background: radial-gradient(44% 50% at 50% 0%, rgba(201,165,88,0.19), rgba(181,143,74,0.05) 46%, transparent 72%);
+    transform: translate(-50%, calc(var(--lp-scroll, 0) * 58vh)); opacity: calc(1 - var(--lp-scroll, 0) * 0.7); }
+  .lp-deepen { background: radial-gradient(130% 100% at 50% 122%, rgba(0,0,0,0.62), transparent 54%);
+    opacity: calc(var(--lp-scroll, 0) * 1); }
+  [data-theme="light"] .lp-deepen { display: none; }
+  [data-theme="light"] .lp-deepglow::before { background: radial-gradient(44% 50% at 50% 0%, rgba(181,143,74,0.12), transparent 70%); }
 
   /* (scroll-driven anchor-dive styles removed in the landing redesign) */
   /* coarse, gritty sand footer — layered fractal-noise specks on solid sand */
@@ -3980,6 +4001,10 @@
 
   <!-- Cinematic ambient layers (still void + faint horizon); see .lp-atmos CSS -->
   <div class="lp-atmos" aria-hidden="true"><div class="lp-atmos-glow"></div><div class="lp-atmos-horizon"></div></div>
+  <!-- Cinematic descent — fixed gold light that sinks + dims with scroll, and a
+       deepening vignette; driven by --lp-scroll (set in the descent IIFE). -->
+  <div class="lp-deepglow" aria-hidden="true"></div>
+  <div class="lp-deepen" aria-hidden="true"></div>
 
   <!-- Nav -->
   <nav class="lp-nav sticky top-0 z-30">
@@ -4006,7 +4031,7 @@
     <!-- Rolling slogan mounts into #lpHeroSlogan (owned by the slogan component);
          the static line below is the fallback shown until it takes over. -->
     <div id="lpHeroSlogan" class="lp-hero-slogan lp-reveal">
-      <span class="gold-glow">Anchor your profit. Reel in your time.</span>
+      <span>Anchor your profit.</span><span class="gold-glow">Reel in your time.</span>
     </div>
     <p class="lp-hero-sub lp-reveal text-slate-300 text-base sm:text-lg max-w-xl mx-auto leading-relaxed">
       Price a whole window or door job in under a minute — materials, labor, and your markup — then hand the homeowner a clean quote and your crew the cut list. <span class="text-[#c9a558] font-semibold">Built for Florida installers.</span>
@@ -4015,15 +4040,17 @@
       <button id="lpHeroSignup" class="lp-btn-gold btn rounded-full text-sm font-bold px-7 py-3.5">Get Started Free</button>
       <button class="lp-scroll btn rounded-full text-sm font-bold px-7 py-3.5 bg-transparent text-slate-200 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]" data-scroll="lpEstimate">See it price a job</button>
     </div>
-    <button type="button" class="lp-scrollcue lp-scroll lp-reveal" data-scroll="lpEstimate" aria-label="Scroll to the live estimate">
-      <span class="lp-scrollcue-line" aria-hidden="true"></span>
+    <button type="button" class="lp-sound lp-scroll lp-reveal" data-scroll="lpEstimate" aria-label="Scroll to the live estimate">
+      <span class="lp-sound-track" aria-hidden="true"><span class="lp-sound-bob"></span></span>
     </button>
   </section>
 
   <!-- ===== BEAT 2 — the 60-second quote (interactive price teaser) ===== -->
   <section id="lpEstimate" class="scroll-mt-20 max-w-4xl mx-auto px-5 sm:px-6 pt-12 sm:pt-20 pb-24 sm:pb-32 text-center">
-    <p class="lp-reveal text-[11px] uppercase tracking-[0.2em] text-slate-500 font-bold text-center">Try it — drag to your job size</p>
-    <div class="lp-reveal mt-4 grid sm:grid-cols-2 gap-6 sm:gap-7 max-w-3xl mx-auto">
+    <div class="lp-reveal"><span class="lp-eyebrow">The 60-second quote</span></div>
+    <h2 class="lp-reveal text-3xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-4">Watch a quote build.</h2>
+    <p class="lp-reveal text-slate-400 text-sm sm:text-base mt-3 mb-2">Drag the footage — your materials, labor, and markup re-total live.</p>
+    <div class="lp-reveal mt-8 grid sm:grid-cols-2 gap-6 sm:gap-7 max-w-3xl mx-auto">
       <div class="flex flex-col">
         <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">Estimated job</h3>
         <div class="lp-card rounded-3xl flex-1 px-7 py-8 text-left">
@@ -4035,6 +4062,10 @@
             <div class="flex justify-between text-[13px]"><span class="text-slate-500">Materials</span><span id="lpCalcMat" class="text-slate-300 font-semibold">$6,144</span></div>
             <div class="flex justify-between text-[13px]"><span class="text-slate-500">Labor</span><span id="lpCalcLabor" class="text-slate-300 font-semibold">$7,500</span></div>
             <div class="flex justify-between text-[13px]"><span class="text-slate-500">Markup (35%)</span><span id="lpCalcMargin" class="text-[#c9a558] font-semibold">+ $4,775</span></div>
+          </div>
+          <div class="mt-4 flex items-center justify-between rounded-xl border border-[#b58f4a]/30 bg-[#b58f4a]/10 px-4 py-2.5">
+            <span class="text-[11px] uppercase tracking-[0.14em] text-[#c9a558] font-bold">Your profit on this job</span>
+            <span id="lpCalcProfit" class="text-[#dfc07a] font-black text-lg" style="font-variant-numeric:tabular-nums;">$4,775</span>
           </div>
           <div class="text-[10px] text-slate-600 mt-3">Ballpark at sample rates — your own rates make it exact.</div>
         </div>
@@ -23226,6 +23257,23 @@ function init() {
 
   purgeStaleSW();
 }
+// ----- Cinematic descent: drive --lp-scroll (0..1) off the landing scroll
+//        position so the fixed gold glow sinks + dims and the deepen vignette
+//        intensifies as you scroll. Throttled rAF; transform/opacity only. -----
+(function () {
+  const ls = document.getElementById("landingScreen");
+  if (!ls) return;
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const max = ls.scrollHeight - ls.clientHeight;
+    ls.style.setProperty("--lp-scroll", (max > 0 ? Math.min(1, ls.scrollTop / max) : 0).toFixed(4));
+  };
+  ls.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  window.addEventListener("resize", update, { passive: true });
+  update();
+})();
+
 // ----- Scroll-driven anchor dive (free-flowing verlet rope: water slack on the
 //        drop, eased drift to straight, self-colliding pile-up + reel-in) -----
 (function () {
@@ -23799,7 +23847,8 @@ function init() {
         elLF = document.getElementById("lpCalcLF"),
         elM = document.getElementById("lpCalcMat"),
         elL = document.getElementById("lpCalcLabor"),
-        elG = document.getElementById("lpCalcMargin");
+        elG = document.getElementById("lpCalcMargin"),
+        elP = document.getElementById("lpCalcProfit");
   const MAT_PER_LF = 25.6, LABOR_PER_LF = 31.25, MARGIN = 0.35;
   const fmt = (n) => {
     try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n); }
@@ -23861,6 +23910,7 @@ function init() {
     if (elM) elM.textContent = fmt(mat);
     if (elL) elL.textContent = fmt(lab);
     if (elG) elG.textContent = "+ " + fmt(margin);
+    if (elP) elP.textContent = fmt(margin);
     if (elT) elT.textContent = fmt(total);
     renderBreakdown(lf, total);
   }
