@@ -2712,6 +2712,12 @@
   /* Smaller segmented toggles for swapping data types inside a panel. */
   .seg-sm { max-width: 300px; padding: 3px; border-radius: 11px; }
   .seg-sm .seg-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; }
+  /* Chart-type picker: icon segmented control, sized to sit inline with the metric
+     toggle on one row (mobile + desktop). Reuses .seg / .seg-btn (incl. light mode). */
+  .ct-seg { width: auto; flex-shrink: 0; }
+  .ct-seg .seg-btn { flex: 0 0 auto; padding: 6px 8px; display: inline-flex; align-items: center; justify-content: center; }
+  .ct-seg .seg-btn svg { display: block; }
+  .seg-btn:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
 
   /* job-extras pills: Windows count, Swing doors, Permit, Lift, Sill flashing */
   [data-theme="light"] .margin-pill,
@@ -11017,8 +11023,8 @@ function renderDashCustomers(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">${stats.length} customer${stats.length === 1 ? "" : "s"} · ${grandJobs} job${grandJobs === 1 ? "" : "s"} — who drives your business. Tap one for the full breakdown.</p>
-        <div class="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-          <div class="seg seg-sm" id="dashCustSeg" style="max-width:320px;">
+        <div class="flex items-center justify-between gap-2">
+          <div class="seg seg-sm" id="dashCustSeg" style="width:auto;min-width:0;">
             <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
             <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
             <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
@@ -11488,8 +11494,8 @@ function renderDashJobsPanel(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-4">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">${real.length} saved job${real.length === 1 ? "" : "s"} by status — tap a status to filter the list.</p>
-        <div class="flex flex-col items-center gap-3 sm:flex-row sm:justify-between mb-2">
-          <div class="seg seg-sm" id="dashJobsSeg" style="max-width:220px;">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div class="seg seg-sm" id="dashJobsSeg" style="width:auto;min-width:0;">
             <button type="button" class="seg-btn ${metric === "count" ? "active" : ""}" data-jobchart="count">By count</button>
             <button type="button" class="seg-btn ${metric === "value" ? "active" : ""}" data-jobchart="value">By value</button>
           </div>
@@ -11657,16 +11663,23 @@ function matChartPieSVG(items) {
 }
 
 // ── Shared insight-chart toolkit (used by Materials, Customers, and Jobs) ──
-// Chart-type dropdown (Pie chart / Bars / Trend); the choice is shared across tabs.
-function chartTypeSelectHTML(id, tab) {
-  const cur = _dashChartType[tab] || "pie";
-  const opt = (v, label) => `<option value="${v}" ${cur === v ? "selected" : ""}>${label}</option>`;
-  return `<select id="${id}" data-charttype data-charttab="${tab}" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Chart type" aria-label="Chart type">${opt("pie", "Pie chart")}${opt("bar", "Bars")}${opt("trend", "Trend")}</select>`;
-}
-// "Chart [dropdown]" control — placed on the RIGHT of every insight panel's
-// control row for consistent placement across Materials / Customers / Jobs.
+// Chart-type picker: an icon segmented control (Pie / Bars / Trend) built from the
+// same .seg component as the metric toggle, so the two read as one consistent
+// control and fit on a single row. The choice is stored per tab in _dashChartType.
+const CHART_TYPE_OPTS = [
+  { v: "pie",   label: "Pie chart", icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 12V3.5M12 12l7.4 4.2"/></svg>` },
+  { v: "bar",   label: "Bars",      icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="19" x2="5" y2="11"/><line x1="12" y1="19" x2="12" y2="4"/><line x1="19" y1="19" x2="19" y2="14"/></svg>` },
+  { v: "trend", label: "Trend",     icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16l5-4 4 2 6-7"/><path d="M18 7h3v3"/></svg>` },
+];
+// Icon segmented control — placed on the RIGHT of each insight panel's control row,
+// inline with the metric toggle, for consistent placement across the three tabs.
 function chartTypeControlHTML(id, tab) {
-  return `<div class="flex items-center gap-2 shrink-0"><span class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Chart</span>${chartTypeSelectHTML(id, tab)}</div>`;
+  const cur = _dashChartType[tab] || "pie";
+  const btns = CHART_TYPE_OPTS.map(o => {
+    const on = cur === o.v;
+    return `<button type="button" role="radio" aria-checked="${on ? "true" : "false"}" tabindex="${on ? "0" : "-1"}" class="seg-btn${on ? " active" : ""}" data-charttype-btn data-charttab="${tab}" data-ctval="${o.v}" aria-label="${o.label}" title="${o.label}">${o.icon}</button>`;
+  }).join("");
+  return `<div id="${id}" class="seg seg-sm ct-seg" role="radiogroup" aria-label="Chart type">${btns}</div>`;
 }
 // Horizontal bars from a normalized series [{label, value, color}]. fmt formats the value.
 function dashBarsHTML(series, fmt) {
@@ -12641,17 +12654,42 @@ function wireDashboard() {
     const open = e.target.closest("[data-cust-open]");
     if (open) { openCustomerStats(open.dataset.custOpen); return; }
   });
-  // Chart-type dropdown (Pie / Bars / Trend) on each insight panel.
+  // Chart-type picker (Pie / Bars / Trend) — an icon segmented control on each
+  // insight panel. Click selects; arrow keys move within the radiogroup.
   [["dashMaterials", renderDashMatChart, "dashMatChart"],
    ["dashCustomers", renderCustChart, "dashCustChart"],
    ["dashPipelinePanel", renderJobsChart, "dashJobsChart"]].forEach(([panelId, renderFn, chartId]) => {
     const p = document.getElementById(panelId);
-    if (p) p.addEventListener("change", (e) => {
-      const sel = e.target.closest("[data-charttype]");
-      if (!sel) return;
-      _dashChartType[sel.dataset.charttab] = sel.value;
+    if (!p) return;
+    const select = (btn) => {
+      const tab = btn.dataset.charttab, val = btn.dataset.ctval;
+      if (_dashChartType[tab] === val) return;
+      _dashChartType[tab] = val;
+      const group = btn.closest('[role="radiogroup"]');
+      if (group) group.querySelectorAll("[data-charttype-btn]").forEach(b => {
+        const on = b === btn;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", on ? "true" : "false");
+        b.tabIndex = on ? 0 : -1;
+      });
       renderFn();
       dashPlayChart(document.getElementById(chartId));
+    };
+    p.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-charttype-btn]");
+      if (btn) select(btn);
+    });
+    p.addEventListener("keydown", (e) => {
+      const btn = e.target.closest("[data-charttype-btn]");
+      if (!btn || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+      e.preventDefault();
+      const btns = [...btn.closest('[role="radiogroup"]').querySelectorAll("[data-charttype-btn]")];
+      let i = btns.indexOf(btn);
+      if (e.key === "ArrowLeft") i = (i - 1 + btns.length) % btns.length;
+      else if (e.key === "ArrowRight") i = (i + 1) % btns.length;
+      else if (e.key === "Home") i = 0;
+      else i = btns.length - 1;
+      btns[i].focus(); select(btns[i]);
     });
   });
   const csm = document.getElementById("customerStatsModal");
