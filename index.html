@@ -2437,6 +2437,10 @@
   .pfp-sep { height: 1px; background: rgba(51,65,85,0.6); margin: 5px 0; }
   [data-theme="light"] .pfp-label { color: #94a3b8; }
   [data-theme="light"] .pfp-sep { background: #e2e8f0; }
+  /* Header theme-toggle buttons: dark defaults (slate-400 icon / slate-700 ring)
+     fail on a light nav, so mirror the established light icon-button token. */
+  [data-theme="light"] [data-theme-toggle] { color: #64748b; border-color: #d6dae1; }
+  [data-theme="light"] [data-theme-toggle]:hover { color: #97772e; border-color: #b58f4a; }
 
   /* ------- Trust signals band ------- */
   .lp-trust-headline {
@@ -2896,6 +2900,27 @@
   .dash-launch-preview { font-size: 12.5px; color: #94a3b8; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dash-launch-chev { color: #475569; flex-shrink: 0; transition: transform .15s ease, color .15s ease; }
   .dash-launch-card:hover .dash-launch-chev { color: #c9a558; transform: translateX(2px); }
+  /* ---- Card "what is this?" hint: ⓘ trigger + floating popover (zero reflow) ---- */
+  .dash-launch-cell { position: relative; }
+  .dash-launch-card { padding-right: 46px; }   /* clear the ⓘ corner */
+  .dash-tip-btn { position: absolute; top: 8px; right: 8px; z-index: 5; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: #c9a558; cursor: pointer; border-radius: 9999px; -webkit-tap-highlight-color: transparent; transition: opacity .15s ease, background .15s ease; }
+  .dash-tip-btn:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
+  .dash-tip { position: absolute; top: 46px; right: 8px; z-index: 30; width: max-content; max-width: 240px; font-size: 13px; line-height: 1.45; font-weight: 500; color: #e2e8f0; background: rgba(2,6,23,0.98); border: 1px solid rgba(181,143,74,0.4); border-radius: 12px; padding: 10px 12px; box-shadow: 0 16px 32px -12px rgba(0,0,0,0.75); opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top right; pointer-events: none; visibility: hidden; transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s; }
+  .dash-tip[data-flip="up"] { top: auto; bottom: 46px; transform-origin: bottom right; }
+  .dash-tip::after { content: ""; position: absolute; top: -6px; right: 16px; width: 11px; height: 11px; background: inherit; border-left: 1px solid rgba(181,143,74,0.4); border-top: 1px solid rgba(181,143,74,0.4); transform: rotate(45deg); }
+  .dash-tip[data-flip="up"]::after { top: auto; bottom: -6px; transform: rotate(225deg); }
+  @media (hover: hover) and (pointer: fine) {
+    .dash-tip-btn { opacity: .3; }
+    .dash-launch-cell:hover .dash-tip-btn, .dash-tip-btn:focus-visible { opacity: 1; background: rgba(181,143,74,0.12); }
+    .dash-launch-cell:hover .dash-tip, .dash-launch-cell:focus-within .dash-tip { opacity: 1; transform: translateY(0) scale(1); visibility: visible; transition-delay: 120ms, 120ms, 0s; }
+    .dash-tip::before { content: ""; position: absolute; top: -10px; left: 0; right: 0; height: 10px; }   /* hover bridge */
+  }
+  @media (hover: none) { .dash-tip-btn { opacity: .85; } .dash-tip { font-size: 15px; } }
+  .dash-launch-cell.tip-open .dash-tip { opacity: 1; transform: translateY(0) scale(1); visibility: visible; pointer-events: auto; transition-delay: 0s; }
+  [data-theme="light"] .dash-tip { background: #ffffff; color: #334155; border-color: rgba(181,143,74,0.5); box-shadow: 0 16px 32px -16px rgba(15,23,42,0.28); }
+  [data-theme="light"] .dash-tip::after { border-color: rgba(181,143,74,0.5); }
+  [data-theme="light"] .dash-tip-btn { color: #b58f4a; }
+  @media (prefers-reduced-motion: reduce) { .dash-tip { transition: opacity .001s, visibility 0s; transform: none !important; } .dash-launch-cell:hover .dash-tip { transition-delay: 0s; } }
   /* ---- Section back button ---- */
   .dash-back { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; font-size: 13px; font-weight: 700; color: #94a3b8; padding: 9px 14px 9px 11px; border-radius: 9999px; background: rgba(15,23,42,0.6); border: 1px solid #1e293b; transition: all .15s ease; min-height: 42px; }
   .dash-back:hover { color: #c9a558; border-color: rgba(181,143,74,0.45); }
@@ -2910,6 +2935,59 @@
   .calib-dismiss { font-size: 12.5px; font-weight: 700; border-radius: 9999px; padding: 9px 15px; cursor: pointer; background: transparent; color: #94a3b8; border: 1px solid #334155; transition: all .15s ease; min-height: 42px; }
   .calib-dismiss:hover { color: #cbd5e1; border-color: #475569; }
   .calib-info { border-radius: 12px; border: 1px solid rgba(51,65,85,0.6); background: rgba(2,6,23,0.4); padding: 11px 13px; }
+  /* Calibration: accuracy summary */
+  .calib-acc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .calib-acc-cell { border: 1px solid #1e293b; border-radius: 14px; background: rgba(15,23,42,0.5); padding: 12px 14px; text-align: center; }
+  .calib-acc-k { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.13em; color: #64748b; font-weight: 800; }
+  .calib-acc-v { font-size: 20px; font-weight: 800; color: #f1f5f9; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .calib-acc-sub { font-size: 13px; font-weight: 700; color: #64748b; }
+  /* Calibration: per-job log list */
+  .calib-joblist { display: flex; flex-direction: column; gap: 8px; }
+  .calib-job { border: 1px solid #1e293b; border-radius: 14px; background: rgba(15,23,42,0.5); overflow: hidden; }
+  .calib-job-head { display: flex; align-items: center; gap: 10px; width: 100%; cursor: pointer; background: transparent; border: 0; padding: 13px 15px; min-height: 52px; text-align: left; }
+  .calib-job-head:hover { background: rgba(30,41,59,0.4); }
+  .calib-job-name { display: block; font-size: 13.5px; font-weight: 700; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calib-job-sub { display: block; font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calib-job-chev { color: #475569; flex-shrink: 0; transition: transform .18s ease; }
+  .calib-job-head[aria-expanded="true"] .calib-job-chev { transform: rotate(180deg); }
+  .calib-chip { flex-shrink: 0; font-size: 10.5px; font-weight: 800; border-radius: 9999px; padding: 3px 10px; border: 1px solid; font-variant-numeric: tabular-nums; }
+  .calib-chip.todo { color: #c9a558; border-color: rgba(181,143,74,0.45); background: rgba(181,143,74,0.1); }
+  .calib-chip.logged { color: #34d399; border-color: rgba(52,211,153,0.4); background: rgba(52,211,153,0.1); }
+  .calib-job-body { padding: 0 15px 14px; }
+  /* E-signatures: send-any-job picker */
+  .esign-send { border: 1px solid rgba(181,143,74,0.25); border-radius: 16px; background: rgba(181,143,74,0.05); padding: 15px 16px; }
+  .esign-send-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .esign-send-row > select { flex: 1 1 220px; min-height: 44px; }
+  .esign-send-result { margin-top: 12px; }
+  @media (max-width: 560px) { .esign-send-row > .jd-detail-seg, .esign-send-row > #dashEsignSendBtn { flex: 1 1 auto; } .esign-send-row > #dashEsignSendBtn { width: 100%; } }
+  [data-theme="light"] .calib-acc-cell, [data-theme="light"] .calib-job { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .calib-acc-v, [data-theme="light"] .calib-job-name { color: #0f172a; }
+  [data-theme="light"] .calib-job-head:hover { background: #f1f3f6; }
+  [data-theme="light"] .calib-empty { border-color: #d8dde6; }
+  [data-theme="light"] .esign-send { background: #faf6ee; border-color: #e7dcc4; }
+  /* Follow-up nudges */
+  .nudge-row { display: flex; align-items: center; gap: 10px; border: 1px solid #1e293b; border-radius: 12px; background: rgba(15,23,42,0.5); padding: 11px 13px; margin-bottom: 8px; }
+  .nudge-dot { width: 9px; height: 9px; border-radius: 999px; flex-shrink: 0; }
+  .nudge-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+  .nudge-title { font-size: 13.5px; font-weight: 700; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nudge-sub { font-size: 11.5px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nudge-x { flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent; color: #64748b; font-size: 20px; line-height: 1; cursor: pointer; }
+  .nudge-x:hover { color: #cbd5e1; background: rgba(148,163,184,0.12); }
+  /* Shopping list items */
+  .shop-list { border: 1px solid rgba(51,65,85,0.6); border-radius: 12px; overflow: hidden; margin-bottom: 12px; }
+  .shop-item { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border-bottom: 1px solid rgba(51,65,85,0.4); cursor: pointer; min-height: 48px; }
+  .shop-item:last-child { border-bottom: 0; }
+  .shop-check { width: 19px; height: 19px; flex-shrink: 0; accent-color: #b58f4a; cursor: pointer; }
+  .shop-item-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: #f1f5f9; }
+  .shop-item-qty { font-size: 12.5px; font-weight: 700; color: #c9a558; font-variant-numeric: tabular-nums; text-align: right; flex-shrink: 0; }
+  .shop-item-sub { color: #64748b; font-weight: 500; }
+  .shop-item.done .shop-item-name { color: #64748b; text-decoration: line-through; }
+  .shop-item.done .shop-item-qty { color: #475569; }
+  .shop-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  [data-theme="light"] .nudge-row { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .nudge-title, [data-theme="light"] .shop-item-name { color: #0f172a; }
+  [data-theme="light"] .shop-list { border-color: #e6e8ec; }
+  [data-theme="light"] .shop-item { border-color: #eef1f5; }
   [data-theme="light"] .dash-launch-card { background: #ffffff; border-color: #e6e8ec; }
   [data-theme="light"] .dash-launch-title { color: #0f172a; }
   [data-theme="light"] .dash-launch-preview { color: #64748b; }
@@ -4975,13 +5053,16 @@
         <button id="dashPfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800 shrink-0 ml-1" aria-label="Account menu" aria-haspopup="true">
           <span id="dashPfpInner" class="w-full h-full flex items-center justify-center"></span>
         </button>
+        <!-- Desktop-only dedicated theme toggle, right of the avatar. On mobile the
+             toggle lives only in the account-menu row to save header space. -->
+        <button data-theme-toggle type="button" class="btn hidden sm:inline-flex w-9 h-9 rounded-full items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition shrink-0 ml-1" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
       </div>
     </div>
   </nav>
 
   <div class="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
-    <!-- Hero -->
-    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+    <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
+    <div id="dashHero" class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
       <div>
         <span class="lp-eyebrow">Dashboard</span>
         <h1 id="dashGreeting" class="text-2xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-3">Welcome back</h1>
@@ -5015,13 +5096,13 @@
       <!-- Insights view -->
       <div data-dashview="insights" class="hidden">
         <div id="dashInsights" class="card rounded-2xl overflow-hidden hidden">
-          <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
+          <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="seg seg-section" id="dashInsightsTabs">
               <button type="button" class="seg-btn active" data-insight="materials">Materials</button>
               <button type="button" class="seg-btn" data-insight="customers">Customers</button>
               <button type="button" class="seg-btn" data-insight="jobs">Jobs</button>
             </div>
-            <div id="dashInsightsMeta" class="text-right shrink-0"></div>
+            <div id="dashInsightsMeta" class="text-center sm:text-right shrink-0"></div>
           </div>
           <div id="dashMaterials"></div>
           <div id="dashCustomers" class="hidden"></div>
@@ -5067,6 +5148,16 @@
       <!-- Pricing calibration view (estimated → actual → suggested rate updates) -->
       <div data-dashview="calibration" class="hidden">
         <div id="dashCalibration"></div>
+      </div>
+
+      <!-- Follow-ups view (stale quotes + finished jobs to calibrate) -->
+      <div data-dashview="followups" class="hidden">
+        <div id="dashFollowups"></div>
+      </div>
+
+      <!-- Shopping list view (per-job materials to buy, checkable) -->
+      <div data-dashview="shopping" class="hidden">
+        <div id="dashShopping"></div>
       </div>
     </div>
     <input id="dashPhotoInput" type="file" accept="image/png,image/jpeg" class="hidden" />
@@ -5253,7 +5344,7 @@
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5l4 4 9-9"/></svg>
           <span id="pfpFinishSetupLabel">Finish setup</span>
         </button>
-        <button id="pfpThemeToggle" type="button" class="pfp-item" title="Switch between light and dark mode">
+        <button id="pfpThemeToggle" type="button" class="pfp-item sm:hidden" title="Switch between light and dark mode">
           <span id="pfpThemeIcon" class="inline-flex items-center justify-center" style="width:15px;height:15px;"></span>
           <span class="flex-1" id="pfpThemeLabel">Dark mode</span>
         </button>
@@ -5299,6 +5390,9 @@
         </button>
       </div>
       </div>
+      <!-- Desktop-only dedicated theme toggle, right of the avatar. On mobile the
+           toggle lives only in the account-menu row to save header space. -->
+      <button data-theme-toggle type="button" class="btn hidden sm:inline-flex w-9 h-9 rounded-full items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition shrink-0 ml-1" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
     </div>
   </div>
 </div>
@@ -9185,12 +9279,13 @@ function setupThemeToggles() {
     b.dataset.themeWired = "1";
     b.addEventListener("click", toggleTheme);
   });
-  // Account-menu theme row: keeps its text label (so it can't use the icon-only
-  // [data-theme-toggle] path, which overwrites innerHTML). Wired here — at page
-  // load, not in the sign-in-gated app init — so it always works. stopPropagation
-  // keeps the dropdown open on toggle.
+  // Account-menu theme row (mobile's only theme control — desktop has the
+  // dedicated header button). Keeps its text label, so it can't use the icon-only
+  // [data-theme-toggle] path (which overwrites innerHTML). Wired here — at page
+  // load, not in the sign-in-gated app init — so it always works. Selecting it
+  // applies the theme and closes the menu, so the user doesn't have to tap away.
   { const t = document.getElementById("pfpThemeToggle");
-    if (t && !t.dataset.themeWired) { t.dataset.themeWired = "1"; t.addEventListener("click", (e) => { e.stopPropagation(); toggleTheme(); }); } }
+    if (t && !t.dataset.themeWired) { t.dataset.themeWired = "1"; t.addEventListener("click", () => { toggleTheme(); closePfpMenu(); }); } }
   updateThemeToggleIcon();
 }
 setupThemeToggles();
@@ -9834,10 +9929,17 @@ function renderMaterialsToggle() {
 let compareSet = new Set();
 
 // ── Deal status / pipeline ──────────────────────────────────────────────────
-// "Approved" = the customer e-signed the quote (set automatically by the
-// sign-quote edge function). It sits between Quoted and Won in the funnel.
-const JOB_STATUSES = ["Lead", "Quoted", "Approved", "Won", "Lost"];
-function jobStatus(j) { return (j && JOB_STATUSES.includes(j.status)) ? j.status : "Quoted"; }
+// "Approved" = the customer e-signed / agreed to the quote (set automatically by
+// the sign-quote edge function). Funnel: Quoted → Approved → Finished (+ Lost).
+const JOB_STATUSES = ["Quoted", "Approved", "Finished", "Lost"];
+// Legacy statuses fold into the new set (non-destructive — old saved jobs just
+// display under the new label): Lead → Quoted, Won → Approved.
+const LEGACY_STATUS_MAP = { Lead: "Quoted", Won: "Approved" };
+function jobStatus(j) {
+  let s = j && j.status;
+  if (LEGACY_STATUS_MAP[s]) s = LEGACY_STATUS_MAP[s];
+  return JOB_STATUSES.includes(s) ? s : "Quoted";
+}
 // Side-by-side comparison cap is tiered: Starter 2 · Pro & trial 5 · Shop 10.
 // Owner (admin) gets the top tier. Mirrors getAiReadCap's plan/admin handling.
 function compareCap() {
@@ -9851,11 +9953,13 @@ function compareCap() {
 }
 function statusMeta(s) {
   return ({
-    Lead:     { cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
     Quoted:   { cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
     Approved: { cls: "text-violet-300 border-violet-500/40 bg-violet-500/10" },
-    Won:      { cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
+    Finished: { cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
     Lost:     { cls: "text-rose-300 border-rose-500/40 bg-rose-500/10" },
+    // legacy aliases (in case a raw status slips through unnormalized)
+    Lead:     { cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
+    Won:      { cls: "text-violet-300 border-violet-500/40 bg-violet-500/10" },
   })[s] || { cls: "text-slate-300 border-slate-600 bg-slate-700/20" };
 }
 function setJobStatus(id, status) {
@@ -9866,6 +9970,10 @@ function setJobStatus(id, status) {
   saveJobs(jobs);
   try { pushJobToCloud(j); } catch (_) {}
   try { window.track("job_status_changed", { status }); } catch (_) {}
+  // Marking a job Finished is the moment to capture actuals — nudge toward calibration.
+  if (status === "Finished" && jobReconcilableRows(j).length && !(j.actuals && Object.keys(j.actuals).length)) {
+    toast("Job finished — log what you actually used in Pricing calibration to sharpen your rates.");
+  }
   renderSavedJobs();
 }
 
@@ -9878,11 +9986,10 @@ function renderJobsDashboard(list) {
   const groups = {}; JOB_STATUSES.forEach(s => { groups[s] = []; });
   real.forEach(j => groups[jobStatus(j)].push(j));
   const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
-  const openVal = sum(groups.Lead) + sum(groups.Quoted);
-  const openCount = groups.Lead.length + groups.Quoted.length;
-  // Approved = the customer has e-signed, so count it as won (dollars + win rate)
-  // rather than letting signed work fall through every tile.
-  const wonish = groups.Won.concat(groups.Approved || []);
+  const openVal = sum(groups.Quoted);
+  const openCount = groups.Quoted.length;
+  // "Won" = jobs you secured: Approved (agreed / e-signed) + Finished (completed).
+  const wonish = (groups.Approved || []).concat(groups.Finished || []);
   const wonVal = sum(wonish);
   const wonCount = wonish.length, lostCount = groups.Lost.length;
   const decided = wonCount + lostCount;
@@ -9986,7 +10093,7 @@ function renderSavedJobs() {
 let _dashPhotoTargetId = null;
 let _dashStatusFilter = null;
 let _dashWired = false;
-let _dashMatChartMode = "pie";
+let _dashChartType = { materials: "pie", customers: "pie", jobs: "pie" };   // chart type per insight tab
 let _dashView = "home";              // home | insights | jobs | esign | calibration — the launchpad drill-in
 let _dashCalibDismissed = new Set(); // itemId|rateKey suggestions the owner waved off this session
 // Distinct, theme-friendly palette for the material charts.
@@ -10004,6 +10111,7 @@ function openDashboard() {
   d.classList.remove("hidden");
   d.scrollTop = 0;
   _dashView = "home";   // always land on the launchpad
+  _dashEsignLastUrl = "";   // don't resurface a stale "last created" link on a fresh open
   renderDashboard();
   try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}   // premium count-up + chart entrance
   try { renderPfp(); } catch (_) {}   // paint the dashboard avatar + admin gate
@@ -10026,6 +10134,8 @@ function renderDashboard() {
   renderDashInsights(jobs);
   renderDashJobs(jobs);
   renderDashCalibration(jobs);
+  renderDashFollowups(jobs);
+  renderDashShopping(jobs);
   renderDashLaunchpad(jobs);
   // E-sign hits the network, so only refresh it when its card is actually open.
   if (_dashView === "esign") renderDashEsign();
@@ -10041,21 +10151,37 @@ function renderDashboard() {
    ============================================================ */
 const DASH_CARDS = [
   { key: "insights", title: "Insights",
+    blurb: "See where your money goes — your top materials, customers, and pipeline at a glance.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>`,
     preview: (ctx) => ctx.topDriver
       ? `Top cost: ${ctx.topDriver.name} · ${ctx.topDriver.pct}%`
       : "Materials, customers & pipeline" },
   { key: "jobs", title: "Jobs",
+    blurb: "Every saved quote in one place — sort, search, change status, or open the full job.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/></svg>`,
     preview: (ctx) => ctx.jobCount
       ? `${ctx.jobCount} job${ctx.jobCount === 1 ? "" : "s"}${ctx.openCount ? ` · ${ctx.openCount} open` : ""}`
       : "No saved jobs yet" },
+  { key: "followups", title: "Follow-ups",
+    blurb: "Quotes that go quiet for 14+ days, plus finished jobs to calibrate — so nothing slips.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>`,
+    preview: (ctx) => ctx.followupCount
+      ? `${ctx.followupCount} need${ctx.followupCount === 1 ? "s" : ""} attention`
+      : "You're all caught up" },
+  { key: "shopping", title: "Shopping list",
+    blurb: "Each job's materials as packs and cases to buy — check them off as you shop or print the list.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2 2 4-4"/><path d="M5 6h16l-1.5 9.5a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 4H3"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>`,
+    preview: (ctx) => ctx.shoppingJobs
+      ? `${ctx.shoppingJobs} job${ctx.shoppingJobs === 1 ? "" : "s"} to shop for`
+      : "No materials to buy yet" },
   { key: "calibration", title: "Pricing calibration",
+    blurb: "Log what your crew actually used and Anchor suggests sharper per-foot rates from it.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>`,
     preview: (ctx) => ctx.suggestionCount
       ? `${ctx.suggestionCount} rate suggestion${ctx.suggestionCount === 1 ? "" : "s"} ready`
       : (ctx.actualsJobs ? "Tracking your actuals" : "Log actuals to start") },
   { key: "esign", title: "E-signatures",
+    blurb: "Send any quote for signature and track what's been sent, viewed, and signed.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c3-4 5-4 7 0s4 4 7-3"/><path d="M14 6l3 3"/><path d="M4 21h16"/></svg>`,
     preview: (ctx) => ctx.approvedCount
       ? `${ctx.approvedCount} approved · view activity`
@@ -10068,8 +10194,8 @@ function dashLaunchContext(jobs) {
   let openCount = 0, approvedCount = 0;
   real.forEach(j => {
     const s = jobStatus(j);
-    if (s === "Lead" || s === "Quoted") openCount++;
-    if (s === "Approved" || s === "Won" || j.signedAt) approvedCount++;
+    if (s === "Quoted") openCount++;
+    if (s === "Approved" || s === "Finished" || j.signedAt) approvedCount++;
   });
   let topDriver = null;
   try {
@@ -10085,7 +10211,10 @@ function dashLaunchContext(jobs) {
     suggestionCount = cal.suggestions.length;
     actualsJobs = cal.actualsJobs;
   } catch (_) {}
-  return { jobCount: real.length, openCount, approvedCount, topDriver, suggestionCount, actualsJobs };
+  let followupCount = 0, shoppingJobs = 0;
+  try { followupCount = computeFollowups(jobs).count; } catch (_) {}
+  try { shoppingJobs = dashShoppingJobs(jobs).length; } catch (_) {}
+  return { jobCount: real.length, openCount, approvedCount, topDriver, suggestionCount, actualsJobs, followupCount, shoppingJobs };
 }
 
 function renderDashLaunchpad(jobs) {
@@ -10093,22 +10222,47 @@ function renderDashLaunchpad(jobs) {
   if (!wrap) return;
   const ctx = dashLaunchContext(jobs);
   wrap.innerHTML = DASH_CARDS.map(c => `
-    <button type="button" data-dashcard="${c.key}" class="dash-launch-card">
-      <span class="dash-launch-icon">${c.icon}</span>
-      <span class="dash-launch-main">
-        <span class="dash-launch-title">${escHtml(c.title)}</span>
-        <span class="dash-launch-preview">${escHtml(c.preview(ctx))}</span>
+    <div class="dash-launch-cell">
+      <button type="button" data-dashcard="${c.key}" class="dash-launch-card" aria-describedby="tip-${c.key}">
+        <span class="dash-launch-icon">${c.icon}</span>
+        <span class="dash-launch-main">
+          <span class="dash-launch-title">${escHtml(c.title)}</span>
+          <span class="dash-launch-preview">${escHtml(c.preview(ctx))}</span>
+        </span>
+        <svg class="dash-launch-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4l6 6-6 6"/></svg>
+      </button>
+      <span class="dash-tip-btn" role="button" tabindex="0" aria-expanded="false" data-tip-for="${c.key}" aria-label="What is ${escHtml(c.title)}?">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><circle cx="12" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg>
       </span>
-      <svg class="dash-launch-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4l6 6-6 6"/></svg>
-    </button>`).join("");
+      <span class="dash-tip" id="tip-${c.key}" role="tooltip" data-flip="down">${escHtml(c.blurb || "")}</span>
+    </div>`).join("");
+}
+
+// Card "what is this?" hint helpers (used by the launchpad wiring + dashGoTo).
+function closeAllDashTips() {
+  document.querySelectorAll("#dashLaunchpad .dash-launch-cell.tip-open").forEach(el => {
+    el.classList.remove("tip-open");
+    const b = el.querySelector(".dash-tip-btn"); if (b) b.setAttribute("aria-expanded", "false");
+  });
+}
+// Flip a card's tip above itself when it would open past the bottom of the viewport.
+function positionDashTip(cell) {
+  if (!cell) return;
+  const r = cell.getBoundingClientRect();
+  const tip = cell.querySelector(".dash-tip");
+  if (tip) tip.setAttribute("data-flip", (r.bottom + 130 > window.innerHeight) ? "up" : "down");
 }
 
 // Show the launchpad home or a single drilled-in section.
 function applyDashView() {
   const home = _dashView === "home";
+  const hero = document.getElementById("dashHero");
   const launch = document.getElementById("dashLaunchpad");
   const section = document.getElementById("dashSection");
   const stats = document.getElementById("dashStats");
+  // The "Welcome back" hero belongs to the home only; drilling in pulls the
+  // section header to the top for a less-cluttered, more focused view.
+  if (hero) hero.classList.toggle("hidden", !home);
   if (launch) launch.classList.toggle("hidden", !home);
   if (section) section.classList.toggle("hidden", home);
   // KPI strip belongs to the glance/home; hide it inside a focused section.
@@ -10143,6 +10297,19 @@ function dashGoTo(view) {
   const panel = document.querySelector(`#dashSection [data-dashview="${view}"]`);
   if (panel) panel.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 300, easing: "cubic-bezier(0.22,0.7,0.3,1)" });
   if (view === "insights") { const p = document.getElementById(INSIGHT_PANELS[_dashInsightTab]); if (p && !p.classList.contains("hidden")) dashPlayPanel(p); }
+}
+
+// Open the Pricing calibration card and expand a specific job's actuals editor.
+function dashCalibrateJob(id) {
+  dashGoTo("calibration");
+  setTimeout(() => {
+    const cal = document.getElementById("dashCalibration");
+    if (!cal) return;
+    const esc = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const tg = cal.querySelector(`[data-calib-toggle="${esc}"]`);
+    if (tg && tg.getAttribute("aria-expanded") !== "true") tg.click();
+    if (tg) tg.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 60);
 }
 
 /* ============================================================
@@ -10243,19 +10410,66 @@ function computeCalibrationSuggestions(jobs) {
   return { suggestions, informational, actualsJobs: real.length };
 }
 
+// Overall estimate accuracy across logged jobs (mean absolute per-row variance).
+function calibAccuracy(jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft && jobReconcilableRows(j).length);
+  let logged = 0, sumAbs = 0, n = 0;
+  real.forEach(j => {
+    const a = (j.actuals && typeof j.actuals === "object") ? j.actuals : {};
+    let any = false;
+    jobReconcilableRows(j).forEach(r => {
+      const act = a[r.id] && Number(a[r.id].used);
+      const est = Number(r.quantity) || 0;
+      if (act > 0 && est > 0) { any = true; sumAbs += Math.abs((act - est) / est); n++; }
+    });
+    if (any) logged++;
+  });
+  return { totalJobs: real.length, loggedJobs: logged, avgAbsPct: n ? (sumAbs / n) : null };
+}
+// Average absolute variance for ONE job (for its row chip), or null if nothing logged.
+function calibJobVariance(job) {
+  const a = (job.actuals && typeof job.actuals === "object") ? job.actuals : {};
+  let s = 0, n = 0;
+  jobReconcilableRows(job).forEach(r => {
+    const act = a[r.id] && Number(a[r.id].used), est = Number(r.quantity) || 0;
+    if (act > 0 && est > 0) { s += Math.abs((act - est) / est); n++; }
+  });
+  return n ? (s / n) : null;
+}
+// A job's inline actuals editor for the calibration page (reuses the jd-recon styles).
+function calibJobEditorHTML(job) {
+  const rows = jobReconcilableRows(job);
+  const actuals = (job.actuals && typeof job.actuals === "object") ? job.actuals : {};
+  const body = rows.map(r => {
+    const est = Number(r.quantity) || 0, unit = r.unit || "";
+    const a = actuals[r.id]; const used = (a && Number(a.used) > 0) ? Number(a.used) : ""; const has = used !== "";
+    const nameCls = r.isLabor ? "jd-recon-name labor" : "jd-recon-name";
+    return `<div class="jd-recon-row">
+      <span class="${nameCls}">${escHtml(r.name)}</span>
+      <span class="jd-recon-est">${formatQty(est)} ${escHtml(unit)}</span>
+      <input type="text" inputmode="decimal" class="jd-recon-input" data-recon-input="${escHtml(r.id)}" data-recon-est="${est}" value="${has ? escHtml(String(used)) : ""}" placeholder="—" aria-label="Actual ${escHtml(unit)} used for ${escHtml(r.name)}">
+      <span class="jd-recon-var ${has ? reconVarCls(est, used) : ""}" data-recon-var="${escHtml(r.id)}">${has ? reconVarText(est, used) : "—"}</span>
+    </div>`;
+  }).join("");
+  return `<div class="jd-recon" data-recon-scope>
+      <div class="jd-recon-head"><span>Item</span><span>Estimated</span><span>Actual used</span><span>Variance</span></div>
+      ${body}
+      <div class="jd-recon-actions">
+        <span class="text-[11px] text-slate-500 hidden sm:inline">Enter what your crew actually used.</span>
+        <button type="button" class="btn rounded-full px-4 py-2 text-[12.5px] font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] ml-auto" data-calib-save="${escHtml(job.id)}">Save actuals</button>
+      </div>
+    </div>`;
+}
+
+// The Pricing-calibration workspace: rate suggestions + an accuracy summary +
+// a job list you log actuals into inline — everything happens on this page.
 function renderDashCalibration(jobs) {
   const wrap = document.getElementById("dashCalibration");
   if (!wrap) return;
-  const { suggestions, informational, actualsJobs } = computeCalibrationSuggestions(jobs);
+  const { suggestions, informational } = computeCalibrationSuggestions(jobs);
   const live = suggestions.filter(s => !_dashCalibDismissed.has(s.itemId + "|" + s.rateKey));
-  if (!actualsJobs) {
-    wrap.innerHTML = `<div class="calib-empty">
-      <div class="text-slate-300 text-sm font-semibold">No actuals logged yet.</div>
-      <div class="text-xs mt-1.5 max-w-sm mx-auto">Open a job → <b>Materials &amp; labor used</b> and enter what your crew actually used. After a few jobs, Anchor blends the numbers and suggests sharper per-foot rates here.</div>
-    </div>`;
-    return;
-  }
   const fmtPct = (d) => Math.round(Math.abs(d) * 100) + "% " + (d > 0 ? "over" : "under");
+
   const cards = live.map(s => {
     const cls = s.delta > 0 ? "calib-delta-up" : "calib-delta-down";
     const scope = s.rateKey !== "default" ? ` · ${escHtml(s.rateKey)}` : "";
@@ -10282,9 +10496,51 @@ function renderDashCalibration(jobs) {
       <div class="text-[12.5px] text-slate-300 leading-relaxed"><b>${escHtml(o.name)}</b>: actual usage ran <b class="${cls}">${fmtPct(o.delta)}</b> your estimate across ${o.jobs} jobs.${tail}</div>
     </div>`;
   }).join("");
+
+  const acc = calibAccuracy(jobs);
+  const accPct = acc.avgAbsPct == null ? null : Math.round(acc.avgAbsPct * 100);
+  const accHTML = `<div class="calib-acc">
+      <div class="calib-acc-cell"><div class="calib-acc-k">Jobs logged</div><div class="calib-acc-v">${acc.loggedJobs}<span class="calib-acc-sub"> / ${acc.totalJobs}</span></div></div>
+      <div class="calib-acc-cell"><div class="calib-acc-k">Avg accuracy</div><div class="calib-acc-v">${accPct == null ? "—" : "±" + accPct + "%"}</div></div>
+      <div class="calib-acc-cell"><div class="calib-acc-k">Rate suggestions</div><div class="calib-acc-v">${live.length}</div></div>
+    </div>`;
+
+  const reconJobs = (jobs || []).filter(j => j && !j.isDraft && jobReconcilableRows(j).length);
+  const hasAct = j => !!(j.actuals && Object.keys(j.actuals).length);
+  const jts = j => Date.parse(j.updatedAt || j.createdAt || "") || 0;
+  reconJobs.sort((a, b) => (hasAct(a) ? 1 : 0) - (hasAct(b) ? 1 : 0) || jts(b) - jts(a));   // un-logged first
+  const chev = `<svg class="calib-job-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 8 10 12 14 8"/></svg>`;
+  const jobRows = reconJobs.map(j => {
+    const name = j.name || j.customerName || "Untitled job";
+    const lf = (j.totalLF != null && j.totalLF !== "") ? `${j.totalLF} LF` : "";
+    const sub = [(j.customerName && j.customerName !== name) ? j.customerName : "", lf].filter(Boolean).join(" · ");
+    const v = calibJobVariance(j);
+    const chip = (v == null)
+      ? `<span class="calib-chip todo">Log actuals</span>`
+      : `<span class="calib-chip logged">±${Math.round(v * 100)}%</span>`;
+    return `<div class="calib-job" data-calib-jobrow="${escHtml(j.id)}">
+      <button type="button" class="calib-job-head" data-calib-toggle="${escHtml(j.id)}" aria-expanded="false">
+        <span class="min-w-0 flex-1 text-left">
+          <span class="calib-job-name">${escHtml(name)}</span>
+          ${sub ? `<span class="calib-job-sub">${escHtml(sub)}</span>` : ""}
+        </span>
+        ${chip}${chev}
+      </button>
+      <div class="calib-job-body hidden" data-calib-jobbody="${escHtml(j.id)}"></div>
+    </div>`;
+  }).join("");
+
   wrap.innerHTML = `
-    <p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Anchor learns from what you actually use. Suggestions appear once ${CALIB_MIN_JOBS}+ jobs of the same type diverge more than ${Math.round(CALIB_THRESHOLD * 100)}% from your rate. Updating only changes that construction type's rate — review every suggestion before applying.</p>
-    ${live.length ? cards : `<div class="calib-info mb-4"><div class="text-[12.5px] text-slate-400">No rate changes suggested yet — your quotes are tracking close to what your crews actually use${actualsJobs < CALIB_MIN_JOBS ? `, and you have ${actualsJobs} of ${CALIB_MIN_JOBS} jobs logged so far` : ""}.</div></div>`}
+    <p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Anchor learns from what you actually use. Log materials below; once ${CALIB_MIN_JOBS}+ jobs of the same type diverge more than ${Math.round(CALIB_THRESHOLD * 100)}% from your rate, a suggestion appears. Updating only changes that one rate — review every suggestion before applying.</p>
+    ${accHTML}
+    <div class="mt-5">
+      <div class="jd-section-title mb-2">Rate suggestions</div>
+      ${live.length ? cards : `<div class="calib-info"><div class="text-[12.5px] text-slate-400">No rate changes suggested yet — your quotes are tracking close to what your crews actually use.</div></div>`}
+    </div>
+    <div class="mt-5">
+      <div class="jd-section-title mb-2">Log materials used</div>
+      ${reconJobs.length ? `<div class="calib-joblist">${jobRows}</div>` : `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No jobs to log yet.</div><div class="text-xs mt-1.5">Save a quote and it'll show up here to log actuals against.</div></div>`}
+    </div>
     ${infos ? `<div class="mt-5"><div class="jd-section-title mb-2">For your review</div>${infos}</div>` : ""}`;
 }
 
@@ -10303,6 +10559,153 @@ function applyCalibration(itemId, rateKey, value) {
   try { if (typeof buildAdminUI === "function") buildAdminUI(); } catch (_) {}
   toast(`${item.name} rate updated to ${formatQty(item.rates[rateKey])} ${item.unit}/LF`);
   renderDashboard();
+}
+
+/* ============================================================
+   FOLLOW-UPS — actionable nudges: quotes that have gone quiet,
+   and finished jobs whose actuals haven't been logged yet.
+   ============================================================ */
+const FOLLOWUP_STALE_DAYS = 14;       // a Quoted job with no movement this long needs a nudge
+let _dashNudgeDismissed = new Set();  // nudge keys waved off this session
+
+function computeFollowups(jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft);
+  const now = Date.now();
+  const stale = [], calibrate = [];
+  real.forEach(j => {
+    const s = jobStatus(j);
+    const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
+    if (s === "Quoted" && ts) {
+      const days = Math.floor((now - ts) / 86400000);
+      const key = "stale:" + j.id;
+      if (days >= FOLLOWUP_STALE_DAYS && !_dashNudgeDismissed.has(key)) stale.push({ job: j, days, key });
+    }
+    if (s === "Finished" && jobReconcilableRows(j).length && !(j.actuals && Object.keys(j.actuals).length)) {
+      const key = "calib:" + j.id;
+      if (!_dashNudgeDismissed.has(key)) calibrate.push({ job: j, key });
+    }
+  });
+  stale.sort((a, b) => b.days - a.days);
+  return { stale, calibrate, count: stale.length + calibrate.length };
+}
+
+const DASH_CHEV = `<svg class="calib-job-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 8 10 12 14 8"/></svg>`;
+
+function renderDashFollowups(jobs) {
+  const wrap = document.getElementById("dashFollowups");
+  if (!wrap) return;
+  const { stale, calibrate } = computeFollowups(jobs);
+  if (!stale.length && !calibrate.length) {
+    wrap.innerHTML = `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">You're all caught up. 🎉</div><div class="text-xs mt-1.5 max-w-sm mx-auto">Quotes that go quiet (no movement for ${FOLLOWUP_STALE_DAYS}+ days) and finished jobs you haven't calibrated will show up here.</div></div>`;
+    return;
+  }
+  const jobSub = (j, name) => [(j.customerName && j.customerName !== name) ? j.customerName : "", (j.totalLF != null && j.totalLF !== "") ? `${j.totalLF} LF` : ""].filter(Boolean).join(" · ");
+  const staleHTML = stale.length ? `<div class="mb-5"><div class="jd-section-title mb-2">Quotes needing a follow-up</div>${stale.map(n => {
+    const j = n.job, name = j.name || j.customerName || "Untitled job", sub = jobSub(j, name);
+    return `<div class="nudge-row">
+        <span class="nudge-dot" style="background:#c9a558;"></span>
+        <span class="nudge-main">
+          <span class="nudge-title">${escHtml(name)}</span>
+          <span class="nudge-sub">${sub ? escHtml(sub) + " · " : ""}Quoted ${n.days} day${n.days === 1 ? "" : "s"} ago — no movement</span>
+        </span>
+        <button type="button" class="calib-apply" data-nudge-open="${escHtml(j.id)}">Open job</button>
+        <button type="button" class="nudge-x" data-nudge-dismiss="${escHtml(n.key)}" aria-label="Dismiss">×</button>
+      </div>`;
+  }).join("")}</div>` : "";
+  const calibHTML = calibrate.length ? `<div><div class="jd-section-title mb-2">Finished jobs to calibrate</div>${calibrate.map(n => {
+    const j = n.job, name = j.name || j.customerName || "Untitled job", sub = jobSub(j, name);
+    return `<div class="nudge-row">
+        <span class="nudge-dot" style="background:#34d399;"></span>
+        <span class="nudge-main">
+          <span class="nudge-title">${escHtml(name)}</span>
+          <span class="nudge-sub">${sub ? escHtml(sub) + " · " : ""}Finished — log what you used to sharpen pricing</span>
+        </span>
+        <button type="button" class="calib-apply" data-nudge-calib="${escHtml(j.id)}">Calibrate →</button>
+        <button type="button" class="nudge-x" data-nudge-dismiss="${escHtml(n.key)}" aria-label="Dismiss">×</button>
+      </div>`;
+  }).join("")}</div>` : "";
+  wrap.innerHTML = `<p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Quotes that have gone quiet and finished jobs you haven't calibrated yet — dismiss any you don't need.</p>${staleHTML}${calibHTML}`;
+}
+
+/* ============================================================
+   SHOPPING LIST — each saved job's materials converted into
+   packs/cases/boards to buy, checkable in-app (persisted per
+   job) or printable as a PDF.
+   ============================================================ */
+function jobShoppingItems(job) {
+  return (job.rows || []).filter(r => r && MATERIAL_IDS.includes(r.id) && Number(r.quantity) > 0);
+}
+function dashShoppingJobs(jobs) {
+  return (jobs || []).filter(j => j && !j.isDraft && jobShoppingItems(j).length);
+}
+// Persist one checkbox on the job (rides the jobs.data cloud sync).
+function toggleShopItem(jobId, itemId, checked) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const sc = (j.shopChecked && typeof j.shopChecked === "object") ? j.shopChecked : {};
+  if (checked) sc[itemId] = true; else delete sc[itemId];
+  if (Object.keys(sc).length) j.shopChecked = sc; else delete j.shopChecked;
+  saveJobs(jobs);
+  if (!j.isDraft) { try { pushJobToCloud(j, true); } catch (_) {} }
+}
+// The checkable materials list + PDF buttons for one job.
+function shopJobBodyHTML(job) {
+  const items = jobShoppingItems(job);
+  const checked = (job.shopChecked && typeof job.shopChecked === "object") ? job.shopChecked : {};
+  const rows = items.map(it => {
+    const item = (DATA.costItems || []).find(c => c.id === it.id);
+    const proc = item ? computeProcurement(Number(it.quantity) || 0, item) : null;
+    const buy = proc ? `${proc.packs} ${escHtml(proc.packLabel)}` : `${formatQty(it.quantity)} ${escHtml(it.unit || "")}`;
+    const raw = `${formatQty(it.quantity)} ${escHtml(it.unit || "")}`;
+    const nm = item ? itemDisplayName(item) : it.name;
+    const isCh = !!checked[it.id];
+    return `<label class="shop-item${isCh ? " done" : ""}" data-shop-itemrow="${escHtml(it.id)}">
+        <input type="checkbox" class="shop-check" data-shop-check="${escHtml(it.id)}" ${isCh ? "checked" : ""}>
+        <span class="shop-item-name">${escHtml(nm)}</span>
+        <span class="shop-item-qty">${buy} <span class="shop-item-sub">· ${raw}</span></span>
+      </label>`;
+  }).join("");
+  return `<div class="shop-list">${rows}</div>
+      <div class="shop-actions">
+        <span class="text-[11px] text-slate-500 hidden sm:inline">Round up to full packs. Checks save with the job.</span>
+        <span class="flex items-center gap-2 ml-auto">
+          <button type="button" class="calib-dismiss" data-shop-pdf="view" data-shop-job="${escHtml(job.id)}">View PDF</button>
+          <button type="button" class="calib-apply" data-shop-pdf="download" data-shop-job="${escHtml(job.id)}">Download PDF</button>
+        </span>
+      </div>`;
+}
+function renderDashShopping(jobs) {
+  const wrap = document.getElementById("dashShopping");
+  if (!wrap) return;
+  const list = dashShoppingJobs(jobs);
+  if (!list.length) {
+    wrap.innerHTML = `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No materials to buy yet.</div><div class="text-xs mt-1.5 max-w-sm mx-auto">Save a quote with materials and it shows up here as a checkable shopping list.</div></div>`;
+    return;
+  }
+  const secured = j => { const s = jobStatus(j); return (s === "Approved" || s === "Finished") ? 0 : 1; };
+  const jts = j => Date.parse(j.updatedAt || j.createdAt || "") || 0;
+  list.sort((a, b) => secured(a) - secured(b) || jts(b) - jts(a));   // jobs you've secured first
+  const rows = list.map(j => {
+    const name = j.name || j.customerName || "Untitled job";
+    const lf = (j.totalLF != null && j.totalLF !== "") ? `${j.totalLF} LF` : "";
+    const sub = [(j.customerName && j.customerName !== name) ? j.customerName : "", lf, jobStatus(j)].filter(Boolean).join(" · ");
+    const items = jobShoppingItems(j);
+    const checked = (j.shopChecked && typeof j.shopChecked === "object") ? j.shopChecked : {};
+    const done = items.filter(it => checked[it.id]).length;
+    return `<div class="calib-job" data-shop-jobrow="${escHtml(j.id)}">
+        <button type="button" class="calib-job-head" data-shop-toggle="${escHtml(j.id)}" aria-expanded="false">
+          <span class="min-w-0 flex-1 text-left">
+            <span class="calib-job-name">${escHtml(name)}</span>
+            ${sub ? `<span class="calib-job-sub">${escHtml(sub)}</span>` : ""}
+          </span>
+          <span class="calib-chip ${done === items.length ? "logged" : "todo"}" data-shop-progress="${escHtml(j.id)}">${done}/${items.length}</span>
+          ${DASH_CHEV}
+        </button>
+        <div class="calib-job-body hidden" data-shop-jobbody="${escHtml(j.id)}"></div>
+      </div>`;
+  }).join("");
+  wrap.innerHTML = `<p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Each saved job's materials, converted into how many packs / cases / boards to buy. Open a job to check items off as you shop, or grab the printable PDF.</p><div class="calib-joblist">${rows}</div>`;
 }
 
 // Jobs + Materials + Customers share one card with a tab toggle (keeps the
@@ -10506,7 +10909,7 @@ function applyInsightTab(animate) {
    Larger shops run many contractors; this surfaces who actually
    drives revenue/profit, each client's win rate, and their share
    of the book. All derived from saved jobs (no new storage).
-   Won = Won + Approved (e-signed); Lost = Lost; Open = Lead/Quoted.
+   Won = Approved (agreed / e-signed) + Finished; Lost = Lost; Open = Quoted.
    ============================================================ */
 const CUST_COLORS = MAT_COLORS;
 let _dashCustMode = "revenue";   // revenue | profit | jobs — the pie metric
@@ -10528,9 +10931,9 @@ function getCustomerStats(jobs) {
     c.total++; c.jobs.push(j);
     const st = jobStatus(j);
     const price = Number(j.sellingPrice) || 0, prof = Number(j.profit) || 0;
-    if (st === "Won" || st === "Approved") { c.won++; c.revenue += price; c.profit += prof; }
+    if (st === "Approved" || st === "Finished") { c.won++; c.revenue += price; c.profit += prof; }
     else if (st === "Lost") { c.lost++; }
-    else { c.open++; c.pipeline += price; }   // Lead / Quoted
+    else { c.open++; c.pipeline += price; }   // Quoted
     const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
     if (ts >= c._ts) {
       c._ts = ts; c.name = name;
@@ -10551,7 +10954,7 @@ function custMetricLabel(mode) { return mode === "jobs" ? "jobs" : mode === "pro
 function custDonutSVG(stats, mode) {
   const ranked = stats.slice().sort((a, b) => custMetric(b, mode) - custMetric(a, mode)).filter(c => custMetric(c, mode) > 0);
   const total = ranked.reduce((s, c) => s + custMetric(c, mode), 0);
-  if (total <= 0) return `<div class="text-center text-slate-500 text-sm py-10">No ${custMetricLabel(mode)} to chart yet — mark a job Won (or get it e-signed) to see it here.</div>`;
+  if (total <= 0) return `<div class="text-center text-slate-500 text-sm py-10">No ${custMetricLabel(mode)} to chart yet — mark a job Approved (or get it e-signed) to see it here.</div>`;
   const TOPN = 6;
   const segs = ranked.slice(0, TOPN).map(c => ({ name: c.name, val: custMetric(c, mode) }));
   const restVal = ranked.slice(TOPN).reduce((s, c) => s + custMetric(c, mode), 0);
@@ -10614,15 +11017,42 @@ function renderDashCustomers(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">${stats.length} customer${stats.length === 1 ? "" : "s"} · ${grandJobs} job${grandJobs === 1 ? "" : "s"} — who drives your business. Tap one for the full breakdown.</p>
-        <div class="seg seg-sm" id="dashCustSeg" style="max-width:320px;">
-          <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
-          <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
-          <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
+        <div class="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+          <div class="seg seg-sm" id="dashCustSeg" style="max-width:320px;">
+            <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
+            <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
+            <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
+          </div>
+          ${chartTypeControlHTML("dashCustType", "customers")}
         </div>
-        <div class="mt-4 dash-cust-chart">${custDonutSVG(stats, mode)}</div>
+        <div id="dashCustChart" class="dash-cust-chart mt-4"></div>
       </div>
       <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${rows}</div>`;
+  renderCustChart();
   return true;
+}
+
+// Render the Customers chart (pie / bars / trend) for the active metric.
+function renderCustChart() {
+  const el = document.getElementById("dashCustChart");
+  if (!el) return;
+  const jobs = loadJobs();
+  const stats = getCustomerStats(jobs);
+  const mode = _dashCustMode;
+  const type = _dashChartType.customers;
+  if (type === "bar") {
+    const ranked = stats.slice().sort((a, b) => custMetric(b, mode) - custMetric(a, mode));
+    const fmt = mode === "jobs" ? ((v) => String(Math.round(v))) : formatMoney;
+    el.innerHTML = dashBarsHTML(ranked.map((c, i) => ({ label: c.name, value: custMetric(c, mode), color: CUST_COLORS[i % CUST_COLORS.length] })), fmt);
+  } else if (type === "trend") {
+    const valFn = mode === "jobs" ? (() => 1)
+      : (j) => jobIsWon(j) ? (mode === "profit" ? (Number(j.profit) || 0) : (Number(j.sellingPrice) || 0)) : 0;
+    const title = mode === "jobs" ? "Jobs" : (mode === "profit" ? "Won profit" : "Won revenue");
+    const valFmt = mode === "jobs" ? ((v) => String(Math.round(v))) : formatMoney;
+    el.innerHTML = dashTrendSVG(dashMonthlySeries(jobs, valFn), { title, valFmt });
+  } else {
+    el.innerHTML = custDonutSVG(stats, mode);
+  }
 }
 
 // Per-customer detail modal.
@@ -10708,6 +11138,8 @@ function renderCustomerStats(c, allStats) {
    ============================================================ */
 let _esignWired = false;
 let _esignRows = {};   // id -> last-rendered row, so action handlers can read status/signer
+let _dashEsignDetail = "summary";   // detail level for the dashboard's "send any job" picker
+let _dashEsignLastUrl = "";         // last link created from the e-sign page (re-shown across re-renders)
 function esignStatusMeta(s) {
   return ({
     sent:     { label: "Sent",     cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
@@ -10728,7 +11160,11 @@ function esignDate(v, withTime) {
 async function renderDashEsign() {
   const wrap = document.getElementById("dashEsign");
   if (!wrap) return;
-  if (!sb || !currentUser) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
+  wrap.classList.remove("hidden");   // it's a drill-in workspace now — always render
+  if (!sb || !currentUser) {
+    wrap.innerHTML = `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">Sign in to send and track e-signatures.</div></div>`;
+    return;
+  }
 
   let rows = [];
   try {
@@ -10740,12 +11176,10 @@ async function renderDashEsign() {
     if (error) throw error;
     rows = Array.isArray(data) ? data : [];
   } catch (e) {
-    // Quiet failure — the panel just stays hidden if the table can't be read.
-    wrap.classList.add("hidden"); wrap.innerHTML = ""; return;
+    // Quiet failure — still show the sender so you can create a link.
+    rows = [];
   }
 
-  if (!rows.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
-  wrap.classList.remove("hidden");
   _esignRows = {};
   rows.forEach(r => { _esignRows[r.id] = r; });
 
@@ -10753,13 +11187,44 @@ async function renderDashEsign() {
   const signed = rows.filter(r => r.status === "signed").length;
 
   const head =
-    `<div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
+    `<div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
        <h2 class="text-sm uppercase tracking-[0.18em] text-slate-400 font-bold">E-signatures</h2>
        <div class="flex items-center gap-2 text-[11px] font-bold">
          <span class="rounded-full px-2.5 py-1 border border-[#b58f4a]/40 bg-[#b58f4a]/10 text-[#c9a558]">${awaiting} awaiting</span>
          <span class="rounded-full px-2.5 py-1 border border-emerald-500/40 bg-emerald-500/10 text-emerald-300">${signed} signed</span>
        </div>
      </div>`;
+
+  // ── Send ANY saved job for signature, without opening it ──
+  const sendJobs = loadJobs().filter(j => j && !j.isDraft);
+  const jobOpts = sendJobs.map(j => {
+    const name = j.name || j.customerName || "Untitled job";
+    const cust = (j.customerName && j.customerName !== name) ? ` · ${j.customerName}` : "";
+    const price = (j.sellingPrice != null && !isNaN(j.sellingPrice)) ? ` — ${formatMoney(j.sellingPrice)}` : "";
+    return `<option value="${escHtml(j.id)}">${escHtml(name + cust + price)}</option>`;
+  }).join("");
+  const resultHTML = _dashEsignLastUrl ? `
+      <div class="esign-send-result">
+        <div class="flex items-center gap-2">
+          <input id="dashEsignUrl" readonly class="control rounded-lg px-3 py-2 w-full text-xs text-slate-200 font-mono" value="${escHtml(_dashEsignLastUrl)}">
+          <button type="button" data-esign-copylink class="btn shrink-0 rounded-lg px-3 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]">Copy</button>
+        </div>
+        <p class="text-[10px] text-emerald-300/80 mt-1.5">Link created — text or email it to your customer. It also appears in the list below.</p>
+      </div>` : "";
+  const sender = sendJobs.length ? `
+    <div class="esign-send">
+      <div class="jd-section-title mb-2">Send a quote for signature</div>
+      <div class="esign-send-row">
+        <select id="dashEsignJobPick" class="control rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-100 flex-1 min-w-0"><option value="">Choose a saved job…</option>${jobOpts}</select>
+        <div class="jd-detail-seg inline-flex rounded-lg overflow-hidden border border-slate-700 shrink-0">
+          <button type="button" data-esign-detail="summary" class="jd-detail-btn ${_dashEsignDetail === "summary" ? "active" : ""}">Summary</button>
+          <button type="button" data-esign-detail="itemized" class="jd-detail-btn ${_dashEsignDetail === "itemized" ? "active" : ""}">Itemized</button>
+        </div>
+        <button type="button" id="dashEsignSendBtn" data-esign-send class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] shrink-0">Create signing link</button>
+      </div>
+      ${resultHTML}
+      <p class="text-[10px] text-slate-600 mt-2">Pick any saved job and generate a link — the customer reviews and approves with a typed name + drawn signature, no login on their end.</p>
+    </div>` : `<div class="esign-send"><div class="jd-section-title mb-1">Send a quote for signature</div><p class="text-[12px] text-slate-500">Save a quote first, then send it for signature right here.</p></div>`;
 
   const list = rows.map(r => {
     const s = r.snapshot || {};
@@ -10820,12 +11285,22 @@ async function renderDashEsign() {
       </div>`;
   }).join("");
 
-  wrap.innerHTML = head + `<div class="esign-list">${list}</div>`;
+  const listHTML = rows.length
+    ? `<div class="esign-list">${list}</div>`
+    : `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No quotes sent yet.</div><div class="text-xs mt-1.5">Send one above — sent, viewed, and signed quotes track here.</div></div>`;
+
+  wrap.innerHTML = head + sender + `<div class="jd-section-title mt-5 mb-2">Sent &amp; signed</div>` + listHTML;
 
   if (!_esignWired) {
     // Delegate all panel actions (survives re-renders since we bind once on the
     // stable container, checking dataset on the clicked target).
     wrap.addEventListener("click", (e) => {
+      // Sender controls (send any job, detail toggle, copy the created link)
+      if (e.target.closest("[data-esign-send]")) { dashEsignSend(); return; }
+      const det = e.target.closest("[data-esign-detail]");
+      if (det) { _dashEsignDetail = det.dataset.esignDetail; wrap.querySelectorAll("[data-esign-detail]").forEach(b => b.classList.toggle("active", b === det)); return; }
+      if (e.target.closest("[data-esign-copylink]")) { copyTextToClipboard(_dashEsignLastUrl, e.target.closest("[data-esign-copylink]")); return; }
+      // Sent/signed list actions
       const t = e.target.closest("[data-esign-pdf],[data-esign-copy],[data-esign-void],[data-esign-delete],[data-esign-job],[data-esign-audit]");
       if (!t) return;
       if (t.dataset.esignPdf) { exportSignedQuoteById(t.dataset.esignPdf); }
@@ -10840,6 +11315,26 @@ async function renderDashEsign() {
     });
     _esignWired = true;
   }
+}
+
+// Create a signing link for the job picked in the E-signatures workspace.
+function dashEsignSend() {
+  const pick = document.getElementById("dashEsignJobPick");
+  const jobId = pick ? pick.value : "";
+  if (!jobId) { toast("Choose a job to send"); return; }
+  createSignLink(jobId, _dashEsignDetail, {
+    btn: document.getElementById("dashEsignSendBtn"),
+    exclude: new Set(),   // send the full quote from the dashboard (no Customize step here)
+    onResult: (url) => { _dashEsignLastUrl = url; renderDashEsign(); },
+  });
+}
+async function copyTextToClipboard(text, btn) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+    else { const i = document.getElementById("dashEsignUrl"); if (i) { i.select(); document.execCommand("copy"); } }
+    if (btn) { const o = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = o; }, 1600); }
+  } catch (e) { toast("Could not copy"); }
 }
 
 function buildSignLinkURL(token) {
@@ -10919,7 +11414,7 @@ async function deleteSignRecord(token) {
 // "Jobs" insights tab — the pipeline (Lead/Quoted/Approved/Won/Lost) condensed
 // into stat tiles + a status donut, instead of the old header stat bars. The
 // legend is clickable to filter the saved-jobs grid below.
-const STATUS_COLORS = { Lead: "#38bdf8", Quoted: "#c9a558", Approved: "#a78bfa", Won: "#34d399", Lost: "#fb7185" };
+const STATUS_COLORS = { Quoted: "#c9a558", Approved: "#a78bfa", Finished: "#34d399", Lost: "#fb7185", Lead: "#c9a558", Won: "#a78bfa" };
 let _dashJobsMetric = "count";   // count | value — drives the status donut
 
 // Shared pipeline rollup used by the top stats strip + the Jobs charts tab.
@@ -10928,10 +11423,10 @@ function pipelineStats(jobs) {
   const groups = {}; JOB_STATUSES.forEach(s => { groups[s] = []; });
   real.forEach(j => groups[jobStatus(j)].push(j));
   const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
-  const openVal = sum(groups.Lead) + sum(groups.Quoted);
-  const openCount = groups.Lead.length + groups.Quoted.length;
-  // Approved = the customer has e-signed, so it counts as won (dollars + win rate).
-  const wonish = groups.Won.concat(groups.Approved || []);
+  const openVal = sum(groups.Quoted);
+  const openCount = groups.Quoted.length;
+  // "Won" = jobs you secured: Approved (agreed / e-signed) + Finished (completed).
+  const wonish = (groups.Approved || []).concat(groups.Finished || []);
   const wonVal = sum(wonish);
   const wonCount = wonish.length, lostCount = groups.Lost.length;
   const decided = wonCount + lostCount;
@@ -10974,17 +11469,6 @@ function renderDashJobsPanel(jobs) {
   const metric = _dashJobsMetric;
   const metricVal = (s) => metric === "value" ? sum(groups[s]) : groups[s].length;
   const total = JOB_STATUSES.reduce((t, s) => t + metricVal(s), 0);
-  const cx = 120, cy = 120, R = 82, W = 34, C = 2 * Math.PI * R;
-  let off = 0, rings = "";
-  JOB_STATUSES.forEach(s => {
-    const v = metricVal(s);
-    if (v <= 0) return;
-    const dash = (v / total) * C;
-    rings += `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${STATUS_COLORS[s]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
-    off += dash;
-  });
-  const centerLabel = metric === "value" ? "Pipeline value" : "Total jobs";
-  const centerVal = metric === "value" ? formatMoney(total) : String(total);
   const legend = JOB_STATUSES.map(s => {
     const cnt = groups[s].length, val = sum(groups[s]);
     const pct = total > 0 ? Math.round(metricVal(s) / total * 100) : 0;
@@ -10999,30 +11483,66 @@ function renderDashJobsPanel(jobs) {
   }).join("");
   const filterNote = _dashStatusFilter
     ? `<button type="button" data-dash-filter="${_dashStatusFilter}" class="text-[11px] text-[#c9a558] font-semibold hover:underline">Showing ${_dashStatusFilter} below · clear ✕</button>`
-    : `<span class="text-[11px] text-slate-500">Tap a status to filter the jobs below.</span>`;
-  const donut = total > 0
-    ? `<div class="flex flex-col sm:flex-row items-center gap-5 text-slate-400 dash-jobs-chart">
-        <svg viewBox="0 0 240 240" style="width:180px;height:180px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
-          <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
-          <text class="donut-center" data-countup="${total}" data-count-fmt="${metric === "value" ? "money" : "int"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
-        </svg>
-        <div class="flex-1 w-full space-y-0.5">${legend}</div>
-      </div>`
-    : `<div class="text-center text-slate-500 text-sm py-8">No ${metric === "value" ? "pipeline value" : "jobs"} to chart yet.</div>`;
+    : `<span class="text-[11px] text-slate-500">Tap a status below to filter.</span>`;
 
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-4">
-        <p class="text-[11px] text-slate-500 mb-3 font-medium">${real.length} saved job${real.length === 1 ? "" : "s"} by status — tap a slice to filter below.</p>
-        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <p class="text-[11px] text-slate-500 mb-3 font-medium">${real.length} saved job${real.length === 1 ? "" : "s"} by status — tap a status to filter the list.</p>
+        <div class="flex flex-col items-center gap-3 sm:flex-row sm:justify-between mb-2">
           <div class="seg seg-sm" id="dashJobsSeg" style="max-width:220px;">
             <button type="button" class="seg-btn ${metric === "count" ? "active" : ""}" data-jobchart="count">By count</button>
             <button type="button" class="seg-btn ${metric === "value" ? "active" : ""}" data-jobchart="value">By value</button>
           </div>
-          ${filterNote}
+          ${chartTypeControlHTML("dashJobsType", "jobs")}
         </div>
-        ${donut}
+        <div class="mb-3">${filterNote}</div>
+        <div id="dashJobsChart" class="dash-jobs-chart"></div>
+        <div class="mt-3 space-y-0.5">${legend}</div>
       </div>`;
+  renderJobsChart();
   return true;
+}
+
+// Render the Jobs/pipeline chart (pie donut / bars / trend). The clickable status
+// legend is rendered separately below the chart, so the filter is always available.
+function renderJobsChart() {
+  const el = document.getElementById("dashJobsChart");
+  if (!el) return;
+  const jobs = loadJobs();
+  const { groups, sum } = pipelineStats(jobs);
+  const metric = _dashJobsMetric;
+  const metricVal = (s) => metric === "value" ? sum(groups[s]) : groups[s].length;
+  const total = JOB_STATUSES.reduce((t, s) => t + metricVal(s), 0);
+  const intFmt = (v) => String(Math.round(v));
+  const type = _dashChartType.jobs;
+  if (type === "bar") {
+    el.innerHTML = dashBarsHTML(JOB_STATUSES.map(s => ({ label: s, value: metricVal(s), color: STATUS_COLORS[s] })), metric === "value" ? formatMoney : intFmt);
+    return;
+  }
+  if (type === "trend") {
+    const valFn = metric === "value" ? (j) => (Number(j.sellingPrice) || 0) : (() => 1);
+    el.innerHTML = dashTrendSVG(dashMonthlySeries(jobs, valFn), { title: metric === "value" ? "Pipeline value" : "Jobs", valFmt: metric === "value" ? formatMoney : intFmt });
+    return;
+  }
+  // Pie (donut only — legend lives below).
+  if (total <= 0) { el.innerHTML = `<div class="text-center text-slate-500 text-sm py-8">No ${metric === "value" ? "pipeline value" : "jobs"} to chart yet.</div>`; return; }
+  const cx = 120, cy = 120, R = 82, W = 34, C = 2 * Math.PI * R;
+  let off = 0, rings = "";
+  JOB_STATUSES.forEach(s => {
+    const v = metricVal(s);
+    if (v <= 0) return;
+    const dash = (v / total) * C;
+    rings += `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${STATUS_COLORS[s]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    off += dash;
+  });
+  const centerLabel = metric === "value" ? "Pipeline value" : "Total jobs";
+  const centerVal = metric === "value" ? formatMoney(total) : String(total);
+  el.innerHTML = `<div class="flex justify-center text-slate-400">
+      <svg viewBox="0 0 240 240" style="width:180px;height:180px;"><g class="donut-rings">${rings}</g>
+        <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
+        <text class="donut-center" data-countup="${total}" data-count-fmt="${metric === "value" ? "money" : "int"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
+      </svg>
+    </div>`;
 }
 
 // Aggregate material consumption across saved jobs (from each job's saved rows).
@@ -11076,12 +11596,10 @@ function renderDashMaterials(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-2 border-b border-slate-800/80">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">Across ${jobCount} saved job${jobCount === 1 ? "" : "s"} · ${Math.round(totalLF)} LF total — your biggest cost drivers, ranked.</p>
-        <div class="seg seg-sm" id="dashMatSeg" style="max-width:320px;">
-          <button type="button" class="seg-btn ${_dashMatChartMode === "pie" ? "active" : ""}" data-matchart="pie">Allocation</button>
-          <button type="button" class="seg-btn ${_dashMatChartMode === "bar" ? "active" : ""}" data-matchart="bar">Bars</button>
-          <button type="button" class="seg-btn ${_dashMatChartMode === "trend" ? "active" : ""}" data-matchart="trend">Trend</button>
+        <div class="flex items-center justify-center sm:justify-end">
+          ${chartTypeControlHTML("dashMatType", "materials")}
         </div>
-        <div id="dashMatChart" class="mt-4"></div>
+        <div id="dashMatChart" class="dash-mat-chart mt-4"></div>
       </div>
       <div class="px-3 sm:px-4 py-2 overflow-x-auto">
         <table class="dash-mat-table">
@@ -11090,15 +11608,6 @@ function renderDashMaterials(jobs) {
         </table>
       </div>`;
   renderDashMatChart();
-  const seg = document.getElementById("dashMatSeg");
-  if (seg) seg.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-matchart]");
-    if (!b || b.dataset.matchart === _dashMatChartMode) return;
-    _dashMatChartMode = b.dataset.matchart;
-    seg.querySelectorAll(".seg-btn").forEach(x => x.classList.toggle("active", x.dataset.matchart === _dashMatChartMode));
-    renderDashMatChart();
-    dashPlayChart(document.getElementById("dashMatChart"));
-  });
   return true;
 }
 
@@ -11108,9 +11617,15 @@ function renderDashMatChart() {
   if (!el) return;
   const jobs = loadJobs();
   const { items } = dashMaterialStats(jobs);
-  if (_dashMatChartMode === "trend") el.innerHTML = matChartTrendSVG(jobs);
-  else if (_dashMatChartMode === "bar") el.innerHTML = matChartBarHTML(items);
-  else el.innerHTML = matChartPieSVG(items);
+  const type = _dashChartType.materials;
+  if (type === "trend") {
+    const matCost = (j) => (j.rows || []).filter(r => r && MATERIAL_IDS.includes(r.id)).reduce((s, r) => s + (Number(r.totalCost) || 0), 0);
+    el.innerHTML = dashTrendSVG(dashMonthlySeries(jobs, matCost), { title: "Total material spend", valFmt: formatMoney, riseIsBad: true });
+  } else if (type === "bar") {
+    el.innerHTML = dashBarsHTML(items.map((m, i) => ({ label: m.name, value: m.totalCost, color: MAT_COLORS[i % MAT_COLORS.length] })), formatMoney);
+  } else {
+    el.innerHTML = matChartPieSVG(items);
+  }
 }
 
 // Donut/pie of material cost allocation (stroke-dasharray ring technique so a
@@ -11141,35 +11656,47 @@ function matChartPieSVG(items) {
   </div>`;
 }
 
-// Horizontal bars of material cost allocation (HTML, themes via currentColor).
-function matChartBarHTML(items) {
-  const max = Math.max(...items.map(m => m.totalCost), 1);
-  const total = items.reduce((s, m) => s + m.totalCost, 0) || 1;
-  return `<div class="space-y-2.5 text-slate-400">` + items.map((m, i) => {
-    const pct = m.totalCost / max * 100;
-    const share = Math.round(m.totalCost / total * 100);
+// ── Shared insight-chart toolkit (used by Materials, Customers, and Jobs) ──
+// Chart-type dropdown (Pie chart / Bars / Trend); the choice is shared across tabs.
+function chartTypeSelectHTML(id, tab) {
+  const cur = _dashChartType[tab] || "pie";
+  const opt = (v, label) => `<option value="${v}" ${cur === v ? "selected" : ""}>${label}</option>`;
+  return `<select id="${id}" data-charttype data-charttab="${tab}" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Chart type" aria-label="Chart type">${opt("pie", "Pie chart")}${opt("bar", "Bars")}${opt("trend", "Trend")}</select>`;
+}
+// "Chart [dropdown]" control — placed on the RIGHT of every insight panel's
+// control row for consistent placement across Materials / Customers / Jobs.
+function chartTypeControlHTML(id, tab) {
+  return `<div class="flex items-center gap-2 shrink-0"><span class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Chart</span>${chartTypeSelectHTML(id, tab)}</div>`;
+}
+// Horizontal bars from a normalized series [{label, value, color}]. fmt formats the value.
+function dashBarsHTML(series, fmt) {
+  fmt = fmt || ((v) => String(Math.round(v)));
+  const items = (series || []).filter(s => s.value > 0);
+  if (!items.length) return `<div class="text-center text-slate-500 text-sm py-10">Nothing to chart yet.</div>`;
+  const max = Math.max(...items.map(s => s.value), 1);
+  const total = items.reduce((s, x) => s + x.value, 0) || 1;
+  return `<div class="space-y-2.5 text-slate-400">` + items.map(s => {
+    const pct = s.value / max * 100, share = Math.round(s.value / total * 100);
     return `<div>
       <div class="flex items-center justify-between text-[11px] mb-1">
-        <span class="font-semibold" style="color:currentColor">${escHtml(m.name)}</span>
-        <span style="color:currentColor">${formatMoney(m.totalCost)} · ${share}%</span>
+        <span class="font-semibold" style="color:currentColor">${escHtml(s.label)}</span>
+        <span style="color:currentColor">${fmt(s.value)} · ${share}%</span>
       </div>
       <div style="height:10px;border-radius:6px;background:rgba(148,163,184,0.16);overflow:hidden;">
-        <div class="dash-bar-fill" style="height:100%;width:${pct.toFixed(1)}%;border-radius:6px;background:${MAT_COLORS[i % MAT_COLORS.length]};"></div>
+        <div class="dash-bar-fill" style="height:100%;width:${pct.toFixed(1)}%;border-radius:6px;background:${s.color};"></div>
       </div>
     </div>`;
   }).join("") + `</div>`;
 }
-
-// Total material spend over time — monthly if 2+ months of jobs, else per-job.
-function matTimeSeries(jobs) {
+// Bucket jobs into a monthly value series (per-job fallback under 2 months) via valueFn(job)->number.
+function dashMonthlySeries(jobs, valueFn) {
   const real = (jobs || []).filter(j => !j.isDraft);
-  const matCost = (j) => (j.rows || []).filter(r => r && MATERIAL_IDS.includes(r.id)).reduce((s, r) => s + (Number(r.totalCost) || 0), 0);
   const byMonth = {};
   real.forEach(j => {
     const d = j.createdAt ? new Date(j.createdAt) : null;
     if (!d || isNaN(d)) return;
     const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-    byMonth[key] = (byMonth[key] || 0) + matCost(j);
+    byMonth[key] = (byMonth[key] || 0) + (Number(valueFn(j)) || 0);
   });
   const months = Object.keys(byMonth).sort();
   if (months.length >= 2) {
@@ -11180,14 +11707,15 @@ function matTimeSeries(jobs) {
   }
   const dated = real.filter(j => j.createdAt && !isNaN(new Date(j.createdAt)))
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  return { byMonth: false, points: dated.map(j => ({ label: new Date(j.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }), value: matCost(j) })) };
+  return { byMonth: false, points: dated.map(j => ({ label: new Date(j.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }), value: Number(valueFn(j)) || 0 })) };
 }
-
-// Line+area trend of total material spend, with an up/down indicator.
-function matChartTrendSVG(jobs) {
-  const ts = matTimeSeries(jobs);
-  const pts = ts.points;
-  if (pts.length < 2) return `<div class="text-center text-slate-500 text-sm py-10">Save a couple more jobs ${ts.byMonth ? "across months" : "on different dates"} to chart a material-cost trend.</div>`;
+// Generic line+area trend from a {byMonth, points:[{label,value}]} series.
+// opts: { title, valFmt(v)->str, riseIsBad (default false → rising is green) }
+function dashTrendSVG(ts, opts) {
+  opts = opts || {};
+  const valFmt = opts.valFmt || ((v) => String(Math.round(v)));
+  const pts = ts.points || [];
+  if (pts.length < 2) return `<div class="text-center text-slate-500 text-sm py-10">Save a couple more jobs ${ts.byMonth ? "across months" : "on different dates"} to chart a trend.</div>`;
   const W = 600, H = 220, padL = 50, padR = 14, padT = 14, padB = 28;
   const maxV = Math.max(...pts.map(p => p.value), 1);
   const xFor = (i) => padL + (pts.length === 1 ? 0 : (i / (pts.length - 1)) * (W - padL - padR));
@@ -11198,7 +11726,7 @@ function matChartTrendSVG(jobs) {
     + ` L ${xFor(pts.length - 1).toFixed(1)} ${(H - padB).toFixed(1)} Z`;
   const grid = [0, 0.5, 1].map(f => {
     const y = padT + (1 - f) * (H - padT - padB);
-    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity="0.12"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="currentColor" style="font-size:9px;opacity:0.6;">${formatMoney(maxV * f)}</text>`;
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity="0.12"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="currentColor" style="font-size:9px;opacity:0.6;">${valFmt(maxV * f)}</text>`;
   }).join("");
   const step = Math.max(1, Math.ceil(pts.length / 6));
   const xlabels = pts.map((p, i) => (i % step === 0 || i === pts.length - 1)
@@ -11208,11 +11736,11 @@ function matChartTrendSVG(jobs) {
   const dir = last > first ? "up" : (last < first ? "down" : "flat");
   const pct = first > 0 ? Math.round((last - first) / first * 100) : 0;
   const trendTxt = dir === "flat" ? "flat" : `${dir === "up" ? "▲" : "▼"} ${Math.abs(pct)}%`;
-  // Rising material cost is a watch-out (rose); falling is good (green).
-  const trendColor = dir === "up" ? "#fb7185" : (dir === "down" ? "#34d399" : "#94a3b8");
+  const goodUp = !opts.riseIsBad;
+  const trendColor = dir === "flat" ? "#94a3b8" : ((dir === "up") === goodUp ? "#34d399" : "#fb7185");
   return `<div class="text-slate-400">
     <div class="flex items-center justify-between mb-1.5">
-      <span class="text-[11px] font-semibold" style="color:currentColor">Total material spend ${ts.byMonth ? "/ month" : "/ job"}</span>
+      <span class="text-[11px] font-semibold" style="color:currentColor">${escHtml(opts.title || "")} ${ts.byMonth ? "/ month" : "/ job"}</span>
       <span class="text-[11px] font-bold" style="color:${trendColor}">${trendTxt} <span style="color:currentColor;opacity:0.6;font-weight:600;">vs first</span></span>
     </div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" preserveAspectRatio="none">
@@ -11223,6 +11751,8 @@ function matChartTrendSVG(jobs) {
     </svg>
   </div>`;
 }
+// A job counts as "won" for revenue/profit roll-ups when Approved (agreed / e-signed) or Finished.
+function jobIsWon(j) { const s = jobStatus(j); return s === "Approved" || s === "Finished"; }
 
 function dashJobCard(j) {
   const st = jobStatus(j);
@@ -11928,20 +12458,123 @@ function wireDashboard() {
   _dashWired = true;
   // Launchpad: tap a card to drill in; back arrow returns home.
   const launchpad = document.getElementById("dashLaunchpad");
-  if (launchpad) launchpad.addEventListener("click", (e) => {
-    const c = e.target.closest("[data-dashcard]");
-    if (c) dashGoTo(c.dataset.dashcard);
-  });
+  if (launchpad) {
+    launchpad.addEventListener("click", (e) => {
+      // The ⓘ hint toggles a description popover and must NOT navigate.
+      const tip = e.target.closest(".dash-tip-btn");
+      if (tip) {
+        e.preventDefault(); e.stopPropagation();
+        const cell = tip.closest(".dash-launch-cell");
+        const wasOpen = cell.classList.contains("tip-open");
+        closeAllDashTips();
+        if (!wasOpen) { positionDashTip(cell); cell.classList.add("tip-open"); tip.setAttribute("aria-expanded", "true"); }
+        return;
+      }
+      const c = e.target.closest("[data-dashcard]");
+      if (c) dashGoTo(c.dataset.dashcard);
+    });
+    // Keyboard parity for the role=button ⓘ span.
+    launchpad.addEventListener("keydown", (e) => {
+      const tip = e.target.closest(".dash-tip-btn");
+      if (tip && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); tip.click(); }
+    });
+    // Desktop: set the tip's flip direction as the pointer enters a card.
+    launchpad.addEventListener("pointerover", (e) => {
+      const cell = e.target.closest(".dash-launch-cell");
+      if (cell) positionDashTip(cell);
+    });
+    // Global dismiss for an open (mobile-tapped) tip.
+    document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".dash-launch-cell.tip-open")) closeAllDashTips(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllDashTips(); });
+    window.addEventListener("scroll", () => closeAllDashTips(), { passive: true });
+  }
   const backBtn = document.getElementById("dashBack");
   if (backBtn) backBtn.addEventListener("click", () => dashGoTo("home"));
   // Pricing calibration: apply a suggested rate or dismiss it.
   const calib = document.getElementById("dashCalibration");
-  if (calib) calib.addEventListener("click", (e) => {
-    const ap = e.target.closest("[data-calib-apply]");
-    if (ap) { applyCalibration(ap.dataset.calibApply, ap.dataset.calibKey, parseFloat(ap.dataset.calibValue)); return; }
-    const dm = e.target.closest("[data-calib-dismiss]");
-    if (dm) { _dashCalibDismissed.add(dm.dataset.calibDismiss); renderDashboard(); return; }
+  if (calib) {
+    calib.addEventListener("click", (e) => {
+      const ap = e.target.closest("[data-calib-apply]");
+      if (ap) { applyCalibration(ap.dataset.calibApply, ap.dataset.calibKey, parseFloat(ap.dataset.calibValue)); return; }
+      const dm = e.target.closest("[data-calib-dismiss]");
+      if (dm) { _dashCalibDismissed.add(dm.dataset.calibDismiss); renderDashboard(); return; }
+      const sv = e.target.closest("[data-calib-save]");
+      if (sv) { saveJobActuals(sv.dataset.calibSave, sv.closest("[data-recon-scope]")); return; }
+      const tg = e.target.closest("[data-calib-toggle]");
+      if (tg) {
+        const id = tg.dataset.calibToggle;
+        const body = calib.querySelector(`[data-calib-jobbody="${(window.CSS && CSS.escape) ? CSS.escape(id) : id}"]`);
+        if (!body) return;
+        const opening = body.classList.contains("hidden");
+        // Accordion: collapse any other open editor first.
+        calib.querySelectorAll("[data-calib-jobbody]").forEach(b => { if (b !== body) { b.classList.add("hidden"); } });
+        calib.querySelectorAll("[data-calib-toggle]").forEach(h => { if (h !== tg) h.setAttribute("aria-expanded", "false"); });
+        if (opening && !body.dataset.filled) {
+          const job = loadJobs().find(x => x.id === id);
+          if (job) { body.innerHTML = calibJobEditorHTML(job); body.dataset.filled = "1"; }
+        }
+        body.classList.toggle("hidden", !opening);
+        tg.setAttribute("aria-expanded", String(opening));
+        if (opening) body.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+    });
+    // Live per-row variance as you type in an inline editor.
+    calib.addEventListener("input", (e) => {
+      const inp = e.target.closest("[data-recon-input]");
+      if (inp) updateReconVar(inp);
+    });
+  }
+  // Follow-ups: open a job, jump to calibrate, or dismiss a nudge.
+  const followups = document.getElementById("dashFollowups");
+  if (followups) followups.addEventListener("click", (e) => {
+    const op = e.target.closest("[data-nudge-open]");
+    if (op) { openJobDetails(op.dataset.nudgeOpen); return; }
+    const cb = e.target.closest("[data-nudge-calib]");
+    if (cb) { dashCalibrateJob(cb.dataset.nudgeCalib); return; }
+    const dm = e.target.closest("[data-nudge-dismiss]");
+    if (dm) { _dashNudgeDismissed.add(dm.dataset.nudgeDismiss); renderDashboard(); return; }
   });
+  // Shopping list: expand a job, toggle PDF, or check items off.
+  const shop = document.getElementById("dashShopping");
+  if (shop) {
+    shop.addEventListener("click", (e) => {
+      const pdf = e.target.closest("[data-shop-pdf]");
+      if (pdf) { dashGenerateDoc(pdf.dataset.shopJob, "materials", pdf.dataset.shopPdf); return; }
+      const tg = e.target.closest("[data-shop-toggle]");
+      if (tg) {
+        const id = tg.dataset.shopToggle;
+        const esc = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+        const body = shop.querySelector(`[data-shop-jobbody="${esc}"]`);
+        if (!body) return;
+        const opening = body.classList.contains("hidden");
+        shop.querySelectorAll("[data-shop-jobbody]").forEach(b => { if (b !== body) b.classList.add("hidden"); });
+        shop.querySelectorAll("[data-shop-toggle]").forEach(h => { if (h !== tg) h.setAttribute("aria-expanded", "false"); });
+        if (opening && !body.dataset.filled) {
+          const job = loadJobs().find(x => x.id === id);
+          if (job) { body.innerHTML = shopJobBodyHTML(job); body.dataset.filled = "1"; }
+        }
+        body.classList.toggle("hidden", !opening);
+        tg.setAttribute("aria-expanded", String(opening));
+        if (opening) body.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+    });
+    shop.addEventListener("change", (e) => {
+      const cb = e.target.closest("[data-shop-check]");
+      if (!cb) return;
+      const row = cb.closest("[data-shop-jobrow]");
+      const jobId = row ? row.dataset.shopJobrow : null;
+      if (!jobId) return;
+      toggleShopItem(jobId, cb.dataset.shopCheck, cb.checked);
+      const label = cb.closest(".shop-item"); if (label) label.classList.toggle("done", cb.checked);
+      // update the row's progress chip without collapsing the open editor
+      const total = row.querySelectorAll("[data-shop-check]").length;
+      const done = row.querySelectorAll("[data-shop-check]:checked").length;
+      const chip = row.querySelector("[data-shop-progress]");
+      if (chip) { chip.textContent = `${done}/${total}`; chip.className = `calib-chip ${done === total ? "logged" : "todo"}`; chip.setAttribute("data-shop-progress", jobId); }
+    });
+  }
   const grid = document.getElementById("dashJobsGrid");
   if (grid) {
     grid.addEventListener("click", (e) => {
@@ -12008,6 +12641,19 @@ function wireDashboard() {
     const open = e.target.closest("[data-cust-open]");
     if (open) { openCustomerStats(open.dataset.custOpen); return; }
   });
+  // Chart-type dropdown (Pie / Bars / Trend) on each insight panel.
+  [["dashMaterials", renderDashMatChart, "dashMatChart"],
+   ["dashCustomers", renderCustChart, "dashCustChart"],
+   ["dashPipelinePanel", renderJobsChart, "dashJobsChart"]].forEach(([panelId, renderFn, chartId]) => {
+    const p = document.getElementById(panelId);
+    if (p) p.addEventListener("change", (e) => {
+      const sel = e.target.closest("[data-charttype]");
+      if (!sel) return;
+      _dashChartType[sel.dataset.charttab] = sel.value;
+      renderFn();
+      dashPlayChart(document.getElementById(chartId));
+    });
+  });
   const csm = document.getElementById("customerStatsModal");
   if (csm) csm.addEventListener("click", (e) => { if (e.target.dataset.closeCuststats !== undefined) closeCustomerStats(); });
   const photoInput = document.getElementById("dashPhotoInput");
@@ -12070,17 +12716,18 @@ let _jdSignExclude = new Set();    // scope:LABEL / item:LABEL keys to hide from
 
 // Generate a saved job's PDF from the dashboard without navigating: snapshot
 // the working STATE, apply the job's values, export, then restore.
-function dashGenerateDoc(id, kind) {
+function dashGenerateDoc(id, kind, mode) {
+  mode = mode || "download";
   const job = loadJobs().find(x => x.id === id);
   if (!job) { toast("Job not found"); return; }
   if (kind === "buck" && !job.buckList) { toast("No buck cut list on this job"); return; }
   const snap = clone(STATE);
   try {
     applyJobToState(job);
-    if (kind === "customer") exportCustomerPDF("download");
-    else if (kind === "cost") exportPDF("download");
-    else if (kind === "materials") exportMaterialsPDF("download");
-    else if (kind === "buck") fileBuckAction("download");
+    if (kind === "customer") exportCustomerPDF(mode);
+    else if (kind === "cost") exportPDF(mode);
+    else if (kind === "materials") exportMaterialsPDF(mode);
+    else if (kind === "buck") fileBuckAction(mode);
   } catch (e) {
     toast("Couldn't generate that document");
   } finally {
@@ -12118,7 +12765,6 @@ function saveJobDetailsEdits(id, silent) {
   j.customerNotes = g("jdNotes");
   // Job name is its own field now; fall back to customer/old name if cleared.
   j.name = g("jdJobName") || j.customerName || j.name || "Untitled job";
-  applyActualsToJob(j);   // persist any typed actuals alongside the contact edits
   saveJobs(jobs);
   if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   if (STATE.currentJobId === id) {
@@ -12147,44 +12793,26 @@ function reconVarCls(est, actual) {
   if (Math.abs(d) < 0.005) return "";
   return d > 0 ? "over" : "under";
 }
-// The "Materials & labor used" section for the Job Details modal.
-function jobReconHTML(job) {
-  const rows = jobReconcilableRows(job);
-  if (!rows.length) return "";   // doors-only / no per-LF lines → nothing to reconcile
-  const actuals = (job.actuals && typeof job.actuals === "object") ? job.actuals : {};
-  const body = rows.map(r => {
-    const est = Number(r.quantity) || 0;
-    const unit = r.unit || "";
-    const a = actuals[r.id];
-    const used = (a && Number(a.used) > 0) ? Number(a.used) : "";
-    const hasVal = used !== "";
-    const nameCls = r.isLabor ? "jd-recon-name labor" : "jd-recon-name";
-    return `<div class="jd-recon-row">
-      <span class="${nameCls}">${escHtml(r.name)}</span>
-      <span class="jd-recon-est">${formatQty(est)} ${escHtml(unit)}</span>
-      <input type="text" inputmode="decimal" class="jd-recon-input" data-recon-input="${escHtml(r.id)}" data-recon-est="${est}" value="${hasVal ? escHtml(String(used)) : ""}" placeholder="—" aria-label="Actual ${escHtml(unit)} used for ${escHtml(r.name)}">
-      <span class="jd-recon-var ${hasVal ? reconVarCls(est, used) : ""}" data-recon-var="${escHtml(r.id)}">${hasVal ? reconVarText(est, used) : "—"}</span>
-    </div>`;
-  }).join("");
-  return `
-    <div class="px-6 pt-3 pb-1">
-      <div class="jd-section-title mb-2">Materials &amp; labor used</div>
-      <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">Log what your crew actually used vs. what this quote estimated. Anchor blends these across jobs to sharpen your rates — see <b>Pricing calibration</b> on the dashboard.</p>
-      <div class="jd-recon">
-        <div class="jd-recon-head"><span>Item</span><span>Estimated</span><span>Actual used</span><span>Variance</span></div>
-        ${body}
-        <div class="jd-recon-actions">
-          <span class="text-[11px] text-slate-500 hidden sm:inline">Saved with the job — drives your calibration.</span>
-          <button type="button" id="jdSaveActuals" class="btn rounded-full px-4 py-2 text-[12.5px] font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] ml-auto">Save actuals</button>
-        </div>
-      </div>
-    </div>`;
+// Recompute one reconciliation row's variance label from its input (live as you type).
+function updateReconVar(inp) {
+  if (!inp) return;
+  const est = Number(inp.dataset.reconEst) || 0;
+  const v = parseFloat((inp.value || "").replace(/[^0-9.]/g, ""));
+  const scope = inp.closest("[data-recon-scope]") || document;
+  const id = (window.CSS && CSS.escape) ? CSS.escape(inp.dataset.reconInput) : inp.dataset.reconInput;
+  const varEl = scope.querySelector(`[data-recon-var="${id}"]`);
+  if (!varEl) return;
+  if (isFinite(v) && v > 0) { varEl.textContent = reconVarText(est, v); varEl.className = "jd-recon-var " + reconVarCls(est, v); }
+  else { varEl.textContent = "—"; varEl.className = "jd-recon-var"; }
 }
-// Read the actuals inputs from the open modal onto a job object.
-function applyActualsToJob(j) {
+// Read the actuals inputs within `root` (the open modal, or a calibration-page
+// editor) onto a job object. Defaults to the Job Details modal.
+function applyActualsToJob(j, root) {
+  root = root || document.getElementById("jobDetailsBody");
+  if (!root) return;
   const prev = (j.actuals && typeof j.actuals === "object") ? j.actuals : {};
   const actuals = {};
-  document.querySelectorAll("#jobDetailsBody [data-recon-input]").forEach(inp => {
+  root.querySelectorAll("[data-recon-input]").forEach(inp => {
     const v = parseFloat((inp.value || "").replace(/[^0-9.]/g, ""));
     if (!(isFinite(v) && v > 0)) return;
     const id = inp.dataset.reconInput;
@@ -12195,11 +12823,11 @@ function applyActualsToJob(j) {
   if (Object.keys(actuals).length) { j.actuals = actuals; j.actualsUpdatedAt = new Date().toISOString(); }
   else { delete j.actuals; delete j.actualsUpdatedAt; }
 }
-function saveJobActuals(id) {
+function saveJobActuals(id, root) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j) return;
-  applyActualsToJob(j);
+  applyActualsToJob(j, root);
   if (!saveJobs(jobs)) return;   // storage-full guard (saveJobs toasts the reason)
   if (!j.isDraft) { try { pushJobToCloud(j, true); } catch (_) {} }
   toast("Actuals saved");
@@ -12306,7 +12934,6 @@ function renderJobDetails(job) {
         ${apprBlock}
       </div>
     </div>
-    ${jobReconHTML(job)}
     <div class="px-6 pb-2">${jobGalleryHTML(job)}</div>
     <div class="px-6 pb-1">
       <div class="jd-section-title mb-2">Documents</div>
@@ -12362,19 +12989,7 @@ function renderJobDetails(job) {
   const del = body.querySelector("[data-jd-delete]");
   if (del) del.addEventListener("click", () => { if (confirm("Delete this job? This can't be undone.")) { deleteJob(job.id); closeJobDetails(); renderDashboard(); } });
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
-  // Actuals: save button + live per-row variance as you type.
-  const saveAct = document.getElementById("jdSaveActuals");
-  if (saveAct) saveAct.addEventListener("click", () => saveJobActuals(job.id));
-  body.querySelectorAll("[data-recon-input]").forEach(inp => {
-    inp.addEventListener("input", () => {
-      const est = Number(inp.dataset.reconEst) || 0;
-      const v = parseFloat((inp.value || "").replace(/[^0-9.]/g, ""));
-      const varEl = body.querySelector(`[data-recon-var="${(window.CSS && CSS.escape) ? CSS.escape(inp.dataset.reconInput) : inp.dataset.reconInput}"]`);
-      if (!varEl) return;
-      if (isFinite(v) && v > 0) { varEl.textContent = reconVarText(est, v); varEl.className = "jd-recon-var " + reconVarCls(est, v); }
-      else { varEl.textContent = "—"; varEl.className = "jd-recon-var"; }
-    });
-  });
+  // (Logging actuals moved to the dashboard's Pricing calibration card.)
   const jdPhoto = document.getElementById("jdPhoto");
   if (jdPhoto) jdPhoto.addEventListener("click", () => { _dashPhotoTargetId = job.id; document.getElementById("dashPhotoInput")?.click(); });
   const jdGen = document.getElementById("jdGenThumb");
@@ -13455,6 +14070,7 @@ function doSaveJob(overrideId) {
     // / overwrite so a re-save doesn't wipe the estimate→actual reconciliation.
     if (_photoSrc.actuals) job.actuals = _photoSrc.actuals;
     if (_photoSrc.actualsUpdatedAt) job.actualsUpdatedAt = _photoSrc.actualsUpdatedAt;
+    if (_photoSrc.shopChecked) job.shopChecked = _photoSrc.shopChecked;   // shopping-list checkmarks
   }
 
   // Drop the working draft, then overwrite the target in place or append fresh.
@@ -13600,6 +14216,7 @@ function saveAsNewVersion() {
   // A new version is a fresh quote — its actuals haven't happened yet. Don't
   // inherit the original's logged usage (it would skew calibration twice).
   delete newJob.actuals; delete newJob.actualsUpdatedAt;
+  delete newJob.shopChecked;   // fresh shopping list for the new version
   jobs.push(newJob);
   if (!saveJobs(jobs)) {   // write failed (device storage full) → no version, so spend no credit
     toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
@@ -14487,19 +15104,26 @@ function showSignLinkResult(url) {
 
 const _SIGN_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function createSignLink(jobId, detailLevel) {
+// opts (all optional): { btn, exclude (Set of scope:/item: keys to hide), onResult(url) }.
+// Defaults target the Job Details modal so existing callers are unchanged; the
+// dashboard E-signatures page passes its own button + result renderer + no
+// exclusions so you can send any job's quote without opening it.
+async function createSignLink(jobId, detailLevel, opts) {
+  opts = opts || {};
   if (!sb || !currentUser) { toast("Sign in to send a quote for e-signature"); return; }
   const job = loadJobs().find((x) => x.id === jobId);
   if (!job) { toast("Job not found"); return; }
 
-  const btn = document.getElementById("jdSignBtn");
+  const btn = opts.btn || document.getElementById("jdSignBtn");
+  const excludeSet = opts.exclude || _jdSignExclude;
+  const onResult = opts.onResult || showSignLinkResult;
   const prevLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Creating link…"; }
 
   // Build the snapshot against THIS job's numbers, then apply the installer's
   // Customize choices (hidden scope rows / line items).
   let snapshot = await buildSignSnapshotForJob(jobId, detailLevel);
-  if (snapshot) snapshot = applySignExclusions(snapshot, _jdSignExclude);
+  if (snapshot) snapshot = applySignExclusions(snapshot, excludeSet);
   if (!snapshot) { toast("Couldn't build the quote snapshot"); if (btn) { btn.disabled = false; btn.textContent = prevLabel; } return; }
 
   // Persist (RLS: owner-only insert via the user's JWT).
@@ -14531,7 +15155,7 @@ async function createSignLink(jobId, detailLevel) {
   try { if (typeof window.track === "function") window.track("sign_link_created", { detail: snapshot.detailLevel }); } catch (_) {}
 
   if (btn) { btn.disabled = false; btn.textContent = prevLabel; }
-  showSignLinkResult(url);
+  onResult(url);
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(url);
     toast("Signing link copied — send it to your customer");
