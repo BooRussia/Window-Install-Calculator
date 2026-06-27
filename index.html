@@ -2437,6 +2437,10 @@
   .pfp-sep { height: 1px; background: rgba(51,65,85,0.6); margin: 5px 0; }
   [data-theme="light"] .pfp-label { color: #94a3b8; }
   [data-theme="light"] .pfp-sep { background: #e2e8f0; }
+  /* Header theme-toggle buttons: dark defaults (slate-400 icon / slate-700 ring)
+     fail on a light nav, so mirror the established light icon-button token. */
+  [data-theme="light"] [data-theme-toggle] { color: #64748b; border-color: #d6dae1; }
+  [data-theme="light"] [data-theme-toggle]:hover { color: #97772e; border-color: #b58f4a; }
 
   /* ------- Trust signals band ------- */
   .lp-trust-headline {
@@ -5049,6 +5053,9 @@
         <button id="dashPfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800 shrink-0 ml-1" aria-label="Account menu" aria-haspopup="true">
           <span id="dashPfpInner" class="w-full h-full flex items-center justify-center"></span>
         </button>
+        <!-- Desktop-only dedicated theme toggle, right of the avatar. On mobile the
+             toggle lives only in the account-menu row to save header space. -->
+        <button data-theme-toggle type="button" class="btn hidden sm:inline-flex w-9 h-9 rounded-full items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition shrink-0 ml-1" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
       </div>
     </div>
   </nav>
@@ -5337,7 +5344,7 @@
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5l4 4 9-9"/></svg>
           <span id="pfpFinishSetupLabel">Finish setup</span>
         </button>
-        <button id="pfpThemeToggle" type="button" class="pfp-item" title="Switch between light and dark mode">
+        <button id="pfpThemeToggle" type="button" class="pfp-item sm:hidden" title="Switch between light and dark mode">
           <span id="pfpThemeIcon" class="inline-flex items-center justify-center" style="width:15px;height:15px;"></span>
           <span class="flex-1" id="pfpThemeLabel">Dark mode</span>
         </button>
@@ -5383,6 +5390,9 @@
         </button>
       </div>
       </div>
+      <!-- Desktop-only dedicated theme toggle, right of the avatar. On mobile the
+           toggle lives only in the account-menu row to save header space. -->
+      <button data-theme-toggle type="button" class="btn hidden sm:inline-flex w-9 h-9 rounded-full items-center justify-center text-slate-400 hover:text-[#c9a558] border border-slate-700 hover:border-[#b58f4a] transition shrink-0 ml-1" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
     </div>
   </div>
 </div>
@@ -9269,12 +9279,13 @@ function setupThemeToggles() {
     b.dataset.themeWired = "1";
     b.addEventListener("click", toggleTheme);
   });
-  // Account-menu theme row: keeps its text label (so it can't use the icon-only
-  // [data-theme-toggle] path, which overwrites innerHTML). Wired here — at page
-  // load, not in the sign-in-gated app init — so it always works. stopPropagation
-  // keeps the dropdown open on toggle.
+  // Account-menu theme row (mobile's only theme control — desktop has the
+  // dedicated header button). Keeps its text label, so it can't use the icon-only
+  // [data-theme-toggle] path (which overwrites innerHTML). Wired here — at page
+  // load, not in the sign-in-gated app init — so it always works. Selecting it
+  // applies the theme and closes the menu, so the user doesn't have to tap away.
   { const t = document.getElementById("pfpThemeToggle");
-    if (t && !t.dataset.themeWired) { t.dataset.themeWired = "1"; t.addEventListener("click", (e) => { e.stopPropagation(); toggleTheme(); }); } }
+    if (t && !t.dataset.themeWired) { t.dataset.themeWired = "1"; t.addEventListener("click", () => { toggleTheme(); closePfpMenu(); }); } }
   updateThemeToggleIcon();
 }
 setupThemeToggles();
