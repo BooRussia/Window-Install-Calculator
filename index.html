@@ -1072,6 +1072,20 @@
   /* gold gradient on input — needs both background and color: transparent to clip the gradient to text */
   input.gold-glow { -webkit-text-fill-color: transparent; }
   input.gold-glow::placeholder { -webkit-text-fill-color: rgba(148,163,184,0.35); color: rgba(148,163,184,0.35); }
+  /* Rolling last word of each hero line. Only the trailing word cycles; "Anchor
+     your" / "Reel in your" stay fixed. Vertical roll, transform-only (GPU). The
+     period lives inside each word cell so it scrolls with the word. Each cell has
+     descender headroom (1.3 line-height) so g/p/j/y aren't clipped, and the loop
+     splices a clone of the first word so it always rolls one direction. */
+  .hero-line { white-space: nowrap; }
+  .hero-roll { display: inline-block; overflow: hidden; height: 1.3em; line-height: 1.3em; vertical-align: top; transition: width .42s cubic-bezier(0.4, 0, 0.2, 1); }
+  .hero-roll .hero-stack { display: block; transform: translateY(calc(var(--i, 0) * -1.3em)); transition: transform .42s cubic-bezier(0.4, 0, 0.2, 1); }
+  .hero-roll .hero-stack > span { display: block; width: max-content; height: 1.3em; line-height: 1.3em; }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-roll { height: auto; overflow: visible; }
+    .hero-roll .hero-stack { transform: none; transition: none; }
+    .hero-roll .hero-stack > span:not(:first-child) { display: none; }
+  }
   .card {
     background: linear-gradient(180deg, rgba(15,23,42,0.7) 0%, rgba(2,6,23,0.7) 100%);
     border: 1px solid rgba(30,41,59,0.9);
@@ -4133,8 +4147,8 @@
   <!-- Hero -->
   <section class="max-w-4xl mx-auto px-5 sm:px-6 pt-16 sm:pt-24 pb-24 sm:pb-32 text-center">
     <div class="lp-reveal"><span class="lp-eyebrow">Built for window &amp; door installers</span></div>
-    <h1 class="lp-reveal text-[2.65rem] leading-[1.03] sm:text-7xl font-black tracking-tightest mt-6 text-slate-100">
-      Anchor your profit.<br><span class="gold-glow">Reel in your time.</span>
+    <h1 class="lp-reveal text-[2.65rem] leading-[1.3] sm:text-7xl font-black tracking-tightest mt-6 text-slate-100">
+      <span aria-hidden="true"><span class="hero-line">Anchor your <span class="hero-roll"><span class="hero-stack" id="heroRollA"><span>profit.</span><span>margins.</span><span>pricing.</span><span>numbers.</span><span>bids.</span><span>profit.</span></span></span></span><br><span class="hero-line"><span class="gold-glow">Reel in your </span><span class="hero-roll"><span class="hero-stack" id="heroRollB"><span class="gold-glow">time.</span><span class="gold-glow">hours.</span><span class="gold-glow">jobs.</span><span class="gold-glow">money.</span><span class="gold-glow">weekends.</span><span class="gold-glow">time.</span></span></span></span></span><span class="sr-only">Anchor your profit. Reel in your time.</span>
     </h1>
     <p class="lp-reveal text-slate-300 text-base sm:text-lg max-w-xl mx-auto mt-6 leading-relaxed">
       Price a whole window or door job in under a minute — materials, labor, and your markup — then hand the homeowner a clean quote and your crew the cut list. <span class="text-[#c9a558] font-semibold">Built for Florida installers.</span>
@@ -9296,6 +9310,57 @@ function setupThemeToggles() {
 }
 setupThemeToggles();
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupThemeToggles);
+
+// Hero rolling-word headline. Both last words cycle in sync; seamless one-way
+// loop via a cloned first cell + a transitionless snap back. Runs ungated (the
+// landing page is pre-auth). Starts after first paint (LCP shows the static
+// first words), and pauses when off-screen or the tab is hidden.
+(function initHeroRoll(){
+  var A = document.getElementById("heroRollA"), B = document.getElementById("heroRollB");
+  if (!A || !B) return;
+  if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return; // static first word
+  function roller(el){ return { el: el, n: el.children.length - 1, i: 0 }; }
+  // Slot width = the visible word, so it sits snug after "your" and the centered
+  // line re-centers as words change. To avoid clipping a wider word mid-roll, the
+  // slot is pre-expanded to fit BOTH the outgoing and incoming word, then settles
+  // to the new word after the roll completes.
+  function widthAt(r, idx){ var c = r.el.children[idx]; return c ? c.offsetWidth : 0; }
+  function setSlot(r, w, animate){ var P = r.el.parentNode; if (!w) return; if (!animate) P.style.transition = "none"; P.style.width = w + "px"; if (!animate) { void P.offsetWidth; P.style.transition = ""; } }
+  function step(r){
+    var ni = r.i + 1;
+    setSlot(r, Math.max(widthAt(r, r.i), widthAt(r, ni)), false);  // pre-expand so neither word clips during the roll
+    r.i = ni;
+    r.el.style.setProperty("--i", r.i);
+    var landed = r.i;
+    setTimeout(function(){ if (r.i === landed) setSlot(r, widthAt(r, landed), true); }, 470);  // settle (smooth) to the new word
+    if (r.i === r.n) {                       // rolled into the cloned first word → snap back invisibly
+      setTimeout(function(){
+        r.el.style.transition = "none";
+        r.i = 0; r.el.style.setProperty("--i", "0");
+        void r.el.offsetWidth;              // force reflow so the reset isn't animated
+        r.el.style.transition = "";
+        setSlot(r, widthAt(r, 0), false);   // clone == first word; keep the width exact
+      }, 480);                              // just after the .42s roll completes
+    }
+  }
+  var rA = roller(A), rB = roller(B), timer = null;
+  setSlot(rA, widthAt(rA, 0), false); setSlot(rB, widthAt(rB, 0), false);  // size to the first word, no opening animation
+  function tick(){ step(rA); step(rB); }     // synced pairs
+  function start(){ if (!timer) timer = setInterval(tick, 2600); }
+  function stop(){ clearInterval(timer); timer = null; }
+  var inView = true;
+  function update(){ (inView && !document.hidden) ? start() : stop(); }
+  setTimeout(function(){
+    start();
+    try {
+      var h = A.closest("h1");
+      if (window.IntersectionObserver && h) {
+        new IntersectionObserver(function(es){ inView = es[0].isIntersecting; update(); }, { threshold: 0.35 }).observe(h);
+      }
+    } catch (_) {}
+  }, 1200);
+  document.addEventListener("visibilitychange", update);
+})();
 
 // The account menu is position:fixed and shared by the app-header avatar and
 // the dashboard avatar — anchor it under whichever trigger opened it.
