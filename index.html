@@ -10016,7 +10016,7 @@ function renderSavedJobs() {
 let _dashPhotoTargetId = null;
 let _dashStatusFilter = null;
 let _dashWired = false;
-let _dashMatChartMode = "pie";
+let _dashChartType = { materials: "pie", customers: "pie", jobs: "pie" };   // chart type per insight tab
 let _dashView = "home";              // home | insights | jobs | esign | calibration — the launchpad drill-in
 let _dashCalibDismissed = new Set(); // itemId|rateKey suggestions the owner waved off this session
 // Distinct, theme-friendly palette for the material charts.
@@ -10734,15 +10734,42 @@ function renderDashCustomers(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">${stats.length} customer${stats.length === 1 ? "" : "s"} · ${grandJobs} job${grandJobs === 1 ? "" : "s"} — who drives your business. Tap one for the full breakdown.</p>
-        <div class="seg seg-sm" id="dashCustSeg" style="max-width:320px;">
-          <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
-          <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
-          <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="seg seg-sm" id="dashCustSeg" style="max-width:320px;">
+            <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
+            <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
+            <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
+          </div>
+          ${chartTypeSelectHTML("dashCustType", "customers")}
         </div>
-        <div class="mt-4 dash-cust-chart">${custDonutSVG(stats, mode)}</div>
+        <div id="dashCustChart" class="dash-cust-chart mt-4"></div>
       </div>
       <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${rows}</div>`;
+  renderCustChart();
   return true;
+}
+
+// Render the Customers chart (pie / bars / trend) for the active metric.
+function renderCustChart() {
+  const el = document.getElementById("dashCustChart");
+  if (!el) return;
+  const jobs = loadJobs();
+  const stats = getCustomerStats(jobs);
+  const mode = _dashCustMode;
+  const type = _dashChartType.customers;
+  if (type === "bar") {
+    const ranked = stats.slice().sort((a, b) => custMetric(b, mode) - custMetric(a, mode));
+    const fmt = mode === "jobs" ? ((v) => String(Math.round(v))) : formatMoney;
+    el.innerHTML = dashBarsHTML(ranked.map((c, i) => ({ label: c.name, value: custMetric(c, mode), color: CUST_COLORS[i % CUST_COLORS.length] })), fmt);
+  } else if (type === "trend") {
+    const valFn = mode === "jobs" ? (() => 1)
+      : (j) => jobIsWon(j) ? (mode === "profit" ? (Number(j.profit) || 0) : (Number(j.sellingPrice) || 0)) : 0;
+    const title = mode === "jobs" ? "Jobs" : (mode === "profit" ? "Won profit" : "Won revenue");
+    const valFmt = mode === "jobs" ? ((v) => String(Math.round(v))) : formatMoney;
+    el.innerHTML = dashTrendSVG(dashMonthlySeries(jobs, valFn), { title, valFmt });
+  } else {
+    el.innerHTML = custDonutSVG(stats, mode);
+  }
 }
 
 // Per-customer detail modal.
@@ -11159,17 +11186,6 @@ function renderDashJobsPanel(jobs) {
   const metric = _dashJobsMetric;
   const metricVal = (s) => metric === "value" ? sum(groups[s]) : groups[s].length;
   const total = JOB_STATUSES.reduce((t, s) => t + metricVal(s), 0);
-  const cx = 120, cy = 120, R = 82, W = 34, C = 2 * Math.PI * R;
-  let off = 0, rings = "";
-  JOB_STATUSES.forEach(s => {
-    const v = metricVal(s);
-    if (v <= 0) return;
-    const dash = (v / total) * C;
-    rings += `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${STATUS_COLORS[s]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
-    off += dash;
-  });
-  const centerLabel = metric === "value" ? "Pipeline value" : "Total jobs";
-  const centerVal = metric === "value" ? formatMoney(total) : String(total);
   const legend = JOB_STATUSES.map(s => {
     const cnt = groups[s].length, val = sum(groups[s]);
     const pct = total > 0 ? Math.round(metricVal(s) / total * 100) : 0;
@@ -11184,30 +11200,68 @@ function renderDashJobsPanel(jobs) {
   }).join("");
   const filterNote = _dashStatusFilter
     ? `<button type="button" data-dash-filter="${_dashStatusFilter}" class="text-[11px] text-[#c9a558] font-semibold hover:underline">Showing ${_dashStatusFilter} below · clear ✕</button>`
-    : `<span class="text-[11px] text-slate-500">Tap a status to filter the jobs below.</span>`;
-  const donut = total > 0
-    ? `<div class="flex flex-col sm:flex-row items-center gap-5 text-slate-400 dash-jobs-chart">
-        <svg viewBox="0 0 240 240" style="width:180px;height:180px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
-          <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
-          <text class="donut-center" data-countup="${total}" data-count-fmt="${metric === "value" ? "money" : "int"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
-        </svg>
-        <div class="flex-1 w-full space-y-0.5">${legend}</div>
-      </div>`
-    : `<div class="text-center text-slate-500 text-sm py-8">No ${metric === "value" ? "pipeline value" : "jobs"} to chart yet.</div>`;
+    : `<span class="text-[11px] text-slate-500">Tap a status below to filter.</span>`;
 
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-4">
-        <p class="text-[11px] text-slate-500 mb-3 font-medium">${real.length} saved job${real.length === 1 ? "" : "s"} by status — tap a slice to filter below.</p>
+        <p class="text-[11px] text-slate-500 mb-3 font-medium">${real.length} saved job${real.length === 1 ? "" : "s"} by status — tap a status to filter the list.</p>
         <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div class="seg seg-sm" id="dashJobsSeg" style="max-width:220px;">
-            <button type="button" class="seg-btn ${metric === "count" ? "active" : ""}" data-jobchart="count">By count</button>
-            <button type="button" class="seg-btn ${metric === "value" ? "active" : ""}" data-jobchart="value">By value</button>
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="seg seg-sm" id="dashJobsSeg" style="max-width:220px;">
+              <button type="button" class="seg-btn ${metric === "count" ? "active" : ""}" data-jobchart="count">By count</button>
+              <button type="button" class="seg-btn ${metric === "value" ? "active" : ""}" data-jobchart="value">By value</button>
+            </div>
+            ${chartTypeSelectHTML("dashJobsType", "jobs")}
           </div>
           ${filterNote}
         </div>
-        ${donut}
+        <div id="dashJobsChart" class="dash-jobs-chart"></div>
+        <div class="mt-3 space-y-0.5">${legend}</div>
       </div>`;
+  renderJobsChart();
   return true;
+}
+
+// Render the Jobs/pipeline chart (pie donut / bars / trend). The clickable status
+// legend is rendered separately below the chart, so the filter is always available.
+function renderJobsChart() {
+  const el = document.getElementById("dashJobsChart");
+  if (!el) return;
+  const jobs = loadJobs();
+  const { groups, sum } = pipelineStats(jobs);
+  const metric = _dashJobsMetric;
+  const metricVal = (s) => metric === "value" ? sum(groups[s]) : groups[s].length;
+  const total = JOB_STATUSES.reduce((t, s) => t + metricVal(s), 0);
+  const intFmt = (v) => String(Math.round(v));
+  const type = _dashChartType.jobs;
+  if (type === "bar") {
+    el.innerHTML = dashBarsHTML(JOB_STATUSES.map(s => ({ label: s, value: metricVal(s), color: STATUS_COLORS[s] })), metric === "value" ? formatMoney : intFmt);
+    return;
+  }
+  if (type === "trend") {
+    const valFn = metric === "value" ? (j) => (Number(j.sellingPrice) || 0) : (() => 1);
+    el.innerHTML = dashTrendSVG(dashMonthlySeries(jobs, valFn), { title: metric === "value" ? "Pipeline value" : "Jobs", valFmt: metric === "value" ? formatMoney : intFmt });
+    return;
+  }
+  // Pie (donut only — legend lives below).
+  if (total <= 0) { el.innerHTML = `<div class="text-center text-slate-500 text-sm py-8">No ${metric === "value" ? "pipeline value" : "jobs"} to chart yet.</div>`; return; }
+  const cx = 120, cy = 120, R = 82, W = 34, C = 2 * Math.PI * R;
+  let off = 0, rings = "";
+  JOB_STATUSES.forEach(s => {
+    const v = metricVal(s);
+    if (v <= 0) return;
+    const dash = (v / total) * C;
+    rings += `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${STATUS_COLORS[s]}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    off += dash;
+  });
+  const centerLabel = metric === "value" ? "Pipeline value" : "Total jobs";
+  const centerVal = metric === "value" ? formatMoney(total) : String(total);
+  el.innerHTML = `<div class="flex justify-center text-slate-400">
+      <svg viewBox="0 0 240 240" style="width:180px;height:180px;"><g class="donut-rings">${rings}</g>
+        <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
+        <text class="donut-center" data-countup="${total}" data-count-fmt="${metric === "value" ? "money" : "int"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
+      </svg>
+    </div>`;
 }
 
 // Aggregate material consumption across saved jobs (from each job's saved rows).
@@ -11261,12 +11315,11 @@ function renderDashMaterials(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-2 border-b border-slate-800/80">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">Across ${jobCount} saved job${jobCount === 1 ? "" : "s"} · ${Math.round(totalLF)} LF total — your biggest cost drivers, ranked.</p>
-        <div class="seg seg-sm" id="dashMatSeg" style="max-width:320px;">
-          <button type="button" class="seg-btn ${_dashMatChartMode === "pie" ? "active" : ""}" data-matchart="pie">Allocation</button>
-          <button type="button" class="seg-btn ${_dashMatChartMode === "bar" ? "active" : ""}" data-matchart="bar">Bars</button>
-          <button type="button" class="seg-btn ${_dashMatChartMode === "trend" ? "active" : ""}" data-matchart="trend">Trend</button>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Chart</span>
+          ${chartTypeSelectHTML("dashMatType", "materials")}
         </div>
-        <div id="dashMatChart" class="mt-4"></div>
+        <div id="dashMatChart" class="dash-mat-chart mt-4"></div>
       </div>
       <div class="px-3 sm:px-4 py-2 overflow-x-auto">
         <table class="dash-mat-table">
@@ -11275,15 +11328,6 @@ function renderDashMaterials(jobs) {
         </table>
       </div>`;
   renderDashMatChart();
-  const seg = document.getElementById("dashMatSeg");
-  if (seg) seg.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-matchart]");
-    if (!b || b.dataset.matchart === _dashMatChartMode) return;
-    _dashMatChartMode = b.dataset.matchart;
-    seg.querySelectorAll(".seg-btn").forEach(x => x.classList.toggle("active", x.dataset.matchart === _dashMatChartMode));
-    renderDashMatChart();
-    dashPlayChart(document.getElementById("dashMatChart"));
-  });
   return true;
 }
 
@@ -11293,9 +11337,15 @@ function renderDashMatChart() {
   if (!el) return;
   const jobs = loadJobs();
   const { items } = dashMaterialStats(jobs);
-  if (_dashMatChartMode === "trend") el.innerHTML = matChartTrendSVG(jobs);
-  else if (_dashMatChartMode === "bar") el.innerHTML = matChartBarHTML(items);
-  else el.innerHTML = matChartPieSVG(items);
+  const type = _dashChartType.materials;
+  if (type === "trend") {
+    const matCost = (j) => (j.rows || []).filter(r => r && MATERIAL_IDS.includes(r.id)).reduce((s, r) => s + (Number(r.totalCost) || 0), 0);
+    el.innerHTML = dashTrendSVG(dashMonthlySeries(jobs, matCost), { title: "Total material spend", valFmt: formatMoney, riseIsBad: true });
+  } else if (type === "bar") {
+    el.innerHTML = dashBarsHTML(items.map((m, i) => ({ label: m.name, value: m.totalCost, color: MAT_COLORS[i % MAT_COLORS.length] })), formatMoney);
+  } else {
+    el.innerHTML = matChartPieSVG(items);
+  }
 }
 
 // Donut/pie of material cost allocation (stroke-dasharray ring technique so a
@@ -11326,35 +11376,42 @@ function matChartPieSVG(items) {
   </div>`;
 }
 
-// Horizontal bars of material cost allocation (HTML, themes via currentColor).
-function matChartBarHTML(items) {
-  const max = Math.max(...items.map(m => m.totalCost), 1);
-  const total = items.reduce((s, m) => s + m.totalCost, 0) || 1;
-  return `<div class="space-y-2.5 text-slate-400">` + items.map((m, i) => {
-    const pct = m.totalCost / max * 100;
-    const share = Math.round(m.totalCost / total * 100);
+// ── Shared insight-chart toolkit (used by Materials, Customers, and Jobs) ──
+// Chart-type dropdown (Pie chart / Bars / Trend); the choice is shared across tabs.
+function chartTypeSelectHTML(id, tab) {
+  const cur = _dashChartType[tab] || "pie";
+  const opt = (v, label) => `<option value="${v}" ${cur === v ? "selected" : ""}>${label}</option>`;
+  return `<select id="${id}" data-charttype data-charttab="${tab}" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Chart type" aria-label="Chart type">${opt("pie", "Pie chart")}${opt("bar", "Bars")}${opt("trend", "Trend")}</select>`;
+}
+// Horizontal bars from a normalized series [{label, value, color}]. fmt formats the value.
+function dashBarsHTML(series, fmt) {
+  fmt = fmt || ((v) => String(Math.round(v)));
+  const items = (series || []).filter(s => s.value > 0);
+  if (!items.length) return `<div class="text-center text-slate-500 text-sm py-10">Nothing to chart yet.</div>`;
+  const max = Math.max(...items.map(s => s.value), 1);
+  const total = items.reduce((s, x) => s + x.value, 0) || 1;
+  return `<div class="space-y-2.5 text-slate-400">` + items.map(s => {
+    const pct = s.value / max * 100, share = Math.round(s.value / total * 100);
     return `<div>
       <div class="flex items-center justify-between text-[11px] mb-1">
-        <span class="font-semibold" style="color:currentColor">${escHtml(m.name)}</span>
-        <span style="color:currentColor">${formatMoney(m.totalCost)} · ${share}%</span>
+        <span class="font-semibold" style="color:currentColor">${escHtml(s.label)}</span>
+        <span style="color:currentColor">${fmt(s.value)} · ${share}%</span>
       </div>
       <div style="height:10px;border-radius:6px;background:rgba(148,163,184,0.16);overflow:hidden;">
-        <div class="dash-bar-fill" style="height:100%;width:${pct.toFixed(1)}%;border-radius:6px;background:${MAT_COLORS[i % MAT_COLORS.length]};"></div>
+        <div class="dash-bar-fill" style="height:100%;width:${pct.toFixed(1)}%;border-radius:6px;background:${s.color};"></div>
       </div>
     </div>`;
   }).join("") + `</div>`;
 }
-
-// Total material spend over time — monthly if 2+ months of jobs, else per-job.
-function matTimeSeries(jobs) {
+// Bucket jobs into a monthly value series (per-job fallback under 2 months) via valueFn(job)->number.
+function dashMonthlySeries(jobs, valueFn) {
   const real = (jobs || []).filter(j => !j.isDraft);
-  const matCost = (j) => (j.rows || []).filter(r => r && MATERIAL_IDS.includes(r.id)).reduce((s, r) => s + (Number(r.totalCost) || 0), 0);
   const byMonth = {};
   real.forEach(j => {
     const d = j.createdAt ? new Date(j.createdAt) : null;
     if (!d || isNaN(d)) return;
     const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-    byMonth[key] = (byMonth[key] || 0) + matCost(j);
+    byMonth[key] = (byMonth[key] || 0) + (Number(valueFn(j)) || 0);
   });
   const months = Object.keys(byMonth).sort();
   if (months.length >= 2) {
@@ -11365,14 +11422,15 @@ function matTimeSeries(jobs) {
   }
   const dated = real.filter(j => j.createdAt && !isNaN(new Date(j.createdAt)))
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  return { byMonth: false, points: dated.map(j => ({ label: new Date(j.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }), value: matCost(j) })) };
+  return { byMonth: false, points: dated.map(j => ({ label: new Date(j.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }), value: Number(valueFn(j)) || 0 })) };
 }
-
-// Line+area trend of total material spend, with an up/down indicator.
-function matChartTrendSVG(jobs) {
-  const ts = matTimeSeries(jobs);
-  const pts = ts.points;
-  if (pts.length < 2) return `<div class="text-center text-slate-500 text-sm py-10">Save a couple more jobs ${ts.byMonth ? "across months" : "on different dates"} to chart a material-cost trend.</div>`;
+// Generic line+area trend from a {byMonth, points:[{label,value}]} series.
+// opts: { title, valFmt(v)->str, riseIsBad (default false → rising is green) }
+function dashTrendSVG(ts, opts) {
+  opts = opts || {};
+  const valFmt = opts.valFmt || ((v) => String(Math.round(v)));
+  const pts = ts.points || [];
+  if (pts.length < 2) return `<div class="text-center text-slate-500 text-sm py-10">Save a couple more jobs ${ts.byMonth ? "across months" : "on different dates"} to chart a trend.</div>`;
   const W = 600, H = 220, padL = 50, padR = 14, padT = 14, padB = 28;
   const maxV = Math.max(...pts.map(p => p.value), 1);
   const xFor = (i) => padL + (pts.length === 1 ? 0 : (i / (pts.length - 1)) * (W - padL - padR));
@@ -11383,7 +11441,7 @@ function matChartTrendSVG(jobs) {
     + ` L ${xFor(pts.length - 1).toFixed(1)} ${(H - padB).toFixed(1)} Z`;
   const grid = [0, 0.5, 1].map(f => {
     const y = padT + (1 - f) * (H - padT - padB);
-    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity="0.12"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="currentColor" style="font-size:9px;opacity:0.6;">${formatMoney(maxV * f)}</text>`;
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity="0.12"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="currentColor" style="font-size:9px;opacity:0.6;">${valFmt(maxV * f)}</text>`;
   }).join("");
   const step = Math.max(1, Math.ceil(pts.length / 6));
   const xlabels = pts.map((p, i) => (i % step === 0 || i === pts.length - 1)
@@ -11393,11 +11451,11 @@ function matChartTrendSVG(jobs) {
   const dir = last > first ? "up" : (last < first ? "down" : "flat");
   const pct = first > 0 ? Math.round((last - first) / first * 100) : 0;
   const trendTxt = dir === "flat" ? "flat" : `${dir === "up" ? "▲" : "▼"} ${Math.abs(pct)}%`;
-  // Rising material cost is a watch-out (rose); falling is good (green).
-  const trendColor = dir === "up" ? "#fb7185" : (dir === "down" ? "#34d399" : "#94a3b8");
+  const goodUp = !opts.riseIsBad;
+  const trendColor = dir === "flat" ? "#94a3b8" : ((dir === "up") === goodUp ? "#34d399" : "#fb7185");
   return `<div class="text-slate-400">
     <div class="flex items-center justify-between mb-1.5">
-      <span class="text-[11px] font-semibold" style="color:currentColor">Total material spend ${ts.byMonth ? "/ month" : "/ job"}</span>
+      <span class="text-[11px] font-semibold" style="color:currentColor">${escHtml(opts.title || "")} ${ts.byMonth ? "/ month" : "/ job"}</span>
       <span class="text-[11px] font-bold" style="color:${trendColor}">${trendTxt} <span style="color:currentColor;opacity:0.6;font-weight:600;">vs first</span></span>
     </div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" preserveAspectRatio="none">
@@ -11408,6 +11466,8 @@ function matChartTrendSVG(jobs) {
     </svg>
   </div>`;
 }
+// A job counts as "won" for revenue/profit roll-ups when Won or Approved (e-signed).
+function jobIsWon(j) { const s = jobStatus(j); return s === "Won" || s === "Approved"; }
 
 function dashJobCard(j) {
   const st = jobStatus(j);
@@ -12220,6 +12280,19 @@ function wireDashboard() {
     const open = e.target.closest("[data-cust-open]");
     if (open) { openCustomerStats(open.dataset.custOpen); return; }
   });
+  // Chart-type dropdown (Pie / Bars / Trend) on each insight panel.
+  [["dashMaterials", renderDashMatChart, "dashMatChart"],
+   ["dashCustomers", renderCustChart, "dashCustChart"],
+   ["dashPipelinePanel", renderJobsChart, "dashJobsChart"]].forEach(([panelId, renderFn, chartId]) => {
+    const p = document.getElementById(panelId);
+    if (p) p.addEventListener("change", (e) => {
+      const sel = e.target.closest("[data-charttype]");
+      if (!sel) return;
+      _dashChartType[sel.dataset.charttab] = sel.value;
+      renderFn();
+      dashPlayChart(document.getElementById(chartId));
+    });
+  });
   const csm = document.getElementById("customerStatsModal");
   if (csm) csm.addEventListener("click", (e) => { if (e.target.dataset.closeCuststats !== undefined) closeCustomerStats(); });
   const photoInput = document.getElementById("dashPhotoInput");
@@ -12330,7 +12403,6 @@ function saveJobDetailsEdits(id, silent) {
   j.customerNotes = g("jdNotes");
   // Job name is its own field now; fall back to customer/old name if cleared.
   j.name = g("jdJobName") || j.customerName || j.name || "Untitled job";
-  applyActualsToJob(j);   // persist any typed actuals alongside the contact edits
   saveJobs(jobs);
   if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   if (STATE.currentJobId === id) {
@@ -12358,39 +12430,6 @@ function reconVarCls(est, actual) {
   const d = (actual - est) / est;
   if (Math.abs(d) < 0.005) return "";
   return d > 0 ? "over" : "under";
-}
-// The "Materials & labor used" section for the Job Details modal.
-function jobReconHTML(job) {
-  const rows = jobReconcilableRows(job);
-  if (!rows.length) return "";   // doors-only / no per-LF lines → nothing to reconcile
-  const actuals = (job.actuals && typeof job.actuals === "object") ? job.actuals : {};
-  const body = rows.map(r => {
-    const est = Number(r.quantity) || 0;
-    const unit = r.unit || "";
-    const a = actuals[r.id];
-    const used = (a && Number(a.used) > 0) ? Number(a.used) : "";
-    const hasVal = used !== "";
-    const nameCls = r.isLabor ? "jd-recon-name labor" : "jd-recon-name";
-    return `<div class="jd-recon-row">
-      <span class="${nameCls}">${escHtml(r.name)}</span>
-      <span class="jd-recon-est">${formatQty(est)} ${escHtml(unit)}</span>
-      <input type="text" inputmode="decimal" class="jd-recon-input" data-recon-input="${escHtml(r.id)}" data-recon-est="${est}" value="${hasVal ? escHtml(String(used)) : ""}" placeholder="—" aria-label="Actual ${escHtml(unit)} used for ${escHtml(r.name)}">
-      <span class="jd-recon-var ${hasVal ? reconVarCls(est, used) : ""}" data-recon-var="${escHtml(r.id)}">${hasVal ? reconVarText(est, used) : "—"}</span>
-    </div>`;
-  }).join("");
-  return `
-    <div class="px-6 pt-3 pb-1">
-      <div class="jd-section-title mb-2">Materials &amp; labor used</div>
-      <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">Log what your crew actually used vs. what this quote estimated. Anchor blends these across jobs to sharpen your rates — see <b>Pricing calibration</b> on the dashboard.</p>
-      <div class="jd-recon">
-        <div class="jd-recon-head"><span>Item</span><span>Estimated</span><span>Actual used</span><span>Variance</span></div>
-        ${body}
-        <div class="jd-recon-actions">
-          <span class="text-[11px] text-slate-500 hidden sm:inline">Saved with the job — drives your calibration.</span>
-          <button type="button" id="jdSaveActuals" class="btn rounded-full px-4 py-2 text-[12.5px] font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] ml-auto">Save actuals</button>
-        </div>
-      </div>
-    </div>`;
 }
 // Recompute one reconciliation row's variance label from its input (live as you type).
 function updateReconVar(inp) {
@@ -12533,7 +12572,6 @@ function renderJobDetails(job) {
         ${apprBlock}
       </div>
     </div>
-    ${jobReconHTML(job)}
     <div class="px-6 pb-2">${jobGalleryHTML(job)}</div>
     <div class="px-6 pb-1">
       <div class="jd-section-title mb-2">Documents</div>
@@ -12589,19 +12627,7 @@ function renderJobDetails(job) {
   const del = body.querySelector("[data-jd-delete]");
   if (del) del.addEventListener("click", () => { if (confirm("Delete this job? This can't be undone.")) { deleteJob(job.id); closeJobDetails(); renderDashboard(); } });
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
-  // Actuals: save button + live per-row variance as you type.
-  const saveAct = document.getElementById("jdSaveActuals");
-  if (saveAct) saveAct.addEventListener("click", () => saveJobActuals(job.id));
-  body.querySelectorAll("[data-recon-input]").forEach(inp => {
-    inp.addEventListener("input", () => {
-      const est = Number(inp.dataset.reconEst) || 0;
-      const v = parseFloat((inp.value || "").replace(/[^0-9.]/g, ""));
-      const varEl = body.querySelector(`[data-recon-var="${(window.CSS && CSS.escape) ? CSS.escape(inp.dataset.reconInput) : inp.dataset.reconInput}"]`);
-      if (!varEl) return;
-      if (isFinite(v) && v > 0) { varEl.textContent = reconVarText(est, v); varEl.className = "jd-recon-var " + reconVarCls(est, v); }
-      else { varEl.textContent = "—"; varEl.className = "jd-recon-var"; }
-    });
-  });
+  // (Logging actuals moved to the dashboard's Pricing calibration card.)
   const jdPhoto = document.getElementById("jdPhoto");
   if (jdPhoto) jdPhoto.addEventListener("click", () => { _dashPhotoTargetId = job.id; document.getElementById("dashPhotoInput")?.click(); });
   const jdGen = document.getElementById("jdGenThumb");
