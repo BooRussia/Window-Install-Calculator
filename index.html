@@ -10954,13 +10954,13 @@ function renderDashCustomers(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">${stats.length} customer${stats.length === 1 ? "" : "s"} · ${grandJobs} job${grandJobs === 1 ? "" : "s"} — who drives your business. Tap one for the full breakdown.</p>
-        <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
           <div class="seg seg-sm" id="dashCustSeg" style="max-width:320px;">
             <button type="button" class="seg-btn ${mode === "revenue" ? "active" : ""}" data-custchart="revenue">Revenue</button>
             <button type="button" class="seg-btn ${mode === "profit" ? "active" : ""}" data-custchart="profit">Profit</button>
             <button type="button" class="seg-btn ${mode === "jobs" ? "active" : ""}" data-custchart="jobs">Jobs</button>
           </div>
-          ${chartTypeSelectHTML("dashCustType", "customers")}
+          ${chartTypeControlHTML("dashCustType", "customers")}
         </div>
         <div id="dashCustChart" class="dash-cust-chart mt-4"></div>
       </div>
@@ -11425,16 +11425,14 @@ function renderDashJobsPanel(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-4">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">${real.length} saved job${real.length === 1 ? "" : "s"} by status — tap a status to filter the list.</p>
-        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div class="flex items-center gap-2 flex-wrap">
-            <div class="seg seg-sm" id="dashJobsSeg" style="max-width:220px;">
-              <button type="button" class="seg-btn ${metric === "count" ? "active" : ""}" data-jobchart="count">By count</button>
-              <button type="button" class="seg-btn ${metric === "value" ? "active" : ""}" data-jobchart="value">By value</button>
-            </div>
-            ${chartTypeSelectHTML("dashJobsType", "jobs")}
+        <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+          <div class="seg seg-sm" id="dashJobsSeg" style="max-width:220px;">
+            <button type="button" class="seg-btn ${metric === "count" ? "active" : ""}" data-jobchart="count">By count</button>
+            <button type="button" class="seg-btn ${metric === "value" ? "active" : ""}" data-jobchart="value">By value</button>
           </div>
-          ${filterNote}
+          ${chartTypeControlHTML("dashJobsType", "jobs")}
         </div>
+        <div class="mb-3">${filterNote}</div>
         <div id="dashJobsChart" class="dash-jobs-chart"></div>
         <div class="mt-3 space-y-0.5">${legend}</div>
       </div>`;
@@ -11535,9 +11533,8 @@ function renderDashMaterials(jobs) {
   wrap.innerHTML = `
       <div class="px-5 sm:px-6 pt-4 pb-2 border-b border-slate-800/80">
         <p class="text-[11px] text-slate-500 mb-3 font-medium">Across ${jobCount} saved job${jobCount === 1 ? "" : "s"} · ${Math.round(totalLF)} LF total — your biggest cost drivers, ranked.</p>
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Chart</span>
-          ${chartTypeSelectHTML("dashMatType", "materials")}
+        <div class="flex items-center justify-end">
+          ${chartTypeControlHTML("dashMatType", "materials")}
         </div>
         <div id="dashMatChart" class="dash-mat-chart mt-4"></div>
       </div>
@@ -11602,6 +11599,11 @@ function chartTypeSelectHTML(id, tab) {
   const cur = _dashChartType[tab] || "pie";
   const opt = (v, label) => `<option value="${v}" ${cur === v ? "selected" : ""}>${label}</option>`;
   return `<select id="${id}" data-charttype data-charttab="${tab}" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Chart type" aria-label="Chart type">${opt("pie", "Pie chart")}${opt("bar", "Bars")}${opt("trend", "Trend")}</select>`;
+}
+// "Chart [dropdown]" control — placed on the RIGHT of every insight panel's
+// control row for consistent placement across Materials / Customers / Jobs.
+function chartTypeControlHTML(id, tab) {
+  return `<div class="flex items-center gap-2 shrink-0"><span class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Chart</span>${chartTypeSelectHTML(id, tab)}</div>`;
 }
 // Horizontal bars from a normalized series [{label, value, color}]. fmt formats the value.
 function dashBarsHTML(series, fmt) {
