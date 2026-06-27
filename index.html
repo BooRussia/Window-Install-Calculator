@@ -2940,6 +2940,29 @@
   [data-theme="light"] .calib-job-head:hover { background: #f1f3f6; }
   [data-theme="light"] .calib-empty { border-color: #d8dde6; }
   [data-theme="light"] .esign-send { background: #faf6ee; border-color: #e7dcc4; }
+  /* Follow-up nudges */
+  .nudge-row { display: flex; align-items: center; gap: 10px; border: 1px solid #1e293b; border-radius: 12px; background: rgba(15,23,42,0.5); padding: 11px 13px; margin-bottom: 8px; }
+  .nudge-dot { width: 9px; height: 9px; border-radius: 999px; flex-shrink: 0; }
+  .nudge-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+  .nudge-title { font-size: 13.5px; font-weight: 700; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nudge-sub { font-size: 11.5px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nudge-x { flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent; color: #64748b; font-size: 20px; line-height: 1; cursor: pointer; }
+  .nudge-x:hover { color: #cbd5e1; background: rgba(148,163,184,0.12); }
+  /* Shopping list items */
+  .shop-list { border: 1px solid rgba(51,65,85,0.6); border-radius: 12px; overflow: hidden; margin-bottom: 12px; }
+  .shop-item { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border-bottom: 1px solid rgba(51,65,85,0.4); cursor: pointer; min-height: 48px; }
+  .shop-item:last-child { border-bottom: 0; }
+  .shop-check { width: 19px; height: 19px; flex-shrink: 0; accent-color: #b58f4a; cursor: pointer; }
+  .shop-item-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: #f1f5f9; }
+  .shop-item-qty { font-size: 12.5px; font-weight: 700; color: #c9a558; font-variant-numeric: tabular-nums; text-align: right; flex-shrink: 0; }
+  .shop-item-sub { color: #64748b; font-weight: 500; }
+  .shop-item.done .shop-item-name { color: #64748b; text-decoration: line-through; }
+  .shop-item.done .shop-item-qty { color: #475569; }
+  .shop-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  [data-theme="light"] .nudge-row { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .nudge-title, [data-theme="light"] .shop-item-name { color: #0f172a; }
+  [data-theme="light"] .shop-list { border-color: #e6e8ec; }
+  [data-theme="light"] .shop-item { border-color: #eef1f5; }
   [data-theme="light"] .dash-launch-card { background: #ffffff; border-color: #e6e8ec; }
   [data-theme="light"] .dash-launch-title { color: #0f172a; }
   [data-theme="light"] .dash-launch-preview { color: #64748b; }
@@ -5097,6 +5120,16 @@
       <!-- Pricing calibration view (estimated → actual → suggested rate updates) -->
       <div data-dashview="calibration" class="hidden">
         <div id="dashCalibration"></div>
+      </div>
+
+      <!-- Follow-ups view (stale quotes + finished jobs to calibrate) -->
+      <div data-dashview="followups" class="hidden">
+        <div id="dashFollowups"></div>
+      </div>
+
+      <!-- Shopping list view (per-job materials to buy, checkable) -->
+      <div data-dashview="shopping" class="hidden">
+        <div id="dashShopping"></div>
       </div>
     </div>
     <input id="dashPhotoInput" type="file" accept="image/png,image/jpeg" class="hidden" />
@@ -9864,10 +9897,17 @@ function renderMaterialsToggle() {
 let compareSet = new Set();
 
 // ── Deal status / pipeline ──────────────────────────────────────────────────
-// "Approved" = the customer e-signed the quote (set automatically by the
-// sign-quote edge function). It sits between Quoted and Won in the funnel.
-const JOB_STATUSES = ["Lead", "Quoted", "Approved", "Won", "Lost"];
-function jobStatus(j) { return (j && JOB_STATUSES.includes(j.status)) ? j.status : "Quoted"; }
+// "Approved" = the customer e-signed / agreed to the quote (set automatically by
+// the sign-quote edge function). Funnel: Quoted → Approved → Finished (+ Lost).
+const JOB_STATUSES = ["Quoted", "Approved", "Finished", "Lost"];
+// Legacy statuses fold into the new set (non-destructive — old saved jobs just
+// display under the new label): Lead → Quoted, Won → Approved.
+const LEGACY_STATUS_MAP = { Lead: "Quoted", Won: "Approved" };
+function jobStatus(j) {
+  let s = j && j.status;
+  if (LEGACY_STATUS_MAP[s]) s = LEGACY_STATUS_MAP[s];
+  return JOB_STATUSES.includes(s) ? s : "Quoted";
+}
 // Side-by-side comparison cap is tiered: Starter 2 · Pro & trial 5 · Shop 10.
 // Owner (admin) gets the top tier. Mirrors getAiReadCap's plan/admin handling.
 function compareCap() {
@@ -9881,11 +9921,13 @@ function compareCap() {
 }
 function statusMeta(s) {
   return ({
-    Lead:     { cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
     Quoted:   { cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
     Approved: { cls: "text-violet-300 border-violet-500/40 bg-violet-500/10" },
-    Won:      { cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
+    Finished: { cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" },
     Lost:     { cls: "text-rose-300 border-rose-500/40 bg-rose-500/10" },
+    // legacy aliases (in case a raw status slips through unnormalized)
+    Lead:     { cls: "text-[#c9a558] border-[#b58f4a]/45 bg-[#b58f4a]/12" },
+    Won:      { cls: "text-violet-300 border-violet-500/40 bg-violet-500/10" },
   })[s] || { cls: "text-slate-300 border-slate-600 bg-slate-700/20" };
 }
 function setJobStatus(id, status) {
@@ -9896,6 +9938,10 @@ function setJobStatus(id, status) {
   saveJobs(jobs);
   try { pushJobToCloud(j); } catch (_) {}
   try { window.track("job_status_changed", { status }); } catch (_) {}
+  // Marking a job Finished is the moment to capture actuals — nudge toward calibration.
+  if (status === "Finished" && jobReconcilableRows(j).length && !(j.actuals && Object.keys(j.actuals).length)) {
+    toast("Job finished — log what you actually used in Pricing calibration to sharpen your rates.");
+  }
   renderSavedJobs();
 }
 
@@ -9908,11 +9954,10 @@ function renderJobsDashboard(list) {
   const groups = {}; JOB_STATUSES.forEach(s => { groups[s] = []; });
   real.forEach(j => groups[jobStatus(j)].push(j));
   const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
-  const openVal = sum(groups.Lead) + sum(groups.Quoted);
-  const openCount = groups.Lead.length + groups.Quoted.length;
-  // Approved = the customer has e-signed, so count it as won (dollars + win rate)
-  // rather than letting signed work fall through every tile.
-  const wonish = groups.Won.concat(groups.Approved || []);
+  const openVal = sum(groups.Quoted);
+  const openCount = groups.Quoted.length;
+  // "Won" = jobs you secured: Approved (agreed / e-signed) + Finished (completed).
+  const wonish = (groups.Approved || []).concat(groups.Finished || []);
   const wonVal = sum(wonish);
   const wonCount = wonish.length, lostCount = groups.Lost.length;
   const decided = wonCount + lostCount;
@@ -10057,6 +10102,8 @@ function renderDashboard() {
   renderDashInsights(jobs);
   renderDashJobs(jobs);
   renderDashCalibration(jobs);
+  renderDashFollowups(jobs);
+  renderDashShopping(jobs);
   renderDashLaunchpad(jobs);
   // E-sign hits the network, so only refresh it when its card is actually open.
   if (_dashView === "esign") renderDashEsign();
@@ -10081,6 +10128,16 @@ const DASH_CARDS = [
     preview: (ctx) => ctx.jobCount
       ? `${ctx.jobCount} job${ctx.jobCount === 1 ? "" : "s"}${ctx.openCount ? ` · ${ctx.openCount} open` : ""}`
       : "No saved jobs yet" },
+  { key: "followups", title: "Follow-ups",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>`,
+    preview: (ctx) => ctx.followupCount
+      ? `${ctx.followupCount} need${ctx.followupCount === 1 ? "s" : ""} attention`
+      : "You're all caught up" },
+  { key: "shopping", title: "Shopping list",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2 2 4-4"/><path d="M5 6h16l-1.5 9.5a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 4H3"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>`,
+    preview: (ctx) => ctx.shoppingJobs
+      ? `${ctx.shoppingJobs} job${ctx.shoppingJobs === 1 ? "" : "s"} to shop for`
+      : "No materials to buy yet" },
   { key: "calibration", title: "Pricing calibration",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>`,
     preview: (ctx) => ctx.suggestionCount
@@ -10099,8 +10156,8 @@ function dashLaunchContext(jobs) {
   let openCount = 0, approvedCount = 0;
   real.forEach(j => {
     const s = jobStatus(j);
-    if (s === "Lead" || s === "Quoted") openCount++;
-    if (s === "Approved" || s === "Won" || j.signedAt) approvedCount++;
+    if (s === "Quoted") openCount++;
+    if (s === "Approved" || s === "Finished" || j.signedAt) approvedCount++;
   });
   let topDriver = null;
   try {
@@ -10116,7 +10173,10 @@ function dashLaunchContext(jobs) {
     suggestionCount = cal.suggestions.length;
     actualsJobs = cal.actualsJobs;
   } catch (_) {}
-  return { jobCount: real.length, openCount, approvedCount, topDriver, suggestionCount, actualsJobs };
+  let followupCount = 0, shoppingJobs = 0;
+  try { followupCount = computeFollowups(jobs).count; } catch (_) {}
+  try { shoppingJobs = dashShoppingJobs(jobs).length; } catch (_) {}
+  return { jobCount: real.length, openCount, approvedCount, topDriver, suggestionCount, actualsJobs, followupCount, shoppingJobs };
 }
 
 function renderDashLaunchpad(jobs) {
@@ -10174,6 +10234,19 @@ function dashGoTo(view) {
   const panel = document.querySelector(`#dashSection [data-dashview="${view}"]`);
   if (panel) panel.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 300, easing: "cubic-bezier(0.22,0.7,0.3,1)" });
   if (view === "insights") { const p = document.getElementById(INSIGHT_PANELS[_dashInsightTab]); if (p && !p.classList.contains("hidden")) dashPlayPanel(p); }
+}
+
+// Open the Pricing calibration card and expand a specific job's actuals editor.
+function dashCalibrateJob(id) {
+  dashGoTo("calibration");
+  setTimeout(() => {
+    const cal = document.getElementById("dashCalibration");
+    if (!cal) return;
+    const esc = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+    const tg = cal.querySelector(`[data-calib-toggle="${esc}"]`);
+    if (tg && tg.getAttribute("aria-expanded") !== "true") tg.click();
+    if (tg) tg.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 60);
 }
 
 /* ============================================================
@@ -10425,6 +10498,153 @@ function applyCalibration(itemId, rateKey, value) {
   renderDashboard();
 }
 
+/* ============================================================
+   FOLLOW-UPS — actionable nudges: quotes that have gone quiet,
+   and finished jobs whose actuals haven't been logged yet.
+   ============================================================ */
+const FOLLOWUP_STALE_DAYS = 14;       // a Quoted job with no movement this long needs a nudge
+let _dashNudgeDismissed = new Set();  // nudge keys waved off this session
+
+function computeFollowups(jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft);
+  const now = Date.now();
+  const stale = [], calibrate = [];
+  real.forEach(j => {
+    const s = jobStatus(j);
+    const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
+    if (s === "Quoted" && ts) {
+      const days = Math.floor((now - ts) / 86400000);
+      const key = "stale:" + j.id;
+      if (days >= FOLLOWUP_STALE_DAYS && !_dashNudgeDismissed.has(key)) stale.push({ job: j, days, key });
+    }
+    if (s === "Finished" && jobReconcilableRows(j).length && !(j.actuals && Object.keys(j.actuals).length)) {
+      const key = "calib:" + j.id;
+      if (!_dashNudgeDismissed.has(key)) calibrate.push({ job: j, key });
+    }
+  });
+  stale.sort((a, b) => b.days - a.days);
+  return { stale, calibrate, count: stale.length + calibrate.length };
+}
+
+const DASH_CHEV = `<svg class="calib-job-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 8 10 12 14 8"/></svg>`;
+
+function renderDashFollowups(jobs) {
+  const wrap = document.getElementById("dashFollowups");
+  if (!wrap) return;
+  const { stale, calibrate } = computeFollowups(jobs);
+  if (!stale.length && !calibrate.length) {
+    wrap.innerHTML = `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">You're all caught up. 🎉</div><div class="text-xs mt-1.5 max-w-sm mx-auto">Quotes that go quiet (no movement for ${FOLLOWUP_STALE_DAYS}+ days) and finished jobs you haven't calibrated will show up here.</div></div>`;
+    return;
+  }
+  const jobSub = (j, name) => [(j.customerName && j.customerName !== name) ? j.customerName : "", (j.totalLF != null && j.totalLF !== "") ? `${j.totalLF} LF` : ""].filter(Boolean).join(" · ");
+  const staleHTML = stale.length ? `<div class="mb-5"><div class="jd-section-title mb-2">Quotes needing a follow-up</div>${stale.map(n => {
+    const j = n.job, name = j.name || j.customerName || "Untitled job", sub = jobSub(j, name);
+    return `<div class="nudge-row">
+        <span class="nudge-dot" style="background:#c9a558;"></span>
+        <span class="nudge-main">
+          <span class="nudge-title">${escHtml(name)}</span>
+          <span class="nudge-sub">${sub ? escHtml(sub) + " · " : ""}Quoted ${n.days} day${n.days === 1 ? "" : "s"} ago — no movement</span>
+        </span>
+        <button type="button" class="calib-apply" data-nudge-open="${escHtml(j.id)}">Open job</button>
+        <button type="button" class="nudge-x" data-nudge-dismiss="${escHtml(n.key)}" aria-label="Dismiss">×</button>
+      </div>`;
+  }).join("")}</div>` : "";
+  const calibHTML = calibrate.length ? `<div><div class="jd-section-title mb-2">Finished jobs to calibrate</div>${calibrate.map(n => {
+    const j = n.job, name = j.name || j.customerName || "Untitled job", sub = jobSub(j, name);
+    return `<div class="nudge-row">
+        <span class="nudge-dot" style="background:#34d399;"></span>
+        <span class="nudge-main">
+          <span class="nudge-title">${escHtml(name)}</span>
+          <span class="nudge-sub">${sub ? escHtml(sub) + " · " : ""}Finished — log what you used to sharpen pricing</span>
+        </span>
+        <button type="button" class="calib-apply" data-nudge-calib="${escHtml(j.id)}">Calibrate →</button>
+        <button type="button" class="nudge-x" data-nudge-dismiss="${escHtml(n.key)}" aria-label="Dismiss">×</button>
+      </div>`;
+  }).join("")}</div>` : "";
+  wrap.innerHTML = `<p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Quotes that have gone quiet and finished jobs you haven't calibrated yet — dismiss any you don't need.</p>${staleHTML}${calibHTML}`;
+}
+
+/* ============================================================
+   SHOPPING LIST — each saved job's materials converted into
+   packs/cases/boards to buy, checkable in-app (persisted per
+   job) or printable as a PDF.
+   ============================================================ */
+function jobShoppingItems(job) {
+  return (job.rows || []).filter(r => r && MATERIAL_IDS.includes(r.id) && Number(r.quantity) > 0);
+}
+function dashShoppingJobs(jobs) {
+  return (jobs || []).filter(j => j && !j.isDraft && jobShoppingItems(j).length);
+}
+// Persist one checkbox on the job (rides the jobs.data cloud sync).
+function toggleShopItem(jobId, itemId, checked) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const sc = (j.shopChecked && typeof j.shopChecked === "object") ? j.shopChecked : {};
+  if (checked) sc[itemId] = true; else delete sc[itemId];
+  if (Object.keys(sc).length) j.shopChecked = sc; else delete j.shopChecked;
+  saveJobs(jobs);
+  if (!j.isDraft) { try { pushJobToCloud(j, true); } catch (_) {} }
+}
+// The checkable materials list + PDF buttons for one job.
+function shopJobBodyHTML(job) {
+  const items = jobShoppingItems(job);
+  const checked = (job.shopChecked && typeof job.shopChecked === "object") ? job.shopChecked : {};
+  const rows = items.map(it => {
+    const item = (DATA.costItems || []).find(c => c.id === it.id);
+    const proc = item ? computeProcurement(Number(it.quantity) || 0, item) : null;
+    const buy = proc ? `${proc.packs} ${escHtml(proc.packLabel)}` : `${formatQty(it.quantity)} ${escHtml(it.unit || "")}`;
+    const raw = `${formatQty(it.quantity)} ${escHtml(it.unit || "")}`;
+    const nm = item ? itemDisplayName(item) : it.name;
+    const isCh = !!checked[it.id];
+    return `<label class="shop-item${isCh ? " done" : ""}" data-shop-itemrow="${escHtml(it.id)}">
+        <input type="checkbox" class="shop-check" data-shop-check="${escHtml(it.id)}" ${isCh ? "checked" : ""}>
+        <span class="shop-item-name">${escHtml(nm)}</span>
+        <span class="shop-item-qty">${buy} <span class="shop-item-sub">· ${raw}</span></span>
+      </label>`;
+  }).join("");
+  return `<div class="shop-list">${rows}</div>
+      <div class="shop-actions">
+        <span class="text-[11px] text-slate-500 hidden sm:inline">Round up to full packs. Checks save with the job.</span>
+        <span class="flex items-center gap-2 ml-auto">
+          <button type="button" class="calib-dismiss" data-shop-pdf="view" data-shop-job="${escHtml(job.id)}">View PDF</button>
+          <button type="button" class="calib-apply" data-shop-pdf="download" data-shop-job="${escHtml(job.id)}">Download PDF</button>
+        </span>
+      </div>`;
+}
+function renderDashShopping(jobs) {
+  const wrap = document.getElementById("dashShopping");
+  if (!wrap) return;
+  const list = dashShoppingJobs(jobs);
+  if (!list.length) {
+    wrap.innerHTML = `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No materials to buy yet.</div><div class="text-xs mt-1.5 max-w-sm mx-auto">Save a quote with materials and it shows up here as a checkable shopping list.</div></div>`;
+    return;
+  }
+  const secured = j => { const s = jobStatus(j); return (s === "Approved" || s === "Finished") ? 0 : 1; };
+  const jts = j => Date.parse(j.updatedAt || j.createdAt || "") || 0;
+  list.sort((a, b) => secured(a) - secured(b) || jts(b) - jts(a));   // jobs you've secured first
+  const rows = list.map(j => {
+    const name = j.name || j.customerName || "Untitled job";
+    const lf = (j.totalLF != null && j.totalLF !== "") ? `${j.totalLF} LF` : "";
+    const sub = [(j.customerName && j.customerName !== name) ? j.customerName : "", lf, jobStatus(j)].filter(Boolean).join(" · ");
+    const items = jobShoppingItems(j);
+    const checked = (j.shopChecked && typeof j.shopChecked === "object") ? j.shopChecked : {};
+    const done = items.filter(it => checked[it.id]).length;
+    return `<div class="calib-job" data-shop-jobrow="${escHtml(j.id)}">
+        <button type="button" class="calib-job-head" data-shop-toggle="${escHtml(j.id)}" aria-expanded="false">
+          <span class="min-w-0 flex-1 text-left">
+            <span class="calib-job-name">${escHtml(name)}</span>
+            ${sub ? `<span class="calib-job-sub">${escHtml(sub)}</span>` : ""}
+          </span>
+          <span class="calib-chip ${done === items.length ? "logged" : "todo"}" data-shop-progress="${escHtml(j.id)}">${done}/${items.length}</span>
+          ${DASH_CHEV}
+        </button>
+        <div class="calib-job-body hidden" data-shop-jobbody="${escHtml(j.id)}"></div>
+      </div>`;
+  }).join("");
+  wrap.innerHTML = `<p class="text-[12.5px] text-slate-500 mb-4 leading-relaxed">Each saved job's materials, converted into how many packs / cases / boards to buy. Open a job to check items off as you shop, or grab the printable PDF.</p><div class="calib-joblist">${rows}</div>`;
+}
+
 // Jobs + Materials + Customers share one card with a tab toggle (keeps the
 // dashboard short). Each panel renders its own inner content (no card of its
 // own); this shows the active panel, hides a tab with no data, and mirrors the
@@ -10626,7 +10846,7 @@ function applyInsightTab(animate) {
    Larger shops run many contractors; this surfaces who actually
    drives revenue/profit, each client's win rate, and their share
    of the book. All derived from saved jobs (no new storage).
-   Won = Won + Approved (e-signed); Lost = Lost; Open = Lead/Quoted.
+   Won = Approved (agreed / e-signed) + Finished; Lost = Lost; Open = Quoted.
    ============================================================ */
 const CUST_COLORS = MAT_COLORS;
 let _dashCustMode = "revenue";   // revenue | profit | jobs — the pie metric
@@ -10648,9 +10868,9 @@ function getCustomerStats(jobs) {
     c.total++; c.jobs.push(j);
     const st = jobStatus(j);
     const price = Number(j.sellingPrice) || 0, prof = Number(j.profit) || 0;
-    if (st === "Won" || st === "Approved") { c.won++; c.revenue += price; c.profit += prof; }
+    if (st === "Approved" || st === "Finished") { c.won++; c.revenue += price; c.profit += prof; }
     else if (st === "Lost") { c.lost++; }
-    else { c.open++; c.pipeline += price; }   // Lead / Quoted
+    else { c.open++; c.pipeline += price; }   // Quoted
     const ts = Date.parse(j.updatedAt || j.createdAt || "") || 0;
     if (ts >= c._ts) {
       c._ts = ts; c.name = name;
@@ -10671,7 +10891,7 @@ function custMetricLabel(mode) { return mode === "jobs" ? "jobs" : mode === "pro
 function custDonutSVG(stats, mode) {
   const ranked = stats.slice().sort((a, b) => custMetric(b, mode) - custMetric(a, mode)).filter(c => custMetric(c, mode) > 0);
   const total = ranked.reduce((s, c) => s + custMetric(c, mode), 0);
-  if (total <= 0) return `<div class="text-center text-slate-500 text-sm py-10">No ${custMetricLabel(mode)} to chart yet — mark a job Won (or get it e-signed) to see it here.</div>`;
+  if (total <= 0) return `<div class="text-center text-slate-500 text-sm py-10">No ${custMetricLabel(mode)} to chart yet — mark a job Approved (or get it e-signed) to see it here.</div>`;
   const TOPN = 6;
   const segs = ranked.slice(0, TOPN).map(c => ({ name: c.name, val: custMetric(c, mode) }));
   const restVal = ranked.slice(TOPN).reduce((s, c) => s + custMetric(c, mode), 0);
@@ -11131,7 +11351,7 @@ async function deleteSignRecord(token) {
 // "Jobs" insights tab — the pipeline (Lead/Quoted/Approved/Won/Lost) condensed
 // into stat tiles + a status donut, instead of the old header stat bars. The
 // legend is clickable to filter the saved-jobs grid below.
-const STATUS_COLORS = { Lead: "#38bdf8", Quoted: "#c9a558", Approved: "#a78bfa", Won: "#34d399", Lost: "#fb7185" };
+const STATUS_COLORS = { Quoted: "#c9a558", Approved: "#a78bfa", Finished: "#34d399", Lost: "#fb7185", Lead: "#c9a558", Won: "#a78bfa" };
 let _dashJobsMetric = "count";   // count | value — drives the status donut
 
 // Shared pipeline rollup used by the top stats strip + the Jobs charts tab.
@@ -11140,10 +11360,10 @@ function pipelineStats(jobs) {
   const groups = {}; JOB_STATUSES.forEach(s => { groups[s] = []; });
   real.forEach(j => groups[jobStatus(j)].push(j));
   const sum = arr => arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
-  const openVal = sum(groups.Lead) + sum(groups.Quoted);
-  const openCount = groups.Lead.length + groups.Quoted.length;
-  // Approved = the customer has e-signed, so it counts as won (dollars + win rate).
-  const wonish = groups.Won.concat(groups.Approved || []);
+  const openVal = sum(groups.Quoted);
+  const openCount = groups.Quoted.length;
+  // "Won" = jobs you secured: Approved (agreed / e-signed) + Finished (completed).
+  const wonish = (groups.Approved || []).concat(groups.Finished || []);
   const wonVal = sum(wonish);
   const wonCount = wonish.length, lostCount = groups.Lost.length;
   const decided = wonCount + lostCount;
@@ -11466,8 +11686,8 @@ function dashTrendSVG(ts, opts) {
     </svg>
   </div>`;
 }
-// A job counts as "won" for revenue/profit roll-ups when Won or Approved (e-signed).
-function jobIsWon(j) { const s = jobStatus(j); return s === "Won" || s === "Approved"; }
+// A job counts as "won" for revenue/profit roll-ups when Approved (agreed / e-signed) or Finished.
+function jobIsWon(j) { const s = jobStatus(j); return s === "Approved" || s === "Finished"; }
 
 function dashJobCard(j) {
   const st = jobStatus(j);
@@ -12214,6 +12434,56 @@ function wireDashboard() {
       if (inp) updateReconVar(inp);
     });
   }
+  // Follow-ups: open a job, jump to calibrate, or dismiss a nudge.
+  const followups = document.getElementById("dashFollowups");
+  if (followups) followups.addEventListener("click", (e) => {
+    const op = e.target.closest("[data-nudge-open]");
+    if (op) { openJobDetails(op.dataset.nudgeOpen); return; }
+    const cb = e.target.closest("[data-nudge-calib]");
+    if (cb) { dashCalibrateJob(cb.dataset.nudgeCalib); return; }
+    const dm = e.target.closest("[data-nudge-dismiss]");
+    if (dm) { _dashNudgeDismissed.add(dm.dataset.nudgeDismiss); renderDashboard(); return; }
+  });
+  // Shopping list: expand a job, toggle PDF, or check items off.
+  const shop = document.getElementById("dashShopping");
+  if (shop) {
+    shop.addEventListener("click", (e) => {
+      const pdf = e.target.closest("[data-shop-pdf]");
+      if (pdf) { dashGenerateDoc(pdf.dataset.shopJob, "materials", pdf.dataset.shopPdf); return; }
+      const tg = e.target.closest("[data-shop-toggle]");
+      if (tg) {
+        const id = tg.dataset.shopToggle;
+        const esc = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+        const body = shop.querySelector(`[data-shop-jobbody="${esc}"]`);
+        if (!body) return;
+        const opening = body.classList.contains("hidden");
+        shop.querySelectorAll("[data-shop-jobbody]").forEach(b => { if (b !== body) b.classList.add("hidden"); });
+        shop.querySelectorAll("[data-shop-toggle]").forEach(h => { if (h !== tg) h.setAttribute("aria-expanded", "false"); });
+        if (opening && !body.dataset.filled) {
+          const job = loadJobs().find(x => x.id === id);
+          if (job) { body.innerHTML = shopJobBodyHTML(job); body.dataset.filled = "1"; }
+        }
+        body.classList.toggle("hidden", !opening);
+        tg.setAttribute("aria-expanded", String(opening));
+        if (opening) body.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+    });
+    shop.addEventListener("change", (e) => {
+      const cb = e.target.closest("[data-shop-check]");
+      if (!cb) return;
+      const row = cb.closest("[data-shop-jobrow]");
+      const jobId = row ? row.dataset.shopJobrow : null;
+      if (!jobId) return;
+      toggleShopItem(jobId, cb.dataset.shopCheck, cb.checked);
+      const label = cb.closest(".shop-item"); if (label) label.classList.toggle("done", cb.checked);
+      // update the row's progress chip without collapsing the open editor
+      const total = row.querySelectorAll("[data-shop-check]").length;
+      const done = row.querySelectorAll("[data-shop-check]:checked").length;
+      const chip = row.querySelector("[data-shop-progress]");
+      if (chip) { chip.textContent = `${done}/${total}`; chip.className = `calib-chip ${done === total ? "logged" : "todo"}`; chip.setAttribute("data-shop-progress", jobId); }
+    });
+  }
   const grid = document.getElementById("dashJobsGrid");
   if (grid) {
     grid.addEventListener("click", (e) => {
@@ -12355,17 +12625,18 @@ let _jdSignExclude = new Set();    // scope:LABEL / item:LABEL keys to hide from
 
 // Generate a saved job's PDF from the dashboard without navigating: snapshot
 // the working STATE, apply the job's values, export, then restore.
-function dashGenerateDoc(id, kind) {
+function dashGenerateDoc(id, kind, mode) {
+  mode = mode || "download";
   const job = loadJobs().find(x => x.id === id);
   if (!job) { toast("Job not found"); return; }
   if (kind === "buck" && !job.buckList) { toast("No buck cut list on this job"); return; }
   const snap = clone(STATE);
   try {
     applyJobToState(job);
-    if (kind === "customer") exportCustomerPDF("download");
-    else if (kind === "cost") exportPDF("download");
-    else if (kind === "materials") exportMaterialsPDF("download");
-    else if (kind === "buck") fileBuckAction("download");
+    if (kind === "customer") exportCustomerPDF(mode);
+    else if (kind === "cost") exportPDF(mode);
+    else if (kind === "materials") exportMaterialsPDF(mode);
+    else if (kind === "buck") fileBuckAction(mode);
   } catch (e) {
     toast("Couldn't generate that document");
   } finally {
@@ -13708,6 +13979,7 @@ function doSaveJob(overrideId) {
     // / overwrite so a re-save doesn't wipe the estimate→actual reconciliation.
     if (_photoSrc.actuals) job.actuals = _photoSrc.actuals;
     if (_photoSrc.actualsUpdatedAt) job.actualsUpdatedAt = _photoSrc.actualsUpdatedAt;
+    if (_photoSrc.shopChecked) job.shopChecked = _photoSrc.shopChecked;   // shopping-list checkmarks
   }
 
   // Drop the working draft, then overwrite the target in place or append fresh.
@@ -13853,6 +14125,7 @@ function saveAsNewVersion() {
   // A new version is a fresh quote — its actuals haven't happened yet. Don't
   // inherit the original's logged usage (it would skew calibration twice).
   delete newJob.actuals; delete newJob.actualsUpdatedAt;
+  delete newJob.shopChecked;   // fresh shopping list for the new version
   jobs.push(newJob);
   if (!saveJobs(jobs)) {   // write failed (device storage full) → no version, so spend no credit
     toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
