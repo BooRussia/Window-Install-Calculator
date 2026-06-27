@@ -1,7 +1,9 @@
 // Shared Stripe client + plan mapping.
 //
-// PHASE 3 STATUS: All price IDs are placeholders. See PHASE_3_SETUP.md for
-// how to swap them out once your Stripe account is created.
+// STRIPE STATUS: live. Real price IDs are supplied via STRIPE_PRICE_* Supabase
+// secrets (checkout confirmed working 2026-06-26). The price_PLACEHOLDER_* values
+// below are only compile-time fallbacks used if a secret is missing — they are
+// never hit in prod. See PHASE_3_SETUP.md for the original setup steps.
 //
 // Why a Deno-compatible Stripe import (esm.sh)? Supabase Edge Functions run
 // on Deno Deploy, so we can't use the npm Stripe SDK directly. esm.sh wraps
