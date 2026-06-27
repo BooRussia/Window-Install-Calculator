@@ -2242,12 +2242,17 @@
   .rleaf-btn:hover { color: #e2e8f0; border-color: #475569; }
   .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
 
-  /* ── Settings search (combobox above the tab rail) ───────────────────── */
-  .set-search-wrap { position: relative; z-index: 40; }
+  /* ── Settings search (centered bar at the top of the modal) ──────────── */
+  /* Full-width strip; needs its own stacking context so the popover sits
+     above the body row. */
+  .set-search-wrap { position: relative; z-index: 60; }
+  /* Centered, width-capped field on desktop; full-width on mobile. The popover
+     anchors to THIS element (position:relative) so it stays under the input. */
+  .set-search-field { width: 100%; max-width: 32rem; }
   /* 16px input kills iOS zoom-on-focus and matches the settings field size */
   #settingsSearch { font-size: 16px; }
   .set-search-results {
-    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 70;
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 80;
     max-height: 320px; overflow-y: auto;
     background: #0b1120; border: 1px solid #1e293b; border-radius: 12px;
     box-shadow: 0 24px 48px -12px rgba(0,0,0,0.7); padding: 4px;
@@ -5812,21 +5817,24 @@
       </div>
     </div>
 
+    <!-- Settings search — centered at the top of the modal, over the content
+         area; jumps straight to a tab/leaf/section/field. Sits in its own row
+         BETWEEN header and body so its results popover can overflow the
+         overflow-hidden body row without being clipped. Index built lazily from
+         the same data the panels render from (static registry + DATA.costItems). -->
+    <div id="settingsSearchWrap" class="set-search-wrap flex-shrink-0 border-b border-slate-800 px-4 sm:px-8 py-3">
+      <div class="relative set-search-field mx-auto">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+        <input id="settingsSearch" type="text" role="combobox" autocomplete="off" spellcheck="false"
+          aria-label="Search settings" aria-expanded="false" aria-controls="settingsSearchResults" aria-autocomplete="list"
+          placeholder="Search settings…" class="control rounded-lg pl-9 pr-3 py-2.5 w-full text-slate-100 placeholder:text-slate-600" />
+        <div id="settingsSearchResults" role="listbox" aria-label="Settings search results" class="set-search-results hidden"></div>
+      </div>
+      <div id="settingsSearchStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    </div>
+
     <!-- Body: rail + content (stacks to single column on mobile) -->
     <div class="flex-1 flex flex-col sm:flex-row overflow-hidden">
-      <!-- Settings search — combobox above the tab rail; jumps straight to a
-           tab/leaf/section/field. Index built lazily from the same data the
-           panels render from (static registry + DATA.costItems). -->
-      <div id="settingsSearchWrap" class="set-search-wrap flex-shrink-0 sm:w-52 border-b sm:border-r border-slate-800 p-2 sm:p-3">
-        <div class="relative">
-          <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
-          <input id="settingsSearch" type="text" role="combobox" autocomplete="off" spellcheck="false"
-            aria-label="Search settings" aria-expanded="false" aria-controls="settingsSearchResults" aria-autocomplete="list"
-            placeholder="Search settings…" class="control rounded-lg pl-8 pr-2 py-2 w-full text-slate-100 placeholder:text-slate-600" />
-          <div id="settingsSearchResults" role="listbox" aria-label="Settings search results" class="set-search-results hidden"></div>
-        </div>
-        <div id="settingsSearchStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-      </div>
       <!-- Tab rail — horizontal scroll strip on mobile, sidebar on desktop -->
       <nav id="settingsNav" class="flex sm:block flex-shrink-0 sm:w-52 border-b sm:border-b-0 sm:border-r border-slate-800 p-2 sm:p-3 gap-1 sm:gap-0 sm:space-y-1 overflow-x-auto sm:overflow-y-auto">
         <button type="button" class="set-tab active" data-tab="setup">Setup</button>
