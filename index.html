@@ -877,6 +877,61 @@
   .mfr-card.always .mfr-ni,
   .mfr-card.always .mfr-ni-head { opacity: 0.3; pointer-events: none; }
 
+  /* ------- Manufacturer accordion — one compact collapsible per brand ------- */
+  .mfr-card {
+    border: 1px solid #1f2a3a;
+    border-radius: 11px;
+    margin-bottom: 7px;
+    background: rgba(15,23,42,0.35);
+    overflow: hidden;
+  }
+  .mfr-card[open] { background: rgba(15,23,42,0.6); border-color: #2a3a52; }
+  .mfr-sum {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 12px; cursor: pointer; list-style: none;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  .mfr-sum::-webkit-details-marker { display: none; }
+  .mfr-sum::marker { content: ""; }
+  .mfr-chev { color: #5b6b82; flex-shrink: 0; transition: transform .15s ease; }
+  .mfr-card[open] .mfr-chev { transform: rotate(90deg); }
+  .mfr-sum-name {
+    flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: #e8eef7;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mfr-sum-tag {
+    display: none; flex-shrink: 0; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: #c9a558; background: rgba(201,165,88,0.12);
+    border: 1px solid rgba(201,165,88,0.3); border-radius: 999px;
+    padding: 2px 7px;
+  }
+  .mfr-card.always .mfr-sum-tag { display: inline-block; }
+  .mfr-card[open] .mfr-sum-tag { display: none; }
+  .mfr-del {
+    color: #586477; font-size: 18px; line-height: 1; padding: 0 4px;
+    flex-shrink: 0; background: transparent;
+  }
+  .mfr-del:hover { color: #fb7185; }
+  .mfr-body { padding: 2px 12px 12px; }
+  [data-theme="light"] .mfr-card { border-color: #e6e8ec; background: #fbfcfd; }
+  [data-theme="light"] .mfr-card[open] { background: #fff; border-color: #d4d9e0; }
+  [data-theme="light"] .mfr-sum-name { color: #0f172a; }
+  [data-theme="light"] .mfr-chev { color: #94a3b8; }
+  [data-theme="light"] .mfr-del { color: #94a3b8; }
+  .mfr-toggle-all {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700; letter-spacing: .02em;
+    color: #8aa0bd; background: transparent; border: 0;
+    padding: 3px 8px; border-radius: 7px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mfr-toggle-all:hover { color: #c9a558; background: rgba(201,165,88,0.08); }
+  .mfr-ta-icon { transition: transform .15s ease; }
+  .mfr-toggle-all[data-act="collapse"] .mfr-ta-icon { transform: rotate(180deg); }
+  [data-theme="light"] .mfr-toggle-all { color: #64748b; }
+  [data-theme="light"] .mfr-toggle-all:hover { color: #b58f4a; background: rgba(181,143,74,0.1); }
+
   /* ------- Collapsible result cards (Full Breakdown / Labor Detail / Job Files):
      big centered title when open (clear separation), compact title-left +
      summary-right when minimized. ------- */
@@ -2886,18 +2941,70 @@
   .dash-card-del { background: transparent; color: #64748b; border: 1px solid transparent; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
   .dash-card-del:hover { color: #f87171; background: rgba(248,113,113,0.1); }
   /* ---- Launchpad cards (modular dashboard home) ---- */
-  .dash-launch-card { display: flex; align-items: center; gap: 14px; text-align: left; width: 100%; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 18px; min-height: 88px; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
+  .dash-launch-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
   .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
   .dash-launch-card:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
-  .dash-launch-icon { flex-shrink: 0; width: 46px; height: 46px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; color: #c9a558; background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.28); }
-  .dash-launch-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-  .dash-launch-title { font-size: 16px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.01em; }
-  .dash-launch-preview { font-size: 12.5px; color: #94a3b8; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dash-launch-head { display: flex; align-items: center; gap: 11px; padding-right: 30px; flex-shrink: 0; }
+  .dash-launch-icon { flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: #c9a558; background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.28); }
+  .dash-launch-title { font-size: 15.5px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.01em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-launch-body { flex: 1; min-height: 0; margin-top: 13px; overflow: hidden; display: flex; flex-direction: column; }
+  /* card body bits — shared mini-list / donut / stat styles */
+  .dlb-row { display: flex; align-items: center; gap: 8px; padding: 4.5px 0; font-size: 12.5px; }
+  .dlb-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dlb-row-main { flex: 1; min-width: 0; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dlb-row-meta { flex-shrink: 0; color: #94a3b8; font-weight: 600; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .dlb-empty { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #64748b; font-size: 12.5px; padding: 0 6px; line-height: 1.5; }
+  .dlb-donutwrap { display: flex; align-items: center; gap: 14px; flex: 1; }
+  .dlb-donut { flex-shrink: 0; }
+  .dlb-legend { display: flex; flex-direction: column; gap: 7px; min-width: 0; flex: 1; }
+  .dlb-leg { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+  .dlb-leg-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .dlb-leg-name { flex: 1; min-width: 0; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dlb-leg-pct { color: #94a3b8; font-weight: 700; font-size: 11.5px; }
+  .dlb-stats { display: flex; gap: 10px; flex: 1; align-items: stretch; }
+  .dlb-stat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(15,23,42,0.45); border: 1px solid #1e293b; border-radius: 12px; }
+  .dlb-stat-n { font-size: 30px; font-weight: 800; color: #f1f5f9; line-height: 1; font-variant-numeric: tabular-nums; }
+  .dlb-stat-l { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+  .dlb-tag { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #5f6b7e; font-weight: 700; margin-bottom: 8px; }
+  .dlb-barrow { display: flex; flex-direction: column; }
+  .dlb-barrow-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+  .dlb-track { display: block; height: 6px; background: rgba(148,163,184,0.16); border-radius: 3px; overflow: hidden; margin: 5px 0 10px; }
+  .dlb-fill { display: block; height: 100%; border-radius: 3px; }
+  .dlb-prow { display: flex; align-items: center; gap: 9px; padding: 6.5px 0; font-size: 12.5px; border-bottom: 1px solid rgba(148,163,184,0.09); }
+  .dlb-prow:last-child { border-bottom: 0; }
+  .dlb-pill { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 999px; flex-shrink: 0; }
+  .dlb-pill.green { color: #6ee7b7; background: rgba(52,211,153,0.12); }
+  .dlb-pill.gold { color: #dcb86a; background: rgba(201,165,88,0.13); }
+  .dlb-hero { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .dlb-hero-n { font-size: 28px; font-weight: 800; color: #34d399; line-height: 1; }
+  .dlb-hero-l { font-size: 12px; color: #94a3b8; }
+  .dlb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .dlb-chip { font-size: 11px; color: #cbd5e1; background: rgba(52,211,153,0.10); border: 1px solid rgba(52,211,153,0.26); border-radius: 8px; padding: 3px 9px; }
+  .dlb-note { font-size: 11px; color: #5f6b7e; margin-top: auto; }
+  .dlb-ratiowrap { margin-top: 10px; }
+  .dlb-ratio-l { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 5px; }
+  .dlb-trend { display: block; width: 100%; height: 64px; margin: 3px 0 10px; }
+  .dlb-trend-legend { display: flex; gap: 14px; flex-wrap: wrap; }
+  .dlb-tl { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #94a3b8; }
+  .dlb-tl-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .dlb-stackbar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: rgba(148,163,184,0.16); margin: 2px 0 11px; }
+  .dlb-seg { height: 100%; }
+  .dlb-pl-legend { display: flex; flex-direction: column; gap: 3px; }
+  .dlb-pl-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 1.5px 0; }
+  /* KPI stat tiles — corner icon badge + month-over-month trend delta (depth pass) */
+  .dash-stat-label { display: block; font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase; color: #64748b; font-weight: 700; line-height: 1.25; }
+  .dash-stat-badge { flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; color: #c9a558; background: rgba(181,143,74,0.13); border: 1px solid rgba(181,143,74,0.34); }
+  .dash-stat-num { font-size: 22px; font-weight: 800; margin-top: 8px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .dash-stat-delta { font-size: 11.5px; font-weight: 700; margin-top: 7px; display: inline-flex; align-items: center; gap: 4px; }
+  .dash-stat-delta.up { color: #34d399; }
+  .dash-stat-delta.down { color: #fb7185; }
+  .dash-stat-vs { color: #64748b; font-weight: 500; }
+  .dash-stat-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
   .dash-launch-chev { color: #475569; flex-shrink: 0; transition: transform .15s ease, color .15s ease; }
   .dash-launch-card:hover .dash-launch-chev { color: #c9a558; transform: translateX(2px); }
   /* ---- Card "what is this?" hint: ⓘ trigger + floating popover (zero reflow) ---- */
   .dash-launch-cell { position: relative; }
-  .dash-launch-card { padding-right: 46px; }   /* clear the ⓘ corner */
+  /* (ⓘ corner spacing handled by .dash-launch-head padding-right) */
   .dash-tip-btn { position: absolute; top: 8px; right: 8px; z-index: 5; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: #c9a558; cursor: pointer; border-radius: 9999px; -webkit-tap-highlight-color: transparent; transition: opacity .15s ease, background .15s ease; }
   .dash-tip-btn:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
   .dash-tip { position: absolute; top: 46px; right: 8px; z-index: 30; width: max-content; max-width: 240px; font-size: 13px; line-height: 1.45; font-weight: 500; color: #e2e8f0; background: rgba(2,6,23,0.98); border: 1px solid rgba(181,143,74,0.4); border-radius: 12px; padding: 10px 12px; box-shadow: 0 16px 32px -12px rgba(0,0,0,0.75); opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top right; pointer-events: none; visibility: hidden; transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s; }
@@ -2986,6 +3093,26 @@
   [data-theme="light"] .dash-launch-card { background: #ffffff; border-color: #e6e8ec; }
   [data-theme="light"] .dash-launch-title { color: #0f172a; }
   [data-theme="light"] .dash-launch-preview { color: #64748b; }
+  [data-theme="light"] .dash-launch-preview2 { color: #94a3b8; }
+  [data-theme="light"] .dlb-row-main, [data-theme="light"] .dlb-leg-name { color: #334155; }
+  [data-theme="light"] .dlb-row-meta, [data-theme="light"] .dlb-leg-pct, [data-theme="light"] .dlb-empty, [data-theme="light"] .dlb-stat-l { color: #64748b; }
+  [data-theme="light"] .dlb-stat { background: #f6f7f9; border-color: #e6e8ec; }
+  [data-theme="light"] .dlb-stat-n { color: #0f172a; }
+  [data-theme="light"] .dlb-tag, [data-theme="light"] .dlb-note { color: #94a3b8; }
+  [data-theme="light"] .dlb-track { background: rgba(15,23,42,0.10); }
+  [data-theme="light"] .dlb-chip { color: #334155; }
+  [data-theme="light"] .dlb-hero-l, [data-theme="light"] .dlb-ratio-l { color: #64748b; }
+  [data-theme="light"] .dlb-hero-n { color: #059669; }
+  [data-theme="light"] .dlb-pill.green { color: #047857; }
+  [data-theme="light"] .dlb-pill.gold { color: #97772e; }
+  [data-theme="light"] .dlb-tl { color: #64748b; }
+  [data-theme="light"] .dlb-stackbar { background: rgba(15,23,42,0.10); }
+  [data-theme="light"] .dash-stat-badge { color: #b58f4a; background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.4); }
+  [data-theme="light"] .dash-stat-label,
+  [data-theme="light"] .dash-stat-sub,
+  [data-theme="light"] .dash-stat-vs { color: #64748b; }
+  [data-theme="light"] .dash-stat-delta.up { color: #059669; }
+  [data-theme="light"] .dash-stat-delta.down { color: #dc2626; }
   [data-theme="light"] .dash-back { background: #ffffff; border-color: #e6e8ec; color: #475569; }
   [data-theme="light"] .calib-info { background: #f7f8fa; border-color: #e6e8ec; }
   .dash-mat-table { width: 100%; border-collapse: collapse; }
@@ -4898,7 +5025,13 @@
         <h2 class="text-lg font-black text-slate-100 tracking-tight">Your window manufacturers</h2>
         <p class="text-xs text-slate-500 mt-1">Add the brands you install. Keep, edit, or remove the pre-loaded ones, and add your own.</p>
         <p class="text-[11px] text-amber-400/80 mt-2">Each brand has two screw patterns per LF — nail-fin and through-frame. Don't have exact counts yet? Leave the defaults and fine-tune later.</p>
-        <div id="setupMfrBody" class="mt-3"></div>
+        <div class="flex items-center justify-end mt-3 mb-2">
+          <button type="button" id="setupMfrToggleAll" class="mfr-toggle-all" data-act="expand">
+            <svg class="mfr-ta-icon" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+            <span class="mfr-ta-label">Expand all</span>
+          </button>
+        </div>
+        <div id="setupMfrBody"></div>
         <button type="button" id="setupMfrAdd" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
       </div>
 
@@ -6360,6 +6493,12 @@
           <div class="set-collapse-body">
           <div class="set-sub mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</div>
           <p class="text-[11px] text-amber-400/80 mb-4">Through-frame values are placeholder estimates — verify per brand.</p>
+          <div class="flex items-center justify-end mb-2">
+            <button type="button" id="mfrToggleAll" class="mfr-toggle-all" data-act="expand">
+              <svg class="mfr-ta-icon" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+              <span class="mfr-ta-label">Expand all</span>
+            </button>
+          </div>
           <div id="mfrEditorBody"></div>
           <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
           </div><!-- /set-collapse-body -->
@@ -10154,37 +10293,52 @@ const DASH_CARDS = [
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>`,
     preview: (ctx) => ctx.topDriver
       ? `Top cost: ${ctx.topDriver.name} · ${ctx.topDriver.pct}%`
-      : "Materials, customers & pipeline" },
+      : "Materials, customers & pipeline",
+    preview2: (ctx) => ctx.topCustomer ? `Top client: ${ctx.topCustomer.name} · ${ctx.topCustomer.pct}%` : "" },
+  { key: "revenue", title: "Revenue trend", goto: "insights",
+    blurb: "Your booked revenue and profit month by month — watch the trend and where your margin's going.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 3 3 7-8"/><path d="M16 8h4v4"/></svg>` },
+  { key: "pipeline", title: "Deal pipeline", goto: "jobs",
+    blurb: "Every saved quote by stage — see where deals pile up, what's landed, and your win rate.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>` },
   { key: "jobs", title: "Jobs",
     blurb: "Every saved quote in one place — sort, search, change status, or open the full job.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/></svg>`,
     preview: (ctx) => ctx.jobCount
       ? `${ctx.jobCount} job${ctx.jobCount === 1 ? "" : "s"}${ctx.openCount ? ` · ${ctx.openCount} open` : ""}`
-      : "No saved jobs yet" },
+      : "No saved jobs yet",
+    preview2: (ctx) => ctx.jobCount ? `Avg ${formatMoney(ctx.avgJobVal)} per quote` : "" },
   { key: "followups", title: "Follow-ups",
     blurb: "Quotes that go quiet for 14+ days, plus finished jobs to calibrate — so nothing slips.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>`,
     preview: (ctx) => ctx.followupCount
       ? `${ctx.followupCount} need${ctx.followupCount === 1 ? "s" : ""} attention`
-      : "You're all caught up" },
+      : "You're all caught up",
+    preview2: (ctx) => { const p = []; if (ctx.staleCount) p.push(`${ctx.staleCount} stale quote${ctx.staleCount === 1 ? "" : "s"}`); if (ctx.calibrateCount) p.push(`${ctx.calibrateCount} to calibrate`); return p.join(" · "); } },
   { key: "shopping", title: "Shopping list",
     blurb: "Each job's materials as packs and cases to buy — check them off as you shop or print the list.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2 2 4-4"/><path d="M5 6h16l-1.5 9.5a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 4H3"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>`,
     preview: (ctx) => ctx.shoppingJobs
       ? `${ctx.shoppingJobs} job${ctx.shoppingJobs === 1 ? "" : "s"} to shop for`
-      : "No materials to buy yet" },
+      : "No materials to buy yet",
+    preview2: (ctx) => ctx.shopItemCount ? `${ctx.shopItemCount} material${ctx.shopItemCount === 1 ? "" : "s"} to buy` : "" },
   { key: "calibration", title: "Pricing calibration",
     blurb: "Log what your crew actually used and Anchor suggests sharper per-foot rates from it.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>`,
     preview: (ctx) => ctx.suggestionCount
       ? `${ctx.suggestionCount} rate suggestion${ctx.suggestionCount === 1 ? "" : "s"} ready`
-      : (ctx.actualsJobs ? "Tracking your actuals" : "Log actuals to start") },
+      : (ctx.actualsJobs ? "Tracking your actuals" : "Log actuals to start"),
+    preview2: (ctx) => ctx.actualsJobs ? `${ctx.actualsJobs} job${ctx.actualsJobs === 1 ? "" : "s"} with actuals` : "" },
   { key: "esign", title: "E-signatures",
     blurb: "Send any quote for signature and track what's been sent, viewed, and signed.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c3-4 5-4 7 0s4 4 7-3"/><path d="M14 6l3 3"/><path d="M4 21h16"/></svg>`,
     preview: (ctx) => ctx.approvedCount
       ? `${ctx.approvedCount} approved · view activity`
-      : "Track sent & signed quotes" },
+      : "Track sent & signed quotes",
+    preview2: (ctx) => ctx.signedCount ? `${ctx.signedCount} signed e-quote${ctx.signedCount === 1 ? "" : "s"}` : "" },
+  { key: "manufacturers", title: "Manufacturers", goto: "setup-manufacturers",
+    blurb: "The window & door brands you quote, ranked by how often you use them — tap to edit a brand's rates.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4 21V11l5 3V11l5 3V8l5 3v10"/></svg>` },
 ];
 
 // One pass over jobs → the numbers every launchpad preview needs.
@@ -10210,31 +10364,184 @@ function dashLaunchContext(jobs) {
     suggestionCount = cal.suggestions.length;
     actualsJobs = cal.actualsJobs;
   } catch (_) {}
-  let followupCount = 0, shoppingJobs = 0;
-  try { followupCount = computeFollowups(jobs).count; } catch (_) {}
-  try { shoppingJobs = dashShoppingJobs(jobs).length; } catch (_) {}
-  return { jobCount: real.length, openCount, approvedCount, topDriver, suggestionCount, actualsJobs, followupCount, shoppingJobs };
+  let followupCount = 0, staleCount = 0, calibrateCount = 0;
+  try { const fu = computeFollowups(jobs); followupCount = fu.count; staleCount = fu.stale.length; calibrateCount = fu.calibrate.length; } catch (_) {}
+  let shoppingJobs = 0, shopItemCount = 0;
+  try { const sj = dashShoppingJobs(jobs); shoppingJobs = sj.length; shopItemCount = sj.reduce((s, j) => s + jobShoppingItems(j).length, 0); } catch (_) {}
+  let topCustomer = null;
+  try {
+    const cs = getCustomerStats(jobs);
+    const grandRev = cs.reduce((s, c) => s + (c.revenue || 0), 0);
+    const top = cs.slice().sort((a, b) => (b.revenue || 0) - (a.revenue || 0))[0];
+    if (top && grandRev > 0 && top.revenue > 0) topCustomer = { name: top.name, pct: Math.round(top.revenue / grandRev * 100) };
+  } catch (_) {}
+  const vals = real.map(j => Number(j.sellingPrice) || 0);
+  const avgJobVal = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+  const signedCount = real.filter(j => j.signedAt).length;
+  return { jobCount: real.length, openCount, approvedCount, topDriver, suggestionCount, actualsJobs,
+           followupCount, staleCount, calibrateCount, shoppingJobs, shopItemCount, topCustomer, avgJobVal, signedCount };
+}
+
+// ---- Launchpad card preview bodies: each card shows real mini-content (a chart,
+// a short list, or stat boxes) inside an equal-size box, so you can read the
+// business at a glance before clicking in. Bodies are capped + overflow-clipped
+// so every card stays exactly the same size no matter how much data it holds.
+function dlbEmpty(msg) { return `<span class="dlb-empty">${escHtml(msg)}</span>`; }
+function dlbRow(color, main, meta) {
+  return `<span class="dlb-row"><span class="dlb-dot" style="background:${color}"></span><span class="dlb-row-main">${escHtml(main)}</span>${meta ? `<span class="dlb-row-meta">${escHtml(meta)}</span>` : ""}</span>`;
+}
+// A name + value line with a thin proportional bar under it (mini bar chart / progress).
+function dlbBarRow(name, meta, pct, color) {
+  const w = Math.max(2, Math.min(100, Math.round(pct || 0)));
+  return `<span class="dlb-barrow"><span class="dlb-barrow-top"><span class="dlb-row-main">${escHtml(name)}</span><span class="dlb-row-meta">${escHtml(meta)}</span></span><span class="dlb-track"><span class="dlb-fill" style="width:${w}%;background:${color}"></span></span></span>`;
+}
+// A name + a colored status pill, with a hairline divider between rows.
+function dlbPillRow(color, name, pill, cls) {
+  return `<span class="dlb-prow"><span class="dlb-dot" style="background:${color}"></span><span class="dlb-row-main">${escHtml(name)}</span><span class="dlb-pill ${cls}">${escHtml(pill)}</span></span>`;
+}
+function dashRecentJobs(jobs, n) {
+  return (jobs || []).filter(j => j && !j.isDraft)
+    .slice().sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0))
+    .slice(0, n);
+}
+function dashMiniDonut(parts, size) {
+  const live = (parts || []).filter(p => p.value > 0);
+  const total = live.reduce((s, p) => s + p.value, 0);
+  if (!(total > 0)) return "";
+  const cx = 120, cy = 120, R = 86, W = 32, C = 2 * Math.PI * R; let off = 0;
+  const rings = live.map(p => { const dash = p.value / total * C; const seg = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${p.color}" stroke-width="${W}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`; off += dash; return seg; }).join("");
+  return `<svg class="dlb-donut" viewBox="0 0 240 240" width="${size}" height="${size}" aria-hidden="true">${rings}</svg>`;
+}
+// Build the rich body for one launchpad card key.
+function dashCardBody(key, ctx, jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft);
+  const nameOf = j => j.name || j.customerName || "Untitled job";
+  if (key === "insights") {
+    let ms; try { ms = dashMaterialStats(jobs); } catch (_) { ms = null; }
+    if (!ms || !ms.items.length || !(ms.totalSpend > 0)) return dlbEmpty("Save a few jobs to see where your money goes.");
+    const items = ms.items.slice(0, 5), total = ms.totalSpend;
+    const parts = items.map((m, i) => ({ value: m.totalCost, color: MAT_COLORS[i % MAT_COLORS.length] }));
+    const rest = total - items.reduce((s, m) => s + m.totalCost, 0);
+    if (rest > 0.5) parts.push({ value: rest, color: "#475569" });
+    const legend = items.slice(0, 3).map((m, i) => `<span class="dlb-leg"><span class="dlb-leg-dot" style="background:${MAT_COLORS[i % MAT_COLORS.length]}"></span><span class="dlb-leg-name">${escHtml(m.name)}</span><span class="dlb-leg-pct">${Math.round(m.totalCost / total * 100)}%</span></span>`).join("");
+    return `<span class="dlb-donutwrap">${dashMiniDonut(parts, 96)}<span class="dlb-legend">${legend}</span></span>`;
+  }
+  if (key === "jobs") {
+    const recent = dashRecentJobs(jobs, 3);
+    if (!recent.length) return dlbEmpty("No saved jobs yet — your quotes show up here.");
+    const max = Math.max.apply(null, recent.map(j => Number(j.sellingPrice) || 0).concat([1]));
+    return `<span class="dlb-tag">Recent jobs · by value</span>` + recent.map(j => {
+      const v = Number(j.sellingPrice) || 0;
+      return dlbBarRow(nameOf(j), formatMoney(v), v / max * 100, STATUS_COLORS[jobStatus(j)] || "#64748b");
+    }).join("");
+  }
+  if (key === "followups") {
+    let fu; try { fu = computeFollowups(jobs); } catch (_) { fu = { stale: [], calibrate: [] }; }
+    const rows = [];
+    fu.stale.forEach(n => rows.push(dlbPillRow("#c9a558", nameOf(n.job), `${n.days}d quiet`, "gold")));
+    fu.calibrate.forEach(n => rows.push(dlbPillRow("#34d399", nameOf(n.job), "Calibrate", "green")));
+    if (!rows.length) return dlbEmpty("You're all caught up. 🎉");
+    return `<span class="dlb-tag">${rows.length} need${rows.length === 1 ? "s" : ""} attention</span>` + rows.slice(0, 4).join("");
+  }
+  if (key === "shopping") {
+    let sj; try { sj = dashShoppingJobs(jobs); } catch (_) { sj = []; }
+    const rows = sj.map(j => { const items = jobShoppingItems(j); const ck = (j.shopChecked && typeof j.shopChecked === "object") ? j.shopChecked : {}; const total = items.length, bought = items.filter(it => ck[it.id]).length; return { j, total, bought, left: total - bought }; }).filter(x => x.left > 0);
+    if (!rows.length) return dlbEmpty("Nothing to buy — all materials checked off.");
+    return `<span class="dlb-tag">Buying progress</span>` + rows.slice(0, 3).map(x => dlbBarRow(nameOf(x.j), `${x.left} to buy`, x.total ? x.bought / x.total * 100 : 0, "#c9a558")).join("");
+  }
+  if (key === "calibration") {
+    // Finished jobs whose calibration fields aren't fully logged yet. The bar shows
+    // how much you've filled in (logged actuals ÷ fields), so a partially-done job
+    // reads as in-progress; the meta is how many fields are still left.
+    const rows = real.filter(j => jobStatus(j) === "Finished").map(j => {
+      const recon = jobReconcilableRows(j); const total = recon.length;
+      if (!total) return null;
+      const a = (j.actuals && typeof j.actuals === "object") ? j.actuals : {};
+      const filled = recon.filter(r => a[r.id] && Number(a[r.id].used) > 0).length;
+      return { j, total, filled, left: total - filled };
+    }).filter(x => x && x.left > 0);
+    if (rows.length) {
+      return `<span class="dlb-tag">Calibration progress</span>` + rows.slice(0, 3).map(x => dlbBarRow(nameOf(x.j), `${x.left} left`, x.total ? x.filled / x.total * 100 : 0, "#34d399")).join("");
+    }
+    let sug = 0; try { sug = computeCalibrationSuggestions(jobs).suggestions.length; } catch (_) {}
+    if (sug) return `<span class="dlb-hero"><span class="dlb-hero-n">${sug}</span><span class="dlb-hero-l">rate suggestion${sug === 1 ? "" : "s"} ready</span></span><span class="dlb-note">Open to review and apply.</span>`;
+    return dlbEmpty("Mark a job Finished, then log what your crew used.");
+  }
+  if (key === "esign") {
+    const approved = real.filter(j => { const s = jobStatus(j); return s === "Approved" || s === "Finished"; }).length;
+    const signed = real.filter(j => j.signedAt).length;
+    const pct = approved ? Math.round(signed / approved * 100) : 0;
+    const ratio = approved ? `<span class="dlb-ratiowrap"><span class="dlb-ratio-l">${signed} of ${approved} signed</span><span class="dlb-track" style="margin:0;"><span class="dlb-fill" style="width:${signed ? Math.max(6, pct) : 0}%;background:#34d399"></span></span></span>` : "";
+    return `<span class="dlb-stats"><span class="dlb-stat"><span class="dlb-stat-n">${approved}</span><span class="dlb-stat-l">Approved</span></span><span class="dlb-stat"><span class="dlb-stat-n">${signed}</span><span class="dlb-stat-l">Signed</span></span></span>${ratio}`;
+  }
+  if (key === "revenue") {
+    // Booked revenue + profit by month (won jobs, by createdAt) as a dual-line sparkline.
+    const byMonth = {};
+    real.filter(j => jobIsWon(j) && j.createdAt && !isNaN(new Date(j.createdAt))).forEach(j => {
+      const d = new Date(j.createdAt), k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      const b = byMonth[k] || (byMonth[k] = { rev: 0, prof: 0 });
+      b.rev += Number(j.sellingPrice) || 0; b.prof += Number(j.profit) || 0;
+    });
+    const keys = Object.keys(byMonth).sort().slice(-6);
+    if (keys.length < 2) return dlbEmpty("Win jobs across a couple of months to see your revenue trend.");
+    const rev = keys.map(k => byMonth[k].rev), prof = keys.map(k => byMonth[k].prof);
+    const maxV = Math.max.apply(null, rev.concat([1]));
+    const W = 240, H = 64, n = keys.length, pad = 3;
+    const xx = i => n === 1 ? W / 2 : (i / (n - 1)) * W;
+    const yy = v => (H - pad) - (v / maxV) * (H - pad * 2);
+    const revLine = "M " + rev.map((v, i) => `${xx(i).toFixed(1)},${yy(v).toFixed(1)}`).join(" L ");
+    const area = revLine + ` L ${xx(n - 1).toFixed(1)},${H} L ${xx(0).toFixed(1)},${H} Z`;
+    const profLine = "M " + prof.map((v, i) => `${xx(i).toFixed(1)},${yy(v).toFixed(1)}`).join(" L ");
+    const lastRev = rev[rev.length - 1], margin = lastRev > 0 ? Math.round(prof[prof.length - 1] / lastRev * 100) : 0;
+    const svg = `<svg class="dlb-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${area}" fill="rgba(201,165,88,0.16)" stroke="none"/><path d="${revLine}" fill="none" stroke="#c9a558" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${profLine}" fill="none" stroke="#34d399" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+    return `<span class="dlb-tag">Booked · last ${keys.length} months</span>${svg}<span class="dlb-trend-legend"><span class="dlb-tl"><span class="dlb-tl-dot" style="background:#c9a558"></span>Revenue</span><span class="dlb-tl"><span class="dlb-tl-dot" style="background:#34d399"></span>Profit · ${margin}% margin</span></span>`;
+  }
+  if (key === "pipeline") {
+    const p = pipelineStats(jobs);
+    if (!p.real.length) return dlbEmpty("No saved jobs yet — your pipeline shows up here.");
+    const totalCount = p.real.length || 1;
+    const bar = JOB_STATUSES.map(s => { const c = p.groups[s].length; return c ? `<span class="dlb-seg" style="width:${(c / totalCount * 100).toFixed(1)}%;background:${STATUS_COLORS[s]}"></span>` : ""; }).join("");
+    const legend = JOB_STATUSES.map(s => `<span class="dlb-pl-row"><span class="dlb-dot" style="background:${STATUS_COLORS[s]}"></span><span class="dlb-row-main">${s}</span><span class="dlb-row-meta">${p.groups[s].length} · ${formatMoney(p.sum(p.groups[s]))}</span></span>`).join("");
+    const wr = p.winRate == null ? "" : ` · ${p.winRate}% win`;
+    return `<span class="dlb-tag">Pipeline${wr}</span><span class="dlb-stackbar">${bar}</span><span class="dlb-pl-legend">${legend}</span>`;
+  }
+  if (key === "manufacturers") {
+    const counts = {};
+    real.forEach(j => { const m = (j.manufacturer || "").trim(); if (m) counts[m] = (counts[m] || 0) + 1; });
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) return dlbEmpty("Quote a few jobs to see which brands you use most.");
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const top = entries.slice(0, 5);
+    const parts = top.map((e, i) => ({ value: e[1], color: MAT_COLORS[i % MAT_COLORS.length] }));
+    const rest = total - top.reduce((s, e) => s + e[1], 0);
+    if (rest > 0) parts.push({ value: rest, color: "#475569" });
+    const legend = entries.slice(0, 3).map((e, i) => `<span class="dlb-leg"><span class="dlb-leg-dot" style="background:${MAT_COLORS[i % MAT_COLORS.length]}"></span><span class="dlb-leg-name">${escHtml(e[0])}</span><span class="dlb-leg-pct">${Math.round(e[1] / total * 100)}%</span></span>`).join("");
+    return `<span class="dlb-donutwrap">${dashMiniDonut(parts, 96)}<span class="dlb-legend">${legend}</span></span>`;
+  }
+  return "";
 }
 
 function renderDashLaunchpad(jobs) {
   const wrap = document.getElementById("dashLaunchpad");
   if (!wrap) return;
   const ctx = dashLaunchContext(jobs);
-  wrap.innerHTML = DASH_CARDS.map(c => `
+  wrap.innerHTML = DASH_CARDS.map(c => {
+    const body = dashCardBody(c.key, ctx, jobs) || "";
+    return `
     <div class="dash-launch-cell">
-      <button type="button" data-dashcard="${c.key}" class="dash-launch-card" aria-describedby="tip-${c.key}">
-        <span class="dash-launch-icon">${c.icon}</span>
-        <span class="dash-launch-main">
+      <button type="button" data-dashcard="${c.goto || c.key}" class="dash-launch-card" aria-describedby="tip-${c.key}">
+        <span class="dash-launch-head">
+          <span class="dash-launch-icon">${c.icon}</span>
           <span class="dash-launch-title">${escHtml(c.title)}</span>
-          <span class="dash-launch-preview">${escHtml(c.preview(ctx))}</span>
         </span>
-        <svg class="dash-launch-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4l6 6-6 6"/></svg>
+        <span class="dash-launch-body">${body}</span>
       </button>
       <span class="dash-tip-btn" role="button" tabindex="0" aria-expanded="false" data-tip-for="${c.key}" aria-label="What is ${escHtml(c.title)}?">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><circle cx="12" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg>
       </span>
       <span class="dash-tip" id="tip-${c.key}" role="tooltip" data-flip="down">${escHtml(c.blurb || "")}</span>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 
 // Card "what is this?" hint helpers (used by the launchpad wiring + dashGoTo).
@@ -11435,26 +11742,59 @@ function pipelineStats(jobs) {
   return { real, groups, sum, openVal, openCount, wonVal, wonCount, lostCount, decided, winRate, avgMargin };
 }
 
+// Month-over-month deltas for the KPI tiles, from saved-job dates (this calendar
+// month vs last). Money metrics → relative %, rate metrics → point change.
+// Returns {} (no deltas shown) when there's no prior-month data to compare against.
+function dashStatTrends(jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft);
+  const now = new Date();
+  const tStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const lStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const dateOf = j => Date.parse(j.createdAt || j.updatedAt || "") || 0;
+  const cur = real.filter(j => dateOf(j) >= tStart);
+  const prev = real.filter(j => { const t = dateOf(j); return t >= lStart && t < tStart; });
+  if (!prev.length) return {};
+  const metrics = (arr) => {
+    const g = {}; JOB_STATUSES.forEach(s => g[s] = []); arr.forEach(j => g[jobStatus(j)].push(j));
+    const sum = a => a.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0);
+    const won = (g.Approved || []).concat(g.Finished || []); const dec = won.length + g.Lost.length;
+    const mg = arr.map(j => Number(j.margin)).filter(x => !isNaN(x));
+    return { open: sum(g.Quoted), won: sum(won), winRate: dec ? won.length / dec * 100 : null, markup: mg.length ? mg.reduce((s, x) => s + x, 0) / mg.length : null };
+  };
+  const c = metrics(cur), pr = metrics(prev);
+  const rel = (cv, pv) => { if (!(pv > 0) || !(cv > 0)) return null; const d = Math.round((cv - pv) / pv * 100); if (d === 0) return null; return { dir: d > 0 ? "up" : "down", label: Math.min(Math.abs(d), 999) + "%" }; };
+  const pts = (cv, pv) => { if (cv == null || pv == null) return null; const d = Math.round(cv - pv); return d === 0 ? null : { dir: d > 0 ? "up" : "down", label: Math.abs(d) + " pts" }; };
+  return { open: rel(c.open, pr.open), won: rel(c.won, pr.won), winRate: pts(c.winRate, pr.winRate), markup: pts(c.markup, pr.markup) };
+}
+
 // Quick-glance pipeline tiles at the top of the dashboard (outside the charts
 // card) so Open pipeline / Won / Win rate / Avg markup are visible at a glance.
+// Each tile carries a gold icon badge + a month-over-month trend delta.
 function renderDashStats(jobs) {
   const wrap = document.getElementById("dashStats");
   if (!wrap) return;
   const p = pipelineStats(jobs);
   if (!p.real.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
+  const tr = dashStatTrends(jobs);
+  const upSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6 4 4 6-7"/><path d="M16 8h4v4"/></svg>';
+  const downSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l6 6 4-4 6 7"/><path d="M16 16h4v-4"/></svg>';
   const tiles = [
-    { label: "Open pipeline", val: formatMoney(p.openVal), raw: p.openVal, fmt: "money", sub: `${p.openCount} open deal${p.openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]" },
-    { label: "Won", val: formatMoney(p.wonVal), raw: p.wonVal, fmt: "money", sub: `${p.wonCount} job${p.wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300" },
-    { label: "Win rate", val: p.winRate == null ? "—" : p.winRate + "%", raw: p.winRate, fmt: "pct", sub: p.decided ? `${p.wonCount}W · ${p.lostCount}L` : "no decisions yet", accent: "text-slate-100" },
-    { label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", raw: p.avgMargin, fmt: "pct", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100" },
+    { key: "open", label: "Open pipeline", val: formatMoney(p.openVal), raw: p.openVal, fmt: "money", sub: `${p.openCount} open deal${p.openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]", delta: tr.open },
+    { key: "won", label: "Won", val: formatMoney(p.wonVal), raw: p.wonVal, fmt: "money", sub: `${p.wonCount} job${p.wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300", delta: tr.won },
+    { key: "winRate", label: "Win rate", val: p.winRate == null ? "—" : p.winRate + "%", raw: p.winRate, fmt: "pct", sub: p.decided ? `${p.wonCount}W · ${p.lostCount}L` : "no decisions yet", accent: "text-slate-100", delta: tr.winRate },
+    { key: "markup", label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", raw: p.avgMargin, fmt: "pct", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100", delta: tr.markup },
   ];
-  wrap.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">` + tiles.map(t => `
-      <div class="card rounded-2xl px-4 py-4 text-center">
-        <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">${t.label}</div>
-        <div class="text-xl sm:text-2xl font-extrabold ${t.accent} mt-1" style="font-variant-numeric:tabular-nums;"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
-        <div class="text-[11px] text-slate-500 mt-0.5">${escHtml(t.sub)}</div>
-      </div>`).join("") + `</div>`;
+  wrap.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">` + tiles.map(t => {
+    const d = t.delta;
+    const deltaHTML = d ? `<div class="dash-stat-delta ${d.dir}">${d.dir === "up" ? upSvg : downSvg}${d.label}<span class="dash-stat-vs">vs last mo</span></div>` : "";
+    return `<div class="dash-stat card rounded-2xl p-4 text-center">
+        <span class="dash-stat-label">${escHtml(t.label)}</span>
+        <div class="dash-stat-num ${t.accent}"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
+        ${deltaHTML}
+        <div class="dash-stat-sub">${escHtml(t.sub)}</div>
+      </div>`;
+  }).join("") + `</div>`;
 }
 
 function renderDashJobsPanel(jobs) {
@@ -12477,7 +12817,13 @@ function wireDashboard() {
         return;
       }
       const c = e.target.closest("[data-dashcard]");
-      if (c) dashGoTo(c.dataset.dashcard);
+      if (c) {
+        const target = c.dataset.dashcard;
+        // The Manufacturers card opens Settings → Setup → Manufacturers (where the
+        // brand list + per-brand params live), not an in-dashboard panel.
+        if (target === "setup-manufacturers") { try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {} }
+        else dashGoTo(target);
+      }
     });
     // Keyboard parity for the role=button ⓘ span.
     launchpad.addEventListener("keydown", (e) => {
@@ -17330,41 +17676,51 @@ async function renderFbcInto(containerId, query, opts = {}) {
 
 // One editable manufacturer card — name, impact-spec flag, and the
 // nail-fin / through-frame screw patterns for impact + non-impact glass.
-function mfrCardHTML(name, rate) {
+function mfrCardHTML(name, rate, opts) {
   const r = normalizeMfrRate(rate);
   const safe = String(name || "").replace(/"/g, "&quot;");
+  const trimmed = String(name || "").trim();
+  const disp = trimmed
+    ? trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    : "New manufacturer";
+  const open = opts && opts.open ? " open" : "";
   const numCls = "num-input control rounded px-2 py-1.5 text-xs text-slate-100 w-16 text-center";
   return `
-    <div class="mfr-card rounded-xl border border-slate-800 p-3 mb-2 ${r.alwaysImpactSpec ? "always" : ""}">
-      <div class="flex items-center gap-2 mb-2">
-        <input class="mfr-name control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1 min-w-0" placeholder="Manufacturer" value="${safe}" />
-        <button type="button" class="mfr-del btn text-slate-500 hover:text-rose-300 text-lg leading-none px-2 flex-shrink-0" aria-label="Remove">×</button>
+    <details class="mfr-card ${r.alwaysImpactSpec ? "always" : ""}"${open}>
+      <summary class="mfr-sum">
+        <svg class="mfr-chev" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l7 6-7 6"/></svg>
+        <span class="mfr-sum-name">${disp}</span>
+        <span class="mfr-sum-tag" aria-hidden="true">impact-spec</span>
+        <button type="button" class="mfr-del btn" aria-label="Remove">×</button>
+      </summary>
+      <div class="mfr-body">
+        <input class="mfr-name control rounded-lg px-3 py-2 text-sm text-slate-100 w-full" placeholder="Manufacturer name" value="${safe}" />
+        <div class="flex items-center gap-1.5 mt-2.5 mb-2.5">
+          <label class="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
+            <input type="checkbox" class="mfr-always" ${r.alwaysImpactSpec ? "checked" : ""} />
+            Builds non-impact windows to impact spec
+          </label>
+          <span class="info-tip" tabindex="0" role="button" aria-label="What this means">
+            <svg viewBox="0 0 20 20" width="14" height="14">
+              <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+              <text x="10" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">?</text>
+            </svg>
+            <span class="info-pop">Some manufacturers build their non-impact windows to impact screw spec — so the glass can be swapped to impact later and stay certified. Check this and the calculator always uses that brand's denser impact screw pattern, no matter the job's glass type.</span>
+          </span>
+        </div>
+        <div class="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1.5 items-center">
+          <span></span>
+          <span class="text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Impact</span>
+          <span class="mfr-ni-head text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Non-Impact</span>
+          <span class="text-[11px] text-slate-500">Nail-fin / LF</span>
+          <input class="mfr-nf-i ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.impact}" />
+          <input class="mfr-nf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.nonImpact}" />
+          <span class="text-[11px] text-slate-500">Thru-frame / LF</span>
+          <input class="mfr-tf-i ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.impact}" />
+          <input class="mfr-tf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.nonImpact}" />
+        </div>
       </div>
-      <div class="flex items-center gap-1.5 mb-2.5">
-        <label class="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
-          <input type="checkbox" class="mfr-always" ${r.alwaysImpactSpec ? "checked" : ""} />
-          Builds non-impact windows to impact spec
-        </label>
-        <span class="info-tip" tabindex="0" role="button" aria-label="What this means">
-          <svg viewBox="0 0 20 20" width="14" height="14">
-            <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
-            <text x="10" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">?</text>
-          </svg>
-          <span class="info-pop">Some manufacturers build their non-impact windows to impact screw spec — so the glass can be swapped to impact later and stay certified. Check this and the calculator always uses that brand's denser impact screw pattern, no matter the job's glass type.</span>
-        </span>
-      </div>
-      <div class="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1.5 items-center">
-        <span></span>
-        <span class="text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Impact</span>
-        <span class="mfr-ni-head text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Non-Impact</span>
-        <span class="text-[11px] text-slate-500">Nail-fin / LF</span>
-        <input class="mfr-nf-i ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.impact}" />
-        <input class="mfr-nf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.nonImpact}" />
-        <span class="text-[11px] text-slate-500">Thru-frame / LF</span>
-        <input class="mfr-tf-i ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.impact}" />
-        <input class="mfr-tf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.nonImpact}" />
-      </div>
-    </div>`;
+    </details>`;
 }
 
 function buildAdminUI() {
@@ -23073,11 +23429,16 @@ function init() {
   // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
   function wireMfrEditor(addId, bodyId) {
     document.getElementById(addId).addEventListener("click", () => {
-      document.getElementById(bodyId).insertAdjacentHTML("beforeend", mfrCardHTML("", {}));
+      const body = document.getElementById(bodyId);
+      body.insertAdjacentHTML("beforeend", mfrCardHTML("", {}, { open: true }));
+      const card = body.lastElementChild;
+      const nameInput = card && card.querySelector(".mfr-name");
+      if (nameInput) nameInput.focus();
     });
     document.getElementById(bodyId).addEventListener("click", e => {
       const del = e.target.closest(".mfr-del");
-      if (del) { del.closest(".mfr-card").remove(); refreshDefaultMfgOptions(); }
+      // Remove on × — and stop the click from toggling the <details> it lives in
+      if (del) { e.preventDefault(); del.closest(".mfr-card").remove(); refreshDefaultMfgOptions(); }
     });
     // "Builds to impact spec" checkbox greys out the non-impact column
     document.getElementById(bodyId).addEventListener("change", e => {
@@ -23085,13 +23446,47 @@ function init() {
         e.target.closest(".mfr-card").classList.toggle("always", e.target.checked);
       }
     });
-    // Keep the default-manufacturer dropdown current as cards are renamed
+    // Keep the default-manufacturer dropdown + collapsed summary label current as cards are renamed
     document.getElementById(bodyId).addEventListener("input", e => {
-      if (e.target.classList.contains("mfr-name")) refreshDefaultMfgOptions();
+      if (e.target.classList.contains("mfr-name")) {
+        const card = e.target.closest(".mfr-card");
+        const lbl = card && card.querySelector(".mfr-sum-name");
+        if (lbl) lbl.textContent = e.target.value.trim() || "New manufacturer";
+        refreshDefaultMfgOptions();
+      }
     });
   }
   wireMfrEditor("mfrAddBtn", "mfrEditorBody");
   wireMfrEditor("setupMfrAdd", "setupMfrBody");
+
+  // Expand-all / collapse-all toggle for a manufacturer accordion list.
+  // Stays in sync with manual open/close (capture-phase toggle) and with
+  // cards being rendered / added / removed (MutationObserver) — no need to
+  // poke it from buildAdminUI or the wizard render.
+  function wireMfrToggleAll(btnId, bodyId) {
+    const btn = document.getElementById(btnId);
+    const body = document.getElementById(bodyId);
+    if (!btn || !body) return;
+    const label = btn.querySelector(".mfr-ta-label");
+    function sync() {
+      const cards = body.querySelectorAll(".mfr-card");
+      const open = body.querySelectorAll(".mfr-card[open]").length;
+      btn.style.display = cards.length ? "" : "none";
+      const allOpen = cards.length > 0 && open === cards.length;
+      btn.dataset.act = allOpen ? "collapse" : "expand";
+      if (label) label.textContent = allOpen ? "Collapse all" : "Expand all";
+    }
+    btn.addEventListener("click", () => {
+      const willExpand = btn.dataset.act !== "collapse";
+      body.querySelectorAll(".mfr-card").forEach(c => { c.open = willExpand; });
+      sync();
+    });
+    body.addEventListener("toggle", sync, true); // capture: <details> toggle doesn't bubble
+    new MutationObserver(sync).observe(body, { childList: true });
+    sync();
+  }
+  wireMfrToggleAll("mfrToggleAll", "mfrEditorBody");
+  wireMfrToggleAll("setupMfrToggleAll", "setupMfrBody");
   document.getElementById("adminChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("download"));
   document.getElementById("adminChecklistView").addEventListener("click", () => exportPricingChecklistPDF("view"));
 
