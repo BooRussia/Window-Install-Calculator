@@ -919,6 +919,18 @@
   [data-theme="light"] .mfr-sum-name { color: #0f172a; }
   [data-theme="light"] .mfr-chev { color: #94a3b8; }
   [data-theme="light"] .mfr-del { color: #94a3b8; }
+  .mfr-toggle-all {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700; letter-spacing: .02em;
+    color: #8aa0bd; background: transparent; border: 0;
+    padding: 3px 8px; border-radius: 7px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mfr-toggle-all:hover { color: #c9a558; background: rgba(201,165,88,0.08); }
+  .mfr-ta-icon { transition: transform .15s ease; }
+  .mfr-toggle-all[data-act="collapse"] .mfr-ta-icon { transform: rotate(180deg); }
+  [data-theme="light"] .mfr-toggle-all { color: #64748b; }
+  [data-theme="light"] .mfr-toggle-all:hover { color: #b58f4a; background: rgba(181,143,74,0.1); }
 
   /* ------- Collapsible result cards (Full Breakdown / Labor Detail / Job Files):
      big centered title when open (clear separation), compact title-left +
@@ -5013,7 +5025,13 @@
         <h2 class="text-lg font-black text-slate-100 tracking-tight">Your window manufacturers</h2>
         <p class="text-xs text-slate-500 mt-1">Add the brands you install. Keep, edit, or remove the pre-loaded ones, and add your own.</p>
         <p class="text-[11px] text-amber-400/80 mt-2">Each brand has two screw patterns per LF — nail-fin and through-frame. Don't have exact counts yet? Leave the defaults and fine-tune later.</p>
-        <div id="setupMfrBody" class="mt-3"></div>
+        <div class="flex items-center justify-end mt-3 mb-2">
+          <button type="button" id="setupMfrToggleAll" class="mfr-toggle-all" data-act="expand">
+            <svg class="mfr-ta-icon" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+            <span class="mfr-ta-label">Expand all</span>
+          </button>
+        </div>
+        <div id="setupMfrBody"></div>
         <button type="button" id="setupMfrAdd" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
       </div>
 
@@ -6471,6 +6489,12 @@
           <div class="set-collapse-body">
           <div class="set-sub mb-1">Each brand's screw pattern, per linear foot. Nail-fin screws are used on nail-fin installs; through-frame anchors on Equal/Unequal Leg installs.</div>
           <p class="text-[11px] text-amber-400/80 mb-4">Through-frame values are placeholder estimates — verify per brand.</p>
+          <div class="flex items-center justify-end mb-2">
+            <button type="button" id="mfrToggleAll" class="mfr-toggle-all" data-act="expand">
+              <svg class="mfr-ta-icon" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+              <span class="mfr-ta-label">Expand all</span>
+            </button>
+          </div>
           <div id="mfrEditorBody"></div>
           <button type="button" id="mfrAddBtn" class="mt-2 btn rounded-full px-3 py-1.5 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10">+ Add Manufacturer</button>
           </div><!-- /set-collapse-body -->
@@ -23427,6 +23451,35 @@ function init() {
   }
   wireMfrEditor("mfrAddBtn", "mfrEditorBody");
   wireMfrEditor("setupMfrAdd", "setupMfrBody");
+
+  // Expand-all / collapse-all toggle for a manufacturer accordion list.
+  // Stays in sync with manual open/close (capture-phase toggle) and with
+  // cards being rendered / added / removed (MutationObserver) — no need to
+  // poke it from buildAdminUI or the wizard render.
+  function wireMfrToggleAll(btnId, bodyId) {
+    const btn = document.getElementById(btnId);
+    const body = document.getElementById(bodyId);
+    if (!btn || !body) return;
+    const label = btn.querySelector(".mfr-ta-label");
+    function sync() {
+      const cards = body.querySelectorAll(".mfr-card");
+      const open = body.querySelectorAll(".mfr-card[open]").length;
+      btn.style.display = cards.length ? "" : "none";
+      const allOpen = cards.length > 0 && open === cards.length;
+      btn.dataset.act = allOpen ? "collapse" : "expand";
+      if (label) label.textContent = allOpen ? "Collapse all" : "Expand all";
+    }
+    btn.addEventListener("click", () => {
+      const willExpand = btn.dataset.act !== "collapse";
+      body.querySelectorAll(".mfr-card").forEach(c => { c.open = willExpand; });
+      sync();
+    });
+    body.addEventListener("toggle", sync, true); // capture: <details> toggle doesn't bubble
+    new MutationObserver(sync).observe(body, { childList: true });
+    sync();
+  }
+  wireMfrToggleAll("mfrToggleAll", "mfrEditorBody");
+  wireMfrToggleAll("setupMfrToggleAll", "setupMfrBody");
   document.getElementById("adminChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("download"));
   document.getElementById("adminChecklistView").addEventListener("click", () => exportPricingChecklistPDF("view"));
 
