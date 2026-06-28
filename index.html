@@ -10360,10 +10360,18 @@ function dashCardBody(key, ctx, jobs) {
     return `<span class="dlb-tag">Buying progress</span>` + rows.slice(0, 3).map(x => dlbBarRow(nameOf(x.j), `${x.left} to buy`, x.total ? x.bought / x.total * 100 : 0, "#c9a558")).join("");
   }
   if (key === "calibration") {
-    let cal = []; try { cal = computeFollowups(jobs).calibrate; } catch (_) {}
-    if (cal.length) {
-      const chips = cal.slice(0, 4).map(n => `<span class="dlb-chip">${escHtml(nameOf(n.job))}</span>`).join("");
-      return `<span class="dlb-hero"><span class="dlb-hero-n">${cal.length}</span><span class="dlb-hero-l">job${cal.length === 1 ? "" : "s"} ready to calibrate</span></span><span class="dlb-chips">${chips}</span><span class="dlb-note">Log actuals → sharper per-foot rates.</span>`;
+    // Finished jobs whose calibration fields aren't fully logged yet. The bar shows
+    // how much you've filled in (logged actuals ÷ fields), so a partially-done job
+    // reads as in-progress; the meta is how many fields are still left.
+    const rows = real.filter(j => jobStatus(j) === "Finished").map(j => {
+      const recon = jobReconcilableRows(j); const total = recon.length;
+      if (!total) return null;
+      const a = (j.actuals && typeof j.actuals === "object") ? j.actuals : {};
+      const filled = recon.filter(r => a[r.id] && Number(a[r.id].used) > 0).length;
+      return { j, total, filled, left: total - filled };
+    }).filter(x => x && x.left > 0);
+    if (rows.length) {
+      return `<span class="dlb-tag">Calibration progress</span>` + rows.slice(0, 3).map(x => dlbBarRow(nameOf(x.j), `${x.left} left`, x.total ? x.filled / x.total * 100 : 0, "#34d399")).join("");
     }
     let sug = 0; try { sug = computeCalibrationSuggestions(jobs).suggestions.length; } catch (_) {}
     if (sug) return `<span class="dlb-hero"><span class="dlb-hero-n">${sug}</span><span class="dlb-hero-l">rate suggestion${sug === 1 ? "" : "s"} ready</span></span><span class="dlb-note">Open to review and apply.</span>`;
