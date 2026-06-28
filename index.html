@@ -23444,6 +23444,12 @@ function init() {
 
   // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
   function wireMfrEditor(addId, bodyId) {
+    const addBtn = document.getElementById(addId);
+    const bodyEl = document.getElementById(bodyId);
+    // Guard against double-attachment: init() can run more than once. Doubled
+    // handlers would add two cards per click and cancel the impact-spec toggle.
+    if (!addBtn || !bodyEl || bodyEl._mfrEditorWired) return;
+    bodyEl._mfrEditorWired = true;
     document.getElementById(addId).addEventListener("click", () => {
       const body = document.getElementById(bodyId);
       body.insertAdjacentHTML("beforeend", mfrCardHTML("", {}, { open: true }));
@@ -23483,6 +23489,11 @@ function init() {
     const btn = document.getElementById(btnId);
     const body = document.getElementById(bodyId);
     if (!btn || !body) return;
+    // Guard against double-attachment: init() can run more than once (offline
+    // fallback / post-login boot). Two click handlers would expand then instantly
+    // collapse on a single click = no-op ("Expand all doesn't work").
+    if (btn._taWired) return;
+    btn._taWired = true;
     const label = btn.querySelector(".mfr-ta-label");
     function sync() {
       const cards = body.querySelectorAll(".mfr-card");
