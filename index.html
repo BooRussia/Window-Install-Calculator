@@ -2459,6 +2459,12 @@
   .set-collapse-sub { flex: 1 1 auto; min-width: 0; text-align: right; font-size: 11px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
   .set-collapse[open] > .set-collapse-summary .set-collapse-sub { display: none; }
   .set-collapse-body { padding: 0 16px 16px; }
+  /* Solo sections (the only collapsible in their settings leaf) read as a plain
+     heading: always open, no toggle, no chevron. The .solo-open class is applied
+     at runtime by applyStaticCollapseState() to whichever sections qualify. */
+  .set-collapse.solo-open > .set-collapse-summary { cursor: default; pointer-events: none; }
+  .set-collapse.solo-open > .set-collapse-summary:hover { background: transparent; }
+  .set-collapse.solo-open .set-collapse-chev { display: none; }
   /* Neutralize the legacy .set-card chrome when a card is nested directly inside
      a collapse body (the .set-collapse already draws the border/bg/pad). */
   .set-collapse-body > .set-card { border: 0; background: transparent; border-radius: 0; padding: 0; }
@@ -18435,6 +18441,11 @@ function filterRatesNav(query) {
 // section (keyed by data-collapse-key) — all share the rates_collapse store.
 document.addEventListener("toggle", (e) => {
   const el = e.target;
+  // Solo sections never collapse and never persist — snap back open if toggled.
+  if (el.matches?.(".set-collapse.solo-open")) {
+    if (!el.open) el.open = true;
+    return;
+  }
   let id = null;
   if (el.matches?.("#adminRatesBody [data-cat]")) id = el.getAttribute("data-cat");
   else if (el.matches?.(".set-collapse[data-collapse-key]")) id = "sc:" + el.getAttribute("data-collapse-key");
@@ -18452,10 +18463,22 @@ function applyStaticCollapseState() {
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
   document.querySelectorAll("#adminModal .set-collapse[data-collapse-key]").forEach(el => {
+    // A section that's the only collapsible in its leaf has nothing to fold
+    // around — there's no list to scan, so collapsing just hides the whole leaf.
+    // Render it as a plain always-open heading (no toggle, no chevron) and ignore
+    // any saved collapsed state. Leaves with 2+ sections keep normal collapsing.
+    const leaf = el.closest("[data-setupleaf],[data-rleaf],[data-accountleaf]");
+    const solo = leaf && leaf.querySelectorAll(".set-collapse[data-collapse-key]").length === 1;
+    if (solo) {
+      el.classList.add("solo-open");
+      el.open = true;
+      el.querySelector("summary")?.setAttribute("tabindex", "-1");
+      return;
+    }
+    el.classList.remove("solo-open");
     const pref = prefs["sc:" + el.getAttribute("data-collapse-key")];
-    // Single-section leaves (data-collapse-open) start expanded — no point hiding
-    // the only thing in the leaf; multi-card areas (Labor, Doors, Window Rates
-    // fees) start collapsed. An explicit saved open/closed choice always wins.
+    // Default-open sections (data-collapse-open) start expanded; multi-card areas
+    // (Window Rates fees) start collapsed. A saved choice always wins.
     el.open = (pref != null) ? !pref : el.hasAttribute("data-collapse-open");
   });
 }
