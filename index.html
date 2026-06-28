@@ -10265,6 +10265,9 @@ const DASH_CARDS = [
       ? `${ctx.approvedCount} approved · view activity`
       : "Track sent & signed quotes",
     preview2: (ctx) => ctx.signedCount ? `${ctx.signedCount} signed e-quote${ctx.signedCount === 1 ? "" : "s"}` : "" },
+  { key: "manufacturers", title: "Manufacturers", goto: "rates",
+    blurb: "The window & door brands you quote, ranked by how often you use them — tap to edit a brand's rates.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4 21V11l5 3V11l5 3V8l5 3v10"/></svg>` },
 ];
 
 // One pass over jobs → the numbers every launchpad preview needs.
@@ -10430,6 +10433,19 @@ function dashCardBody(key, ctx, jobs) {
     const legend = JOB_STATUSES.map(s => `<span class="dlb-pl-row"><span class="dlb-dot" style="background:${STATUS_COLORS[s]}"></span><span class="dlb-row-main">${s}</span><span class="dlb-row-meta">${p.groups[s].length} · ${formatMoney(p.sum(p.groups[s]))}</span></span>`).join("");
     const wr = p.winRate == null ? "" : ` · ${p.winRate}% win`;
     return `<span class="dlb-tag">Pipeline${wr}</span><span class="dlb-stackbar">${bar}</span><span class="dlb-pl-legend">${legend}</span>`;
+  }
+  if (key === "manufacturers") {
+    const counts = {};
+    real.forEach(j => { const m = (j.manufacturer || "").trim(); if (m) counts[m] = (counts[m] || 0) + 1; });
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) return dlbEmpty("Quote a few jobs to see which brands you use most.");
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const top = entries.slice(0, 5);
+    const parts = top.map((e, i) => ({ value: e[1], color: MAT_COLORS[i % MAT_COLORS.length] }));
+    const rest = total - top.reduce((s, e) => s + e[1], 0);
+    if (rest > 0) parts.push({ value: rest, color: "#475569" });
+    const legend = entries.slice(0, 3).map((e, i) => `<span class="dlb-leg"><span class="dlb-leg-dot" style="background:${MAT_COLORS[i % MAT_COLORS.length]}"></span><span class="dlb-leg-name">${escHtml(e[0])}</span><span class="dlb-leg-pct">${Math.round(e[1] / total * 100)}%</span></span>`).join("");
+    return `<span class="dlb-donutwrap">${dashMiniDonut(parts, 96)}<span class="dlb-legend">${legend}</span></span>`;
   }
   return "";
 }
@@ -12730,7 +12746,13 @@ function wireDashboard() {
         return;
       }
       const c = e.target.closest("[data-dashcard]");
-      if (c) dashGoTo(c.dataset.dashcard);
+      if (c) {
+        const target = c.dataset.dashcard;
+        // The Manufacturers card opens the Rates settings (where brand params live),
+        // not an in-dashboard panel.
+        if (target === "rates") { try { openAdmin(); showSettingsTab("rates"); } catch (_) {} }
+        else dashGoTo(target);
+      }
     });
     // Keyboard parity for the role=button ⓘ span.
     launchpad.addEventListener("keydown", (e) => {
