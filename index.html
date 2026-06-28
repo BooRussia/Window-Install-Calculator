@@ -2008,6 +2008,42 @@
   }
   /* Keep side-sliding reveals from ever poking a horizontal scrollbar. */
   #landingScreen { overflow-x: clip; }
+
+  /* ---- Phase 3: "morphing document" showpiece ----
+     Mobile / tablet (<1024px): the four document states just stack in normal
+     flow with the standard reveals. Desktop (>=1024px): the section gets a tall
+     scroll region, a single sticky stage pins to the viewport, and JS cross-fades
+     between the four states as you scroll — one document morphing through all four
+     outputs. Reduced motion reverts to the stacked layout (no pin/scrub). */
+  .docs-state + .docs-state { margin-top: 6rem; }
+  .docs-rail { display: none; }
+  @media (min-width: 1024px) {
+    .docs-scrub { position: relative; height: 260vh; }
+    .docs-stage { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+    .docs-states { position: absolute; inset: 0; }
+    .docs-state { position: absolute; inset: 0; margin: 0 !important; display: flex; align-items: center; opacity: 0; }
+    .docs-state[data-doc="0"] { opacity: 1; }   /* fallback if JS never runs */
+    .docs-grid { width: 100%; }
+    /* the per-element reveal is irrelevant on desktop — the JS cross-fade owns visibility */
+    .docs-state .lp-reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .docs-rail { display: flex; gap: 8px; position: absolute; left: 50%; transform: translateX(-50%); bottom: 6vh; z-index: 4; }
+    .docs-dot { font-size: 11.5px; font-weight: 700; letter-spacing: .01em; color: #64748b;
+      background: rgba(148,163,184,0.08); border: 1px solid rgba(148,163,184,0.18);
+      padding: 7px 14px; border-radius: 9999px; cursor: pointer;
+      transition: color .2s ease, background .2s ease, border-color .2s ease; -webkit-tap-highlight-color: transparent; }
+    .docs-dot:hover { color: #cbd5e1; border-color: rgba(148,163,184,0.4); }
+    .docs-dot.active { color: #1b1206; background: #dfc07a; border-color: #dfc07a; }
+  }
+  @media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+    .docs-scrub { height: auto; }
+    .docs-stage { position: static; height: auto; overflow: visible; }
+    .docs-states { position: static; }
+    .docs-state { position: static; opacity: 1 !important; margin: 0 0 6rem !important; }
+    .docs-rail { display: none; }
+  }
+  [data-theme="light"] .docs-dot { color: #64748b; background: #eef1f5; border-color: #e2e8f0; }
+  [data-theme="light"] .docs-dot:hover { color: #334155; }
+  [data-theme="light"] .docs-dot.active { color: #1b1206; background: #dfc07a; border-color: #dfc07a; }
   /* Landing + Pricing CTA visibility — logged-out visitors see Log In +
      Get Started (Open App is hidden because they don't have an app to open).
      Signed-in visitors see only Open App; Log In / Get Started / "← Home"
@@ -4351,11 +4387,14 @@
       <p class="text-slate-400 mt-3 max-w-xl mx-auto">Anchor generates everything the customer, office, and crew need — the moment your numbers are in.</p>
     </div>
 
-    <div class="space-y-28 sm:space-y-40">
+    <div id="lpDocsScrub" class="docs-scrub">
+      <div class="docs-stage">
+      <div class="docs-states">
 
       <!-- Customer Quote -->
-      <div class="grid md:grid-cols-2 gap-8 md:gap-14 items-center">
-        <div class="lp-reveal">
+      <div class="docs-state" data-doc="0">
+      <div class="docs-grid grid md:grid-cols-2 gap-8 md:gap-14 items-center">
+        <div class="docs-copy lp-reveal">
           <div class="text-[11px] uppercase tracking-[0.18em] text-[#c9a558] font-bold">For the customer</div>
           <h3 class="text-2xl sm:text-3xl font-black tracking-tightest text-slate-100 mt-2">Customer Quote</h3>
           <p class="text-slate-400 mt-3 leading-relaxed">A polished, single-page quote your customer can sign on the spot — your logo, one clear price. No spreadsheets, no math in front of the customer.</p>
@@ -4365,7 +4404,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Ready to hand over or email in seconds</li>
           </ul>
         </div>
-        <div class="lp-reveal from-right grow">
+        <div class="docs-media lp-reveal from-right grow">
           <div class="lp-card rounded-2xl p-6 relative overflow-hidden">
             <div class="absolute top-0 left-0 right-0 h-1" style="background:linear-gradient(90deg,#b58f4a,#dfc07a)"></div>
             <div class="flex items-center gap-2.5 mt-1">
@@ -4390,10 +4429,12 @@
           </div>
         </div>
       </div>
+      </div>
 
       <!-- Cost Breakdown -->
-      <div class="grid md:grid-cols-2 gap-8 md:gap-14 items-center">
-        <div class="lp-reveal md:order-2">
+      <div class="docs-state" data-doc="1">
+      <div class="docs-grid grid md:grid-cols-2 gap-8 md:gap-14 items-center">
+        <div class="docs-copy lp-reveal">
           <div class="text-[11px] uppercase tracking-[0.18em] text-[#c9a558] font-bold">For the crew &amp; office</div>
           <h3 class="text-2xl sm:text-3xl font-black tracking-tightest text-slate-100 mt-2">Cost Breakdown</h3>
           <p class="text-slate-400 mt-3 leading-relaxed">The internal cost sheet — every material and labor line itemized to the linear foot. See where the money goes and your real margin before you commit to a price.</p>
@@ -4403,7 +4444,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Your true cost and margin — never shown to the customer</li>
           </ul>
         </div>
-        <div class="lp-reveal md:order-1 from-left grow">
+        <div class="docs-media lp-reveal from-right grow">
           <div class="lp-card rounded-2xl p-6">
             <div class="flex items-center justify-between">
               <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Internal cost sheet</div>
@@ -4421,10 +4462,12 @@
           </div>
         </div>
       </div>
+      </div>
 
       <!-- Materials List -->
-      <div class="grid md:grid-cols-2 gap-8 md:gap-14 items-center">
-        <div class="lp-reveal">
+      <div class="docs-state" data-doc="2">
+      <div class="docs-grid grid md:grid-cols-2 gap-8 md:gap-14 items-center">
+        <div class="docs-copy lp-reveal">
           <div class="text-[11px] uppercase tracking-[0.18em] text-[#c9a558] font-bold">For the field</div>
           <h3 class="text-2xl sm:text-3xl font-black tracking-tightest text-slate-100 mt-2">Materials List</h3>
           <p class="text-slate-400 mt-3 leading-relaxed">Turns the job into a shopping list — exact pack quantities, ready to check off in the field. No guessing how many cases, rolls, or boards you need.</p>
@@ -4434,7 +4477,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Recalculates the instant the job changes</li>
           </ul>
         </div>
-        <div class="lp-reveal from-right grow">
+        <div class="docs-media lp-reveal from-right grow">
           <div class="lp-card rounded-2xl p-6">
             <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-3">Supplier shopping list</div>
             <div class="space-y-2.5">
@@ -4447,10 +4490,12 @@
           </div>
         </div>
       </div>
+      </div>
 
       <!-- Buck Cut List -->
-      <div class="grid md:grid-cols-2 gap-8 md:gap-14 items-center">
-        <div class="lp-reveal md:order-2">
+      <div class="docs-state" data-doc="3">
+      <div class="docs-grid grid md:grid-cols-2 gap-8 md:gap-14 items-center">
+        <div class="docs-copy lp-reveal">
           <div class="text-[11px] uppercase tracking-[0.18em] text-[#c9a558] font-bold">Stop wasting lumber</div>
           <h3 class="text-2xl sm:text-3xl font-black tracking-tightest text-slate-100 mt-2">Buck Cut List</h3>
           <p class="text-slate-400 mt-3 leading-relaxed">Packs every opening's cuts onto the fewest boards possible — exact lengths, minimal offcut. The cut list that takes a foreman 20 minutes on a notepad, done instantly.</p>
@@ -4460,7 +4505,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Built from the openings you scan or enter</li>
           </ul>
         </div>
-        <div class="lp-reveal md:order-1 from-left grow">
+        <div class="docs-media lp-reveal from-right grow">
           <div class="lp-card rounded-2xl p-6">
             <div class="flex items-center justify-between mb-3">
               <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Optimized cut plan</div>
@@ -4494,7 +4539,15 @@
           </div>
         </div>
       </div>
-
+      </div>
+      </div>
+      <div class="docs-rail" aria-label="Document types">
+        <button type="button" class="docs-dot active" data-doc="0">Customer Quote</button>
+        <button type="button" class="docs-dot" data-doc="1">Cost Breakdown</button>
+        <button type="button" class="docs-dot" data-doc="2">Materials List</button>
+        <button type="button" class="docs-dot" data-doc="3">Buck Cut List</button>
+      </div>
+      </div>
     </div>
   </section>
 
@@ -22105,6 +22158,61 @@ function revealOnScroll(container) {
   window.addEventListener("resize", reveal, { passive: true });
 }
 
+// Phase 3 — the docs "morphing document". On desktop (>=1024px, motion allowed)
+// the section is a tall scroll region with a sticky stage; as you scroll, the four
+// document states cross-fade into one another (one paper, four outputs), a progress
+// rail tracks the active one, and clicking a rail label jumps to that state. On
+// smaller screens or with reduced motion the states just stack (handled by CSS) and
+// this does nothing but clear any stale inline styles. Scroll-based (no rAF) and
+// compositor-only (opacity + small translateY), with cached geometry so there's no
+// per-frame layout read.
+function wireDocsScrub(ls) {
+  const scrub = document.getElementById("lpDocsScrub");
+  if (!scrub || !ls) return;
+  const states = Array.prototype.slice.call(scrub.querySelectorAll(".docs-state"));
+  const dots = Array.prototype.slice.call(scrub.querySelectorAll(".docs-dot"));
+  const N = states.length;
+  if (!N) return;
+  const deskMq = window.matchMedia("(min-width: 1024px)");
+  const reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let geo = null, active = -1;
+  const measure = () => {
+    const rect = scrub.getBoundingClientRect();
+    geo = { top: rect.top + ls.scrollTop, height: scrub.offsetHeight, vh: ls.clientHeight };
+  };
+  const clearInline = () => states.forEach(s => { s.style.opacity = ""; s.style.transform = ""; s.style.willChange = ""; s.style.zIndex = ""; });
+  const update = () => {
+    if (!deskMq.matches || reduceMq.matches) { clearInline(); return; }
+    if (!geo) measure();
+    const scrollable = Math.max(1, geo.height - geo.vh);
+    const p = Math.min(1, Math.max(0, (ls.scrollTop - geo.top) / scrollable));
+    const af = p * (N - 1);
+    const within = p > 0.0005 && p < 0.9995;
+    const a = Math.round(af);
+    states.forEach((s, i) => {
+      // Hold each doc steady, then a tight cross-fade so two cards never sit at a
+      // muddy 50/50; a directional slide (passed = up, upcoming = below) makes the
+      // transition read as a swap rather than a double-exposure.
+      const o = Math.max(0, 1 - Math.max(0, Math.abs(af - i) - 0.38) / 0.12);
+      const ty = Math.max(-48, Math.min(48, (i - af) * 34));
+      s.style.opacity = o.toFixed(3);
+      s.style.transform = "translateY(" + ty.toFixed(1) + "px)";
+      s.style.zIndex = o > 0.5 ? "2" : "1";
+      s.style.willChange = within ? "opacity, transform" : "";
+    });
+    if (a !== active) { active = a; dots.forEach((d, i) => d.classList.toggle("active", i === a)); }
+  };
+  measure(); update();
+  setTimeout(() => { measure(); update(); }, 300);
+  ls.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", () => { measure(); update(); }, { passive: true });
+  dots.forEach((d, i) => d.addEventListener("click", () => {
+    if (!geo) measure();
+    const target = geo.top + (geo.height - geo.vh) * (N > 1 ? i / (N - 1) : 0);
+    ls.scrollTo({ top: target, behavior: "smooth" });
+  }));
+}
+
 function wireLanding() {
   const ls = document.getElementById("landingScreen");
   // Smooth-scroll nav + hero buttons
@@ -22165,6 +22273,8 @@ function wireLanding() {
     }, { passive: true });
     applyHeroDive();
   }
+  // Phase 3 — pinned "morphing document" showpiece (desktop scrub).
+  wireDocsScrub(ls);
   // Trust-band install counter — count 0→200 once when scrolled into view, then stop.
   // Reuses the same IntersectionObserver pattern as lp-reveal so behaviour matches the rest of the page.
   // Real installer count. Keep at 0 until you actually have customers —
