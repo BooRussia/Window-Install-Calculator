@@ -4262,6 +4262,7 @@
 
   <!-- Hero -->
   <section class="max-w-4xl mx-auto px-5 sm:px-6 pt-16 sm:pt-24 pb-24 sm:pb-32 text-center">
+    <div id="lpHeroDive">
     <div class="lp-reveal"><span class="lp-eyebrow">Built for window &amp; door installers</span></div>
     <h1 class="lp-reveal text-[2.65rem] leading-[1.3] sm:text-7xl font-black tracking-tightest mt-6 text-slate-100">
       <span aria-hidden="true"><span class="hero-line"><span class="hero-pre">Anchor your</span> <span class="hero-roll"><span class="hero-stack" id="heroRollA"><span>profit.</span><span>value.</span><span>gains.</span><span>rates.</span><span>profit.</span></span></span></span><br><span class="hero-line"><span class="hero-pre gold-glow">Reel in your</span> <span class="hero-roll"><span class="hero-stack" id="heroRollB"><span class="gold-glow">time.</span><span class="gold-glow">jobs.</span><span class="gold-glow">cash.</span><span class="gold-glow">wins.</span><span class="gold-glow">time.</span></span></span></span></span><span class="sr-only">Anchor your profit. Reel in your time.</span>
@@ -4273,6 +4274,7 @@
       <button id="lpHeroSignup" class="lp-btn-gold btn rounded-full text-sm font-bold px-7 py-3.5">Get Started Free</button>
       <button class="lp-scroll btn rounded-full text-sm font-bold px-7 py-3.5 bg-transparent text-slate-200 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]" data-scroll="lpFL">Try FL Lookup</button>
     </div>
+    </div><!-- /lpHeroDive -->
     <!-- Product preview mocks -->
     <p class="lp-reveal text-[11px] uppercase tracking-[0.2em] text-slate-500 font-bold text-center mt-20 sm:mt-24">Try it — drag to your job size</p>
     <div class="mt-4 grid sm:grid-cols-2 gap-6 sm:gap-7 max-w-3xl mx-auto">
@@ -22068,16 +22070,7 @@ function wirePricingScreen() {
   // Reuse the existing pricing-section wiring (plan cards, billing toggle, CTAs, FAQ)
   wirePricing(ps);
   // Scroll-reveal animations within the pricing screen
-  if ("IntersectionObserver" in window) {
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(en => {
-        if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
-      });
-    }, { threshold: 0.12 });
-    ps.querySelectorAll(".lp-reveal").forEach(el => io.observe(el));
-  } else {
-    ps.querySelectorAll(".lp-reveal").forEach(el => el.classList.add("in"));
-  }
+  revealOnScroll(ps);
 }
 // Hash routing — open the pricing page when the URL contains #/pricing
 function handlePricingHashRoute() {
@@ -22087,6 +22080,30 @@ window.addEventListener("hashchange", handlePricingHashRoute);
 window.addEventListener("popstate", () => {
   if (window.location.hash !== "#/pricing") closePricing();
 });
+
+// Scroll-reveal: add .in once an element's top is comfortably on screen (within the
+// upper ~85% of the viewport), not the instant its edge peeks in at the bottom. This
+// is scroll-based rather than IntersectionObserver on purpose — it fires reliably
+// regardless of init/layout timing, reveals above-fold content immediately on the
+// first call, applies the same "on-screen" delay everywhere, and never strands the
+// bottom-most elements (they reveal the moment you scroll to them).
+function revealOnScroll(container) {
+  if (!container) return;
+  const reveal = () => {
+    const vh = container.clientHeight || window.innerHeight || 1;
+    container.querySelectorAll(".lp-reveal:not(.in)").forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.top < vh * 0.85 && r.bottom > 0) el.classList.add("in");
+    });
+  };
+  reveal();
+  // Re-run after layout settles, in case this wired before the screen had its
+  // final size (rects would read 0 and nothing above the fold would reveal).
+  setTimeout(reveal, 0);
+  setTimeout(reveal, 250);
+  container.addEventListener("scroll", reveal, { passive: true });
+  window.addEventListener("resize", reveal, { passive: true });
+}
 
 function wireLanding() {
   const ls = document.getElementById("landingScreen");
@@ -22126,15 +22143,27 @@ function wireLanding() {
     scheduleFLMissingCheck(e.target.value, "landing");
   });
   // Scroll-reveal animations
-  if ("IntersectionObserver" in window) {
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(en => {
-        if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
-      });
-    }, { threshold: 0.12 });
-    ls.querySelectorAll(".lp-reveal").forEach(el => io.observe(el));
-  } else {
-    ls.querySelectorAll(".lp-reveal").forEach(el => el.classList.add("in"));
+  revealOnScroll(ls);
+  // Phase 2 — hero "dive": the headline block recedes (fades + sinks + scales
+  // down) as you scroll past it, so descending the page feels like sinking past
+  // the surface — reinforcing the anchor-dive happening on the left. Isolated,
+  // compositor-only (transform/opacity on one element), rAF-throttled; the
+  // will-change layer is held only inside the active dive zone. Off for reduced motion.
+  const heroDive = document.getElementById("lpHeroDive");
+  if (heroDive && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    let ticking = false;
+    const applyHeroDive = () => {
+      ticking = false;
+      const dist = Math.max(260, ls.clientHeight * 0.62);
+      const p = Math.min(1, Math.max(0, ls.scrollTop / dist));
+      heroDive.style.transform = `translateY(${(-46 * p).toFixed(1)}px) scale(${(1 - 0.09 * p).toFixed(3)})`;
+      heroDive.style.opacity = (1 - 0.85 * p).toFixed(3);
+      heroDive.style.willChange = (p > 0 && p < 1) ? "transform, opacity" : "auto";
+    };
+    ls.addEventListener("scroll", () => {
+      if (!ticking) { ticking = true; requestAnimationFrame(applyHeroDive); }
+    }, { passive: true });
+    applyHeroDive();
   }
   // Trust-band install counter — count 0→200 once when scrolled into view, then stop.
   // Reuses the same IntersectionObserver pattern as lp-reveal so behaviour matches the rest of the page.
