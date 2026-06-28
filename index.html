@@ -877,6 +877,49 @@
   .mfr-card.always .mfr-ni,
   .mfr-card.always .mfr-ni-head { opacity: 0.3; pointer-events: none; }
 
+  /* ------- Manufacturer accordion — one compact collapsible per brand ------- */
+  .mfr-card {
+    border: 1px solid #1f2a3a;
+    border-radius: 11px;
+    margin-bottom: 7px;
+    background: rgba(15,23,42,0.35);
+    overflow: hidden;
+  }
+  .mfr-card[open] { background: rgba(15,23,42,0.6); border-color: #2a3a52; }
+  .mfr-sum {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 12px; cursor: pointer; list-style: none;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  .mfr-sum::-webkit-details-marker { display: none; }
+  .mfr-sum::marker { content: ""; }
+  .mfr-chev { color: #5b6b82; flex-shrink: 0; transition: transform .15s ease; }
+  .mfr-card[open] .mfr-chev { transform: rotate(90deg); }
+  .mfr-sum-name {
+    flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: #e8eef7;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mfr-sum-tag {
+    display: none; flex-shrink: 0; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: #c9a558; background: rgba(201,165,88,0.12);
+    border: 1px solid rgba(201,165,88,0.3); border-radius: 999px;
+    padding: 2px 7px;
+  }
+  .mfr-card.always .mfr-sum-tag { display: inline-block; }
+  .mfr-card[open] .mfr-sum-tag { display: none; }
+  .mfr-del {
+    color: #586477; font-size: 18px; line-height: 1; padding: 0 4px;
+    flex-shrink: 0; background: transparent;
+  }
+  .mfr-del:hover { color: #fb7185; }
+  .mfr-body { padding: 2px 12px 12px; }
+  [data-theme="light"] .mfr-card { border-color: #e6e8ec; background: #fbfcfd; }
+  [data-theme="light"] .mfr-card[open] { background: #fff; border-color: #d4d9e0; }
+  [data-theme="light"] .mfr-sum-name { color: #0f172a; }
+  [data-theme="light"] .mfr-chev { color: #94a3b8; }
+  [data-theme="light"] .mfr-del { color: #94a3b8; }
+
   /* ------- Collapsible result cards (Full Breakdown / Labor Detail / Job Files):
      big centered title when open (clear separation), compact title-left +
      summary-right when minimized. ------- */
@@ -17605,41 +17648,51 @@ async function renderFbcInto(containerId, query, opts = {}) {
 
 // One editable manufacturer card — name, impact-spec flag, and the
 // nail-fin / through-frame screw patterns for impact + non-impact glass.
-function mfrCardHTML(name, rate) {
+function mfrCardHTML(name, rate, opts) {
   const r = normalizeMfrRate(rate);
   const safe = String(name || "").replace(/"/g, "&quot;");
+  const trimmed = String(name || "").trim();
+  const disp = trimmed
+    ? trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    : "New manufacturer";
+  const open = opts && opts.open ? " open" : "";
   const numCls = "num-input control rounded px-2 py-1.5 text-xs text-slate-100 w-16 text-center";
   return `
-    <div class="mfr-card rounded-xl border border-slate-800 p-3 mb-2 ${r.alwaysImpactSpec ? "always" : ""}">
-      <div class="flex items-center gap-2 mb-2">
-        <input class="mfr-name control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1 min-w-0" placeholder="Manufacturer" value="${safe}" />
-        <button type="button" class="mfr-del btn text-slate-500 hover:text-rose-300 text-lg leading-none px-2 flex-shrink-0" aria-label="Remove">×</button>
+    <details class="mfr-card ${r.alwaysImpactSpec ? "always" : ""}"${open}>
+      <summary class="mfr-sum">
+        <svg class="mfr-chev" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l7 6-7 6"/></svg>
+        <span class="mfr-sum-name">${disp}</span>
+        <span class="mfr-sum-tag" aria-hidden="true">impact-spec</span>
+        <button type="button" class="mfr-del btn" aria-label="Remove">×</button>
+      </summary>
+      <div class="mfr-body">
+        <input class="mfr-name control rounded-lg px-3 py-2 text-sm text-slate-100 w-full" placeholder="Manufacturer name" value="${safe}" />
+        <div class="flex items-center gap-1.5 mt-2.5 mb-2.5">
+          <label class="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
+            <input type="checkbox" class="mfr-always" ${r.alwaysImpactSpec ? "checked" : ""} />
+            Builds non-impact windows to impact spec
+          </label>
+          <span class="info-tip" tabindex="0" role="button" aria-label="What this means">
+            <svg viewBox="0 0 20 20" width="14" height="14">
+              <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+              <text x="10" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">?</text>
+            </svg>
+            <span class="info-pop">Some manufacturers build their non-impact windows to impact screw spec — so the glass can be swapped to impact later and stay certified. Check this and the calculator always uses that brand's denser impact screw pattern, no matter the job's glass type.</span>
+          </span>
+        </div>
+        <div class="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1.5 items-center">
+          <span></span>
+          <span class="text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Impact</span>
+          <span class="mfr-ni-head text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Non-Impact</span>
+          <span class="text-[11px] text-slate-500">Nail-fin / LF</span>
+          <input class="mfr-nf-i ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.impact}" />
+          <input class="mfr-nf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.nonImpact}" />
+          <span class="text-[11px] text-slate-500">Thru-frame / LF</span>
+          <input class="mfr-tf-i ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.impact}" />
+          <input class="mfr-tf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.nonImpact}" />
+        </div>
       </div>
-      <div class="flex items-center gap-1.5 mb-2.5">
-        <label class="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
-          <input type="checkbox" class="mfr-always" ${r.alwaysImpactSpec ? "checked" : ""} />
-          Builds non-impact windows to impact spec
-        </label>
-        <span class="info-tip" tabindex="0" role="button" aria-label="What this means">
-          <svg viewBox="0 0 20 20" width="14" height="14">
-            <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
-            <text x="10" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">?</text>
-          </svg>
-          <span class="info-pop">Some manufacturers build their non-impact windows to impact screw spec — so the glass can be swapped to impact later and stay certified. Check this and the calculator always uses that brand's denser impact screw pattern, no matter the job's glass type.</span>
-        </span>
-      </div>
-      <div class="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1.5 items-center">
-        <span></span>
-        <span class="text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Impact</span>
-        <span class="mfr-ni-head text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Non-Impact</span>
-        <span class="text-[11px] text-slate-500">Nail-fin / LF</span>
-        <input class="mfr-nf-i ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.impact}" />
-        <input class="mfr-nf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.nonImpact}" />
-        <span class="text-[11px] text-slate-500">Thru-frame / LF</span>
-        <input class="mfr-tf-i ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.impact}" />
-        <input class="mfr-tf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.nonImpact}" />
-      </div>
-    </div>`;
+    </details>`;
 }
 
 function buildAdminUI() {
@@ -23345,11 +23398,16 @@ function init() {
   // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
   function wireMfrEditor(addId, bodyId) {
     document.getElementById(addId).addEventListener("click", () => {
-      document.getElementById(bodyId).insertAdjacentHTML("beforeend", mfrCardHTML("", {}));
+      const body = document.getElementById(bodyId);
+      body.insertAdjacentHTML("beforeend", mfrCardHTML("", {}, { open: true }));
+      const card = body.lastElementChild;
+      const nameInput = card && card.querySelector(".mfr-name");
+      if (nameInput) nameInput.focus();
     });
     document.getElementById(bodyId).addEventListener("click", e => {
       const del = e.target.closest(".mfr-del");
-      if (del) { del.closest(".mfr-card").remove(); refreshDefaultMfgOptions(); }
+      // Remove on × — and stop the click from toggling the <details> it lives in
+      if (del) { e.preventDefault(); del.closest(".mfr-card").remove(); refreshDefaultMfgOptions(); }
     });
     // "Builds to impact spec" checkbox greys out the non-impact column
     document.getElementById(bodyId).addEventListener("change", e => {
@@ -23357,9 +23415,14 @@ function init() {
         e.target.closest(".mfr-card").classList.toggle("always", e.target.checked);
       }
     });
-    // Keep the default-manufacturer dropdown current as cards are renamed
+    // Keep the default-manufacturer dropdown + collapsed summary label current as cards are renamed
     document.getElementById(bodyId).addEventListener("input", e => {
-      if (e.target.classList.contains("mfr-name")) refreshDefaultMfgOptions();
+      if (e.target.classList.contains("mfr-name")) {
+        const card = e.target.closest(".mfr-card");
+        const lbl = card && card.querySelector(".mfr-sum-name");
+        if (lbl) lbl.textContent = e.target.value.trim() || "New manufacturer";
+        refreshDefaultMfgOptions();
+      }
     });
   }
   wireMfrEditor("mfrAddBtn", "mfrEditorBody");
