@@ -1981,11 +1981,33 @@
     box-shadow: 0 10px 30px -10px rgba(181,143,74,0.55);
   }
   .lp-btn-gold:hover { background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-hi) 100%); }
-  .lp-reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(0.16,1,0.3,1); }
-  .lp-reveal.in { opacity: 1; transform: none; }
-  @media (prefers-reduced-motion: reduce) {
-    .lp-reveal { opacity: 1; transform: none; transition: none; }
+  /* Scroll reveals — variant-driven via custom props. Default = rise + fade;
+     .from-left/.from-right add a horizontal slide; .grow adds a scale-up; a
+     .lp-stagger parent cascades its children. The IntersectionObserver adds .in,
+     which settles every variant to its resting position (transform: none). */
+  .lp-reveal {
+    opacity: 0;
+    transform: translate(var(--lp-x, 0px), var(--lp-y, 18px)) scale(var(--lp-s, 1));
+    transition: opacity .6s ease, transform .7s cubic-bezier(0.16,1,0.3,1);
+    transition-delay: var(--lp-d, 0s);
   }
+  .lp-reveal.in { opacity: 1; transform: none; }
+  .lp-reveal.from-left  { --lp-x: -44px; --lp-y: 0px; }
+  .lp-reveal.from-right { --lp-x: 44px;  --lp-y: 0px; }
+  .lp-reveal.grow       { --lp-s: .93; }
+  .lp-stagger > .lp-reveal { --lp-s: .97; }
+  .lp-stagger > .lp-reveal:nth-child(2) { --lp-d: .08s; }
+  .lp-stagger > .lp-reveal:nth-child(3) { --lp-d: .16s; }
+  .lp-stagger > .lp-reveal:nth-child(4) { --lp-d: .24s; }
+  /* Mobile: drop the horizontal slide (avoids edge jank) — directional becomes a rise. */
+  @media (max-width: 639px) {
+    .lp-reveal.from-left, .lp-reveal.from-right { --lp-x: 0px; --lp-y: 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lp-reveal { opacity: 1 !important; transform: none !important; transition: none; }
+  }
+  /* Keep side-sliding reveals from ever poking a horizontal scrollbar. */
+  #landingScreen { overflow-x: clip; }
   /* Landing + Pricing CTA visibility — logged-out visitors see Log In +
      Get Started (Open App is hidden because they don't have an app to open).
      Signed-in visitors see only Open App; Log In / Get Started / "← Home"
@@ -4253,8 +4275,8 @@
     </div>
     <!-- Product preview mocks -->
     <p class="lp-reveal text-[11px] uppercase tracking-[0.2em] text-slate-500 font-bold text-center mt-20 sm:mt-24">Try it — drag to your job size</p>
-    <div class="lp-reveal mt-4 grid sm:grid-cols-2 gap-6 sm:gap-7 max-w-3xl mx-auto">
-      <div class="flex flex-col">
+    <div class="mt-4 grid sm:grid-cols-2 gap-6 sm:gap-7 max-w-3xl mx-auto">
+      <div class="lp-reveal from-left grow flex flex-col">
         <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">Estimated job</h3>
         <div class="lp-card rounded-3xl flex-1 px-7 py-8 text-left">
           <div class="price-glow text-4xl sm:text-5xl font-black tracking-tightest"><span id="lpCalcTotal">$18,419</span></div>
@@ -4270,7 +4292,7 @@
         </div>
       </div>
 
-      <div class="flex flex-col">
+      <div class="lp-reveal from-right grow flex flex-col">
         <h3 class="text-sm uppercase tracking-[0.16em] font-black text-[#c9a558] text-center mb-3.5">Full breakdown</h3>
         <div class="lp-card rounded-3xl flex-1 px-7 py-7 text-left">
         <div class="flex items-baseline justify-end">
@@ -4300,7 +4322,7 @@
       <span class="lp-eyebrow">How it works</span>
       <h2 class="text-3xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-5">From measurements to money in three steps.</h2>
     </div>
-    <div class="grid sm:grid-cols-3 gap-5 sm:gap-6">
+    <div class="lp-stagger grid sm:grid-cols-3 gap-5 sm:gap-6">
       <div class="lp-reveal lp-card rounded-2xl p-6 sm:p-7">
         <div class="lp-step-num">1</div>
         <h3 class="text-lg font-black tracking-tight text-slate-100 mt-4">Scan the plan with AI</h3>
@@ -4341,7 +4363,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Ready to hand over or email in seconds</li>
           </ul>
         </div>
-        <div class="lp-reveal">
+        <div class="lp-reveal from-right grow">
           <div class="lp-card rounded-2xl p-6 relative overflow-hidden">
             <div class="absolute top-0 left-0 right-0 h-1" style="background:linear-gradient(90deg,#b58f4a,#dfc07a)"></div>
             <div class="flex items-center gap-2.5 mt-1">
@@ -4379,7 +4401,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Your true cost and margin — never shown to the customer</li>
           </ul>
         </div>
-        <div class="lp-reveal md:order-1">
+        <div class="lp-reveal md:order-1 from-left grow">
           <div class="lp-card rounded-2xl p-6">
             <div class="flex items-center justify-between">
               <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Internal cost sheet</div>
@@ -4410,7 +4432,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Recalculates the instant the job changes</li>
           </ul>
         </div>
-        <div class="lp-reveal">
+        <div class="lp-reveal from-right grow">
           <div class="lp-card rounded-2xl p-6">
             <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold mb-3">Supplier shopping list</div>
             <div class="space-y-2.5">
@@ -4436,7 +4458,7 @@
             <li class="flex gap-2"><span class="text-[#c9a558] font-bold">✓</span> Built from the openings you scan or enter</li>
           </ul>
         </div>
-        <div class="lp-reveal md:order-1">
+        <div class="lp-reveal md:order-1 from-left grow">
           <div class="lp-card rounded-2xl p-6">
             <div class="flex items-center justify-between mb-3">
               <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Optimized cut plan</div>
