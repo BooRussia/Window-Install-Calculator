@@ -1976,54 +1976,62 @@
     .dive-bubble { display: none; }
     #reelInBtn { transition: none; }
   }
-  /* Hero scroll cue — sits centered in the gap just below the hero CTAs, filling
-     the "nothing below to scroll to" dead space the eye lands on. Mirrors the
-     Prime Windows hero cue (a draining gold line) adapted to Anchor's gold
-     palette. It lives inside #lpHeroDive, so it recedes + fades with the hero as
-     you start scrolling (in-flow, not viewport-pinned — Anchor's hero isn't a
-     full-height section, so a bottom-pinned cue would collide with the CTAs on
-     short screens and the preview cards on tall ones). Click scrolls down a
-     screenful (wired in wireLanding()). */
+  /* Hero scroll cue — copied verbatim from the Prime Windows & Doors hero: a
+     vertical "Scroll" label above a 9rem gold line that drains downward on a loop,
+     fading up on load. Two deltas from Prime: (1) pinned bottom-RIGHT instead of
+     bottom-left, so it clears the anchor dropping down the left edge; (2)
+     position:fixed + a scroll-fade (Anchor's hero isn't a full-height section like
+     Prime's, so it can't just scroll away — we hide it as you leave the top).
+     --gold is #b58f4a in both projects, so the color ports directly. */
   .lp-scrollcue {
-    display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
-    width: fit-content; margin: 2.5rem auto 0;
-    background: none; border: 0; padding: 8px 14px; cursor: pointer;
+    position: fixed; right: 3rem; bottom: 2.5rem; z-index: 30;
+    display: flex; flex-direction: column; align-items: center; gap: 0.9rem;
+    background: none; border: 0; padding: 4px; cursor: pointer;
     -webkit-appearance: none; appearance: none;
+    animation: lpCueFadeUp 1s 0.7s ease backwards;
+    transition: opacity 0.35s ease;
   }
   .lp-cue-label {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.22em;
-    text-transform: uppercase; line-height: 1;
-    color: rgba(216,185,106,0.72);
+    font-size: 0.95rem; letter-spacing: 0.18em; text-transform: uppercase;
+    line-height: 1; writing-mode: vertical-rl;
+    color: rgba(212,175,106,0.7);
   }
   .lp-cue-line {
-    width: 2px; height: 42px; border-radius: 2px;
-    background: linear-gradient(180deg, var(--gold-hi, #d8b96a), rgba(216,185,106,0.28));
+    width: 2px; height: 9rem; background: var(--gold);
     animation: lpCueDrain 2s cubic-bezier(0.5,-0.1,0.5,1) infinite;
   }
-  /* The fill collapses toward the bottom, then regrows from the top — a pulse
-     that travels downward, reading as "scroll down" (lifted from the Prime cue). */
+  /* Prime's heroScroll: the fill collapses toward the bottom, then regrows from
+     the top — a pulse travelling downward ("scroll down"). */
   @keyframes lpCueDrain {
-    0%    { transform: scaleY(1); transform-origin: 50% 100%; }
-    50%   { transform: scaleY(0); transform-origin: 50% 100%; }
-    50.1% { transform: scaleY(0); transform-origin: 50% 0%; }
-    100%  { transform: scaleY(1); transform-origin: 50% 0%; }
+    0%    { transform: scaleY(1); transform-origin: 0 100%; }
+    50%   { transform: scaleY(0); transform-origin: 0 100%; }
+    50.1% { transform: scaleY(0); transform-origin: 0 0; }
+    100%  { transform: scaleY(1); transform-origin: 0 0; }
+  }
+  @keyframes lpCueFadeUp {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
   .lp-scrollcue:hover .lp-cue-label { color: var(--gold-pale, #efd9a0); }
   .lp-scrollcue:focus-visible {
     outline: 2px solid var(--gold-hi, #d8b96a); outline-offset: 2px; border-radius: 8px;
   }
   @media (prefers-reduced-motion: reduce) {
+    .lp-scrollcue { animation: none; }
     .lp-cue-line { animation: none; }
   }
-  /* Light mode: the pale-gold hover + gold-hi focus ring both vanish on the light
-     bg, and the label needs a darker brown to clear WCAG AA at 10px — override all
-     three (the base dark-mode colors only work on the deep-navy background). */
+  /* Mobile: tuck nearer the edge (Prime used bottom:1rem; the anchor is hidden
+     < 1340px so the right edge is clear) and shorten the line a touch. */
+  @media (max-width: 639px) {
+    .lp-scrollcue { right: 1.4rem; bottom: 1rem; }
+    .lp-cue-line { height: 6rem; }
+  }
+  /* Light mode: gold label/line wash out on the light bg — darken both, and the
+     focus ring (the base dark-mode colors only work on the deep-navy background). */
   [data-theme="light"] .lp-cue-label { color: #6b5330; }
   [data-theme="light"] .lp-scrollcue:hover .lp-cue-label { color: #4f3d18; }
   [data-theme="light"] .lp-scrollcue:focus-visible { outline-color: #7a5820; }
-  [data-theme="light"] .lp-cue-line {
-    background: linear-gradient(180deg, #8a6a2e, rgba(138,106,46,0.22));
-  }
+  [data-theme="light"] .lp-cue-line { background: #8a6a2e; }
   .lp-btn-gold {
     background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 100%);
     color: #0a0a0a;
@@ -4373,6 +4381,14 @@
     <button id="reelInBtn" type="button" aria-label="Reel in the rope">&#8635; Reel in</button>
   </div>
 
+  <!-- Hero scroll cue — Prime-style vertical "Scroll" + draining gold line, pinned
+       bottom-right. A direct child of #landingScreen (NOT inside #lpHeroDive, whose
+       scroll-dive transform would capture this position:fixed element otherwise). -->
+  <button id="lpScrollCue" class="lp-scrollcue" type="button" aria-label="Scroll down for more">
+    <span class="lp-cue-label">Scroll</span>
+    <span class="lp-cue-line" aria-hidden="true"></span>
+  </button>
+
   <!-- Hero -->
   <section class="max-w-4xl mx-auto px-5 sm:px-6 pt-16 sm:pt-24 pb-24 sm:pb-32 text-center">
     <div id="lpHeroDive">
@@ -4387,12 +4403,6 @@
       <button id="lpHeroSignup" class="lp-btn-gold btn rounded-full text-sm font-bold px-7 py-3.5">Get Started Free</button>
       <button class="lp-scroll btn rounded-full text-sm font-bold px-7 py-3.5 bg-transparent text-slate-200 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]" data-scroll="lpFL">Try FL Lookup</button>
     </div>
-    <!-- Scroll cue — sits in the gap below the CTAs; tells the eye there's more
-         below. Recedes with the hero-dive on scroll. Wired in wireLanding(). -->
-    <button id="lpScrollCue" class="lp-scrollcue" type="button" aria-label="Scroll down for more">
-      <span class="lp-cue-label">Scroll</span>
-      <span class="lp-cue-line" aria-hidden="true"></span>
-    </button>
     </div><!-- /lpHeroDive -->
     <!-- Product preview mocks -->
     <p class="lp-reveal text-[11px] uppercase tracking-[0.2em] text-slate-500 font-bold text-center mt-20 sm:mt-24">Try it — drag to your job size</p>
@@ -22275,9 +22285,18 @@ function wireLanding() {
   // ~one screenful to reveal the product preview below.
   const scrollCue = document.getElementById("lpScrollCue");
   if (scrollCue) {
+    // It's position:fixed, so unlike Prime's absolute cue it won't scroll away on
+    // its own — fade it out over the first 120px (and bring it back at the top).
+    // Left untouched at scrollTop 0 so the CSS fade-up entrance plays cleanly.
+    const fadeCue = () => {
+      const o = Math.max(0, Math.min(1, 1 - ls.scrollTop / 120));
+      scrollCue.style.opacity = o.toFixed(3);
+      scrollCue.style.pointerEvents = o < 0.05 ? "none" : "auto";
+    };
     scrollCue.addEventListener("click", () => {
       ls.scrollTo({ top: ls.scrollTop + ls.clientHeight * 0.9, behavior: "smooth" });
     });
+    ls.addEventListener("scroll", fadeCue, { passive: true });
   }
   // Docs cards — count numbers up, check the list off, fly the boards in (on reveal).
   wireDocsCardAnims(ls);
