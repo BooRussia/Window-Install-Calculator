@@ -2027,28 +2027,30 @@
   .cut-saw { position: absolute; top: -3px; bottom: -3px; left: 0; width: 2px; z-index: 2;
     background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,240,200,.55));
     box-shadow: 0 0 7px rgba(255,240,200,.85); opacity: 0; pointer-events: none; }
-  .anim-go .cut-board { animation: boardSlam 1.05s both; animation-delay: calc(var(--b) * 0.2s); }
-  .anim-go .cut-board .cut-saw { animation: sawSweep .5s ease-out forwards; animation-delay: calc(var(--b) * 0.2s + .9s); }
-  .anim-go .cut-card { animation: cardImpact .8s cubic-bezier(.2,.7,.3,1) both; animation-delay: .78s; }
+  .anim-go .cut-board { animation: boardSlam 1.25s both; animation-delay: calc(var(--b) * 0.22s); }
+  .anim-go .cut-board .cut-saw { animation: sawSweep .5s ease-out forwards; animation-delay: calc(var(--b) * 0.22s + 1.02s); }
+  .anim-go .cut-card { animation: cardImpact .9s cubic-bezier(.2,.7,.3,1) both; animation-delay: .9s; }
+  /* Each board hurtles in from its own direction (--fx/--fy/--rz), toward the
+     viewer (Z), hangs, then drops hard and SLAMS flat with a heavy squash. */
   @keyframes boardSlam {
-    0%   { opacity: 0; transform: perspective(720px) translate3d(0, -135px, 330px) rotateX(52deg); filter: blur(5px);
-           animation-timing-function: cubic-bezier(.6,.02,.9,.32); }   /* hang far/high, then accelerate down */
-    40%  { opacity: 1; }
-    58%  { filter: blur(1px); }
-    74%  { opacity: 1; transform: perspective(720px) translate3d(0, 0, 0) rotateX(0) scaleY(.8); filter: blur(0);
-           animation-timing-function: cubic-bezier(.3,1.4,.5,1); }   /* IMPACT — squash */
-    85%  { transform: perspective(720px) translate3d(0, 0, 0) scaleY(1.09); }   /* rebound */
-    93%  { transform: perspective(720px) translate3d(0, 0, 0) scaleY(.97); }
-    100% { transform: perspective(720px) translate3d(0, 0, 0) scaleY(1); }
+    0%   { opacity: 0; transform: perspective(720px) translate3d(var(--fx,0px), var(--fy,-140px), 340px) rotateX(50deg) rotateZ(var(--rz,0deg)); filter: blur(6px);
+           animation-timing-function: cubic-bezier(.42,0,.85,.28); }   /* hang, then accelerate hard */
+    34%  { opacity: 1; }
+    60%  { filter: blur(0); }
+    72%  { opacity: 1; transform: perspective(720px) translate3d(0,0,0) rotateX(0) rotateZ(0) scale3d(1.08, .68, 1); filter: blur(0);
+           animation-timing-function: cubic-bezier(.34,1.2,.5,1); }   /* IMPACT — heavy squash (wide + flat) */
+    83%  { transform: perspective(720px) translate3d(0,0,0) scale3d(.97, 1.09, 1); }   /* rebound */
+    92%  { transform: perspective(720px) translate3d(0,0,0) scale3d(1.02, .97, 1); }
+    100% { transform: perspective(720px) translate3d(0,0,0) scale3d(1, 1, 1); }
   }
-  /* the card recoils as the boards land — a quick down-jolt + decaying shake */
+  /* the card takes the hit — a heavy down-recoil + decaying shake as boards land */
   @keyframes cardImpact {
     0%   { transform: translate3d(0,0,0); }
-    16%  { transform: translate3d(0, 8px, 0) scale(.986); }
-    34%  { transform: translate3d(-3px, -4px, 0) scale(1.005); }
-    52%  { transform: translate3d(3px, 5px, 0) scale(.993); }
-    70%  { transform: translate3d(-2px, -2px, 0); }
-    84%  { transform: translate3d(1px, 1px, 0); }
+    12%  { transform: translate3d(0, 12px, 0) scale(.982); }   /* heavy thud down */
+    28%  { transform: translate3d(-5px, -6px, 0) scale(1.007); }
+    44%  { transform: translate3d(5px, 7px, 0) scale(.99); }
+    60%  { transform: translate3d(-4px, -3px, 0); }
+    76%  { transform: translate3d(2px, 2px, 0); }
     100% { transform: translate3d(0,0,0) scale(1); }
   }
   @keyframes sawSweep { 0% { left: 0; opacity: 0; } 12% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
@@ -4522,7 +4524,7 @@
             <div class="space-y-2.5">
               <div>
                 <div class="text-[9px] text-slate-600 mb-1 font-bold uppercase tracking-wider">Board 1 — 8 ft</div>
-                <div class="cut-board flex gap-0.5 h-5 text-[8px] font-bold" style="--b:0">
+                <div class="cut-board flex gap-0.5 h-5 text-[8px] font-bold" style="--b:0;--fx:-380px;--fy:-44px;--rz:-7deg">
                   <span class="cut-saw"></span>
                   <div class="flex items-center justify-center rounded-l text-slate-950" style="flex:48;background:linear-gradient(180deg,#c9a558,#8a6a2e)">48"</div>
                   <div class="flex items-center justify-center text-slate-950" style="flex:42;background:linear-gradient(180deg,#c9a558,#8a6a2e)">42"</div>
@@ -4531,7 +4533,7 @@
               </div>
               <div>
                 <div class="text-[9px] text-slate-600 mb-1 font-bold uppercase tracking-wider">Board 2 — 8 ft</div>
-                <div class="cut-board flex gap-0.5 h-5 text-[8px] font-bold" style="--b:1">
+                <div class="cut-board flex gap-0.5 h-5 text-[8px] font-bold" style="--b:1;--fx:390px;--fy:-34px;--rz:8deg">
                   <span class="cut-saw"></span>
                   <div class="flex items-center justify-center rounded-l text-slate-950" style="flex:60;background:linear-gradient(180deg,#c9a558,#8a6a2e)">60"</div>
                   <div class="flex items-center justify-center rounded-r text-slate-950" style="flex:36;background:linear-gradient(180deg,#c9a558,#8a6a2e)">36"</div>
@@ -4539,7 +4541,7 @@
               </div>
               <div>
                 <div class="text-[9px] text-slate-600 mb-1 font-bold uppercase tracking-wider">Board 3 — 8 ft</div>
-                <div class="cut-board flex gap-0.5 h-5 text-[8px] font-bold" style="--b:2">
+                <div class="cut-board flex gap-0.5 h-5 text-[8px] font-bold" style="--b:2;--fx:-30px;--fy:-205px;--rz:-3deg">
                   <span class="cut-saw"></span>
                   <div class="flex items-center justify-center rounded-l text-slate-950" style="flex:54;background:linear-gradient(180deg,#c9a558,#8a6a2e)">54"</div>
                   <div class="flex items-center justify-center text-slate-950" style="flex:30;background:linear-gradient(180deg,#c9a558,#8a6a2e)">30"</div>
@@ -22165,18 +22167,24 @@ function revealOnScroll(container) {
 // its exact format (currency prefix, %, decimals, thousands grouping). The static
 // text IS the source of truth, so pre-JS / reduced-motion renders stay correct.
 function docsCountUp(el, dur) {
-  if (!el || el._docRaf) return;
-  const raw = (el.textContent || "").trim();
-  const m = raw.match(/[\d,]*\.?\d+/);
-  if (!m) return;
-  const numStr = m[0];
-  const value = parseFloat(numStr.replace(/,/g, ""));
-  if (isNaN(value)) return;
-  const decimals = numStr.indexOf(".") >= 0 ? numStr.split(".")[1].length : 0;
-  const prefix = raw.slice(0, m.index);
-  const suffix = raw.slice(m.index + numStr.length);
-  const fmt = (v) => prefix + v.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = fmt(value); return; }
+  if (!el) return;
+  // Parse the target ONCE from the static text and cache it, so replays always
+  // tween to the right number (not whatever intermediate value is showing).
+  if (el._cuTarget === undefined) {
+    const raw = (el.textContent || "").trim();
+    const m = raw.match(/[\d,]*\.?\d+/);
+    if (!m) { el._cuTarget = null; return; }
+    const numStr = m[0];
+    el._cuTarget = parseFloat(numStr.replace(/,/g, ""));
+    el._cuDec = numStr.indexOf(".") >= 0 ? numStr.split(".")[1].length : 0;
+    el._cuPre = raw.slice(0, m.index);
+    el._cuSuf = raw.slice(m.index + numStr.length);
+  }
+  if (el._cuTarget == null || isNaN(el._cuTarget)) return;
+  const value = el._cuTarget;
+  const fmt = (v) => el._cuPre + v.toLocaleString("en-US", { minimumFractionDigits: el._cuDec, maximumFractionDigits: el._cuDec }) + el._cuSuf;
+  if (el._docRaf) cancelAnimationFrame(el._docRaf);   // kill any in-flight tween (replay)
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = fmt(value); el._docRaf = 0; return; }
   const t0 = performance.now(), D = dur || 950, ease = (t) => 1 - Math.pow(1 - t, 3);
   const tick = (now) => {
     const p = Math.min(1, (now - t0) / D);
@@ -22187,21 +22195,30 @@ function docsCountUp(el, dur) {
   el._docRaf = requestAnimationFrame(tick);
 }
 
-// Fire each docs card's content animation once, when it scrolls comfortably on
-// screen: add .anim-go (drives the CSS check-off + board fly-in) and run the
-// count-ups. Scroll-based + once-only; CSS / docsCountUp handle reduced motion.
+// Fire each docs card's content animation when it scrolls comfortably on screen
+// (add .anim-go — drives the CSS check-off / board slam — and run the count-ups),
+// and RESET it once it leaves the viewport so it replays next time you scroll to
+// it. Scroll-based; CSS / docsCountUp handle reduced motion.
 function wireDocsCardAnims(ls) {
   const cards = Array.prototype.slice.call(document.querySelectorAll("#lpDocs [data-docanim]"));
   if (!cards.length || !ls) return;
   const fire = () => {
     const vh = ls.clientHeight || window.innerHeight || 1;
     cards.forEach(card => {
-      if (card._animFired) return;
       const r = card.getBoundingClientRect();
-      if (r.top < vh * 0.6 && r.bottom > 0) {
+      const onScreen = r.top < vh * 0.6 && r.bottom > 0;
+      const goneAway = r.top > vh + 60 || r.bottom < -60;   // fully out of view
+      if (onScreen && !card._animFired) {
         card._animFired = true;
         card.classList.add("anim-go");
         Array.prototype.slice.call(card.querySelectorAll("[data-countup-text]")).forEach(el => docsCountUp(el));
+      } else if (goneAway && card._animFired) {
+        // Re-arm: drop .anim-go (CSS reverts to its start state) and un-reveal the
+        // whole row so the slide-in + content animation play fresh on return.
+        card._animFired = false;
+        card.classList.remove("anim-go");
+        const row = card.closest(".grid") || card.parentElement;
+        if (row) row.querySelectorAll(".lp-reveal.in").forEach(el => el.classList.remove("in"));
       }
     });
   };
