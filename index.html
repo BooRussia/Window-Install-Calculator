@@ -2020,27 +2020,45 @@
   .anim-go .mat-check .mat-tick { animation: matTick .3s cubic-bezier(.34,1.56,.64,1) forwards; animation-delay: calc(var(--i) * 0.15s + .08s); }
   @keyframes matFill { to { background: #dfc07a; border-color: #dfc07a; } }
   @keyframes matTick { to { opacity: 1; transform: scale(1); } }
-  /* Cut list — gold boards fly in, then a saw sweeps across each */
-  .cut-board { position: relative; }
+  /* Cut list — gold boards hurtle in from the viewer's space (above + toward you,
+     large, tilted, motion-blurred), SLAM flat with a squash-and-rebound, and jolt
+     the whole card on impact. Card no longer clips, so they travel outside it. */
+  .cut-board { position: relative; transform-origin: center bottom; }
   .cut-saw { position: absolute; top: -3px; bottom: -3px; left: 0; width: 2px; z-index: 2;
     background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,240,200,.55));
     box-shadow: 0 0 7px rgba(255,240,200,.85); opacity: 0; pointer-events: none; }
-  .anim-go .cut-board { animation: boardFly .8s cubic-bezier(0.22,1,0.36,1) both; animation-delay: calc(var(--b) * 0.16s); }
-  .anim-go .cut-board .cut-saw { animation: sawSweep .5s ease-out forwards; animation-delay: calc(var(--b) * 0.16s + .68s); }
-  /* Fly in from the viewer's space (Z-axis) — large, blurred and tilted, like it
-     sailed past your head, then settles flat onto the page. Card clips it. */
-  @keyframes boardFly {
-    0%   { opacity: 0; transform: perspective(700px) translate3d(0, -26px, 360px) rotateX(42deg); filter: blur(4px); }
-    55%  { opacity: 1; filter: blur(0.4px); }
-    100% { opacity: 1; transform: perspective(700px) translate3d(0, 0, 0) rotateX(0deg); filter: blur(0); }
+  .anim-go .cut-board { animation: boardSlam 1.05s both; animation-delay: calc(var(--b) * 0.2s); }
+  .anim-go .cut-board .cut-saw { animation: sawSweep .5s ease-out forwards; animation-delay: calc(var(--b) * 0.2s + .9s); }
+  .anim-go .cut-card { animation: cardImpact .8s cubic-bezier(.2,.7,.3,1) both; animation-delay: .78s; }
+  @keyframes boardSlam {
+    0%   { opacity: 0; transform: perspective(720px) translate3d(0, -135px, 330px) rotateX(52deg); filter: blur(5px);
+           animation-timing-function: cubic-bezier(.6,.02,.9,.32); }   /* hang far/high, then accelerate down */
+    40%  { opacity: 1; }
+    58%  { filter: blur(1px); }
+    74%  { opacity: 1; transform: perspective(720px) translate3d(0, 0, 0) rotateX(0) scaleY(.8); filter: blur(0);
+           animation-timing-function: cubic-bezier(.3,1.4,.5,1); }   /* IMPACT — squash */
+    85%  { transform: perspective(720px) translate3d(0, 0, 0) scaleY(1.09); }   /* rebound */
+    93%  { transform: perspective(720px) translate3d(0, 0, 0) scaleY(.97); }
+    100% { transform: perspective(720px) translate3d(0, 0, 0) scaleY(1); }
+  }
+  /* the card recoils as the boards land — a quick down-jolt + decaying shake */
+  @keyframes cardImpact {
+    0%   { transform: translate3d(0,0,0); }
+    16%  { transform: translate3d(0, 8px, 0) scale(.986); }
+    34%  { transform: translate3d(-3px, -4px, 0) scale(1.005); }
+    52%  { transform: translate3d(3px, 5px, 0) scale(.993); }
+    70%  { transform: translate3d(-2px, -2px, 0); }
+    84%  { transform: translate3d(1px, 1px, 0); }
+    100% { transform: translate3d(0,0,0) scale(1); }
   }
   @keyframes sawSweep { 0% { left: 0; opacity: 0; } 12% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
     /* show the finished state, no motion */
     .mat-check { background: #dfc07a; border-color: #dfc07a; }
     .mat-tick { opacity: 1; transform: none; }
-    .anim-go .mat-check, .anim-go .mat-check .mat-tick, .anim-go .cut-board { animation: none; }
+    .anim-go .mat-check, .anim-go .mat-check .mat-tick, .anim-go .cut-board, .anim-go .cut-card { animation: none; }
     .cut-board { transform: none; opacity: 1; }
+    .cut-card { transform: none; }
     .cut-saw { display: none; }
   }
   /* Landing + Pricing CTA visibility — logged-out visitors see Log In +
@@ -4496,7 +4514,7 @@
           </ul>
         </div>
         <div class="lp-reveal md:order-1 from-left grow" data-docanim="cutlist">
-          <div class="lp-card rounded-2xl p-6 overflow-hidden">
+          <div class="lp-card rounded-2xl p-6 cut-card">
             <div class="flex items-center justify-between mb-3">
               <div class="text-[10px] uppercase tracking-[0.16em] text-slate-500 font-bold">Optimized cut plan</div>
               <div class="text-[10px] text-[#c9a558] font-bold">3 boards · 4% waste</div>
