@@ -1905,10 +1905,11 @@
     overflow: visible;
   }
   #anchorRopeSvg {
-    /* cool underwater ambient instead of warm gold halo
-       (long wavelengths absorb first underwater) */
-    filter: drop-shadow(0 0 4px rgba(120,160,180,0.28));
-    shape-rendering: geometricPrecision;
+    /* PERF: no drop-shadow filter here. Re-rasterizing a blur over the whole rope
+       path every frame is cheap when the rope is short, but at the bottom the path
+       is huge (the entire pile) — re-blurring that area 60x/sec was the lag. Also
+       drop the forced geometricPrecision raster for the constantly-redrawn path. */
+    shape-rendering: auto;
   }
   #anchorKnotSvg {
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55)) drop-shadow(0 0 3px rgba(60,90,110,0.35));
@@ -24059,7 +24060,6 @@ function init() {
   let N = MIN_N;                       // live node count = pts.length
   let ropeLen = SEG * (MIN_N - 1);     // INDEPENDENT rest length (px)
   let pileLen = 0;                     // px of rope paid out onto the floor (0 = none); reversible
-  let lastPileLen = -1, pileFrozen = false;   // once a settled pile is drawn, stop re-drawing it (perf)
   let idleFrames = 0;
   let piling = false;                  // true once at-bottom AND the anchor reaches the floor
   let floorY = 0;                      // .lp-sand-footer top in scene coords
@@ -24099,7 +24099,6 @@ function init() {
     const f = document.querySelector(".lp-sand-footer");
     floorY = f ? f.getBoundingClientRect().top : (ls.clientHeight - 96);
     if (floorY < 80) floorY = ls.clientHeight - 96;   // footer off-screen / not found
-    pileFrozen = false;   // scroll / resize -> wake the pile so it redraws against the new geometry
   }
 
   function spawnBubble(x, y) {
@@ -24131,8 +24130,7 @@ function init() {
   // floor, growing UP from the locked anchor (bottom). Same shape every time, no
   // randomness, smooth path so the braid reads as coiled rope. Returns points
   // from the anchor (bottom) up to the mound top, evenly spaced ~SEG.
-  function pilePoints(len, step) {
-    step = step || SEG;
+  function pilePoints(len) {
     // waypoints: anchor, then L/R ends of each rising course (boustrophedon)
     const wp = [{ x: pileAnchorX, y: floorY }];
     let hw = PILE_HW_MAX;
@@ -24144,16 +24142,16 @@ function init() {
     }
     // arc-length sample the waypoint polyline up to `len`
     const out = [{ x: wp[0].x, y: wp[0].y }];
-    let used = 0, d = step;
+    let used = 0, d = SEG;
     for (let i = 0; i < wp.length - 1; i++) {
       const ax = wp[i].x, ay = wp[i].y, bx = wp[i + 1].x, by = wp[i + 1].y;
       const segLen = Math.hypot(bx - ax, by - ay) || EPS;
       while (d <= segLen) {
         const tt = d / segLen;
         out.push({ x: ax + (bx - ax) * tt, y: ay + (by - ay) * tt });
-        used += step;
+        used += SEG;
         if (used >= len) return out;
-        d += step;
+        d += SEG;
       }
       d -= segLen;
     }
@@ -24161,15 +24159,14 @@ function init() {
   }
 
   function ropeD() {
-    const R = Math.round;   // integer px — toFixed() was a big per-coord cost at a large N
-    const parts = ["M", R(pts[0].x), " ", R(pts[0].y)];
+    const parts = ["M", pts[0].x.toFixed(1), " ", pts[0].y.toFixed(1)];
     for (let i = 1; i < N - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      parts.push(" Q", R(a.x), " ", R(a.y), " ", R((a.x + b.x) * 0.5), " ", R((a.y + b.y) * 0.5));
+      const mxp = (pts[i].x + pts[i + 1].x) / 2;
+      const myp = (pts[i].y + pts[i + 1].y) / 2;
+      parts.push(" Q", pts[i].x.toFixed(1), " ", pts[i].y.toFixed(1), " ", mxp.toFixed(1), " ", myp.toFixed(1));
     }
     // close with a Q (not L) so the path stays C1-continuous up to the anchor
-    const e = pts[N - 1];
-    parts.push(" Q", R(e.x), " ", R(e.y), " ", R(e.x), " ", R(e.y));
+    parts.push(" Q", pts[N - 1].x.toFixed(1), " ", pts[N - 1].y.toFixed(1), " ", pts[N - 1].x.toFixed(1), " ", pts[N - 1].y.toFixed(1));
     return parts.join("");
   }
 
@@ -24179,7 +24176,7 @@ function init() {
   // centreline per stripe — which tanked the framerate on a big pile.)
   function goldLines() {
     const cl = [{ x: pts[0].x, y: pts[0].y }];
-    const SUB = 2;   // centreline subdivisions per node (was 4) — plenty for a 10px chevron pitch
+    const SUB = 4;
     for (let i = 1; i < N - 1; i++) {
       const sx = (i === 1) ? pts[0].x : (pts[i - 1].x + pts[i].x) * 0.5;
       const sy = (i === 1) ? pts[0].y : (pts[i - 1].y + pts[i].y) * 0.5;
@@ -24213,11 +24210,15 @@ function init() {
     }
     const total = runLen;
     const stopIdx = Math.max(0, Math.floor((total - 14) / pitch));   // stop before the knot
-    const aParts = [], bParts = [], R = Math.round;   // integer px — drop toFixed
+    const aParts = [], bParts = [];
     for (let k = 0; k < stopIdx && k + 1 < P.length; k++) {
       const p0 = P[k], p1 = P[k + 1];
-      aParts.push("M", R(p0.x - hw * p0.nx), " ", R(p0.y - hw * p0.ny), "L", R(p1.x + hw * p1.nx), " ", R(p1.y + hw * p1.ny));
-      bParts.push("M", R(p0.x + hw * p0.nx), " ", R(p0.y + hw * p0.ny), "L", R(p1.x - hw * p1.nx), " ", R(p1.y - hw * p1.ny));
+      const ax1 = (p0.x - hw * p0.nx).toFixed(1), ay1 = (p0.y - hw * p0.ny).toFixed(1);
+      const ax2 = (p1.x + hw * p1.nx).toFixed(1), ay2 = (p1.y + hw * p1.ny).toFixed(1);
+      const bx1 = (p0.x + hw * p0.nx).toFixed(1), by1 = (p0.y + hw * p0.ny).toFixed(1);
+      const bx2 = (p1.x - hw * p1.nx).toFixed(1), by2 = (p1.y - hw * p1.ny).toFixed(1);
+      aParts.push("M", ax1, " ", ay1, "L", ax2, " ", ay2);
+      bParts.push("M", bx1, " ", by1, "L", bx2, " ", by2);
     }
     return { dA: aParts.join(""), dB: bParts.join("") };
   }
@@ -24296,7 +24297,7 @@ function init() {
     if (reduce) { renderStaticSlackRope(); requestAnimationFrame(frame); return; }
 
     // self-throttle: if frames run long, shave the node cap; recover when healthy
-    if (dt > 1.25) { if (++slowFrames > 12) { maxNeff = Math.max(150, maxNeff - 8); slowFrames = 0; } }
+    if (dt > 1.25) { if (++slowFrames > 30) { maxNeff = Math.max(280, maxNeff - 4); slowFrames = 0; } }
     else { slowFrames = 0; if (maxNeff < MAX_N) maxNeff = Math.min(MAX_N, maxNeff + 1); }
 
     p += (targetP - p) * 0.12 * dt;
@@ -24323,7 +24324,6 @@ function init() {
     let anc = pts[pts.length - 1];
     // Piling = at the bottom AND some rope has been paid out onto the floor.
     piling = atBottom && pileLen > 0.5;
-    if (!piling) pileFrozen = false;   // ensure the pile redraws fresh when re-entered
     const idle = idleFrames > 14 && Math.abs(targetP - p) < 0.004 && !piling && !reeling;
 
     const nowLanded = p > 0.985;
@@ -24427,34 +24427,15 @@ function init() {
       // No physics. Lay the paid-out rope into a deterministic serpentine mound
       // that grows up from the LOCKED, tipped-over anchor — same shape every time,
       // smooth path so the braid reads as coiled rope.
-      // Once it has fully settled (pile length + anchor not changing), STOP
-      // rebuilding + redrawing it every frame — that continuous SVG work was the
-      // lag at the bottom. It wakes on wheel (pileLen changes) or scroll/resize.
-      const settledNow = Math.abs(pileLen - lastPileLen) < 0.03 && anchorTip > 0.985 && Math.abs(pileAnchorX - PILE_CENTER_X) < 0.6;
-      lastPileLen = pileLen;
-      if (settledNow && pileFrozen) { requestAnimationFrame(frame); return; }   // at rest -> skip the whole draw
-      pileFrozen = settledNow;
       anchorTip += (1 - anchorTip) * 0.06 * dt;            // tip onto its side
       pileAnchorX += (PILE_CENTER_X - pileAnchorX) * 0.08 * dt;  // settle to an on-screen resting spot, then locked
-      if (!settledNow) swayPhase += 0.045 * dt;            // only sway while still moving
+      swayPhase += 0.045 * dt;
 
-      // Coarser node spacing (a node every ~10px is plenty for the Q-curve coil)
-      // so a big pile stays cheap to draw; coarsen further if the self-throttle
-      // has lowered the node budget. This is what keeps the bottom butter-smooth.
-      let pseg = 10;
-      let pile = pilePoints(pileLen, pseg);                // anchor(bottom) .. mound top
-      let top = pile[pile.length - 1];
-      let dropLen = Math.max(EPS, Math.hypot(top.x - CX, top.y));
-      let hangN = Math.max(2, Math.round(dropLen / pseg) + 1);
-      let total = hangN + pile.length - 1;                 // mound-top is shared
-      if (total > maxNeff) {                               // over budget -> coarsen
-        pseg *= total / maxNeff;
-        pile = pilePoints(pileLen, pseg);
-        top = pile[pile.length - 1];
-        dropLen = Math.max(EPS, Math.hypot(top.x - CX, top.y));
-        hangN = Math.max(2, Math.round(dropLen / pseg) + 1);
-        total = hangN + pile.length - 1;
-      }
+      const pile = pilePoints(pileLen);                    // anchor(bottom) .. mound top
+      const top = pile[pile.length - 1];
+      const dropLen = Math.max(EPS, Math.hypot(top.x - CX, top.y));
+      const hangN = Math.max(2, Math.round(dropLen / SEG) + 1);
+      const total = hangN + pile.length - 1;               // mound-top is shared
       while (pts.length < total) pts.push({ x: CX, y: 0, px: CX, py: 0 });
       while (pts.length > total) pts.pop();
       // hang: top pin -> mound top (gentle, like the kinematic hang)
