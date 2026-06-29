@@ -2023,7 +2023,7 @@
   /* Cut list — gold boards hurtle in from the viewer's space (above + toward you,
      large, tilted, motion-blurred), SLAM flat with a squash-and-rebound, and jolt
      the whole card on impact. Card no longer clips, so they travel outside it. */
-  .cut-board { position: relative; transform-origin: center bottom; }
+  .cut-board { position: relative; transform-origin: center bottom; opacity: 0; }   /* hidden until it flies in (no flash of the landed state) */
   .cut-saw { position: absolute; top: -3px; bottom: -3px; left: 0; width: 2px; z-index: 2;
     background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,240,200,.55));
     box-shadow: 0 0 7px rgba(255,240,200,.85); opacity: 0; pointer-events: none; }
@@ -2041,7 +2041,7 @@
            animation-timing-function: cubic-bezier(.34,1.2,.5,1); }   /* IMPACT — heavy squash (wide + flat) */
     83%  { transform: perspective(720px) translate3d(0,0,0) scale3d(.97, 1.09, 1); }   /* rebound */
     92%  { transform: perspective(720px) translate3d(0,0,0) scale3d(1.02, .97, 1); }
-    100% { transform: perspective(720px) translate3d(0,0,0) scale3d(1, 1, 1); }
+    100% { opacity: 1; transform: perspective(720px) translate3d(0,0,0) scale3d(1, 1, 1); }
   }
   /* the card takes the hit — a heavy down-recoil + decaying shake as boards land */
   @keyframes cardImpact {
@@ -22166,31 +22166,43 @@ function revealOnScroll(container) {
 // Count an element's number up from zero to whatever it already reads, preserving
 // its exact format (currency prefix, %, decimals, thousands grouping). The static
 // text IS the source of truth, so pre-JS / reduced-motion renders stay correct.
-function docsCountUp(el, dur) {
-  if (!el) return;
-  // Parse the target ONCE from the static text and cache it, so replays always
-  // tween to the right number (not whatever intermediate value is showing).
+// Cache the count target ONCE from the static text (so replays / priming never
+// re-read an intermediate value). Returns true if there's a valid number.
+function docsCountCache(el) {
   if (el._cuTarget === undefined) {
     const raw = (el.textContent || "").trim();
     const m = raw.match(/[\d,]*\.?\d+/);
-    if (!m) { el._cuTarget = null; return; }
+    if (!m) { el._cuTarget = null; return false; }
     const numStr = m[0];
     el._cuTarget = parseFloat(numStr.replace(/,/g, ""));
     el._cuDec = numStr.indexOf(".") >= 0 ? numStr.split(".")[1].length : 0;
     el._cuPre = raw.slice(0, m.index);
     el._cuSuf = raw.slice(m.index + numStr.length);
   }
-  if (el._cuTarget == null || isNaN(el._cuTarget)) return;
+  return el._cuTarget != null && !isNaN(el._cuTarget);
+}
+function docsCountFmt(el, v) {
+  return el._cuPre + v.toLocaleString("en-US", { minimumFractionDigits: el._cuDec, maximumFractionDigits: el._cuDec }) + el._cuSuf;
+}
+// Show 0 up front so the static final value never flashes before the count-up
+// runs (kept as the real value under reduced motion).
+function docsCountPrime(el) {
+  if (!el || !docsCountCache(el)) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (el._docRaf) { cancelAnimationFrame(el._docRaf); el._docRaf = 0; }
+  el.textContent = docsCountFmt(el, 0);
+}
+function docsCountUp(el, dur) {
+  if (!el || !docsCountCache(el)) return;
   const value = el._cuTarget;
-  const fmt = (v) => el._cuPre + v.toLocaleString("en-US", { minimumFractionDigits: el._cuDec, maximumFractionDigits: el._cuDec }) + el._cuSuf;
   if (el._docRaf) cancelAnimationFrame(el._docRaf);   // kill any in-flight tween (replay)
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = fmt(value); el._docRaf = 0; return; }
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = docsCountFmt(el, value); el._docRaf = 0; return; }
   const t0 = performance.now(), D = dur || 950, ease = (t) => 1 - Math.pow(1 - t, 3);
   const tick = (now) => {
     const p = Math.min(1, (now - t0) / D);
-    el.textContent = fmt(value * ease(p));
+    el.textContent = docsCountFmt(el, value * ease(p));
     if (p < 1) el._docRaf = requestAnimationFrame(tick);
-    else { el.textContent = fmt(value); el._docRaf = 0; }
+    else { el.textContent = docsCountFmt(el, value); el._docRaf = 0; }
   };
   el._docRaf = requestAnimationFrame(tick);
 }
@@ -22202,6 +22214,9 @@ function docsCountUp(el, dur) {
 function wireDocsCardAnims(ls) {
   const cards = Array.prototype.slice.call(document.querySelectorAll("#lpDocs [data-docanim]"));
   if (!cards.length || !ls) return;
+  const countEls = (card) => Array.prototype.slice.call(card.querySelectorAll("[data-countup-text]"));
+  // Prime all numbers to 0 up front so the final value never flashes pre-animation.
+  cards.forEach(card => countEls(card).forEach(docsCountPrime));
   const fire = () => {
     const vh = ls.clientHeight || window.innerHeight || 1;
     cards.forEach(card => {
@@ -22211,12 +22226,13 @@ function wireDocsCardAnims(ls) {
       if (onScreen && !card._animFired) {
         card._animFired = true;
         card.classList.add("anim-go");
-        Array.prototype.slice.call(card.querySelectorAll("[data-countup-text]")).forEach(el => docsCountUp(el));
+        countEls(card).forEach(el => docsCountUp(el));
       } else if (goneAway && card._animFired) {
-        // Re-arm: drop .anim-go (CSS reverts to its start state) and un-reveal the
-        // whole row so the slide-in + content animation play fresh on return.
+        // Re-arm: drop .anim-go (CSS reverts to its hidden start state), reset the
+        // numbers to 0, and un-reveal the row so it all plays fresh on return.
         card._animFired = false;
         card.classList.remove("anim-go");
+        countEls(card).forEach(docsCountPrime);
         const row = card.closest(".grid") || card.parentElement;
         if (row) row.querySelectorAll(".lp-reveal.in").forEach(el => el.classList.remove("in"));
       }
