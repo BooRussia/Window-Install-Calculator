@@ -8355,6 +8355,17 @@ function buildState() {
     variants: {},
     currentJobId: null,
     jobName: "",
+    // Repeating-floors + high-rise scaffolding (all default-off → no pricing
+    // change until used). identicalFloors multiplies the typical floor;
+    // extraFloors are one-off floors (lobby/penthouse); the rest feed Phases 3–5.
+    identicalFloors: 1,
+    extraFloors: [],
+    buildingStories: null,
+    swingStageEnabled: false,
+    swingStageDays: "1",
+    storageMonthlyCost: "",
+    projectedMonths: "1",
+    trimEnabled: false,
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
@@ -8465,7 +8476,7 @@ function getLaborPerLF() {
 //   Returns: { mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
 //              totalHrs, crewSize, crewPayPerHrEach, crewCostPerHr,
 //              laborCost, breakdown }
-function estimateLaborBreakdown() {
+function estimateLaborBreakdown(ctx) {
   const LM = (DATA.config && DATA.config.laborModel) || {};
   const setupMin = LM.setupMinPerOpening ?? 45;
   const mobHrs = LM.mobilizationHours ?? 2;
@@ -8473,14 +8484,17 @@ function estimateLaborBreakdown() {
   const crewPayPerHrEach = LM.crewPayRatePerHr ?? 30;
   const crewCostPerHr = crewSize * crewPayPerHrEach;
 
-  const wc = parseInt(STATE.windowCount, 10) || 0;
-  const lf = Number(STATE.totalLF) || 0;
+  // With a ctx (passed by calculate() for the whole building) use its already-
+  // aggregated counts / footage / door results; without one (the Labor Detail
+  // card + PDF) derive the single live takeoff straight from STATE, as before.
+  const wc = ctx ? (parseInt(ctx.wc, 10) || 0) : (parseInt(STATE.windowCount, 10) || 0);
+  const lf = ctx ? (Number(ctx.lf) || 0) : (Number(STATE.totalLF) || 0);
   // Doors — swing doors (count + minutes) and sliding glass doors (panels × hrs).
-  const sd = computeSwingDoors();
+  const sd = ctx ? ctx.sd : computeSwingDoors();
   const dc = sd.total || 0;
-  const sgd = computeSlidingDoors();
+  const sgd = ctx ? ctx.sgd : computeSlidingDoors();
   const sgdc = sgd.count || 0;
-  const bifold = computeBifoldDoors();
+  const bifold = ctx ? ctx.bifold : computeBifoldDoors();
   const bfc = bifold.count || 0;
 
   // Setup overhead — every opening (window, swing door, sliding door, OR
@@ -8682,8 +8696,8 @@ function normalizeSwingDoors(v) {
 }
 function swingDoorCount() { return normalizeSwingDoors(STATE.swingDoors).length; }
 
-function computeSwingDoors() {
-  const doors = normalizeSwingDoors(STATE.swingDoors);
+function computeSwingDoors(takeoff = STATE) {
+  const doors = normalizeSwingDoors(takeoff.swingDoors);
   const single = doors.filter(d => d.leaf === "single").length;
   const double = doors.filter(d => d.leaf === "double").length;
   const cfg = (DATA.config.swingDoors) || {};
@@ -8754,10 +8768,10 @@ function normalizeSlidingDoor(d) {
 // brand-specific material engine (folded into the material LF in calculate),
 // so only the SGD-only extras (sill/track flashing, heavy anchors) and the
 // inspection return-trip live here. All zero when disabled or none entered.
-function computeSlidingDoors() {
+function computeSlidingDoors(takeoff = STATE) {
   const cfg = (DATA.config.slidingDoors) || {};
   const enabled = cfg.enabled !== false;
-  const raw = Array.isArray(STATE.slidingDoors) ? STATE.slidingDoors : [];
+  const raw = Array.isArray(takeoff.slidingDoors) ? takeoff.slidingDoors : [];
   const norm = raw.map(normalizeSlidingDoor).filter(Boolean);
   const count = norm.reduce((s, d) => s + d.qty, 0);
   const panelTotal = norm.reduce((s, d) => s + d.qty * d.panels, 0);
@@ -8819,10 +8833,10 @@ function normalizeBifoldDoor(d) {
   return { panels, qty, width, height };
 }
 
-function computeBifoldDoors() {
+function computeBifoldDoors(takeoff = STATE) {
   const cfg = (DATA.config.bifoldDoors) || {};
   const enabled = cfg.enabled !== false;
-  const raw = Array.isArray(STATE.bifoldDoors) ? STATE.bifoldDoors : [];
+  const raw = Array.isArray(takeoff.bifoldDoors) ? takeoff.bifoldDoors : [];
   const norm = raw.map(normalizeBifoldDoor).filter(Boolean);
   const count = norm.reduce((s, d) => s + d.qty, 0);
   const panelTotal = norm.reduce((s, d) => s + d.qty * d.panels, 0);
@@ -8861,12 +8875,61 @@ function computeBifoldDoors() {
   };
 }
 
+// ─── Repeating floors (building stack) ──────────────────────────────────────
+// A job is one or more "floor groups": the primary/typical floor (the rail
+// takeoff) repeated `identicalFloors` times, plus any one-off floors
+// (lobby/penthouse) in STATE.extraFloors. Building specs (manufacturer,
+// application, house type, impact, …) are SHARED across groups; only the
+// openings differ. We price the building by summing every group's openings ×
+// its count into ONE aggregated takeoff, then running the existing per-LF /
+// door / labor / tax pipeline on it once — so job-level costs (mobilization,
+// permit, lift, block-sealer bucket rounding, inspection trip) are naturally
+// counted a single time. identicalFloors=1 + no extras → today's single floor.
+function getFloorGroups() {
+  const n = Math.max(1, parseInt(STATE.identicalFloors, 10) || 1);
+  const primary = {
+    id: "primary", label: "Typical floor", count: n,
+    totalLF: STATE.totalLF, windowCount: STATE.windowCount,
+    slidingDoors: STATE.slidingDoors || [], bifoldDoors: STATE.bifoldDoors || [],
+    swingDoors: STATE.swingDoors || [],
+  };
+  const extras = (Array.isArray(STATE.extraFloors) ? STATE.extraFloors : []).map(f => ({
+    ...f, count: Math.max(1, parseInt(f && f.count, 10) || 1),
+  }));
+  return [primary, ...extras];
+}
+
+// Sum every floor group's openings (× its count) into one "building takeoff":
+// window LF + window count add up; sliding/bifold entries carry through with
+// qty × count; swing doors (a per-door list) are replicated count times. The
+// door compute fns + the per-LF engine then run on these aggregates unchanged.
+function aggregateTakeoff(groups) {
+  let windowLF = 0, windowCount = 0;
+  const slidingDoors = [], bifoldDoors = [], swingDoors = [];
+  groups.forEach(g => {
+    const c = Math.max(1, parseInt(g && g.count, 10) || 1);
+    windowLF += (parseFloat(g.totalLF) || 0) * c;
+    windowCount += (parseInt(g.windowCount, 10) || 0) * c;
+    (Array.isArray(g.slidingDoors) ? g.slidingDoors : []).forEach(d =>
+      slidingDoors.push({ ...d, qty: Math.max(1, parseInt(d && d.qty, 10) || 1) * c }));
+    (Array.isArray(g.bifoldDoors) ? g.bifoldDoors : []).forEach(d =>
+      bifoldDoors.push({ ...d, qty: Math.max(1, parseInt(d && d.qty, 10) || 1) * c }));
+    const sw = normalizeSwingDoors(g.swingDoors);
+    for (let i = 0; i < c; i++) sw.forEach(d => swingDoors.push({ ...d }));
+  });
+  return { windowLF, windowCount, slidingDoors, bifoldDoors, swingDoors };
+}
+
 function calculate() {
-  const windowLF = parseFloat(STATE.totalLF) || 0;
-  const wc = parseInt(STATE.windowCount) || 0;
-  const sd = computeSwingDoors();
-  const sgd = computeSlidingDoors();
-  const bifold = computeBifoldDoors();
+  // Price the whole building: sum the typical floor (× identicalFloors) and any
+  // one-off floors into one aggregated takeoff, then run the existing engine on
+  // it. identicalFloors=1 + no extraFloors → byte-identical to a single floor.
+  const _agg = aggregateTakeoff(getFloorGroups());
+  const windowLF = _agg.windowLF;
+  const wc = _agg.windowCount;
+  const sd = computeSwingDoors({ swingDoors: _agg.swingDoors });
+  const sgd = computeSlidingDoors({ slidingDoors: _agg.slidingDoors });
+  const bifold = computeBifoldDoors({ bifoldDoors: _agg.bifoldDoors });
   // `lf` is the WINDOW linear footage — exactly what the user enters, what we
   // save on the job, and what shows on the quote. It must NOT include the
   // sliding-door OR bifold footage, or that footage gets saved as window LF and
@@ -9142,7 +9205,7 @@ function calculate() {
   // install, per-opening setup, and mobilization. Marked up by the job
   // margin like every other cost (no separate bill rate).
   {
-    const lb = estimateLaborBreakdown();
+    const lb = estimateLaborBreakdown({ wc, lf: windowLF, sd, sgd, bifold });
     if (lb.laborCost > 0) {
       rows.push({
         id: "labor", name: "Labor (install + cleanup)", isLabor: true,
