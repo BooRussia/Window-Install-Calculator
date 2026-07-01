@@ -7477,6 +7477,14 @@ const DEFAULT_DATA = {
       crewSize: 2,              // 2-person residential install crew
       crewPayRatePerHr: 30,     // PER PERSON per hour (total payout = size × rate × hrs)
       showLaborHoursInPDF: false,  // off by default — match existing customer PDF
+      // Repeating-floors realism (PLACEHOLDER — tune in Settings). Efficiency:
+      // each identical repeat floor costs this fraction of full install labor
+      // (crews speed up), floored at repeatFloorMinFactor. Height premium: extra
+      // labor per story ABOVE 3 (getting crew + materials up high), capped.
+      repeatFloorEfficiency: 0.85,
+      repeatFloorMinFactor: 0.70,
+      heightPremiumPerStoryAbove3: 0.05,
+      heightPremiumCap: 2.0,
     },
     brand: {
       companyName: "Prime Window & Door",
@@ -8489,6 +8497,31 @@ function getStoriesMultiplier() {
   return 1.0;
 }
 
+// High-rise height premium — EXACTLY 1.0 at <=3 stories (getStoriesMultiplier is
+// the sole height factor there, so no double-count), then climbs above 3 and is
+// capped. Applied once to on-site labor at the job-assembly level.
+function getHeightPremiumMultiplier() {
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+  const n = storyNum(STATE.stories);
+  if (n <= 3) return 1.0;
+  const per = LM.heightPremiumPerStoryAbove3 ?? 0.05;
+  const cap = LM.heightPremiumCap ?? 2.0;
+  return Math.min(cap, 1 + (n - 3) * per);
+}
+
+// Repeat-floor efficiency — with Like Floors, the aggregated install labor is the
+// typical floor × N (linear). Crews speed up on identical repeats, so scale that
+// back to effectiveFloors(N)/N, where effectiveFloors = 1 full floor + (N-1)
+// discounted repeats. 1.0 when Like Floors is off (or N<=1) → no change.
+function repeatEfficiencyFactor() {
+  if (!STATE.likeFloors) return 1.0;
+  const N = Math.max(1, storyNum(STATE.stories));
+  if (N <= 1) return 1.0;
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+  const eff = Math.min(1, Math.max(LM.repeatFloorMinFactor ?? 0.70, LM.repeatFloorEfficiency ?? 0.85));
+  return (1 + (N - 1) * eff) / N;
+}
+
 // True when the INSTALLATION is to impact spec — either the job is impact glass,
 // or the brand is flagged alwaysImpactSpec (it attaches to impact spec regardless
 // of glass type). Mirrors useImpactPattern() so labor and materials agree.
@@ -9286,16 +9319,24 @@ function calculate() {
   // margin like every other cost (no separate bill rate).
   {
     const lb = estimateLaborBreakdown({ wc, lf: windowLF, sd, sgd, bifold });
-    if (lb.laborCost > 0) {
+    // Phase 3 — repeat-floor efficiency (crews speed up on identical floors) and a
+    // high-rise height premium apply to ON-SITE install/setup hours only;
+    // mobilization + the inspection return trip stay full. Both factors are 1.0
+    // for a normal job (Like Floors off, <=3 stories) → labor is unchanged there.
+    const fixedHrs = (lb.mobilizationHrs || 0) + (lb.inspectionHrs || 0);
+    const onsiteHrs = Math.max(0, lb.totalHrs - fixedHrs);
+    const adjHrs = onsiteHrs * repeatEfficiencyFactor() * getHeightPremiumMultiplier() + fixedHrs;
+    const laborCost = adjHrs * lb.crewCostPerHr;
+    if (laborCost > 0) {
       rows.push({
         id: "labor", name: "Labor (install + cleanup)", isLabor: true,
-        rateLabel: `${lb.totalHrs.toFixed(1)} crew-hrs × $${formatMoneyRaw(lb.crewCostPerHr)}/hr`,
-        ratePerLF: lf > 0 ? lb.laborCost / lf : 0,
-        quantity: Math.round(lb.totalHrs * 10) / 10, unit: "hr",
-        totalCost: lb.laborCost,
+        rateLabel: `${adjHrs.toFixed(1)} crew-hrs × $${formatMoneyRaw(lb.crewCostPerHr)}/hr`,
+        ratePerLF: lf > 0 ? laborCost / lf : 0,
+        quantity: Math.round(adjHrs * 10) / 10, unit: "hr",
+        totalCost: laborCost,
       });
-      totalCost += lb.laborCost;
-      if (lf > 0) perLfCost += lb.laborCost / lf;
+      totalCost += laborCost;
+      if (lf > 0) perLfCost += laborCost / lf;
     }
   }
 
