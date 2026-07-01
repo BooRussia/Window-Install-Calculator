@@ -5622,6 +5622,12 @@
           <input id="storiesInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="1" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
         </label>
         <button id="likeFloorsToggleBtn" type="button" class="toggle-pill mt-2"><span class="lbl">Like Floors &mdash; multiply every floor</span><span class="val">Off</span></button></div>
+      <div class="rail-field" id="extraFloorsField">
+        <label><span class="lbl-impact med">Other floors</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Non-typical floors priced on top of the stack &mdash; e.g. a lobby or penthouse with different openings. Each has its own LF, window count &amp; how many of that floor.</p>
+        <div id="extraFloorsList" class="space-y-2"></div>
+        <button id="addExtraFloorBtn" type="button" class="rail-add-btn">+ Add floor</button>
+      </div>
       <div class="rail-field">
         <label><span class="lbl-impact med">Manufacturer</span><span class="info-tip" tabindex="0" role="button" aria-label="How manufacturer affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Sets the brand's screw pattern and any brand-specific unit pricing — which changes anchor counts and material totals.</span></span></label>
         <div id="ddManufacturer" class="dd w-full">
@@ -9850,6 +9856,34 @@ function updateTrimToggleUI() {
   const valEl = btn.querySelector(".val");
   btn.classList.toggle("active", STATE.trimEnabled);
   if (valEl) valEl.textContent = STATE.trimEnabled ? "On" : "Off";
+}
+
+// One-off floor takeoff (lobby / penthouse). Same shape as the primary floor so
+// getFloorGroups()/aggregateTakeoff() price it identically; doors default empty
+// (v1 one-off floors are window takeoffs — tune the rate or add doors later).
+function efNewFloor() {
+  return { id: "ef" + Math.random().toString(36).slice(2, 8), label: "", count: 1,
+    totalLF: "", windowCount: "", slidingDoors: [], bifoldDoors: [], swingDoors: [], buckList: null };
+}
+// Rebuild the one-off-floors list from STATE.extraFloors. Called on init, job
+// load, and add/remove — NOT on per-field input (the delegated handler updates
+// STATE + render() without touching the list, so typing keeps focus).
+function renderExtraFloors() {
+  const list = document.getElementById("extraFloorsList");
+  if (!list) return;
+  const arr = Array.isArray(STATE.extraFloors) ? STATE.extraFloors : (STATE.extraFloors = []);
+  list.innerHTML = arr.map((f, i) => `
+    <div class="ef-row" data-idx="${i}" style="border:1px solid rgba(148,163,184,0.18);border-radius:10px;padding:8px;">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <input class="ef-in num-input" data-f="label" placeholder="Lobby / Penthouse" value="${String(f.label || "").replace(/"/g, "&quot;")}" style="flex:1;min-width:0;" />
+        <button type="button" class="ef-remove" aria-label="Remove floor" style="flex:none;width:26px;height:26px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);background:transparent;color:#94a3b8;cursor:pointer;">&times;</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <label class="margin-pill" style="cursor:text"><span class="lbl">LF</span><input class="ef-in num-input" data-f="totalLF" type="number" min="0" step="0.1" inputmode="decimal" value="${f.totalLF || ""}" placeholder="0" style="width:60px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Windows</span><input class="ef-in num-input" data-f="windowCount" type="number" min="0" step="1" inputmode="numeric" value="${f.windowCount || ""}" placeholder="&mdash;" style="width:48px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">How many</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
+      </div>
+    </div>`).join("");
 }
 
 function updatePermitToggleUI() {
@@ -14351,6 +14385,34 @@ function bindControls() {
     }
   }
 
+  // Other floors (one-off lobby / penthouse takeoffs on top of the stack)
+  const efList = document.getElementById("extraFloorsList");
+  if (efList && !efList._wired) {
+    efList.addEventListener("input", e => {
+      const row = e.target.closest(".ef-row"); if (!row) return;
+      const i = parseInt(row.dataset.idx, 10); const fld = e.target.dataset.f;
+      if (!STATE.extraFloors || !STATE.extraFloors[i] || !fld) return;
+      STATE.extraFloors[i][fld] = e.target.value;   // recompute only; keep focus
+      markCalculatorFirstInteraction(); render();
+    });
+    efList.addEventListener("click", e => {
+      const btn = e.target.closest(".ef-remove"); if (!btn) return;
+      const row = e.target.closest(".ef-row"); if (!row) return;
+      STATE.extraFloors.splice(parseInt(row.dataset.idx, 10), 1);
+      renderExtraFloors(); render();
+    });
+    efList._wired = true;
+  }
+  const efAdd = document.getElementById("addExtraFloorBtn");
+  if (efAdd && !efAdd._wired) {
+    efAdd.addEventListener("click", () => {
+      (STATE.extraFloors = STATE.extraFloors || []).push(efNewFloor());
+      renderExtraFloors(); markCalculatorFirstInteraction(); render();
+    });
+    efAdd._wired = true;
+  }
+  renderExtraFloors();
+
   // Permit toggle
   const permitBtn = document.getElementById("permitToggleBtn");
   if (!permitBtn._wired) {
@@ -15190,6 +15252,7 @@ function applyJobToState(j) {
   // fields → identicalFloors defaults to 1 and totalLF stays as-is.
   STATE.likeFloors = j.likeFloors != null ? !!j.likeFloors : (Math.max(1, parseInt(j.identicalFloors, 10) || 1) > 1);
   STATE.extraFloors = Array.isArray(j.extraFloors) ? clone(j.extraFloors) : [];
+  if (typeof renderExtraFloors === "function") renderExtraFloors();
   STATE.buildingStories = (j.buildingStories == null) ? null : (parseInt(j.buildingStories, 10) || null);
   STATE.swingStageEnabled = !!j.swingStageEnabled;
   STATE.swingStageDays = j.swingStageDays || "1";
