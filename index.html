@@ -8540,6 +8540,11 @@ function getStoriesMultiplier() {
 // the sole height factor there, so no double-count), then climbs above 3 and is
 // capped. Applied once to on-site labor at the job-assembly level.
 function getHeightPremiumMultiplier() {
+  // The height premium is part of the repeating-floors TOWER model. It only makes
+  // sense when you're stacking floors (Like Floors on). A plain single-takeoff job
+  // with a high Stories number keeps the normal ≤3-cap access multiplier and gets
+  // NO premium — otherwise a normal job's labor balloons while materials stay flat.
+  if (!STATE.likeFloors) return 1.0;
   const LM = (DATA.config && DATA.config.laborModel) || {};
   const n = storyNum(STATE.stories);
   if (n <= 3) return 1.0;
