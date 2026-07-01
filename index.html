@@ -5617,7 +5617,11 @@
         <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How many floors — upper floors add labor (and sometimes a lift).</p>
-        <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div></div>
+        <label class="margin-pill" style="cursor:text">
+          <span class="lbl">Stories</span>
+          <input id="storiesInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="1" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+        </label>
+        <button id="likeFloorsToggleBtn" type="button" class="toggle-pill mt-2"><span class="lbl">Like Floors &mdash; multiply every floor</span><span class="val">Off</span></button></div>
       <div class="rail-field">
         <label><span class="lbl-impact med">Manufacturer</span><span class="info-tip" tabindex="0" role="button" aria-label="How manufacturer affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Sets the brand's screw pattern and any brand-specific unit pricing — which changes anchor counts and material totals.</span></span></label>
         <div id="ddManufacturer" class="dd w-full">
@@ -5639,14 +5643,6 @@
           <svg class="rail-acc-chev" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
         </button>
         <div class="rail-acc-body space-y-3">
-      <div class="rail-field" id="identicalFloorsField">
-        <label><span class="lbl-impact high">Identical floors</span><span class="info-tip" tabindex="0" role="button" aria-label="How identical floors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>For a tower with repeating floors, take off ONE typical floor below and set how many identical floors it repeats across. Materials, screws &amp; per-floor labor multiply; one-time costs (mobilization, permit, lift) stay single. Skip the lobby and any floor that differs.</span></span></label>
-        <p class="mb-2 text-[11px] leading-snug text-slate-500">One typical floor, repeated. Leave at 1 for a normal job.</p>
-        <label class="margin-pill" style="cursor:text">
-          <span class="lbl">Floors</span>
-          <input id="identicalFloorsInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="1" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-        </label>
-      </div>
       <div class="rail-field">
         <label for="totalLF">Total window width <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span></label>
         <p class="mt-0.5 mb-2 text-[11px] leading-snug text-slate-500">Add up the width of every window opening, in feet.</p>
@@ -5724,6 +5720,17 @@
           <label id="liftDaysWrap" class="margin-pill hidden" style="cursor:text">
             <span class="lbl">Lift days</span>
             <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+        </div>
+      </div>
+      <div id="swingStageRailField" class="rail-field hidden">
+        <label><span class="lbl-impact med">Swing stage</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Suspended scaffold for high-rise work &mdash; only shows above 3 stories. Placeholder rate for now; tune later.</p>
+        <div class="space-y-2">
+          <button id="swingStageToggleBtn" type="button" class="toggle-pill"><span class="lbl">Swing stage</span><span class="val">Off</span></button>
+          <label id="swingStageDaysWrap" class="margin-pill hidden" style="cursor:text">
+            <span class="lbl">Stage days</span>
+            <input id="swingStageDaysInput" type="number" min="1" step="1" value="3" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
         </div>
       </div>
@@ -7471,6 +7478,9 @@ const DEFAULT_DATA = {
       impact: "Impact",
       stories: "1 Story"
     },
+    // Swing stage (suspended scaffold) - high-rise staging rig. PLACEHOLDER rates;
+    // tune in Settings later. Only offered when the building is > 3 stories.
+    swingStage: { minStories: 4, ratePerDay: 850, setupFee: 1200, defaultDays: 3 },
     // Swing doors — priced per UNIT, not per LF. Enabled by default (like sliding
     // & bifold) so the everyday entry/French door is visible in the Openings rail.
     // Defaults below are construction-shop estimates; tune in Settings → Rates.
@@ -8346,7 +8356,7 @@ function buildState() {
     houseType: jd.houseType || DATA.houseTypes[0],
     constructionType: jd.constructionType || DATA.constructionTypes[0],
     impact: jd.impact || "Impact",
-    stories: jd.stories || "1 Story",
+    stories: storyNum(jd.stories),
     totalLF: "",
     windowCount: "",
     liftEnabled: false,
@@ -8366,7 +8376,7 @@ function buildState() {
     // Repeating-floors + high-rise scaffolding (all default-off → no pricing
     // change until used). identicalFloors multiplies the typical floor;
     // extraFloors are one-off floors (lobby/penthouse); the rest feed Phases 3–5.
-    identicalFloors: 1,
+    likeFloors: false,
     extraFloors: [],
     buildingStories: null,
     swingStageEnabled: false,
@@ -8431,9 +8441,29 @@ function getConcreteAnchorsPerLF() {
   return total;
 }
 
+// Stories is a plain integer (1..N). storyNum tolerates legacy "2 Story" strings.
+function storyNum(v) {
+  const m = String(v == null ? "" : v).match(/\d+/);
+  return Math.max(1, m ? parseInt(m[0], 10) : 1);
+}
+function storyLabel(v) {
+  const n = storyNum(v);
+  return n + (n === 1 ? " story" : " stories");
+}
+// Per-floor material multiplier. "Like Floors" ON -> the typical floor repeats
+// across every story (materials + labor x stories). OFF -> single takeoff (x1);
+// stories then only drives the labor access premium below. extraFloors add on top.
+function floorMult() {
+  return STATE.likeFloors ? storyNum(STATE.stories) : 1;
+}
+// Low-rise labor access premium (climbing to upper floors), applied to per-LF
+// labor. Only in whole-building mode (Like Floors OFF); in Like-Floors mode each
+// floor is multiplied on its own, so this would double-count -> return 1.
 function getStoriesMultiplier() {
-  if (STATE.stories === "2 Story") return 1.30;
-  if (STATE.stories === "3 Story") return 1.65;
+  if (STATE.likeFloors) return 1.0;
+  const n = storyNum(STATE.stories);
+  if (n >= 3) return 1.65;
+  if (n === 2) return 1.30;
   return 1.0;
 }
 
@@ -8894,7 +8924,7 @@ function computeBifoldDoors(takeoff = STATE) {
 // permit, lift, block-sealer bucket rounding, inspection trip) are naturally
 // counted a single time. identicalFloors=1 + no extras → today's single floor.
 function getFloorGroups() {
-  const n = Math.max(1, parseInt(STATE.identicalFloors, 10) || 1);
+  const n = floorMult();
   const primary = {
     id: "primary", label: "Typical floor", count: n,
     totalLF: STATE.totalLF, windowCount: STATE.windowCount,
@@ -8934,7 +8964,8 @@ function aggregateTakeoff(groups) {
 // own totalLF/windowCount stay BUILDING totals (r.lf/r.wc) for display.
 function floorPersistFields() {
   return {
-    identicalFloors: Math.max(1, parseInt(STATE.identicalFloors, 10) || 1),
+    identicalFloors: floorMult(),
+    likeFloors: !!STATE.likeFloors,
     extraFloors: Array.isArray(STATE.extraFloors) ? clone(STATE.extraFloors) : [],
     perFloorLF: parseFloat(STATE.totalLF) || 0,
     perFloorWindowCount: parseInt(STATE.windowCount, 10) || 0,
@@ -9016,7 +9047,7 @@ function calculate() {
     // Lift rental — fixed days, toggle-enabled, 2+ story only. Sliding-door
     // jobs add a day for the inspection wait (the lift sits another day).
     if (item.id === "lift_rental") {
-      if (!STATE.liftEnabled || STATE.stories === "1 Story") return;
+      if (!STATE.liftEnabled) return;
       const sgdCfg = DATA.config.slidingDoors || {};
       const bfCfg = DATA.config.bifoldDoors || {};
       const sgdInspDay = (sgd.count > 0 && sgdCfg.inspection && sgdCfg.inspection.extraLiftDay) ? 1 : 0;
@@ -9269,6 +9300,26 @@ function calculate() {
       if (lf > 0) { r.ratePerLF += taxAmt / lf; perLfCost += taxAmt / lf; }
       totalCost += taxAmt;
     });
+  }
+
+  // Swing stage (suspended scaffold) - a job-level high-rise rig (> 3 stories).
+  // Pass-through like lift/permit: added to cost (marked up), never taxed, counted
+  // once for the whole building. Placeholder rates in DATA.config.swingStage.
+  {
+    const ss = DATA.config.swingStage || {};
+    const minS = ss.minStories || 4;
+    if (STATE.swingStageEnabled && storyNum(STATE.stories) >= minS) {
+      const days = Math.max(1, parseInt(STATE.swingStageDays, 10) || ss.defaultDays || 1);
+      const cost = (ss.setupFee || 0) + days * (ss.ratePerDay || 0);
+      if (cost > 0) {
+        rows.push({ id: "swing_stage", name: "Swing stage (suspended scaffold)",
+          rateLabel: `${days} day${days !== 1 ? "s" : ""} + setup`,
+          ratePerLF: lf > 0 ? cost / lf : 0, quantity: days, unit: "day",
+          totalCost: cost, isFixed: true });
+        totalCost += cost;
+        if (lf > 0) perLfCost += cost / lf;
+      }
+    }
   }
 
   const margin = DATA.config.defaultMargin ?? 35;   // honor an intentional 0% (?? not ||)
@@ -9638,22 +9689,27 @@ function brandContactLine() {
    TOGGLE HELPERS
    ============================================================ */
 function updateLiftVisibility() {
+  // Lift is available at any height now (even a 1-story job may want one), so the
+  // Lift field is always shown. Swing stage is a high-rise rig - gated separately.
   const liftBtn = document.getElementById("liftToggleBtn");
-  const liftDays = document.getElementById("liftDaysWrap");
   const liftField = document.getElementById("liftRailField");
-  const show = STATE.stories !== "1 Story";
-  if (liftBtn) liftBtn.classList.toggle("hidden", !show);
-  // Hide the entire Lift rail-field (with its label) when not applicable so
-  // the EXTRAS section doesn't show a hollow row on 1-story jobs.
-  if (liftField) liftField.classList.toggle("hidden", !show);
-  if (!show) {
-    if (STATE.liftEnabled) {
-      STATE.liftEnabled = false;
-      updateLiftToggleUI();
-    }
-    if (liftDays) liftDays.classList.add("hidden");
-  }
+  if (liftBtn) liftBtn.classList.remove("hidden");
+  if (liftField) liftField.classList.remove("hidden");
+  updateSwingStageVisibility();
   if (typeof updateJobExtrasSummary === "function") updateJobExtrasSummary();
+}
+
+// Swing stage only applies above the config threshold (> 3 stories). Hide + force
+// off below that so it can't leak into pricing when a building shrinks.
+function updateSwingStageVisibility() {
+  const field = document.getElementById("swingStageRailField");
+  const minS = (DATA.config.swingStage && DATA.config.swingStage.minStories) || 4;
+  const show = storyNum(STATE.stories) >= minS;
+  if (field) field.classList.toggle("hidden", !show);
+  if (!show && STATE.swingStageEnabled) {
+    STATE.swingStageEnabled = false;
+    if (typeof updateSwingStageToggleUI === "function") updateSwingStageToggleUI();
+  }
 }
 
 function updateLiftToggleUI() {
@@ -9663,6 +9719,24 @@ function updateLiftToggleUI() {
   btn.classList.toggle("active", STATE.liftEnabled);
   valEl.textContent = STATE.liftEnabled ? "On" : "Off";
   daysWrap.classList.toggle("hidden", !STATE.liftEnabled);
+}
+
+function updateSwingStageToggleUI() {
+  const btn = document.getElementById("swingStageToggleBtn");
+  if (!btn) return;
+  const valEl = btn.querySelector(".val");
+  const daysWrap = document.getElementById("swingStageDaysWrap");
+  btn.classList.toggle("active", STATE.swingStageEnabled);
+  if (valEl) valEl.textContent = STATE.swingStageEnabled ? "On" : "Off";
+  if (daysWrap) daysWrap.classList.toggle("hidden", !STATE.swingStageEnabled);
+}
+
+function updateLikeFloorsToggleUI() {
+  const btn = document.getElementById("likeFloorsToggleBtn");
+  if (!btn) return;
+  const valEl = btn.querySelector(".val");
+  btn.classList.toggle("active", STATE.likeFloors);
+  if (valEl) valEl.textContent = STATE.likeFloors ? "On" : "Off";
 }
 
 function updatePermitToggleUI() {
@@ -9690,9 +9764,13 @@ function updateJobExtrasSummary() {
   if (!trigger || !summary) return;
   const active = [];
   if (STATE.permitEnabled) active.push("Permit");
-  if (STATE.liftEnabled && STATE.stories !== "1 Story") {
+  if (STATE.liftEnabled) {
     const days = parseInt(STATE.liftDays) || 1;
     active.push(days > 1 ? `Lift (${days}d)` : "Lift");
+  }
+  if (STATE.swingStageEnabled && storyNum(STATE.stories) >= ((DATA.config.swingStage && DATA.config.swingStage.minStories) || 4)) {
+    const d = parseInt(STATE.swingStageDays) || 1;
+    active.push(d > 1 ? `Swing stage (${d}d)` : "Swing stage");
   }
   if (active.length) {
     summary.textContent = active.join(", ");
@@ -10017,7 +10095,8 @@ function render() {
     currentJobId: STATE.currentJobId || null,
     jobName: STATE.jobName || "",
     swingDoors: normalizeSwingDoors(STATE.swingDoors),
-    identicalFloors: STATE.identicalFloors,
+    identicalFloors: floorMult(),
+    likeFloors: STATE.likeFloors,
     extraFloors: clone(STATE.extraFloors || []),
     buildingStories: STATE.buildingStories,
     swingStageEnabled: STATE.swingStageEnabled,
@@ -10047,7 +10126,7 @@ function jobSummaryTiers() {
   const doors = swingDoorCount()
     + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
   const size = [];
-  const _floors = Math.max(1, parseInt(STATE.identicalFloors, 10) || 1);
+  const _floors = floorMult();
   if (_floors > 1) size.push(`× ${_floors} floors`);   // per-floor figures below, repeated
   if (lf > 0) size.push(`${lf} LF`);
   if (wc > 0) size.push(`${wc} window${wc === 1 ? "" : "s"}`);
@@ -10103,7 +10182,7 @@ function renderRailAccSummaries() {
   const abbr = { "New Construction": "New", "Block Framed": "Block", "Stick Framed": "Stick" };
   const lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
   const wc = parseInt(STATE.windowCount, 10) || 0;
-  const floors = Math.max(1, parseInt(STATE.identicalFloors, 10) || 1);
+  const floors = floorMult();
   const doors = swingDoorCount()
     + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
   let storyTxt = "";
@@ -14012,12 +14091,34 @@ function bindControls() {
   createSegmented("segHouseType", DATA.houseTypes, STATE.houseType, v => { STATE.houseType = v; markCalculatorFirstInteraction(); render(); }, SEG_LABELS.house);
   createSegmented("segApplication", DATA.applicationTypes, STATE.application, v => { STATE.application = v; markCalculatorFirstInteraction(); render(); });
   createSegmented("segImpact", DATA.impactOptions, STATE.impact, v => { STATE.impact = v; markCalculatorFirstInteraction(); render(); });
-  createSegmented("segStories", DATA.storiesOptions, STATE.stories, v => {
-    STATE.stories = v;
-    markCalculatorFirstInteraction();
-    updateLiftVisibility();
-    render();
-  }, SEG_LABELS.stories);
+  // Stories - a plain number now (towers go past 3). Drives the labor access
+  // premium, lift/swing visibility and (with Like Floors) the per-floor multiplier.
+  const storiesInput = document.getElementById("storiesInput");
+  if (storiesInput) {
+    storiesInput.value = String(storyNum(STATE.stories));
+    if (!storiesInput._wired) {
+      storiesInput.addEventListener("input", e => {
+        STATE.stories = Math.max(1, parseInt(e.target.value, 10) || 1);
+        markCalculatorFirstInteraction();
+        updateLiftVisibility();
+        render();
+      });
+      storiesInput._wired = true;
+    }
+  }
+  const likeFloorsBtn = document.getElementById("likeFloorsToggleBtn");
+  if (likeFloorsBtn) {
+    updateLikeFloorsToggleUI();
+    if (!likeFloorsBtn._wired) {
+      likeFloorsBtn.addEventListener("click", () => {
+        STATE.likeFloors = !STATE.likeFloors;
+        updateLikeFloorsToggleUI();
+        markCalculatorFirstInteraction();
+        render();
+      });
+      likeFloorsBtn._wired = true;
+    }
+  }
 
   const lf = document.getElementById("totalLF");
   lf.value = STATE.totalLF || "";
@@ -14038,17 +14139,6 @@ function bindControls() {
   if (!wcInput._wired) {
     wcInput.addEventListener("input", e => { STATE.windowCount = e.target.value; markCalculatorFirstInteraction(); render(); });
     wcInput._wired = true;
-  }
-
-  // Identical floors — the repeating-floors multiplier on the typical floor.
-  // init() can run more than once, so guard the listener (matches lf/wcInput).
-  const idFloorsInput = document.getElementById("identicalFloorsInput");
-  if (idFloorsInput) {
-    idFloorsInput.value = String(Math.max(1, parseInt(STATE.identicalFloors, 10) || 1));
-    if (!idFloorsInput._wired) {
-      idFloorsInput.addEventListener("input", e => { STATE.identicalFloors = Math.max(1, parseInt(e.target.value, 10) || 1); markCalculatorFirstInteraction(); render(); });
-      idFloorsInput._wired = true;
-    }
   }
 
   // Job Details sheet — opened from the sticky mobile summary bar (the spec
@@ -14095,6 +14185,28 @@ function bindControls() {
     });
     liftDaysInput._wired = true;
   }
+
+  // Swing stage toggle + days (field itself shown only > 3 stories)
+  const swingBtn = document.getElementById("swingStageToggleBtn");
+  if (swingBtn && !swingBtn._wired) {
+    swingBtn.addEventListener("click", () => {
+      STATE.swingStageEnabled = !STATE.swingStageEnabled;
+      updateSwingStageToggleUI();
+      updateJobExtrasSummary();
+      render();
+    });
+    swingBtn._wired = true;
+  }
+  updateSwingStageToggleUI();
+  const swingDaysInput = document.getElementById("swingStageDaysInput");
+  if (swingDaysInput) {
+    swingDaysInput.value = STATE.swingStageDays || "3";
+    if (!swingDaysInput._wired) {
+      swingDaysInput.addEventListener("input", e => { STATE.swingStageDays = e.target.value; updateJobExtrasSummary(); render(); });
+      swingDaysInput._wired = true;
+    }
+  }
+  updateLiftVisibility();
 
   // Permit toggle
   const permitBtn = document.getElementById("permitToggleBtn");
@@ -14168,7 +14280,7 @@ function resetAll() {
     houseType: jd.houseType || DATA.houseTypes[0],
     constructionType: jd.constructionType || DATA.constructionTypes[0],
     impact: jd.impact || "Impact",
-    stories: jd.stories || "1 Story",
+    stories: storyNum(jd.stories),
     totalLF: "",
     windowCount: "",
     liftEnabled: false,
@@ -14926,14 +15038,14 @@ function applyJobToState(j) {
   STATE.houseType = j.houseType;
   STATE.constructionType = j.constructionType;
   STATE.impact = j.impact || "Impact";
-  STATE.stories = j.stories || "1 Story";
+  STATE.stories = storyNum(j.stories);
   STATE.totalLF = (j.totalLF === "" || j.totalLF == null) ? "" : String(cleanLF(j.totalLF));
   STATE.windowCount = j.windowCount ? String(j.windowCount) : "";
   // Repeating floors — restore the multiplier + one-off floors. Prefer the
   // per-floor takeoff footage so a reload re-derives the building total rather
   // than re-multiplying the (building) totalLF set above. Old jobs lack these
   // fields → identicalFloors defaults to 1 and totalLF stays as-is.
-  STATE.identicalFloors = Math.max(1, parseInt(j.identicalFloors, 10) || 1);
+  STATE.likeFloors = j.likeFloors != null ? !!j.likeFloors : (Math.max(1, parseInt(j.identicalFloors, 10) || 1) > 1);
   STATE.extraFloors = Array.isArray(j.extraFloors) ? clone(j.extraFloors) : [];
   STATE.buildingStories = (j.buildingStories == null) ? null : (parseInt(j.buildingStories, 10) || null);
   STATE.swingStageEnabled = !!j.swingStageEnabled;
@@ -16002,7 +16114,7 @@ function exportPDF(mode) {
     details.push(["Sliding Glass Doors", `${r.slidingDoors.count} · ${r.slidingDoors.panelTotal} panel${r.slidingDoors.panelTotal === 1 ? "" : "s"}`]);
   }
   if (STATE.permitEnabled) details.push(["Permit", "Included"]);
-  if (STATE.liftEnabled && STATE.stories !== "1 Story") details.push(["Lift Rental", `${STATE.liftDays} day(s)`]);
+  if (STATE.liftEnabled) details.push(["Lift Rental", `${STATE.liftDays} day(s)`]);
 
   const half = Math.ceil(details.length / 2);
   const col1X = M;
@@ -23998,14 +24110,14 @@ function init() {
       STATE.constructionType = construction;
       STATE.houseType = house;
       STATE.impact = impact;
-      STATE.stories = stories;
-      STATE.liftEnabled = lift && stories !== "1 Story";
+      STATE.stories = storyNum(stories);
+      STATE.liftEnabled = lift;
 
       // Sync segmented controls in the rail without re-firing their onChange
       if (SEGMENTS.segConstructionType) SEGMENTS.segConstructionType.setValue(construction, false);
       if (SEGMENTS.segHouseType) SEGMENTS.segHouseType.setValue(house, false);
       if (SEGMENTS.segImpact) SEGMENTS.segImpact.setValue(impact, false);
-      if (SEGMENTS.segStories) SEGMENTS.segStories.setValue(stories, false);
+      const _si = document.getElementById("storiesInput"); if (_si) _si.value = String(storyNum(stories));
 
       updateLiftVisibility();
       updateLiftToggleUI();
