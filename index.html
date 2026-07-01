@@ -6749,6 +6749,39 @@
                 <input id="adminMobilizationHours" type="text" inputmode="decimal" autocomplete="off" placeholder="2" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
                 <span class="set-hint">Per job: load the truck, drive, stage on arrival.</span>
               </div>
+              <div class="set-field" style="grid-column:1/-1;margin-top:2px;">
+                <span class="text-[11px] uppercase tracking-[0.16em] text-[#c9a558] font-bold">Repeating floors &amp; high-rise</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminRepeatFloorEff">Repeat-floor efficiency (%)</label>
+                <input id="adminRepeatFloorEff" type="text" inputmode="decimal" autocomplete="off" placeholder="85" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Each identical repeat floor costs this % of full install labor (crews speed up).</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminHeightPremium">Height premium / story &gt;3 (%)</label>
+                <input id="adminHeightPremium" type="text" inputmode="decimal" autocomplete="off" placeholder="5" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Extra labor per story above 3 (getting crew &amp; materials up high).</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminSwingStageRate">Swing stage $/day</label>
+                <input id="adminSwingStageRate" type="text" inputmode="decimal" autocomplete="off" placeholder="850" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Suspended-scaffold rental per day (buildings &gt;3 stories).</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminSwingStageSetup">Swing stage setup $</label>
+                <input id="adminSwingStageSetup" type="text" inputmode="decimal" autocomplete="off" placeholder="1200" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">One-time rig / engineering fee.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminTrimRate">Interior trim $/LF</label>
+                <input id="adminTrimRate" type="text" inputmode="decimal" autocomplete="off" placeholder="3.00" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Trim board cost per LF of opening footage (header/jambs/sill).</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
+                <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">18-ga finish-nail box price (one nail every 16").</span>
+              </div>
             </div>
             <div class="mt-3 text-[12px] text-slate-400">Crew costs you <span id="adminCrewCostReadout" class="text-[#c9a558] font-bold">—</span></div>
             <label class="mt-3 flex items-center gap-2 cursor-pointer select-none">
@@ -18286,6 +18319,11 @@ function buildAdminUI() {
   document.getElementById("adminCrewSize").value           = LM.crewSize           ?? 2;
   document.getElementById("adminCrewPayRatePerHr").value   = LM.crewPayRatePerHr   ?? 30;
   document.getElementById("adminShowLaborHoursInPDF").checked = !!LM.showLaborHoursInPDF;
+  // Repeating-floors / high-rise placeholder rates
+  { const el = document.getElementById("adminRepeatFloorEff"); if (el) el.value = Math.round((LM.repeatFloorEfficiency ?? 0.85) * 100); }
+  { const el = document.getElementById("adminHeightPremium"); if (el) el.value = Math.round((LM.heightPremiumPerStoryAbove3 ?? 0.05) * 100); }
+  { const ss = DATA.config.swingStage || {}; const a = document.getElementById("adminSwingStageRate"); if (a) a.value = ss.ratePerDay ?? 850; const b = document.getElementById("adminSwingStageSetup"); if (b) b.value = ss.setupFee ?? 1200; }
+  { const tr = DATA.config.trim || {}; const a = document.getElementById("adminTrimRate"); if (a) a.value = tr.boardRatePerLF ?? 3; const b = document.getElementById("adminBradBoxPrice"); if (b) b.value = tr.bradNailBoxPrice ?? 24; }
   updateCrewCostReadout();
 
   // Swing doors — populate the editor with current rates
@@ -19070,6 +19108,21 @@ function commitAdmin() {
     DATA.config.laborModel.crewPayRatePerHr = crewRate;
   }
   DATA.config.laborModel.showLaborHoursInPDF = !!document.getElementById("adminShowLaborHoursInPDF").checked;
+  // Repeating-floors / high-rise placeholder rates (percent inputs stored as fractions)
+  const rfEff = parseFloat(document.getElementById("adminRepeatFloorEff").value);
+  if (!isNaN(rfEff) && rfEff >= 0 && rfEff <= 100) DATA.config.laborModel.repeatFloorEfficiency = rfEff / 100;
+  const hPrem = parseFloat(document.getElementById("adminHeightPremium").value);
+  if (!isNaN(hPrem) && hPrem >= 0) DATA.config.laborModel.heightPremiumPerStoryAbove3 = hPrem / 100;
+  DATA.config.swingStage = DATA.config.swingStage || { minStories: 4, defaultDays: 3 };
+  const ssRate = parseFloat(document.getElementById("adminSwingStageRate").value);
+  if (!isNaN(ssRate) && ssRate >= 0) DATA.config.swingStage.ratePerDay = ssRate;
+  const ssSetup = parseFloat(document.getElementById("adminSwingStageSetup").value);
+  if (!isNaN(ssSetup) && ssSetup >= 0) DATA.config.swingStage.setupFee = ssSetup;
+  DATA.config.trim = DATA.config.trim || { bradNailSpacingIn: 16, bradNailBoxCount: 2000 };
+  const trRate = parseFloat(document.getElementById("adminTrimRate").value);
+  if (!isNaN(trRate) && trRate >= 0) DATA.config.trim.boardRatePerLF = trRate;
+  const brPrice = parseFloat(document.getElementById("adminBradBoxPrice").value);
+  if (!isNaN(brPrice) && brPrice >= 0) DATA.config.trim.bradNailBoxPrice = brPrice;
   document.querySelectorAll("[data-unitprice]").forEach(inp => {
     const it = DATA.costItems.find(c => c.id === inp.dataset.unitprice);
     const v = parseFloat(inp.value);
