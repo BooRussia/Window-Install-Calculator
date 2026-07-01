@@ -15283,7 +15283,12 @@ function applyJobToState(j) {
   // per-floor takeoff footage so a reload re-derives the building total rather
   // than re-multiplying the (building) totalLF set above. Old jobs lack these
   // fields → identicalFloors defaults to 1 and totalLF stays as-is.
-  STATE.likeFloors = j.likeFloors != null ? !!j.likeFloors : (Math.max(1, parseInt(j.identicalFloors, 10) || 1) > 1);
+  // Only honor an EXPLICIT saved likeFloors — never infer it from a legacy
+  // identicalFloors>1. Inferring it turned the per-floor multiplier ON for jobs
+  // saved before the unified model and re-multiplied them on load (a $29k job
+  // reloading at ~$49k). Legacy jobs load flat; the user re-enables Like Floors
+  // if the job really was a repeating-floor tower.
+  STATE.likeFloors = !!j.likeFloors;
   STATE.extraFloors = Array.isArray(j.extraFloors) ? clone(j.extraFloors) : [];
   if (typeof renderExtraFloors === "function") renderExtraFloors();
   STATE.buildingStories = (j.buildingStories == null) ? null : (parseInt(j.buildingStories, 10) || null);
