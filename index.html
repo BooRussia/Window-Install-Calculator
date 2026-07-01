@@ -5734,6 +5734,25 @@
           </label>
         </div>
       </div>
+      <div class="rail-field">
+        <label><span class="lbl-impact med">Material storage</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Monthly cost to store materials on site (container rental, semi drop, or both &mdash; you add it up) &times; the months the job runs.</p>
+        <div class="space-y-2">
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">$ / month</span>
+            <input id="storageMonthlyInput" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="0" style="width:76px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">Months</span>
+            <input id="projectedMonthsInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+        </div>
+      </div>
+      <div class="rail-field">
+        <label><span class="lbl-impact med">Interior trim</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Header, jambs &amp; sill trim on every opening (all 4 sides) + 18-ga finish nails every 16". Priced off the opening footage; rate tunable later.</p>
+        <button id="trimToggleBtn" type="button" class="toggle-pill"><span class="lbl">Interior trim</span><span class="val">Off</span></button>
+      </div>
 
         </div>
       </div>
@@ -7481,6 +7500,9 @@ const DEFAULT_DATA = {
     // Swing stage (suspended scaffold) - high-rise staging rig. PLACEHOLDER rates;
     // tune in Settings later. Only offered when the building is > 3 stories.
     swingStage: { minStories: 4, ratePerDay: 850, setupFee: 1200, defaultDays: 3 },
+    // Interior trim — PLACEHOLDER rates; tune in Settings later. boardRatePerLF is
+    // $/LF of opening footage; nails are 18-ga, one every 16", bought by the box.
+    trim: { boardRatePerLF: 3.00, bradNailSpacingIn: 16, bradNailBoxCount: 2000, bradNailBoxPrice: 24 },
     // Swing doors — priced per UNIT, not per LF. Enabled by default (like sliding
     // & bifold) so the everyday entry/French door is visible in the Openings rail.
     // Defaults below are construction-shop estimates; tune in Settings → Rates.
@@ -9277,6 +9299,31 @@ function calculate() {
     }
   }
 
+  // Interior trim (header / jambs / sill, all 4 sides) + 18-ga finish nails.
+  // Per-floor materials: priced off the aggregated building-total opening LF
+  // (so they scale with the floor multiplier) and taxed like other materials.
+  if (STATE.trimEnabled && lf > 0) {
+    const tc = DATA.config.trim || {};
+    const trimRate = tc.boardRatePerLF ?? 3;
+    const trimCost = lf * trimRate;
+    rows.push({ id: "trim_board", name: "Interior trim boards",
+      rateLabel: `${lf.toFixed(1)} LF · header/jambs/sill`, ratePerLF: trimRate,
+      quantity: Math.round(lf * 10) / 10, unit: "LF", totalCost: trimCost });
+    totalCost += trimCost;
+    perLfCost += trimCost / lf;
+    // 18-ga finish/brad nails — one every `spacing` inches of trim, bought by box.
+    const spacing = tc.bradNailSpacingIn || 16;
+    const nails = Math.ceil(lf * 12 / spacing);
+    const perBox = tc.bradNailBoxCount || 2000;
+    const boxes = Math.max(1, Math.ceil(nails / perBox));
+    const nailCost = boxes * (tc.bradNailBoxPrice ?? 24);
+    rows.push({ id: "brad_nails", name: "18-ga finish nails",
+      rateLabel: `${nails} nails · ${boxes} box${boxes !== 1 ? "es" : ""}`,
+      ratePerLF: nailCost / lf, quantity: boxes, unit: "box", totalCost: nailCost });
+    totalCost += nailCost;
+    perLfCost += nailCost / lf;
+  }
+
   // Materials sales tax — this is what WE pay our supplier on materials, so
   // it's a real cost. But the install itself is a service: in Florida you
   // don't charge the customer sales tax on labor, so this is NOT a separate
@@ -9290,6 +9337,7 @@ function calculate() {
       "swing_doors_materials", "swing_doors_flashing", "swing_doors_anchors",
       "sliding_doors_flashing", "sliding_doors_anchors",
       "bifold_doors_flashing", "bifold_doors_anchors",
+      "trim_board", "brad_nails",
     ]);
     const factor = taxRate / 100;
     rows.forEach(r => {
@@ -9319,6 +9367,22 @@ function calculate() {
         totalCost += cost;
         if (lf > 0) perLfCost += cost / lf;
       }
+    }
+  }
+
+  // Material storage — on-site container / semi drop: monthly cost × projected
+  // months. Job-level pass-through (marked up, not taxed); user types the cost.
+  {
+    const monthly = parseFloat(STATE.storageMonthlyCost) || 0;
+    const months = Math.max(1, parseInt(STATE.projectedMonths, 10) || 1);
+    const cost = monthly * months;
+    if (cost > 0) {
+      rows.push({ id: "material_storage", name: "Material storage",
+        rateLabel: `${months} mo × ${formatMoney(monthly)}/mo`,
+        ratePerLF: lf > 0 ? cost / lf : 0, quantity: months, unit: "mo",
+        totalCost: cost, isFixed: true });
+      totalCost += cost;
+      if (lf > 0) perLfCost += cost / lf;
     }
   }
 
@@ -9739,6 +9803,14 @@ function updateLikeFloorsToggleUI() {
   if (valEl) valEl.textContent = STATE.likeFloors ? "On" : "Off";
 }
 
+function updateTrimToggleUI() {
+  const btn = document.getElementById("trimToggleBtn");
+  if (!btn) return;
+  const valEl = btn.querySelector(".val");
+  btn.classList.toggle("active", STATE.trimEnabled);
+  if (valEl) valEl.textContent = STATE.trimEnabled ? "On" : "Off";
+}
+
 function updatePermitToggleUI() {
   const btn = document.getElementById("permitToggleBtn");
   const valEl = btn.querySelector(".val");
@@ -9772,6 +9844,8 @@ function updateJobExtrasSummary() {
     const d = parseInt(STATE.swingStageDays) || 1;
     active.push(d > 1 ? `Swing stage (${d}d)` : "Swing stage");
   }
+  if ((parseFloat(STATE.storageMonthlyCost) || 0) > 0) active.push("Storage");
+  if (STATE.trimEnabled) active.push("Trim");
   if (active.length) {
     summary.textContent = active.join(", ");
     trigger.classList.add("active");
@@ -14207,6 +14281,34 @@ function bindControls() {
     }
   }
   updateLiftVisibility();
+
+  // Material storage — $/month + projected months (open fields)
+  const storageInput = document.getElementById("storageMonthlyInput");
+  if (storageInput) {
+    storageInput.value = STATE.storageMonthlyCost || "";
+    if (!storageInput._wired) {
+      storageInput.addEventListener("input", e => { STATE.storageMonthlyCost = e.target.value; updateJobExtrasSummary(); render(); });
+      storageInput._wired = true;
+    }
+  }
+  const monthsInput = document.getElementById("projectedMonthsInput");
+  if (monthsInput) {
+    monthsInput.value = STATE.projectedMonths || "1";
+    if (!monthsInput._wired) {
+      monthsInput.addEventListener("input", e => { STATE.projectedMonths = e.target.value; updateJobExtrasSummary(); render(); });
+      monthsInput._wired = true;
+    }
+  }
+
+  // Interior trim toggle
+  const trimBtn = document.getElementById("trimToggleBtn");
+  if (trimBtn) {
+    updateTrimToggleUI();
+    if (!trimBtn._wired) {
+      trimBtn.addEventListener("click", () => { STATE.trimEnabled = !STATE.trimEnabled; updateTrimToggleUI(); updateJobExtrasSummary(); render(); });
+      trimBtn._wired = true;
+    }
+  }
 
   // Permit toggle
   const permitBtn = document.getElementById("permitToggleBtn");
