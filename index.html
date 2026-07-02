@@ -1098,6 +1098,13 @@
   .sgd-cell input::-webkit-outer-spin-button, .sgd-cell input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .rail-add-btn { width: 100%; border: 1px dashed #334155; border-radius: 10px; padding: 8px; font-size: 12px; font-weight: 700; color: #94a3b8; background: transparent; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
   .rail-add-btn:hover { border-color: rgba(181,143,74,0.5); color: #c9a558; }
+  /* One-off ("Other floors") editor rows */
+  .ef-row { border: 1px solid rgba(148,163,184,0.18); border-radius: 10px; padding: 8px; }
+  .ef-remove { flex: none; width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(148,163,184,0.3); background: transparent; color: #94a3b8; cursor: pointer; }
+  .ef-remove:hover { border-color: rgba(225,29,72,0.5); color: #f43f5e; }
+  /* "Suggest: 12d" chips next to days/months inputs — computed from crew-hours */
+  .sug-chip { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: #c9a558; background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.35); border-radius: 999px; padding: 3px 9px; cursor: pointer; }
+  .sug-chip:hover { background: rgba(181,143,74,0.22); }
   .hero-input {
     background: transparent;
     border: none;
@@ -3021,6 +3028,9 @@
   [data-theme="light"] .sgd-sel, [data-theme="light"] .sgd-cell input { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
   [data-theme="light"] .rail-add-btn { border-color: #cbd5e1; color: #475569; }
   [data-theme="light"] .rail-add-btn:hover { border-color: rgba(181,143,74,0.55); color: #9c7a36; }
+  [data-theme="light"] .ef-row { border-color: #cbd5e1; }
+  [data-theme="light"] .ef-remove { border-color: #cbd5e1; color: #475569; }
+  [data-theme="light"] .sug-chip { color: #8a6a2e; background: rgba(138,106,46,0.08); border-color: rgba(138,106,46,0.4); }
 
   /* Pricing tier cards: the feature list under each plan was #cbd5e1 — nearly
      invisible on white. Darken the list text and the divider. */
@@ -3698,6 +3708,7 @@
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all { color: #64748b; }
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: #97772e; }
   [data-theme="light"] #remodelNudge { color: #97772e !important; }
+  [data-theme="light"] #accessNudge { color: #97772e !important; }
   [data-theme="light"] .text-\[\#dfc07a\] { color: #8a6a2e !important; }
   [data-theme="light"] .modal-close { color: #64748b; }
   [data-theme="light"] .modal-close:hover,
@@ -5617,7 +5628,17 @@
         <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How many floors — upper floors add labor (and sometimes a lift).</p>
-        <div id="segStories" class="seg" role="tablist" aria-label="Stories"></div></div>
+        <label class="margin-pill" style="cursor:text">
+          <span class="lbl">Stories</span>
+          <input id="storiesInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="1" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+        </label>
+        <button id="likeFloorsToggleBtn" type="button" class="toggle-pill mt-2"><span class="lbl">Like Floors &mdash; multiply every floor</span><span class="val">Off</span></button></div>
+      <div class="rail-field" id="extraFloorsField">
+        <label><span class="lbl-impact med">Other floors</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Non-typical floors priced on top of the stack &mdash; e.g. a lobby or penthouse with different openings. Each has its own LF, window count &amp; how many of that floor.</p>
+        <div id="extraFloorsList" class="space-y-2"></div>
+        <button id="addExtraFloorBtn" type="button" class="rail-add-btn">+ Add floor</button>
+      </div>
       <div class="rail-field">
         <label><span class="lbl-impact med">Manufacturer</span><span class="info-tip" tabindex="0" role="button" aria-label="How manufacturer affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Sets the brand's screw pattern and any brand-specific unit pricing — which changes anchor counts and material totals.</span></span></label>
         <div id="ddManufacturer" class="dd w-full">
@@ -5717,7 +5738,40 @@
             <span class="lbl">Lift days</span>
             <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
+          <button type="button" id="suggestLiftDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
         </div>
+      </div>
+      <div id="swingStageRailField" class="rail-field hidden">
+        <label><span class="lbl-impact med">Swing stage</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Suspended scaffold for high-rise work &mdash; only shows above 3 stories. Placeholder rate for now; tune later.</p>
+        <div class="space-y-2">
+          <button id="swingStageToggleBtn" type="button" class="toggle-pill"><span class="lbl">Swing stage</span><span class="val">Off</span></button>
+          <label id="swingStageDaysWrap" class="margin-pill hidden" style="cursor:text">
+            <span class="lbl">Stage days</span>
+            <input id="swingStageDaysInput" type="number" min="1" step="1" value="3" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+          <button type="button" id="suggestSwingDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
+        </div>
+      </div>
+      <div class="rail-field">
+        <label><span class="lbl-impact med">Material storage</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Monthly cost to store materials on site (container rental, semi drop, or both &mdash; you add it up) &times; the months the job runs.</p>
+        <div class="space-y-2">
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">$ / month</span>
+            <input id="storageMonthlyInput" type="number" min="0" step="1" inputmode="decimal" autocomplete="off" placeholder="0" style="width:76px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">Months</span>
+            <input id="projectedMonthsInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+          <button type="button" id="suggestMonths" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
+        </div>
+      </div>
+      <div class="rail-field">
+        <label><span class="lbl-impact med">Interior trim</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Header, jambs &amp; sill trim on every opening (all 4 sides) + 18-ga finish nails. Board material &amp; price live in Settings &rarr; Window Rates; one-off floors have their own Trim checkbox.</p>
+        <button id="trimToggleBtn" type="button" class="toggle-pill"><span class="lbl">Interior trim</span><span class="val">Off</span></button>
       </div>
 
         </div>
@@ -5725,6 +5779,9 @@
       <!-- /accordion -->
       <div id="remodelNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
         ↑ Enter window count for accurate setup labor &amp; materials
+      </div>
+      <div id="accessNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
+        ↑ 4+ stories with no lift or swing stage &mdash; add access equipment in Extras
       </div>
       <div id="materialsRow" class="hidden"></div>
 
@@ -6709,7 +6766,51 @@
                 <input id="adminMobilizationHours" type="text" inputmode="decimal" autocomplete="off" placeholder="2" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
                 <span class="set-hint">Per job: load the truck, drive, stage on arrival.</span>
               </div>
+              <div class="set-field" style="grid-column:1/-1;margin-top:2px;">
+                <span class="text-[11px] uppercase tracking-[0.16em] text-[#c9a558] font-bold">Repeating floors &amp; high-rise</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminRepeatFloorEff">Repeat-floor efficiency (%)</label>
+                <input id="adminRepeatFloorEff" type="text" inputmode="decimal" autocomplete="off" placeholder="85" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Each identical repeat floor costs this % of full install labor (crews speed up).</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminHeightPremium">Height premium / story &gt;3 (%)</label>
+                <input id="adminHeightPremium" type="text" inputmode="decimal" autocomplete="off" placeholder="5" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Extra labor per story above 3 (getting crew &amp; materials up high).</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminSwingStageRate">Swing stage $/day</label>
+                <input id="adminSwingStageRate" type="text" inputmode="decimal" autocomplete="off" placeholder="850" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Suspended-scaffold rental per day (buildings &gt;3 stories).</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminSwingStageSetup">Swing stage setup $</label>
+                <input id="adminSwingStageSetup" type="text" inputmode="decimal" autocomplete="off" placeholder="1200" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">One-time rig / engineering fee.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
+                <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">18-ga finish-nail box price.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminBradSpacing">Nail spacing (in)</label>
+                <input id="adminBradSpacing" type="text" inputmode="numeric" autocomplete="off" placeholder="16" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">One finish nail every this many inches of trim.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminSwingMinStories">Swing stage from (stories)</label>
+                <input id="adminSwingMinStories" type="text" inputmode="numeric" autocomplete="off" placeholder="4" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Offer the swing stage at this building height and up.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminHeightCap">Height premium cap (&times;)</label>
+                <input id="adminHeightCap" type="text" inputmode="decimal" autocomplete="off" placeholder="2.0" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">The high-rise labor premium never exceeds this multiplier.</span>
+              </div>
             </div>
+            <div class="mt-3 text-[12px] text-slate-400">With this efficiency, 10 identical floors price like <span id="adminEffReadout" class="text-[#c9a558] font-bold">&mdash;</span> floors of install labor.</div>
             <div class="mt-3 text-[12px] text-slate-400">Crew costs you <span id="adminCrewCostReadout" class="text-[#c9a558] font-bold">—</span></div>
             <label class="mt-3 flex items-center gap-2 cursor-pointer select-none">
               <input id="adminShowLaborHoursInPDF" type="checkbox" class="rounded border-slate-700 bg-slate-900 text-[#c9a558] focus:ring-[#b58f4a]" />
@@ -7443,6 +7544,14 @@ const DEFAULT_DATA = {
       crewSize: 2,              // 2-person residential install crew
       crewPayRatePerHr: 30,     // PER PERSON per hour (total payout = size × rate × hrs)
       showLaborHoursInPDF: false,  // off by default — match existing customer PDF
+      // Repeating-floors realism (PLACEHOLDER — tune in Settings). Efficiency:
+      // each identical repeat floor costs this fraction of full install labor
+      // (crews speed up), floored at repeatFloorMinFactor. Height premium: extra
+      // labor per story ABOVE 3 (getting crew + materials up high), capped.
+      repeatFloorEfficiency: 0.85,
+      repeatFloorMinFactor: 0.70,
+      heightPremiumPerStoryAbove3: 0.05,
+      heightPremiumCap: 2.0,
     },
     brand: {
       companyName: "Prime Window & Door",
@@ -7463,6 +7572,12 @@ const DEFAULT_DATA = {
       impact: "Impact",
       stories: "1 Story"
     },
+    // Swing stage (suspended scaffold) - high-rise staging rig. PLACEHOLDER rates;
+    // tune in Settings later. Only offered when the building is > 3 stories.
+    swingStage: { minStories: 4, ratePerDay: 850, setupFee: 1200, defaultDays: 3 },
+    // Interior trim — PLACEHOLDER rates; tune in Settings later. boardRatePerLF is
+    // $/LF of opening footage; nails are 18-ga, one every 16", bought by the box.
+    trim: { boardRatePerLF: 3.00, bradNailSpacingIn: 16, bradNailBoxCount: 2000, bradNailBoxPrice: 24 },
     // Swing doors — priced per UNIT, not per LF. Enabled by default (like sliding
     // & bifold) so the everyday entry/French door is visible in the Openings rail.
     // Defaults below are construction-shop estimates; tune in Settings → Rates.
@@ -8026,6 +8141,19 @@ const DEFAULT_DATA = {
         { id: "wood_bucking__2x10", brand: "2x10 PT", unitPrice: 1.95,
           procurement: { caseSize: 8, packName: "board", packPlural: "boards" } }
       ] },
+    { id: "trim_board", name: "Interior Trim", unit: "LF", rates: { default: 0 }, unverified: true,
+      // Priced from OPENING footage (header/jambs/sill), not materialLF — the
+      // per-LF loop skips it and the trim block in calculate() prices it.
+      // Variants = the trim material choice; procurement counts sticks.
+      defaultVariant: "trim_board__pine",
+      variants: [
+        { id: "trim_board__pine", brand: "Primed Pine 1x4 (16 ft)", unitPrice: 3.00,
+          procurement: { caseSize: 16, packName: "stick", packPlural: "sticks" } },
+        { id: "trim_board__mdf", brand: "MDF 1x4 (16 ft)", unitPrice: 2.10,
+          procurement: { caseSize: 16, packName: "stick", packPlural: "sticks" } },
+        { id: "trim_board__pvc", brand: "PVC 1x4 (18 ft)", unitPrice: 5.25,
+          procurement: { caseSize: 18, packName: "stick", packPlural: "sticks" } }
+      ] },
     { id: "block_sealer", name: "Block Sealer", unit: "gallon", rates: { default: 0, "Block Framed": 0 },
       calculationType: "fixed_job", unverified: true,
       defaultVariant: "block_sealer__1",
@@ -8338,7 +8466,7 @@ function buildState() {
     houseType: jd.houseType || DATA.houseTypes[0],
     constructionType: jd.constructionType || DATA.constructionTypes[0],
     impact: jd.impact || "Impact",
-    stories: jd.stories || "1 Story",
+    stories: storyNum(jd.stories),
     totalLF: "",
     windowCount: "",
     liftEnabled: false,
@@ -8355,6 +8483,16 @@ function buildState() {
     variants: {},
     currentJobId: null,
     jobName: "",
+    // Repeating-floors + high-rise scaffolding (all default-off → no pricing
+    // change until used). identicalFloors multiplies the typical floor;
+    // extraFloors are one-off floors (lobby/penthouse); the rest feed Phases 3–5.
+    likeFloors: false,
+    extraFloors: [],
+    swingStageEnabled: false,
+    swingStageDays: "3",
+    storageMonthlyCost: "",
+    projectedMonths: "1",
+    trimEnabled: false,
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
@@ -8412,10 +8550,104 @@ function getConcreteAnchorsPerLF() {
   return total;
 }
 
+// Stories is a plain integer (1..N). storyNum tolerates legacy "2 Story" strings.
+function storyNum(v) {
+  const m = String(v == null ? "" : v).match(/\d+/);
+  return Math.max(1, m ? parseInt(m[0], 10) : 1);
+}
+function storyLabel(v) {
+  const n = storyNum(v);
+  return n + (n === 1 ? " story" : " stories");
+}
+// Per-floor material multiplier. "Like Floors" ON -> the typical floor repeats
+// across every story (materials + labor x stories). OFF -> single takeoff (x1);
+// stories then only drives the labor access premium below. extraFloors add on top.
+function floorMult() {
+  return STATE.likeFloors ? storyNum(STATE.stories) : 1;
+}
+// Human summary of the building's floor make-up for quotes/PDFs, e.g.
+// "17 identical floors + Lobby + Penthouse — 19 floors". Empty for a plain job
+// (no multiplier, no one-off floors), so single-home quotes are untouched.
+function buildingSummaryText() {
+  const n = floorMult();
+  const extras = (Array.isArray(STATE.extraFloors) ? STATE.extraFloors : [])
+    .filter(f => (parseFloat(f.totalLF) || 0) > 0 || (parseInt(f.windowCount, 10) || 0) > 0)
+    .map(f => ({ label: String(f.label || "").trim() || "One-off floor", count: Math.max(1, parseInt(f.count, 10) || 1) }));
+  if (n <= 1 && !extras.length) return "";
+  const parts = [n > 1 ? `${n} identical floors` : "main floor"];
+  extras.forEach(e => parts.push(e.count > 1 ? `${e.count}× ${e.label}` : e.label));
+  const total = n + extras.reduce((sum, e) => sum + e.count, 0);
+  return `${parts.join(" + ")} — ${total} floor${total === 1 ? "" : "s"}`;
+}
+// Low-rise labor access premium (climbing to upper floors), applied to per-LF
+// labor. Only in whole-building mode (Like Floors OFF); in Like-Floors mode each
+// floor is multiplied on its own, so this would double-count -> return 1.
 function getStoriesMultiplier() {
-  if (STATE.stories === "2 Story") return 1.30;
-  if (STATE.stories === "3 Story") return 1.65;
+  if (STATE.likeFloors) return 1.0;
+  const n = storyNum(STATE.stories);
+  if (n >= 3) return 1.65;
+  if (n === 2) return 1.30;
   return 1.0;
+}
+
+// High-rise height premium — EXACTLY 1.0 at <=3 stories (getStoriesMultiplier is
+// the sole height factor there, so no double-count), then climbs above 3 and is
+// capped. Applied once to on-site labor at the job-assembly level.
+function getHeightPremiumMultiplier() {
+  // The height premium is part of the repeating-floors TOWER model. It only makes
+  // sense when you're stacking floors (Like Floors on). A plain single-takeoff job
+  // with a high Stories number keeps the normal ≤3-cap access multiplier and gets
+  // NO premium — otherwise a normal job's labor balloons while materials stay flat.
+  if (!STATE.likeFloors) return 1.0;
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+  const n = storyNum(STATE.stories);
+  if (n <= 3) return 1.0;
+  const per = LM.heightPremiumPerStoryAbove3 ?? 0.05;
+  const cap = LM.heightPremiumCap ?? 2.0;
+  return Math.min(cap, 1 + (n - 3) * per);
+}
+
+// Repeat-floor efficiency — with Like Floors, the aggregated install labor is the
+// typical floor × N (linear). Crews speed up on identical repeats, so scale that
+// back to effectiveFloors(N)/N, where effectiveFloors = 1 full floor + (N-1)
+// discounted repeats. 1.0 when Like Floors is off (or N<=1) → no change.
+function repeatEfficiencyFactor() {
+  if (!STATE.likeFloors) return 1.0;
+  const N = Math.max(1, storyNum(STATE.stories));
+  if (N <= 1) return 1.0;
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+  const eff = Math.min(1, Math.max(LM.repeatFloorMinFactor ?? 0.70, LM.repeatFloorEfficiency ?? 0.85));
+  return (1 + (N - 1) * eff) / N;
+}
+
+// Phase-3 realism applied to a labor breakdown: repeat-floor efficiency and the
+// high-rise height premium hit the ON-SITE install/setup hours only —
+// mobilization + the inspection return trip stay full. Identity when both
+// factors are 1.0 (Like Floors off / ≤3 stories), so normal jobs are untouched.
+// Adds explanatory rows so the Labor Detail card matches the quote line exactly.
+function applyLaborRealism(lb) {
+  const eff = repeatEfficiencyFactor();
+  const hp = getHeightPremiumMultiplier();
+  if (eff === 1 && hp === 1) return lb;
+  const fixedHrs = (lb.mobilizationHrs || 0) + (lb.inspectionHrs || 0);
+  const onsiteHrs = Math.max(0, lb.totalHrs - fixedHrs);
+  const totalHrs = onsiteHrs * eff * hp + fixedHrs;
+  const breakdown = lb.breakdown.slice();
+  if (eff !== 1) breakdown.push({ label: `Repeat-floor efficiency (identical floors ×${eff.toFixed(2)})`, hrs: onsiteHrs * (eff - 1) });
+  if (hp !== 1) breakdown.push({ label: `High-rise height premium (×${hp.toFixed(2)})`, hrs: onsiteHrs * eff * (hp - 1) });
+  return { ...lb, totalHrs, laborCost: totalHrs * lb.crewCostPerHr, breakdown };
+}
+
+// Building-total labor: the aggregated floor-groups takeoff with the realism
+// factors applied — the SAME hours and cost as the quote's labor row. Used by
+// the Labor Detail card + the customer-PDF labor-hours line (the bare
+// estimateLaborBreakdown() only reads the single live takeoff).
+function buildingLaborBreakdown() {
+  const agg = aggregateTakeoff(getFloorGroups());
+  const sd = computeSwingDoors({ swingDoors: agg.swingDoors });
+  const sgd = computeSlidingDoors({ slidingDoors: agg.slidingDoors });
+  const bifold = computeBifoldDoors({ bifoldDoors: agg.bifoldDoors });
+  return applyLaborRealism(estimateLaborBreakdown({ wc: agg.windowCount, lf: agg.windowLF, sd, sgd, bifold }));
 }
 
 // True when the INSTALLATION is to impact spec — either the job is impact glass,
@@ -8465,7 +8697,7 @@ function getLaborPerLF() {
 //   Returns: { mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
 //              totalHrs, crewSize, crewPayPerHrEach, crewCostPerHr,
 //              laborCost, breakdown }
-function estimateLaborBreakdown() {
+function estimateLaborBreakdown(ctx) {
   const LM = (DATA.config && DATA.config.laborModel) || {};
   const setupMin = LM.setupMinPerOpening ?? 45;
   const mobHrs = LM.mobilizationHours ?? 2;
@@ -8473,14 +8705,17 @@ function estimateLaborBreakdown() {
   const crewPayPerHrEach = LM.crewPayRatePerHr ?? 30;
   const crewCostPerHr = crewSize * crewPayPerHrEach;
 
-  const wc = parseInt(STATE.windowCount, 10) || 0;
-  const lf = Number(STATE.totalLF) || 0;
+  // With a ctx (passed by calculate() for the whole building) use its already-
+  // aggregated counts / footage / door results; without one (the Labor Detail
+  // card + PDF) derive the single live takeoff straight from STATE, as before.
+  const wc = ctx ? (parseInt(ctx.wc, 10) || 0) : (parseInt(STATE.windowCount, 10) || 0);
+  const lf = ctx ? (Number(ctx.lf) || 0) : (Number(STATE.totalLF) || 0);
   // Doors — swing doors (count + minutes) and sliding glass doors (panels × hrs).
-  const sd = computeSwingDoors();
+  const sd = ctx ? ctx.sd : computeSwingDoors();
   const dc = sd.total || 0;
-  const sgd = computeSlidingDoors();
+  const sgd = ctx ? ctx.sgd : computeSlidingDoors();
   const sgdc = sgd.count || 0;
-  const bifold = computeBifoldDoors();
+  const bifold = ctx ? ctx.bifold : computeBifoldDoors();
   const bfc = bifold.count || 0;
 
   // Setup overhead — every opening (window, swing door, sliding door, OR
@@ -8682,8 +8917,8 @@ function normalizeSwingDoors(v) {
 }
 function swingDoorCount() { return normalizeSwingDoors(STATE.swingDoors).length; }
 
-function computeSwingDoors() {
-  const doors = normalizeSwingDoors(STATE.swingDoors);
+function computeSwingDoors(takeoff = STATE) {
+  const doors = normalizeSwingDoors(takeoff.swingDoors);
   const single = doors.filter(d => d.leaf === "single").length;
   const double = doors.filter(d => d.leaf === "double").length;
   const cfg = (DATA.config.swingDoors) || {};
@@ -8754,10 +8989,10 @@ function normalizeSlidingDoor(d) {
 // brand-specific material engine (folded into the material LF in calculate),
 // so only the SGD-only extras (sill/track flashing, heavy anchors) and the
 // inspection return-trip live here. All zero when disabled or none entered.
-function computeSlidingDoors() {
+function computeSlidingDoors(takeoff = STATE) {
   const cfg = (DATA.config.slidingDoors) || {};
   const enabled = cfg.enabled !== false;
-  const raw = Array.isArray(STATE.slidingDoors) ? STATE.slidingDoors : [];
+  const raw = Array.isArray(takeoff.slidingDoors) ? takeoff.slidingDoors : [];
   const norm = raw.map(normalizeSlidingDoor).filter(Boolean);
   const count = norm.reduce((s, d) => s + d.qty, 0);
   const panelTotal = norm.reduce((s, d) => s + d.qty * d.panels, 0);
@@ -8819,10 +9054,10 @@ function normalizeBifoldDoor(d) {
   return { panels, qty, width, height };
 }
 
-function computeBifoldDoors() {
+function computeBifoldDoors(takeoff = STATE) {
   const cfg = (DATA.config.bifoldDoors) || {};
   const enabled = cfg.enabled !== false;
-  const raw = Array.isArray(STATE.bifoldDoors) ? STATE.bifoldDoors : [];
+  const raw = Array.isArray(takeoff.bifoldDoors) ? takeoff.bifoldDoors : [];
   const norm = raw.map(normalizeBifoldDoor).filter(Boolean);
   const count = norm.reduce((s, d) => s + d.qty, 0);
   const panelTotal = norm.reduce((s, d) => s + d.qty * d.panels, 0);
@@ -8861,12 +9096,80 @@ function computeBifoldDoors() {
   };
 }
 
+// ─── Repeating floors (building stack) ──────────────────────────────────────
+// A job is one or more "floor groups": the primary/typical floor (the rail
+// takeoff) repeated `identicalFloors` times, plus any one-off floors
+// (lobby/penthouse) in STATE.extraFloors. Building specs (manufacturer,
+// application, house type, impact, …) are SHARED across groups; only the
+// openings differ. We price the building by summing every group's openings ×
+// its count into ONE aggregated takeoff, then running the existing per-LF /
+// door / labor / tax pipeline on it once — so job-level costs (mobilization,
+// permit, lift, block-sealer bucket rounding, inspection trip) are naturally
+// counted a single time. identicalFloors=1 + no extras → today's single floor.
+function getFloorGroups() {
+  const n = floorMult();
+  const primary = {
+    id: "primary", label: "Typical floor", count: n,
+    totalLF: STATE.totalLF, windowCount: STATE.windowCount,
+    slidingDoors: STATE.slidingDoors || [], bifoldDoors: STATE.bifoldDoors || [],
+    swingDoors: STATE.swingDoors || [],
+  };
+  const extras = (Array.isArray(STATE.extraFloors) ? STATE.extraFloors : []).map(f => ({
+    ...f, count: Math.max(1, parseInt(f && f.count, 10) || 1),
+  }));
+  return [primary, ...extras];
+}
+
+// Sum every floor group's openings (× its count) into one "building takeoff":
+// window LF + window count add up; sliding/bifold entries carry through with
+// qty × count; swing doors (a per-door list) are replicated count times. The
+// door compute fns + the per-LF engine then run on these aggregates unchanged.
+function aggregateTakeoff(groups) {
+  let windowLF = 0, windowCount = 0;
+  const slidingDoors = [], bifoldDoors = [], swingDoors = [];
+  groups.forEach(g => {
+    const c = Math.max(1, parseInt(g && g.count, 10) || 1);
+    windowLF += (parseFloat(g.totalLF) || 0) * c;
+    windowCount += (parseInt(g.windowCount, 10) || 0) * c;
+    (Array.isArray(g.slidingDoors) ? g.slidingDoors : []).forEach(d =>
+      slidingDoors.push({ ...d, qty: Math.max(1, parseInt(d && d.qty, 10) || 1) * c }));
+    (Array.isArray(g.bifoldDoors) ? g.bifoldDoors : []).forEach(d =>
+      bifoldDoors.push({ ...d, qty: Math.max(1, parseInt(d && d.qty, 10) || 1) * c }));
+    const sw = normalizeSwingDoors(g.swingDoors);
+    for (let i = 0; i < c; i++) sw.forEach(d => swingDoors.push({ ...d }));
+  });
+  return { windowLF, windowCount, slidingDoors, bifoldDoors, swingDoors };
+}
+
+// The repeating-floors fields persisted on every saved job / draft. perFloorLF +
+// perFloorWindowCount keep the TYPICAL-FLOOR takeoff (what the user entered) so a
+// reload re-derives the building total instead of re-multiplying it; the job's
+// own totalLF/windowCount stay BUILDING totals (r.lf/r.wc) for display.
+function floorPersistFields() {
+  return {
+    identicalFloors: floorMult(),
+    likeFloors: !!STATE.likeFloors,
+    extraFloors: Array.isArray(STATE.extraFloors) ? clone(STATE.extraFloors) : [],
+    perFloorLF: parseFloat(STATE.totalLF) || 0,
+    perFloorWindowCount: parseInt(STATE.windowCount, 10) || 0,
+    swingStageEnabled: !!STATE.swingStageEnabled,
+    swingStageDays: STATE.swingStageDays || "3",
+    storageMonthlyCost: STATE.storageMonthlyCost || "",
+    projectedMonths: STATE.projectedMonths || "1",
+    trimEnabled: !!STATE.trimEnabled,
+  };
+}
+
 function calculate() {
-  const windowLF = parseFloat(STATE.totalLF) || 0;
-  const wc = parseInt(STATE.windowCount) || 0;
-  const sd = computeSwingDoors();
-  const sgd = computeSlidingDoors();
-  const bifold = computeBifoldDoors();
+  // Price the whole building: sum the typical floor (× identicalFloors) and any
+  // one-off floors into one aggregated takeoff, then run the existing engine on
+  // it. identicalFloors=1 + no extraFloors → byte-identical to a single floor.
+  const _agg = aggregateTakeoff(getFloorGroups());
+  const windowLF = _agg.windowLF;
+  const wc = _agg.windowCount;
+  const sd = computeSwingDoors({ swingDoors: _agg.swingDoors });
+  const sgd = computeSlidingDoors({ slidingDoors: _agg.slidingDoors });
+  const bifold = computeBifoldDoors({ bifoldDoors: _agg.bifoldDoors });
   // `lf` is the WINDOW linear footage — exactly what the user enters, what we
   // save on the job, and what shows on the quote. It must NOT include the
   // sliding-door OR bifold footage, or that footage gets saved as window LF and
@@ -8887,6 +9190,8 @@ function calculate() {
     // window install + door install + per-opening setup + mobilization),
     // so skip it in the per-LF loop.
     if (item.id === "labor") return;
+    // Interior trim — priced from OPENING footage in the trim block below.
+    if (item.id === "trim_board") return;
 
     // Block sealer — fixed gallons based on job LF
     if (item.id === "block_sealer") {
@@ -8926,7 +9231,7 @@ function calculate() {
     // Lift rental — fixed days, toggle-enabled, 2+ story only. Sliding-door
     // jobs add a day for the inspection wait (the lift sits another day).
     if (item.id === "lift_rental") {
-      if (!STATE.liftEnabled || STATE.stories === "1 Story") return;
+      if (!STATE.liftEnabled) return;
       const sgdCfg = DATA.config.slidingDoors || {};
       const bfCfg = DATA.config.bifoldDoors || {};
       const sgdInspDay = (sgd.count > 0 && sgdCfg.inspection && sgdCfg.inspection.extraLiftDay) ? 1 : 0;
@@ -8948,21 +9253,26 @@ function calculate() {
       if (STATE.houseType !== "Block Framed") return; // bucking is block-framed only
       if (!buckingIncluded()) return;                 // already bucked on site — skip it
       if (STATE.buckList && buckListBoardCount(STATE.buckList) > 0) {
-        const boardLF = buckListTotalLF(STATE.buckList);
+        // Repeating floors: the cut list is a ONE-floor snapshot. Scale its
+        // boards — and the door footage it covers — by the floor multiplier so
+        // this path matches the aggregated no-cut-list path (x1 when Like
+        // Floors is off, so single-floor jobs are untouched).
+        const _fm = floorMult();
+        const boardLF = buckListTotalLF(STATE.buckList) * _fm;
         // E1 — the cut list is a snapshot. Live slider/bifold frame footage it
         // doesn't already include (e.g. doors added in the rail after the list was
         // built, or a windows-only list) still needs bucking. Add a per-LF
         // allowance for the UNCOVERED door footage so the total matches the
         // no-cut-list path — no slider/bifold bucking silently dropped.
         const liveDoorLF = (sgd.sgdLF || 0) + (bifold.bifoldLF || 0);
-        const coveredDoorLF = buckListDoorFrameLF(STATE.buckList);
+        const coveredDoorLF = buckListDoorFrameLF(STATE.buckList) * _fm;
         const uncoveredDoorLF = Math.max(0, liveDoorLF - coveredDoorLF);
         const extraBoardLF = getQuantityPerLF(item) * uncoveredDoorLF;
         const totalBoardLF = boardLF + extraBoardLF;
         const cost = totalBoardLF * getUnitPrice(item);
         rows.push({
           id: item.id, name: itemDisplayName(item),
-          rateLabel: extraBoardLF > 0 ? "AI cut list + door footage" : "AI cut list",
+          rateLabel: (extraBoardLF > 0 ? "AI cut list + door footage" : "AI cut list") + (_fm > 1 ? ` × ${_fm} floors` : ""),
           ratePerLF: lf > 0 ? cost / lf : 0,
           quantity: Math.round(totalBoardLF * 10) / 10, unit: "LF", totalCost: cost,
           isFixed: false, fromBuckList: true
@@ -9142,7 +9452,9 @@ function calculate() {
   // install, per-opening setup, and mobilization. Marked up by the job
   // margin like every other cost (no separate bill rate).
   {
-    const lb = estimateLaborBreakdown();
+    // Repeat-floor efficiency + height premium via applyLaborRealism — the same
+    // helper the Labor Detail card uses, so the card and this row can't drift.
+    const lb = applyLaborRealism(estimateLaborBreakdown({ wc, lf: windowLF, sd, sgd, bifold }));
     if (lb.laborCost > 0) {
       rows.push({
         id: "labor", name: "Labor (install + cleanup)", isLabor: true,
@@ -9153,6 +9465,40 @@ function calculate() {
       });
       totalCost += lb.laborCost;
       if (lf > 0) perLfCost += lb.laborCost / lf;
+    }
+  }
+
+  // Interior trim (header / jambs / sill, all 4 sides) + 18-ga finish nails.
+  // Trim LF is PER FLOOR GROUP: the typical floor's toggle × its floor count,
+  // plus any one-off floor with its own Trim checkbox — so a trimmed lobby
+  // under an untrimmed tower (or the reverse) prices exactly. The board price
+  // and brand come from the trim_board rate item (variant-aware, editable in
+  // Settings → Window Rates); both rows stay taxed like other materials.
+  {
+    const trimLF = (STATE.trimEnabled ? (parseFloat(STATE.totalLF) || 0) * floorMult() : 0)
+      + (Array.isArray(STATE.extraFloors) ? STATE.extraFloors : []).reduce((sum, f) =>
+          sum + (f && f.trimEnabled ? (parseFloat(f.totalLF) || 0) * Math.max(1, parseInt(f.count, 10) || 1) : 0), 0);
+    if (trimLF > 0) {
+      const trimItem = DATA.costItems.find(c => c.id === "trim_board");
+      const tc = DATA.config.trim || {};
+      const trimRate = trimItem ? getUnitPrice(trimItem) : (tc.boardRatePerLF ?? 3);
+      const trimCost = trimLF * trimRate;
+      rows.push({ id: "trim_board", name: trimItem ? itemDisplayName(trimItem) : "Interior trim boards",
+        rateLabel: `${trimLF.toFixed(1)} LF · header/jambs/sill`, ratePerLF: lf > 0 ? trimCost / lf : 0,
+        quantity: Math.round(trimLF * 10) / 10, unit: "LF", totalCost: trimCost });
+      totalCost += trimCost;
+      if (lf > 0) perLfCost += trimCost / lf;
+      // 18-ga finish/brad nails — one every `spacing` inches of trim, by the box.
+      const spacing = tc.bradNailSpacingIn || 16;
+      const nails = Math.ceil(trimLF * 12 / spacing);
+      const perBox = tc.bradNailBoxCount || 2000;
+      const boxes = Math.max(1, Math.ceil(nails / perBox));
+      const nailCost = boxes * (tc.bradNailBoxPrice ?? 24);
+      rows.push({ id: "brad_nails", name: "18-ga finish nails",
+        rateLabel: `${nails} nails · ${boxes} box${boxes !== 1 ? "es" : ""}`,
+        ratePerLF: lf > 0 ? nailCost / lf : 0, quantity: boxes, unit: "box", totalCost: nailCost });
+      totalCost += nailCost;
+      if (lf > 0) perLfCost += nailCost / lf;
     }
   }
 
@@ -9169,6 +9515,7 @@ function calculate() {
       "swing_doors_materials", "swing_doors_flashing", "swing_doors_anchors",
       "sliding_doors_flashing", "sliding_doors_anchors",
       "bifold_doors_flashing", "bifold_doors_anchors",
+      "trim_board", "brad_nails",
     ]);
     const factor = taxRate / 100;
     rows.forEach(r => {
@@ -9179,6 +9526,42 @@ function calculate() {
       if (lf > 0) { r.ratePerLF += taxAmt / lf; perLfCost += taxAmt / lf; }
       totalCost += taxAmt;
     });
+  }
+
+  // Swing stage (suspended scaffold) - a job-level high-rise rig (> 3 stories).
+  // Pass-through like lift/permit: added to cost (marked up), never taxed, counted
+  // once for the whole building. Placeholder rates in DATA.config.swingStage.
+  {
+    const ss = DATA.config.swingStage || {};
+    const minS = ss.minStories || 4;
+    if (STATE.swingStageEnabled && storyNum(STATE.stories) >= minS) {
+      const days = Math.max(1, parseInt(STATE.swingStageDays, 10) || ss.defaultDays || 1);
+      const cost = (ss.setupFee || 0) + days * (ss.ratePerDay || 0);
+      if (cost > 0) {
+        rows.push({ id: "swing_stage", name: "Swing stage (suspended scaffold)",
+          rateLabel: `${days} day${days !== 1 ? "s" : ""} + setup`,
+          ratePerLF: lf > 0 ? cost / lf : 0, quantity: days, unit: "day",
+          totalCost: cost, isFixed: true });
+        totalCost += cost;
+        if (lf > 0) perLfCost += cost / lf;
+      }
+    }
+  }
+
+  // Material storage — on-site container / semi drop: monthly cost × projected
+  // months. Job-level pass-through (marked up, not taxed); user types the cost.
+  {
+    const monthly = parseFloat(STATE.storageMonthlyCost) || 0;
+    const months = Math.max(1, parseInt(STATE.projectedMonths, 10) || 1);
+    const cost = monthly * months;
+    if (cost > 0) {
+      rows.push({ id: "material_storage", name: "Material storage",
+        rateLabel: `${months} mo × ${formatMoney(monthly)}/mo`,
+        ratePerLF: lf > 0 ? cost / lf : 0, quantity: months, unit: "mo",
+        totalCost: cost, isFixed: true });
+      totalCost += cost;
+      if (lf > 0) perLfCost += cost / lf;
+    }
   }
 
   const margin = DATA.config.defaultMargin ?? 35;   // honor an intentional 0% (?? not ||)
@@ -9548,22 +9931,27 @@ function brandContactLine() {
    TOGGLE HELPERS
    ============================================================ */
 function updateLiftVisibility() {
+  // Lift is available at any height now (even a 1-story job may want one), so the
+  // Lift field is always shown. Swing stage is a high-rise rig - gated separately.
   const liftBtn = document.getElementById("liftToggleBtn");
-  const liftDays = document.getElementById("liftDaysWrap");
   const liftField = document.getElementById("liftRailField");
-  const show = STATE.stories !== "1 Story";
-  if (liftBtn) liftBtn.classList.toggle("hidden", !show);
-  // Hide the entire Lift rail-field (with its label) when not applicable so
-  // the EXTRAS section doesn't show a hollow row on 1-story jobs.
-  if (liftField) liftField.classList.toggle("hidden", !show);
-  if (!show) {
-    if (STATE.liftEnabled) {
-      STATE.liftEnabled = false;
-      updateLiftToggleUI();
-    }
-    if (liftDays) liftDays.classList.add("hidden");
-  }
+  if (liftBtn) liftBtn.classList.remove("hidden");
+  if (liftField) liftField.classList.remove("hidden");
+  updateSwingStageVisibility();
   if (typeof updateJobExtrasSummary === "function") updateJobExtrasSummary();
+}
+
+// Swing stage only applies above the config threshold (> 3 stories). Hide + force
+// off below that so it can't leak into pricing when a building shrinks.
+function updateSwingStageVisibility() {
+  const field = document.getElementById("swingStageRailField");
+  const minS = (DATA.config.swingStage && DATA.config.swingStage.minStories) || 4;
+  const show = storyNum(STATE.stories) >= minS;
+  if (field) field.classList.toggle("hidden", !show);
+  if (!show && STATE.swingStageEnabled) {
+    STATE.swingStageEnabled = false;
+    if (typeof updateSwingStageToggleUI === "function") updateSwingStageToggleUI();
+  }
 }
 
 function updateLiftToggleUI() {
@@ -9573,6 +9961,73 @@ function updateLiftToggleUI() {
   btn.classList.toggle("active", STATE.liftEnabled);
   valEl.textContent = STATE.liftEnabled ? "On" : "Off";
   daysWrap.classList.toggle("hidden", !STATE.liftEnabled);
+}
+
+function updateSwingStageToggleUI() {
+  const btn = document.getElementById("swingStageToggleBtn");
+  if (!btn) return;
+  const valEl = btn.querySelector(".val");
+  const daysWrap = document.getElementById("swingStageDaysWrap");
+  btn.classList.toggle("active", STATE.swingStageEnabled);
+  if (valEl) valEl.textContent = STATE.swingStageEnabled ? "On" : "Off";
+  if (daysWrap) daysWrap.classList.toggle("hidden", !STATE.swingStageEnabled);
+}
+
+function updateLikeFloorsToggleUI() {
+  const btn = document.getElementById("likeFloorsToggleBtn");
+  if (!btn) return;
+  const valEl = btn.querySelector(".val");
+  btn.classList.toggle("active", STATE.likeFloors);
+  if (valEl) valEl.textContent = STATE.likeFloors ? "On" : "Off";
+}
+
+function updateTrimToggleUI() {
+  const btn = document.getElementById("trimToggleBtn");
+  if (!btn) return;
+  const valEl = btn.querySelector(".val");
+  btn.classList.toggle("active", STATE.trimEnabled);
+  if (valEl) valEl.textContent = STATE.trimEnabled ? "On" : "Off";
+}
+
+// One-off floor takeoff (lobby / penthouse). Same shape as the primary floor so
+// getFloorGroups()/aggregateTakeoff() price it identically; doors default empty
+// (v1 one-off floors are window takeoffs — tune the rate or add doors later).
+function efNewFloor() {
+  return { id: "ef" + Math.random().toString(36).slice(2, 8), label: "", count: 1,
+    totalLF: "", windowCount: "", slidingDoors: [], bifoldDoors: [], swingDoors: [], buckList: null, trimEnabled: false };
+}
+// Rebuild the one-off-floors list from STATE.extraFloors. Called on init, job
+// load, and add/remove — NOT on per-field input (the delegated handler updates
+// STATE + render() without touching the list, so typing keeps focus).
+function renderExtraFloors() {
+  const list = document.getElementById("extraFloorsList");
+  if (!list) return;
+  const arr = Array.isArray(STATE.extraFloors) ? STATE.extraFloors : (STATE.extraFloors = []);
+  list.innerHTML = arr.map((f, i) => {
+    const sgd0 = (Array.isArray(f.slidingDoors) && f.slidingDoors[0]) || null;
+    const bf0 = (Array.isArray(f.bifoldDoors) && f.bifoldDoors[0]) || null;
+    const swingN = Array.isArray(f.swingDoors) ? f.swingDoors.length : 0;
+    return `
+    <div class="ef-row" data-idx="${i}">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <input class="ef-in num-input" data-f="label" placeholder="Lobby / Penthouse" value="${String(f.label || "").replace(/"/g, "&quot;")}" style="flex:1;min-width:0;" />
+        <button type="button" class="ef-remove" aria-label="Remove floor">&times;</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <label class="margin-pill" style="cursor:text"><span class="lbl">LF</span><input class="ef-in num-input" data-f="totalLF" type="number" min="0" step="0.1" inputmode="decimal" value="${f.totalLF || ""}" placeholder="0" style="width:60px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Windows</span><input class="ef-in num-input" data-f="windowCount" type="number" min="0" step="1" inputmode="numeric" value="${f.windowCount || ""}" placeholder="&mdash;" style="width:48px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">How many</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Sliders</span><input class="ef-in num-input" data-f="sgdQty" type="number" min="0" step="1" inputmode="numeric" value="${sgd0 ? Math.max(1, parseInt(sgd0.qty, 10) || 1) : ""}" placeholder="0" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Panels</span><input class="ef-in num-input" data-f="sgdPanels" type="number" min="2" step="1" inputmode="numeric" value="${sgd0 ? sgd0.panels : 3}" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Bifolds</span><input class="ef-in num-input" data-f="bfQty" type="number" min="0" step="1" inputmode="numeric" value="${bf0 ? Math.max(1, parseInt(bf0.qty, 10) || 1) : ""}" placeholder="0" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Panels</span><input class="ef-in num-input" data-f="bfPanels" type="number" min="2" step="1" inputmode="numeric" value="${bf0 ? bf0.panels : 4}" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Swing</span><input class="ef-in num-input" data-f="swingN" type="number" min="0" step="1" inputmode="numeric" value="${swingN || ""}" placeholder="0" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:pointer"><span class="lbl">Trim</span><input class="ef-in" data-f="trim" type="checkbox"${f.trimEnabled ? " checked" : ""} style="accent-color:#b58f4a;width:14px;height:14px;" /></label>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 function updatePermitToggleUI() {
@@ -9600,10 +10055,16 @@ function updateJobExtrasSummary() {
   if (!trigger || !summary) return;
   const active = [];
   if (STATE.permitEnabled) active.push("Permit");
-  if (STATE.liftEnabled && STATE.stories !== "1 Story") {
+  if (STATE.liftEnabled) {
     const days = parseInt(STATE.liftDays) || 1;
     active.push(days > 1 ? `Lift (${days}d)` : "Lift");
   }
+  if (STATE.swingStageEnabled && storyNum(STATE.stories) >= ((DATA.config.swingStage && DATA.config.swingStage.minStories) || 4)) {
+    const d = parseInt(STATE.swingStageDays) || 1;
+    active.push(d > 1 ? `Swing stage (${d}d)` : "Swing stage");
+  }
+  if ((parseFloat(STATE.storageMonthlyCost) || 0) > 0) active.push("Storage");
+  if (STATE.trimEnabled) active.push("Trim");
   if (active.length) {
     summary.textContent = active.join(", ");
     trigger.classList.add("active");
@@ -9678,6 +10139,14 @@ function render() {
       qtyStr = `${formatQty(row.quantity)} <span class="text-slate-500">${row.unit}</span>`;
     }
 
+    // Multi-floor: show the per-floor quantity under the building total for
+    // rows that scale with the floor count (job-level lines don't divide).
+    const _pfm = floorMult();
+    if (_pfm > 1 && typeof row.quantity === "number" && isFinite(row.quantity) && !row.asNeeded
+        && !["labor", "block_sealer", "permit", "lift_rental", "swing_stage", "material_storage", "trim_board", "brad_nails"].includes(row.id)) {
+      qtyStr += `<div class="text-[9px] text-slate-500 mt-0.5" style="font-variant-numeric: tabular-nums;">&approx; ${formatQty(row.quantity / _pfm)} /floor</div>`;
+    }
+
     // Case Count: packs needed for procurement
     const caseStr = proc
       ? `${proc.packs} <span class="text-slate-500">${proc.packLabel}</span>`
@@ -9734,7 +10203,7 @@ function render() {
   // nothing to estimate (no LF, no doors).
   const laborCard = document.getElementById("laborDetailCard");
   if (laborCard) {
-    const lb = estimateLaborBreakdown();
+    const lb = buildingLaborBreakdown();
     if (lb.totalHrs > 0.01) {
       laborCard.classList.remove("hidden");
       // First render — wire the Adjust button once
@@ -9895,6 +10364,33 @@ function render() {
   const showNudge = lf_ > 0 && wc_ === 0;
   nudgeEl.classList.toggle("hidden", !showNudge);
 
+  // Access-equipment nudge — a 4+-story job with neither a lift nor a swing
+  // stage is almost certainly missing a real access cost. Soft prompt only.
+  const accessEl = document.getElementById("accessNudge");
+  if (accessEl) {
+    const showAccess = storyNum(STATE.stories) > 3 && !STATE.liftEnabled && !STATE.swingStageEnabled && (lf_ > 0 || wc_ > 0);
+    accessEl.classList.toggle("hidden", !showAccess);
+  }
+  // Suggested lift / swing-stage days + storage months, derived from the job's
+  // own labor model (~8 crew-hrs/day on site, ~22 working days/month). The chip
+  // shows only when it differs from what's entered; tapping applies it.
+  {
+    const lbS = buildingLaborBreakdown();
+    const days = Math.max(1, Math.ceil(lbS.totalHrs / 8));
+    const months = Math.max(1, Math.ceil(days / 22));
+    const chip = (id, show, n, unit, cur) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const on = !!show && lbS.totalHrs > 0.01 && n !== cur;
+      el.classList.toggle("hidden", !on);
+      if (on) el.textContent = `Suggest: ${n}${unit}`;
+      el._suggest = n;
+    };
+    chip("suggestLiftDays", STATE.liftEnabled, days, "d", parseInt(STATE.liftDays, 10) || 1);
+    chip("suggestSwingDays", STATE.swingStageEnabled && storyNum(STATE.stories) >= ((DATA.config.swingStage && DATA.config.swingStage.minStories) || 4), days, "d", parseInt(STATE.swingStageDays, 10) || 1);
+    chip("suggestMonths", (parseFloat(STATE.storageMonthlyCost) || 0) > 0, months, " mo", parseInt(STATE.projectedMonths, 10) || 1);
+  }
+
   // Per-job material variant toggles
   renderMaterialsToggle();
   renderJobSpecSummary();
@@ -9927,6 +10423,14 @@ function render() {
     currentJobId: STATE.currentJobId || null,
     jobName: STATE.jobName || "",
     swingDoors: normalizeSwingDoors(STATE.swingDoors),
+    identicalFloors: floorMult(),
+    likeFloors: STATE.likeFloors,
+    extraFloors: clone(STATE.extraFloors || []),
+    swingStageEnabled: STATE.swingStageEnabled,
+    swingStageDays: STATE.swingStageDays,
+    storageMonthlyCost: STATE.storageMonthlyCost,
+    projectedMonths: STATE.projectedMonths,
+    trimEnabled: STATE.trimEnabled,
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -9949,6 +10453,8 @@ function jobSummaryTiers() {
   const doors = swingDoorCount()
     + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
   const size = [];
+  const _floors = floorMult();
+  if (_floors > 1) size.push(`× ${_floors} floors`);   // per-floor figures below, repeated
   if (lf > 0) size.push(`${lf} LF`);
   if (wc > 0) size.push(`${wc} window${wc === 1 ? "" : "s"}`);
   if (STATE.stories) { const m = String(STATE.stories).match(/(\d+)/); size.push(m ? `${m[1]}-story` : STATE.stories); }
@@ -10003,6 +10509,7 @@ function renderRailAccSummaries() {
   const abbr = { "New Construction": "New", "Block Framed": "Block", "Stick Framed": "Stick" };
   const lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
   const wc = parseInt(STATE.windowCount, 10) || 0;
+  const floors = floorMult();
   const doors = swingDoorCount()
     + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
   let storyTxt = "";
@@ -10012,7 +10519,7 @@ function renderRailAccSummaries() {
       ? [abbr[STATE.constructionType] || STATE.constructionType, abbr[STATE.houseType] || STATE.houseType, storyTxt, STATE.manufacturer].filter(Boolean).join(" · ")
       : "Tap to set",
     openings: lf > 0
-      ? [lf + " LF", wc ? wc + " win" : "", STATE.impact, doors ? doors + " door" + (doors === 1 ? "" : "s") : ""].filter(Boolean).join(" · ")
+      ? [floors > 1 ? "×" + floors + " floors" : "", lf + " LF", wc ? wc + " win" : "", STATE.impact, doors ? doors + " door" + (doors === 1 ? "" : "s") : ""].filter(Boolean).join(" · ")
       : "Set linear footage",
     extras: [STATE.permitEnabled ? "Permit on" : "Permit off"]
       .concat(STATE.liftEnabled ? ["Lift " + (STATE.liftDays || "1") + "d"] : []).join(" · "),
@@ -10237,7 +10744,7 @@ function renderSavedJobs() {
   el.innerHTML = list.slice().reverse().map(j => {
     const inCompare = compareSet.has(j.id);
     const details = [j.manufacturer, j.application, j.houseType, j.constructionType,
-      j.stories || "1 Story", `${j.totalLF} LF`].join(" · ");
+      storyLabel(j.stories), `${j.totalLF} LF`].join(" · ");
     const draftPill = j.isDraft
       ? ` <span class="ml-1.5 inline-flex items-center text-[8px] uppercase tracking-[0.16em] font-bold text-[#c9a558]/85 border border-[#b58f4a]/45 bg-[#b58f4a]/10 rounded-full px-1.5 py-0.5 align-middle">Draft</span>`
       : "";
@@ -13318,7 +13825,7 @@ function renderJobDetails(job) {
   const swTotal = normalizeSwingDoors(job.swingDoors).length;
   const specs = [
     ["Manufacturer", job.manufacturer], ["Construction", job.constructionType],
-    ["House type", job.houseType], ["Stories", job.stories], ["Glass", job.impact],
+    ["House type", job.houseType], ["Stories", storyLabel(job.stories)], ["Glass", job.impact],
     ["Linear footage", job.totalLF != null ? job.totalLF + " LF" : ""], ["Windows", job.windowCount || ""],
   ];
   if (swTotal > 0) specs.push(["Swing doors", String(swTotal)]);
@@ -13492,7 +13999,7 @@ function exportPipelineCSV() {
     const cost = Number(j.totalCost) || 0, price = Number(j.sellingPrice) || 0;
     lines.push([
       j.name || j.customerName || "", j.customerName || "", jobStatus(j), j.customerPhone || "", j.customerEmail || "", j.customerAddress || "",
-      j.manufacturer || "", j.constructionType || "", j.houseType || "", j.stories || "", j.impact || "",
+      j.manufacturer || "", j.constructionType || "", j.houseType || "", (j.stories ? storyLabel(j.stories) : ""), j.impact || "",
       j.totalLF != null ? j.totalLF : "", j.windowCount || "", sgd || "", bfd || "", swt || "",
       cost.toFixed(2), price.toFixed(2), (j.margin != null && !isNaN(j.margin) ? Math.round(j.margin) : ""), (price - cost).toFixed(2),
       (j.createdAt ? new Date(j.createdAt).toLocaleDateString() : "")
@@ -13911,12 +14418,34 @@ function bindControls() {
   createSegmented("segHouseType", DATA.houseTypes, STATE.houseType, v => { STATE.houseType = v; markCalculatorFirstInteraction(); render(); }, SEG_LABELS.house);
   createSegmented("segApplication", DATA.applicationTypes, STATE.application, v => { STATE.application = v; markCalculatorFirstInteraction(); render(); });
   createSegmented("segImpact", DATA.impactOptions, STATE.impact, v => { STATE.impact = v; markCalculatorFirstInteraction(); render(); });
-  createSegmented("segStories", DATA.storiesOptions, STATE.stories, v => {
-    STATE.stories = v;
-    markCalculatorFirstInteraction();
-    updateLiftVisibility();
-    render();
-  }, SEG_LABELS.stories);
+  // Stories - a plain number now (towers go past 3). Drives the labor access
+  // premium, lift/swing visibility and (with Like Floors) the per-floor multiplier.
+  const storiesInput = document.getElementById("storiesInput");
+  if (storiesInput) {
+    storiesInput.value = String(storyNum(STATE.stories));
+    if (!storiesInput._wired) {
+      storiesInput.addEventListener("input", e => {
+        STATE.stories = Math.max(1, parseInt(e.target.value, 10) || 1);
+        markCalculatorFirstInteraction();
+        updateLiftVisibility();
+        render();
+      });
+      storiesInput._wired = true;
+    }
+  }
+  const likeFloorsBtn = document.getElementById("likeFloorsToggleBtn");
+  if (likeFloorsBtn) {
+    updateLikeFloorsToggleUI();
+    if (!likeFloorsBtn._wired) {
+      likeFloorsBtn.addEventListener("click", () => {
+        STATE.likeFloors = !STATE.likeFloors;
+        updateLikeFloorsToggleUI();
+        markCalculatorFirstInteraction();
+        render();
+      });
+      likeFloorsBtn._wired = true;
+    }
+  }
 
   const lf = document.getElementById("totalLF");
   lf.value = STATE.totalLF || "";
@@ -13983,6 +14512,115 @@ function bindControls() {
     });
     liftDaysInput._wired = true;
   }
+
+  // Swing stage toggle + days (field itself shown only > 3 stories)
+  const swingBtn = document.getElementById("swingStageToggleBtn");
+  if (swingBtn && !swingBtn._wired) {
+    swingBtn.addEventListener("click", () => {
+      STATE.swingStageEnabled = !STATE.swingStageEnabled;
+      updateSwingStageToggleUI();
+      updateJobExtrasSummary();
+      render();
+    });
+    swingBtn._wired = true;
+  }
+  updateSwingStageToggleUI();
+  const swingDaysInput = document.getElementById("swingStageDaysInput");
+  if (swingDaysInput) {
+    swingDaysInput.value = STATE.swingStageDays || "3";
+    if (!swingDaysInput._wired) {
+      swingDaysInput.addEventListener("input", e => { STATE.swingStageDays = e.target.value; updateJobExtrasSummary(); render(); });
+      swingDaysInput._wired = true;
+    }
+  }
+  updateLiftVisibility();
+
+  // Material storage — $/month + projected months (open fields)
+  const storageInput = document.getElementById("storageMonthlyInput");
+  if (storageInput) {
+    storageInput.value = STATE.storageMonthlyCost || "";
+    if (!storageInput._wired) {
+      storageInput.addEventListener("input", e => { STATE.storageMonthlyCost = e.target.value; updateJobExtrasSummary(); render(); });
+      storageInput._wired = true;
+    }
+  }
+  const monthsInput = document.getElementById("projectedMonthsInput");
+  if (monthsInput) {
+    monthsInput.value = STATE.projectedMonths || "1";
+    if (!monthsInput._wired) {
+      monthsInput.addEventListener("input", e => { STATE.projectedMonths = e.target.value; updateJobExtrasSummary(); render(); });
+      monthsInput._wired = true;
+    }
+  }
+
+  // Interior trim toggle
+  const trimBtn = document.getElementById("trimToggleBtn");
+  if (trimBtn) {
+    updateTrimToggleUI();
+    if (!trimBtn._wired) {
+      trimBtn.addEventListener("click", () => { STATE.trimEnabled = !STATE.trimEnabled; updateTrimToggleUI(); updateJobExtrasSummary(); render(); });
+      trimBtn._wired = true;
+    }
+  }
+
+  // Suggestion chips — tap to apply the crew-hours-derived estimate
+  [["suggestLiftDays", v => { STATE.liftDays = String(v); const i = document.getElementById("liftDaysInput"); if (i) i.value = v; }],
+   ["suggestSwingDays", v => { STATE.swingStageDays = String(v); const i = document.getElementById("swingStageDaysInput"); if (i) i.value = v; }],
+   ["suggestMonths", v => { STATE.projectedMonths = String(v); const i = document.getElementById("projectedMonthsInput"); if (i) i.value = v; }]]
+  .forEach(([id, apply]) => {
+    const el = document.getElementById(id);
+    if (el && !el._wired) {
+      el.addEventListener("click", () => { if (el._suggest != null) { apply(el._suggest); updateJobExtrasSummary(); render(); } });
+      el._wired = true;
+    }
+  });
+
+  // Other floors (one-off lobby / penthouse takeoffs on top of the stack)
+  const efList = document.getElementById("extraFloorsList");
+  if (efList && !efList._wired) {
+    efList.addEventListener("input", e => {
+      const row = e.target.closest(".ef-row"); if (!row) return;
+      const i = parseInt(row.dataset.idx, 10); const fld = e.target.dataset.f;
+      const f = STATE.extraFloors && STATE.extraFloors[i];
+      if (!f || !fld) return;
+      if (fld === "sgdQty" || fld === "sgdPanels" || fld === "bfQty" || fld === "bfPanels") {
+        // One managed door entry per type per floor: qty × panels. Width/height
+        // stay blank so the normalizers derive them from the panel count, same
+        // as a blank width on the main takeoff.
+        const isSgd = fld[0] === "s";
+        const qtyEl = row.querySelector(`.ef-in[data-f="${isSgd ? "sgdQty" : "bfQty"}"]`);
+        const panEl = row.querySelector(`.ef-in[data-f="${isSgd ? "sgdPanels" : "bfPanels"}"]`);
+        const qty = Math.max(0, parseInt(qtyEl && qtyEl.value, 10) || 0);
+        const panels = Math.max(2, parseInt(panEl && panEl.value, 10) || (isSgd ? 3 : 4));
+        const doorArr = qty > 0 ? [{ panels, width: "", height: "", qty }] : [];
+        if (isSgd) f.slidingDoors = doorArr; else f.bifoldDoors = doorArr;
+      } else if (fld === "swingN") {
+        const n2 = Math.max(0, parseInt(e.target.value, 10) || 0);
+        f.swingDoors = Array.from({ length: n2 }, () => ({ leaf: "single", flashing: true }));
+      } else if (fld === "trim") {
+        f.trimEnabled = e.target.checked;
+      } else {
+        f[fld] = e.target.value;   // label / totalLF / windowCount / count — keep focus
+      }
+      markCalculatorFirstInteraction(); render();
+    });
+    efList.addEventListener("click", e => {
+      const btn = e.target.closest(".ef-remove"); if (!btn) return;
+      const row = e.target.closest(".ef-row"); if (!row) return;
+      STATE.extraFloors.splice(parseInt(row.dataset.idx, 10), 1);
+      renderExtraFloors(); render();
+    });
+    efList._wired = true;
+  }
+  const efAdd = document.getElementById("addExtraFloorBtn");
+  if (efAdd && !efAdd._wired) {
+    efAdd.addEventListener("click", () => {
+      (STATE.extraFloors = STATE.extraFloors || []).push(efNewFloor());
+      renderExtraFloors(); markCalculatorFirstInteraction(); render();
+    });
+    efAdd._wired = true;
+  }
+  renderExtraFloors();
 
   // Permit toggle
   const permitBtn = document.getElementById("permitToggleBtn");
@@ -14056,7 +14694,7 @@ function resetAll() {
     houseType: jd.houseType || DATA.houseTypes[0],
     constructionType: jd.constructionType || DATA.constructionTypes[0],
     impact: jd.impact || "Impact",
-    stories: jd.stories || "1 Story",
+    stories: storyNum(jd.stories),
     totalLF: "",
     windowCount: "",
     liftEnabled: false,
@@ -14074,6 +14712,15 @@ function resetAll() {
     currentJobId: null,
     jobName: "",
     swingDoors: [],
+    // Repeating-floors + high-rise fields — same defaults as buildState(), so a
+    // reset never leaves them undefined in STATE (or in the persisted blob).
+    likeFloors: false,
+    extraFloors: [],
+    swingStageEnabled: false,
+    swingStageDays: "3",
+    storageMonthlyCost: "",
+    projectedMonths: "1",
+    trimEnabled: false,
   };
   saveState(STATE);
   clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
@@ -14499,6 +15146,7 @@ function doSaveJob(overrideId) {
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
+    ...floorPersistFields(),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
     // note: no isDraft flag — this is an explicit save
@@ -14586,6 +15234,7 @@ function quickSaveOrPrompt() {
         liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
         permitEnabled: STATE.permitEnabled,
         swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
+        ...floorPersistFields(),
         totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
         profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows,
         updatedAt: new Date().toISOString()
@@ -14652,6 +15301,7 @@ function saveAsNewVersion() {
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
+    ...floorPersistFields(),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -14750,6 +15400,7 @@ function writeDraftJob(r) {
     liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
+    ...floorPersistFields(),
     totalLF: r.lf, totalCost: r.totalCost, sellingPrice: r.sellingPrice,
     profit: r.profit, margin: r.margin, perLfCost: r.perLfCost, rows: r.rows
   };
@@ -14810,9 +15461,36 @@ function applyJobToState(j) {
   STATE.houseType = j.houseType;
   STATE.constructionType = j.constructionType;
   STATE.impact = j.impact || "Impact";
-  STATE.stories = j.stories || "1 Story";
+  STATE.stories = storyNum(j.stories);
   STATE.totalLF = (j.totalLF === "" || j.totalLF == null) ? "" : String(cleanLF(j.totalLF));
   STATE.windowCount = j.windowCount ? String(j.windowCount) : "";
+  // Repeating floors — restore the multiplier + one-off floors. Prefer the
+  // per-floor takeoff footage so a reload re-derives the building total rather
+  // than re-multiplying the (building) totalLF set above. Old jobs lack these
+  // fields → identicalFloors defaults to 1 and totalLF stays as-is.
+  // Only honor an EXPLICIT saved likeFloors — never infer it from a legacy
+  // identicalFloors>1. Inferring it turned the per-floor multiplier ON for jobs
+  // saved before the unified model and re-multiplied them on load (a $29k job
+  // reloading at ~$49k). Legacy jobs load flat; the user re-enables Like Floors
+  // if the job really was a repeating-floor tower.
+  STATE.likeFloors = !!j.likeFloors;
+  STATE.extraFloors = Array.isArray(j.extraFloors) ? clone(j.extraFloors) : [];
+  if (typeof renderExtraFloors === "function") renderExtraFloors();
+  STATE.swingStageEnabled = !!j.swingStageEnabled;
+  STATE.swingStageDays = j.swingStageDays || "3";
+  STATE.storageMonthlyCost = j.storageMonthlyCost || "";
+  STATE.projectedMonths = j.projectedMonths || "1";
+  STATE.trimEnabled = !!j.trimEnabled;
+  // Restore the per-floor takeoff ONLY when the multiplier will actually run
+  // (Like Floors on) — that's what stops a reload re-multiplying. With Like
+  // Floors off (incl. legacy jobs saved with a multiplied building total), the
+  // saved totalLF above IS the takeoff; overriding it with the per-floor figure
+  // would reload the job at a fraction of its saved price. `!= null` (not
+  // truthiness) so a legitimate 0-LF floor round-trips as 0, not "".
+  if (STATE.likeFloors) {
+    if (j.perFloorLF != null) STATE.totalLF = String(cleanLF(j.perFloorLF));
+    if (j.perFloorWindowCount != null) STATE.windowCount = String(j.perFloorWindowCount);
+  }
   STATE.liftEnabled = j.liftEnabled || false;
   STATE.liftDays = j.liftDays || "1";
   STATE.permitEnabled = j.permitEnabled || false;
@@ -15113,7 +15791,8 @@ function exportCustomerPDF(mode) {
     ["House Type", STATE.houseType],
     ["Construction", STATE.constructionType],
     ["Glass Type", STATE.impact],
-    ["Stories", STATE.stories],
+    ["Stories", storyLabel(STATE.stories)],
+    ...(buildingSummaryText() ? [["Building", buildingSummaryText()]] : []),
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
@@ -15149,7 +15828,7 @@ function exportCustomerPDF(mode) {
   // ("Show labor hours line on the customer's quote PDF"). Some installers
   // like the customer to see the on-site effort behind the price.
   if (DATA.config && DATA.config.laborModel && DATA.config.laborModel.showLaborHoursInPDF) {
-    const lb = estimateLaborBreakdown();
+    const lb = buildingLaborBreakdown();
     if (lb.totalHrs > 0) scope.push(["Estimated Labor", `~${lb.totalHrs.toFixed(0)} crew-hours on site`]);
   }
   const labelX = M, valueX = M + 130;
@@ -15252,7 +15931,8 @@ async function buildCustomerSharePayload() {
     ["House Type",    STATE.houseType],
     ["Construction",  STATE.constructionType],
     ["Glass Type",    STATE.impact],
-    ["Stories",       STATE.stories],
+    ["Stories",       storyLabel(STATE.stories)],
+    ...(buildingSummaryText() ? [["Building", buildingSummaryText()]] : []),
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
@@ -15860,7 +16540,8 @@ function exportPDF(mode) {
     ["House Type", STATE.houseType],
     ["Construction", STATE.constructionType],
     ["Glass Type", STATE.impact],
-    ["Stories", STATE.stories],
+    ["Stories", storyLabel(STATE.stories)],
+    ...(buildingSummaryText() ? [["Building", buildingSummaryText()]] : []),
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) details.push(["Window Count", `${r.wc}`]);
@@ -15872,7 +16553,7 @@ function exportPDF(mode) {
     details.push(["Sliding Glass Doors", `${r.slidingDoors.count} · ${r.slidingDoors.panelTotal} panel${r.slidingDoors.panelTotal === 1 ? "" : "s"}`]);
   }
   if (STATE.permitEnabled) details.push(["Permit", "Included"]);
-  if (STATE.liftEnabled && STATE.stories !== "1 Story") details.push(["Lift Rental", `${STATE.liftDays} day(s)`]);
+  if (STATE.liftEnabled) details.push(["Lift Rental", `${STATE.liftDays} day(s)`]);
 
   const half = Math.ceil(details.length / 2);
   const col1X = M;
@@ -15889,6 +16570,30 @@ function exportPDF(mode) {
     doc.text(String(d[1]), labelX + valOffset, rowY);
   });
   y += half * 13 + 18;
+
+  // ---------- Floor schedule (multi-floor jobs only) ----------
+  // One line per floor group so a GC can see exactly what repeats where.
+  if (buildingSummaryText()) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text("FLOOR SCHEDULE", M, y);
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(20, 20, 20);
+    getFloorGroups().forEach(g => {
+      const doors = (Array.isArray(g.slidingDoors) ? g.slidingDoors : []).reduce((sum, d) => sum + Math.max(1, parseInt(d && d.qty, 10) || 1), 0)
+                  + (Array.isArray(g.bifoldDoors) ? g.bifoldDoors : []).reduce((sum, d) => sum + Math.max(1, parseInt(d && d.qty, 10) || 1), 0)
+                  + normalizeSwingDoors(g.swingDoors).length;
+      const label = g.id === "primary" ? "Typical floor" : (String(g.label || "").trim() || "One-off floor");
+      const lfG = parseFloat(g.totalLF) || 0;
+      const wcG = parseInt(g.windowCount, 10) || 0;
+      if (lfG <= 0 && wcG <= 0 && doors <= 0) return;   // skip empty rows
+      doc.text(`${g.count} × ${label} — ${lfG} LF · ${wcG} window${wcG === 1 ? "" : "s"}${doors ? ` · ${doors} door${doors === 1 ? "" : "s"}` : ""} each`, M, y);
+      y += 12;
+    });
+    y += 8;
+  }
 
   // ---------- Breakdown table ----------
   const rows = r.rows.map(row => {
@@ -17838,6 +18543,16 @@ function buildAdminUI() {
   document.getElementById("adminCrewSize").value           = LM.crewSize           ?? 2;
   document.getElementById("adminCrewPayRatePerHr").value   = LM.crewPayRatePerHr   ?? 30;
   document.getElementById("adminShowLaborHoursInPDF").checked = !!LM.showLaborHoursInPDF;
+  // Repeating-floors / high-rise placeholder rates
+  { const el = document.getElementById("adminRepeatFloorEff"); if (el) el.value = Math.round((LM.repeatFloorEfficiency ?? 0.85) * 100); }
+  { const el = document.getElementById("adminHeightPremium"); if (el) el.value = Math.round((LM.heightPremiumPerStoryAbove3 ?? 0.05) * 100); }
+  { const ss = DATA.config.swingStage || {}; const a = document.getElementById("adminSwingStageRate"); if (a) a.value = ss.ratePerDay ?? 850; const b = document.getElementById("adminSwingStageSetup"); if (b) b.value = ss.setupFee ?? 1200; }
+  { const tr = DATA.config.trim || {}; const b = document.getElementById("adminBradBoxPrice"); if (b) b.value = tr.bradNailBoxPrice ?? 24;
+    const sp = document.getElementById("adminBradSpacing"); if (sp) sp.value = tr.bradNailSpacingIn ?? 16;
+    const ss2 = DATA.config.swingStage || {}; const ms = document.getElementById("adminSwingMinStories"); if (ms) ms.value = ss2.minStories ?? 4;
+    const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
+  updateEffReadout();
+  { const effIn = document.getElementById("adminRepeatFloorEff"); if (effIn && !effIn._effWired) { effIn.addEventListener("input", updateEffReadout); effIn._effWired = true; } }
   updateCrewCostReadout();
 
   // Swing doors — populate the editor with current rates
@@ -18549,6 +19264,19 @@ function variantRowHTML(catId, unit, v, isDefault) {
 }
 
 // Live "crew costs you $X/hr" readout in the Labor settings (size × pay).
+// Live example under the efficiency % — makes the abstract knob tangible:
+// "10 identical floors price like ~8.7 floors of install labor".
+function updateEffReadout() {
+  const el = document.getElementById("adminEffReadout");
+  if (!el) return;
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+  const input = document.getElementById("adminRepeatFloorEff");
+  let pct = input ? parseFloat(input.value) : NaN;
+  if (isNaN(pct)) pct = (LM.repeatFloorEfficiency ?? 0.85) * 100;
+  const eff = Math.min(1, Math.max(LM.repeatFloorMinFactor ?? 0.70, pct / 100));
+  el.textContent = "~" + (Math.round((1 + 9 * eff) * 10) / 10);
+}
+
 function updateCrewCostReadout() {
   const el = document.getElementById("adminCrewCostReadout");
   if (!el) return;
@@ -18622,6 +19350,25 @@ function commitAdmin() {
     DATA.config.laborModel.crewPayRatePerHr = crewRate;
   }
   DATA.config.laborModel.showLaborHoursInPDF = !!document.getElementById("adminShowLaborHoursInPDF").checked;
+  // Repeating-floors / high-rise placeholder rates (percent inputs stored as fractions)
+  const rfEff = parseFloat(document.getElementById("adminRepeatFloorEff").value);
+  if (!isNaN(rfEff) && rfEff >= 0 && rfEff <= 100) DATA.config.laborModel.repeatFloorEfficiency = rfEff / 100;
+  const hPrem = parseFloat(document.getElementById("adminHeightPremium").value);
+  if (!isNaN(hPrem) && hPrem >= 0) DATA.config.laborModel.heightPremiumPerStoryAbove3 = hPrem / 100;
+  DATA.config.swingStage = DATA.config.swingStage || { minStories: 4, defaultDays: 3 };
+  const ssRate = parseFloat(document.getElementById("adminSwingStageRate").value);
+  if (!isNaN(ssRate) && ssRate >= 0) DATA.config.swingStage.ratePerDay = ssRate;
+  const ssSetup = parseFloat(document.getElementById("adminSwingStageSetup").value);
+  if (!isNaN(ssSetup) && ssSetup >= 0) DATA.config.swingStage.setupFee = ssSetup;
+  DATA.config.trim = DATA.config.trim || { bradNailSpacingIn: 16, bradNailBoxCount: 2000 };
+  const brPrice = parseFloat(document.getElementById("adminBradBoxPrice").value);
+  if (!isNaN(brPrice) && brPrice >= 0) DATA.config.trim.bradNailBoxPrice = brPrice;
+  const brSpacing = parseFloat(document.getElementById("adminBradSpacing").value);
+  if (!isNaN(brSpacing) && brSpacing >= 4 && brSpacing <= 48) DATA.config.trim.bradNailSpacingIn = brSpacing;
+  const ssMin = parseInt(document.getElementById("adminSwingMinStories").value, 10);
+  if (!isNaN(ssMin) && ssMin >= 2 && ssMin <= 20) DATA.config.swingStage.minStories = ssMin;
+  const hCap = parseFloat(document.getElementById("adminHeightCap").value);
+  if (!isNaN(hCap) && hCap >= 1 && hCap <= 10) DATA.config.laborModel.heightPremiumCap = hCap;
   document.querySelectorAll("[data-unitprice]").forEach(inp => {
     const it = DATA.costItems.find(c => c.id === inp.dataset.unitprice);
     const v = parseFloat(inp.value);
@@ -20421,7 +21168,7 @@ function renderComparisonModal(jobs) {
   const getRow = (job, id) => (job.rows || []).find(r => r.id === id);
   const jobName = (j, i) => j.name || `Job ${i + 1}`;
   const jobDetail = j => [j.manufacturer, j.application, j.houseType, j.constructionType,
-    j.stories || "1 Story", `${j.totalLF} LF`, ...(j.windowCount > 0 ? [`${j.windowCount} windows`] : [])]
+    storyLabel(j.stories), `${j.totalLF} LF`, ...(j.windowCount > 0 ? [`${j.windowCount} windows`] : [])]
     .filter(Boolean).join(" · ");
 
   // "best price" = lowest selling price; spread = cheapest vs priciest
@@ -23868,14 +24615,14 @@ function init() {
       STATE.constructionType = construction;
       STATE.houseType = house;
       STATE.impact = impact;
-      STATE.stories = stories;
-      STATE.liftEnabled = lift && stories !== "1 Story";
+      STATE.stories = storyNum(stories);
+      STATE.liftEnabled = lift;
 
       // Sync segmented controls in the rail without re-firing their onChange
       if (SEGMENTS.segConstructionType) SEGMENTS.segConstructionType.setValue(construction, false);
       if (SEGMENTS.segHouseType) SEGMENTS.segHouseType.setValue(house, false);
       if (SEGMENTS.segImpact) SEGMENTS.segImpact.setValue(impact, false);
-      if (SEGMENTS.segStories) SEGMENTS.segStories.setValue(stories, false);
+      const _si = document.getElementById("storiesInput"); if (_si) _si.value = String(storyNum(stories));
 
       updateLiftVisibility();
       updateLiftToggleUI();
