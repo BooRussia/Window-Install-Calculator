@@ -5770,7 +5770,7 @@
       </div>
       <div class="rail-field">
         <label><span class="lbl-impact med">Interior trim</span></label>
-        <p class="mb-2 text-[11px] leading-snug text-slate-500">Header, jambs &amp; sill trim on every opening (all 4 sides) + 18-ga finish nails every 16". Priced off the opening footage; rate tunable later.</p>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Header, jambs &amp; sill trim on every opening (all 4 sides) + 18-ga finish nails. Board material &amp; price live in Settings &rarr; Window Rates; one-off floors have their own Trim checkbox.</p>
         <button id="trimToggleBtn" type="button" class="toggle-pill"><span class="lbl">Interior trim</span><span class="val">Off</span></button>
       </div>
 
@@ -6788,11 +6788,6 @@
                 <label class="set-label" for="adminSwingStageSetup">Swing stage setup $</label>
                 <input id="adminSwingStageSetup" type="text" inputmode="decimal" autocomplete="off" placeholder="1200" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
                 <span class="set-hint">One-time rig / engineering fee.</span>
-              </div>
-              <div class="set-field">
-                <label class="set-label" for="adminTrimRate">Interior trim $/LF</label>
-                <input id="adminTrimRate" type="text" inputmode="decimal" autocomplete="off" placeholder="3.00" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">Trim board cost per LF of opening footage (header/jambs/sill).</span>
               </div>
               <div class="set-field">
                 <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
@@ -8146,6 +8141,19 @@ const DEFAULT_DATA = {
         { id: "wood_bucking__2x10", brand: "2x10 PT", unitPrice: 1.95,
           procurement: { caseSize: 8, packName: "board", packPlural: "boards" } }
       ] },
+    { id: "trim_board", name: "Interior Trim", unit: "LF", rates: { default: 0 }, unverified: true,
+      // Priced from OPENING footage (header/jambs/sill), not materialLF — the
+      // per-LF loop skips it and the trim block in calculate() prices it.
+      // Variants = the trim material choice; procurement counts sticks.
+      defaultVariant: "trim_board__pine",
+      variants: [
+        { id: "trim_board__pine", brand: "Primed Pine 1x4 (16 ft)", unitPrice: 3.00,
+          procurement: { caseSize: 16, packName: "stick", packPlural: "sticks" } },
+        { id: "trim_board__mdf", brand: "MDF 1x4 (16 ft)", unitPrice: 2.10,
+          procurement: { caseSize: 16, packName: "stick", packPlural: "sticks" } },
+        { id: "trim_board__pvc", brand: "PVC 1x4 (18 ft)", unitPrice: 5.25,
+          procurement: { caseSize: 18, packName: "stick", packPlural: "sticks" } }
+      ] },
     { id: "block_sealer", name: "Block Sealer", unit: "gallon", rates: { default: 0, "Block Framed": 0 },
       calculationType: "fixed_job", unverified: true,
       defaultVariant: "block_sealer__1",
@@ -9182,6 +9190,8 @@ function calculate() {
     // window install + door install + per-opening setup + mobilization),
     // so skip it in the per-LF loop.
     if (item.id === "labor") return;
+    // Interior trim — priced from OPENING footage in the trim block below.
+    if (item.id === "trim_board") return;
 
     // Block sealer — fixed gallons based on job LF
     if (item.id === "block_sealer") {
@@ -9459,28 +9469,37 @@ function calculate() {
   }
 
   // Interior trim (header / jambs / sill, all 4 sides) + 18-ga finish nails.
-  // Per-floor materials: priced off the aggregated building-total opening LF
-  // (so they scale with the floor multiplier) and taxed like other materials.
-  if (STATE.trimEnabled && lf > 0) {
-    const tc = DATA.config.trim || {};
-    const trimRate = tc.boardRatePerLF ?? 3;
-    const trimCost = lf * trimRate;
-    rows.push({ id: "trim_board", name: "Interior trim boards",
-      rateLabel: `${lf.toFixed(1)} LF · header/jambs/sill`, ratePerLF: trimRate,
-      quantity: Math.round(lf * 10) / 10, unit: "LF", totalCost: trimCost });
-    totalCost += trimCost;
-    perLfCost += trimCost / lf;
-    // 18-ga finish/brad nails — one every `spacing` inches of trim, bought by box.
-    const spacing = tc.bradNailSpacingIn || 16;
-    const nails = Math.ceil(lf * 12 / spacing);
-    const perBox = tc.bradNailBoxCount || 2000;
-    const boxes = Math.max(1, Math.ceil(nails / perBox));
-    const nailCost = boxes * (tc.bradNailBoxPrice ?? 24);
-    rows.push({ id: "brad_nails", name: "18-ga finish nails",
-      rateLabel: `${nails} nails · ${boxes} box${boxes !== 1 ? "es" : ""}`,
-      ratePerLF: nailCost / lf, quantity: boxes, unit: "box", totalCost: nailCost });
-    totalCost += nailCost;
-    perLfCost += nailCost / lf;
+  // Trim LF is PER FLOOR GROUP: the typical floor's toggle × its floor count,
+  // plus any one-off floor with its own Trim checkbox — so a trimmed lobby
+  // under an untrimmed tower (or the reverse) prices exactly. The board price
+  // and brand come from the trim_board rate item (variant-aware, editable in
+  // Settings → Window Rates); both rows stay taxed like other materials.
+  {
+    const trimLF = (STATE.trimEnabled ? (parseFloat(STATE.totalLF) || 0) * floorMult() : 0)
+      + (Array.isArray(STATE.extraFloors) ? STATE.extraFloors : []).reduce((sum, f) =>
+          sum + (f && f.trimEnabled ? (parseFloat(f.totalLF) || 0) * Math.max(1, parseInt(f.count, 10) || 1) : 0), 0);
+    if (trimLF > 0) {
+      const trimItem = DATA.costItems.find(c => c.id === "trim_board");
+      const tc = DATA.config.trim || {};
+      const trimRate = trimItem ? getUnitPrice(trimItem) : (tc.boardRatePerLF ?? 3);
+      const trimCost = trimLF * trimRate;
+      rows.push({ id: "trim_board", name: trimItem ? itemDisplayName(trimItem) : "Interior trim boards",
+        rateLabel: `${trimLF.toFixed(1)} LF · header/jambs/sill`, ratePerLF: lf > 0 ? trimCost / lf : 0,
+        quantity: Math.round(trimLF * 10) / 10, unit: "LF", totalCost: trimCost });
+      totalCost += trimCost;
+      if (lf > 0) perLfCost += trimCost / lf;
+      // 18-ga finish/brad nails — one every `spacing` inches of trim, by the box.
+      const spacing = tc.bradNailSpacingIn || 16;
+      const nails = Math.ceil(trimLF * 12 / spacing);
+      const perBox = tc.bradNailBoxCount || 2000;
+      const boxes = Math.max(1, Math.ceil(nails / perBox));
+      const nailCost = boxes * (tc.bradNailBoxPrice ?? 24);
+      rows.push({ id: "brad_nails", name: "18-ga finish nails",
+        rateLabel: `${nails} nails · ${boxes} box${boxes !== 1 ? "es" : ""}`,
+        ratePerLF: lf > 0 ? nailCost / lf : 0, quantity: boxes, unit: "box", totalCost: nailCost });
+      totalCost += nailCost;
+      if (lf > 0) perLfCost += nailCost / lf;
+    }
   }
 
   // Materials sales tax — this is what WE pay our supplier on materials, so
@@ -9975,7 +9994,7 @@ function updateTrimToggleUI() {
 // (v1 one-off floors are window takeoffs — tune the rate or add doors later).
 function efNewFloor() {
   return { id: "ef" + Math.random().toString(36).slice(2, 8), label: "", count: 1,
-    totalLF: "", windowCount: "", slidingDoors: [], bifoldDoors: [], swingDoors: [], buckList: null };
+    totalLF: "", windowCount: "", slidingDoors: [], bifoldDoors: [], swingDoors: [], buckList: null, trimEnabled: false };
 }
 // Rebuild the one-off-floors list from STATE.extraFloors. Called on init, job
 // load, and add/remove — NOT on per-field input (the delegated handler updates
@@ -9984,7 +10003,11 @@ function renderExtraFloors() {
   const list = document.getElementById("extraFloorsList");
   if (!list) return;
   const arr = Array.isArray(STATE.extraFloors) ? STATE.extraFloors : (STATE.extraFloors = []);
-  list.innerHTML = arr.map((f, i) => `
+  list.innerHTML = arr.map((f, i) => {
+    const sgd0 = (Array.isArray(f.slidingDoors) && f.slidingDoors[0]) || null;
+    const bf0 = (Array.isArray(f.bifoldDoors) && f.bifoldDoors[0]) || null;
+    const swingN = Array.isArray(f.swingDoors) ? f.swingDoors.length : 0;
+    return `
     <div class="ef-row" data-idx="${i}">
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
         <input class="ef-in num-input" data-f="label" placeholder="Lobby / Penthouse" value="${String(f.label || "").replace(/"/g, "&quot;")}" style="flex:1;min-width:0;" />
@@ -9995,7 +10018,16 @@ function renderExtraFloors() {
         <label class="margin-pill" style="cursor:text"><span class="lbl">Windows</span><input class="ef-in num-input" data-f="windowCount" type="number" min="0" step="1" inputmode="numeric" value="${f.windowCount || ""}" placeholder="&mdash;" style="width:48px;text-align:right;-moz-appearance:textfield;" /></label>
         <label class="margin-pill" style="cursor:text"><span class="lbl">How many</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
       </div>
-    </div>`).join("");
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Sliders</span><input class="ef-in num-input" data-f="sgdQty" type="number" min="0" step="1" inputmode="numeric" value="${sgd0 ? Math.max(1, parseInt(sgd0.qty, 10) || 1) : ""}" placeholder="0" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Panels</span><input class="ef-in num-input" data-f="sgdPanels" type="number" min="2" step="1" inputmode="numeric" value="${sgd0 ? sgd0.panels : 3}" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Bifolds</span><input class="ef-in num-input" data-f="bfQty" type="number" min="0" step="1" inputmode="numeric" value="${bf0 ? Math.max(1, parseInt(bf0.qty, 10) || 1) : ""}" placeholder="0" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Panels</span><input class="ef-in num-input" data-f="bfPanels" type="number" min="2" step="1" inputmode="numeric" value="${bf0 ? bf0.panels : 4}" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text"><span class="lbl">Swing</span><input class="ef-in num-input" data-f="swingN" type="number" min="0" step="1" inputmode="numeric" value="${swingN || ""}" placeholder="0" style="width:38px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:pointer"><span class="lbl">Trim</span><input class="ef-in" data-f="trim" type="checkbox"${f.trimEnabled ? " checked" : ""} style="accent-color:#b58f4a;width:14px;height:14px;" /></label>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 function updatePermitToggleUI() {
@@ -10111,7 +10143,7 @@ function render() {
     // rows that scale with the floor count (job-level lines don't divide).
     const _pfm = floorMult();
     if (_pfm > 1 && typeof row.quantity === "number" && isFinite(row.quantity) && !row.asNeeded
-        && !["labor", "block_sealer", "permit", "lift_rental", "swing_stage", "material_storage"].includes(row.id)) {
+        && !["labor", "block_sealer", "permit", "lift_rental", "swing_stage", "material_storage", "trim_board", "brad_nails"].includes(row.id)) {
       qtyStr += `<div class="text-[9px] text-slate-500 mt-0.5" style="font-variant-numeric: tabular-nums;">&approx; ${formatQty(row.quantity / _pfm)} /floor</div>`;
     }
 
@@ -14549,8 +14581,27 @@ function bindControls() {
     efList.addEventListener("input", e => {
       const row = e.target.closest(".ef-row"); if (!row) return;
       const i = parseInt(row.dataset.idx, 10); const fld = e.target.dataset.f;
-      if (!STATE.extraFloors || !STATE.extraFloors[i] || !fld) return;
-      STATE.extraFloors[i][fld] = e.target.value;   // recompute only; keep focus
+      const f = STATE.extraFloors && STATE.extraFloors[i];
+      if (!f || !fld) return;
+      if (fld === "sgdQty" || fld === "sgdPanels" || fld === "bfQty" || fld === "bfPanels") {
+        // One managed door entry per type per floor: qty × panels. Width/height
+        // stay blank so the normalizers derive them from the panel count, same
+        // as a blank width on the main takeoff.
+        const isSgd = fld[0] === "s";
+        const qtyEl = row.querySelector(`.ef-in[data-f="${isSgd ? "sgdQty" : "bfQty"}"]`);
+        const panEl = row.querySelector(`.ef-in[data-f="${isSgd ? "sgdPanels" : "bfPanels"}"]`);
+        const qty = Math.max(0, parseInt(qtyEl && qtyEl.value, 10) || 0);
+        const panels = Math.max(2, parseInt(panEl && panEl.value, 10) || (isSgd ? 3 : 4));
+        const doorArr = qty > 0 ? [{ panels, width: "", height: "", qty }] : [];
+        if (isSgd) f.slidingDoors = doorArr; else f.bifoldDoors = doorArr;
+      } else if (fld === "swingN") {
+        const n2 = Math.max(0, parseInt(e.target.value, 10) || 0);
+        f.swingDoors = Array.from({ length: n2 }, () => ({ leaf: "single", flashing: true }));
+      } else if (fld === "trim") {
+        f.trimEnabled = e.target.checked;
+      } else {
+        f[fld] = e.target.value;   // label / totalLF / windowCount / count — keep focus
+      }
       markCalculatorFirstInteraction(); render();
     });
     efList.addEventListener("click", e => {
@@ -18496,7 +18547,7 @@ function buildAdminUI() {
   { const el = document.getElementById("adminRepeatFloorEff"); if (el) el.value = Math.round((LM.repeatFloorEfficiency ?? 0.85) * 100); }
   { const el = document.getElementById("adminHeightPremium"); if (el) el.value = Math.round((LM.heightPremiumPerStoryAbove3 ?? 0.05) * 100); }
   { const ss = DATA.config.swingStage || {}; const a = document.getElementById("adminSwingStageRate"); if (a) a.value = ss.ratePerDay ?? 850; const b = document.getElementById("adminSwingStageSetup"); if (b) b.value = ss.setupFee ?? 1200; }
-  { const tr = DATA.config.trim || {}; const a = document.getElementById("adminTrimRate"); if (a) a.value = tr.boardRatePerLF ?? 3; const b = document.getElementById("adminBradBoxPrice"); if (b) b.value = tr.bradNailBoxPrice ?? 24;
+  { const tr = DATA.config.trim || {}; const b = document.getElementById("adminBradBoxPrice"); if (b) b.value = tr.bradNailBoxPrice ?? 24;
     const sp = document.getElementById("adminBradSpacing"); if (sp) sp.value = tr.bradNailSpacingIn ?? 16;
     const ss2 = DATA.config.swingStage || {}; const ms = document.getElementById("adminSwingMinStories"); if (ms) ms.value = ss2.minStories ?? 4;
     const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
@@ -19310,8 +19361,6 @@ function commitAdmin() {
   const ssSetup = parseFloat(document.getElementById("adminSwingStageSetup").value);
   if (!isNaN(ssSetup) && ssSetup >= 0) DATA.config.swingStage.setupFee = ssSetup;
   DATA.config.trim = DATA.config.trim || { bradNailSpacingIn: 16, bradNailBoxCount: 2000 };
-  const trRate = parseFloat(document.getElementById("adminTrimRate").value);
-  if (!isNaN(trRate) && trRate >= 0) DATA.config.trim.boardRatePerLF = trRate;
   const brPrice = parseFloat(document.getElementById("adminBradBoxPrice").value);
   if (!isNaN(brPrice) && brPrice >= 0) DATA.config.trim.bradNailBoxPrice = brPrice;
   const brSpacing = parseFloat(document.getElementById("adminBradSpacing").value);
