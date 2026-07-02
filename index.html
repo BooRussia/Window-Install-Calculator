@@ -1098,6 +1098,10 @@
   .sgd-cell input::-webkit-outer-spin-button, .sgd-cell input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .rail-add-btn { width: 100%; border: 1px dashed #334155; border-radius: 10px; padding: 8px; font-size: 12px; font-weight: 700; color: #94a3b8; background: transparent; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
   .rail-add-btn:hover { border-color: rgba(181,143,74,0.5); color: #c9a558; }
+  /* One-off ("Other floors") editor rows */
+  .ef-row { border: 1px solid rgba(148,163,184,0.18); border-radius: 10px; padding: 8px; }
+  .ef-remove { flex: none; width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(148,163,184,0.3); background: transparent; color: #94a3b8; cursor: pointer; }
+  .ef-remove:hover { border-color: rgba(225,29,72,0.5); color: #f43f5e; }
   .hero-input {
     background: transparent;
     border: none;
@@ -3021,6 +3025,8 @@
   [data-theme="light"] .sgd-sel, [data-theme="light"] .sgd-cell input { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
   [data-theme="light"] .rail-add-btn { border-color: #cbd5e1; color: #475569; }
   [data-theme="light"] .rail-add-btn:hover { border-color: rgba(181,143,74,0.55); color: #9c7a36; }
+  [data-theme="light"] .ef-row { border-color: #cbd5e1; }
+  [data-theme="light"] .ef-remove { border-color: #cbd5e1; color: #475569; }
 
   /* Pricing tier cards: the feature list under each plan was #cbd5e1 — nearly
      invisible on white. Darken the list text and the divider. */
@@ -8447,9 +8453,8 @@ function buildState() {
     // extraFloors are one-off floors (lobby/penthouse); the rest feed Phases 3–5.
     likeFloors: false,
     extraFloors: [],
-    buildingStories: null,
     swingStageEnabled: false,
-    swingStageDays: "1",
+    swingStageDays: "3",
     storageMonthlyCost: "",
     projectedMonths: "1",
     trimEnabled: false,
@@ -9068,9 +9073,8 @@ function floorPersistFields() {
     extraFloors: Array.isArray(STATE.extraFloors) ? clone(STATE.extraFloors) : [],
     perFloorLF: parseFloat(STATE.totalLF) || 0,
     perFloorWindowCount: parseInt(STATE.windowCount, 10) || 0,
-    buildingStories: STATE.buildingStories ?? null,
     swingStageEnabled: !!STATE.swingStageEnabled,
-    swingStageDays: STATE.swingStageDays || "1",
+    swingStageDays: STATE.swingStageDays || "3",
     storageMonthlyCost: STATE.storageMonthlyCost || "",
     projectedMonths: STATE.projectedMonths || "1",
     trimEnabled: !!STATE.trimEnabled,
@@ -9168,21 +9172,26 @@ function calculate() {
       if (STATE.houseType !== "Block Framed") return; // bucking is block-framed only
       if (!buckingIncluded()) return;                 // already bucked on site — skip it
       if (STATE.buckList && buckListBoardCount(STATE.buckList) > 0) {
-        const boardLF = buckListTotalLF(STATE.buckList);
+        // Repeating floors: the cut list is a ONE-floor snapshot. Scale its
+        // boards — and the door footage it covers — by the floor multiplier so
+        // this path matches the aggregated no-cut-list path (x1 when Like
+        // Floors is off, so single-floor jobs are untouched).
+        const _fm = floorMult();
+        const boardLF = buckListTotalLF(STATE.buckList) * _fm;
         // E1 — the cut list is a snapshot. Live slider/bifold frame footage it
         // doesn't already include (e.g. doors added in the rail after the list was
         // built, or a windows-only list) still needs bucking. Add a per-LF
         // allowance for the UNCOVERED door footage so the total matches the
         // no-cut-list path — no slider/bifold bucking silently dropped.
         const liveDoorLF = (sgd.sgdLF || 0) + (bifold.bifoldLF || 0);
-        const coveredDoorLF = buckListDoorFrameLF(STATE.buckList);
+        const coveredDoorLF = buckListDoorFrameLF(STATE.buckList) * _fm;
         const uncoveredDoorLF = Math.max(0, liveDoorLF - coveredDoorLF);
         const extraBoardLF = getQuantityPerLF(item) * uncoveredDoorLF;
         const totalBoardLF = boardLF + extraBoardLF;
         const cost = totalBoardLF * getUnitPrice(item);
         rows.push({
           id: item.id, name: itemDisplayName(item),
-          rateLabel: extraBoardLF > 0 ? "AI cut list + door footage" : "AI cut list",
+          rateLabel: (extraBoardLF > 0 ? "AI cut list + door footage" : "AI cut list") + (_fm > 1 ? ` × ${_fm} floors` : ""),
           ratePerLF: lf > 0 ? cost / lf : 0,
           quantity: Math.round(totalBoardLF * 10) / 10, unit: "LF", totalCost: cost,
           isFixed: false, fromBuckList: true
@@ -9911,10 +9920,10 @@ function renderExtraFloors() {
   if (!list) return;
   const arr = Array.isArray(STATE.extraFloors) ? STATE.extraFloors : (STATE.extraFloors = []);
   list.innerHTML = arr.map((f, i) => `
-    <div class="ef-row" data-idx="${i}" style="border:1px solid rgba(148,163,184,0.18);border-radius:10px;padding:8px;">
+    <div class="ef-row" data-idx="${i}">
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
         <input class="ef-in num-input" data-f="label" placeholder="Lobby / Penthouse" value="${String(f.label || "").replace(/"/g, "&quot;")}" style="flex:1;min-width:0;" />
-        <button type="button" class="ef-remove" aria-label="Remove floor" style="flex:none;width:26px;height:26px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);background:transparent;color:#94a3b8;cursor:pointer;">&times;</button>
+        <button type="button" class="ef-remove" aria-label="Remove floor">&times;</button>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <label class="margin-pill" style="cursor:text"><span class="lbl">LF</span><input class="ef-in num-input" data-f="totalLF" type="number" min="0" step="0.1" inputmode="decimal" value="${f.totalLF || ""}" placeholder="0" style="width:60px;text-align:right;-moz-appearance:textfield;" /></label>
@@ -10285,7 +10294,6 @@ function render() {
     identicalFloors: floorMult(),
     likeFloors: STATE.likeFloors,
     extraFloors: clone(STATE.extraFloors || []),
-    buildingStories: STATE.buildingStories,
     swingStageEnabled: STATE.swingStageEnabled,
     swingStageDays: STATE.swingStageDays,
     storageMonthlyCost: STATE.storageMonthlyCost,
@@ -10604,7 +10612,7 @@ function renderSavedJobs() {
   el.innerHTML = list.slice().reverse().map(j => {
     const inCompare = compareSet.has(j.id);
     const details = [j.manufacturer, j.application, j.houseType, j.constructionType,
-      j.stories || "1 Story", `${j.totalLF} LF`].join(" · ");
+      storyLabel(j.stories), `${j.totalLF} LF`].join(" · ");
     const draftPill = j.isDraft
       ? ` <span class="ml-1.5 inline-flex items-center text-[8px] uppercase tracking-[0.16em] font-bold text-[#c9a558]/85 border border-[#b58f4a]/45 bg-[#b58f4a]/10 rounded-full px-1.5 py-0.5 align-middle">Draft</span>`
       : "";
@@ -13685,7 +13693,7 @@ function renderJobDetails(job) {
   const swTotal = normalizeSwingDoors(job.swingDoors).length;
   const specs = [
     ["Manufacturer", job.manufacturer], ["Construction", job.constructionType],
-    ["House type", job.houseType], ["Stories", job.stories], ["Glass", job.impact],
+    ["House type", job.houseType], ["Stories", storyLabel(job.stories)], ["Glass", job.impact],
     ["Linear footage", job.totalLF != null ? job.totalLF + " LF" : ""], ["Windows", job.windowCount || ""],
   ];
   if (swTotal > 0) specs.push(["Swing doors", String(swTotal)]);
@@ -13859,7 +13867,7 @@ function exportPipelineCSV() {
     const cost = Number(j.totalCost) || 0, price = Number(j.sellingPrice) || 0;
     lines.push([
       j.name || j.customerName || "", j.customerName || "", jobStatus(j), j.customerPhone || "", j.customerEmail || "", j.customerAddress || "",
-      j.manufacturer || "", j.constructionType || "", j.houseType || "", j.stories || "", j.impact || "",
+      j.manufacturer || "", j.constructionType || "", j.houseType || "", (j.stories ? storyLabel(j.stories) : ""), j.impact || "",
       j.totalLF != null ? j.totalLF : "", j.windowCount || "", sgd || "", bfd || "", swt || "",
       cost.toFixed(2), price.toFixed(2), (j.margin != null && !isNaN(j.margin) ? Math.round(j.margin) : ""), (price - cost).toFixed(2),
       (j.createdAt ? new Date(j.createdAt).toLocaleDateString() : "")
@@ -14541,6 +14549,15 @@ function resetAll() {
     currentJobId: null,
     jobName: "",
     swingDoors: [],
+    // Repeating-floors + high-rise fields — same defaults as buildState(), so a
+    // reset never leaves them undefined in STATE (or in the persisted blob).
+    likeFloors: false,
+    extraFloors: [],
+    swingStageEnabled: false,
+    swingStageDays: "3",
+    storageMonthlyCost: "",
+    projectedMonths: "1",
+    trimEnabled: false,
   };
   saveState(STATE);
   clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
@@ -15296,14 +15313,21 @@ function applyJobToState(j) {
   STATE.likeFloors = !!j.likeFloors;
   STATE.extraFloors = Array.isArray(j.extraFloors) ? clone(j.extraFloors) : [];
   if (typeof renderExtraFloors === "function") renderExtraFloors();
-  STATE.buildingStories = (j.buildingStories == null) ? null : (parseInt(j.buildingStories, 10) || null);
   STATE.swingStageEnabled = !!j.swingStageEnabled;
-  STATE.swingStageDays = j.swingStageDays || "1";
+  STATE.swingStageDays = j.swingStageDays || "3";
   STATE.storageMonthlyCost = j.storageMonthlyCost || "";
   STATE.projectedMonths = j.projectedMonths || "1";
   STATE.trimEnabled = !!j.trimEnabled;
-  if (j.perFloorLF != null) STATE.totalLF = j.perFloorLF ? String(cleanLF(j.perFloorLF)) : "";
-  if (j.perFloorWindowCount != null) STATE.windowCount = j.perFloorWindowCount ? String(j.perFloorWindowCount) : "";
+  // Restore the per-floor takeoff ONLY when the multiplier will actually run
+  // (Like Floors on) — that's what stops a reload re-multiplying. With Like
+  // Floors off (incl. legacy jobs saved with a multiplied building total), the
+  // saved totalLF above IS the takeoff; overriding it with the per-floor figure
+  // would reload the job at a fraction of its saved price. `!= null` (not
+  // truthiness) so a legitimate 0-LF floor round-trips as 0, not "".
+  if (STATE.likeFloors) {
+    if (j.perFloorLF != null) STATE.totalLF = String(cleanLF(j.perFloorLF));
+    if (j.perFloorWindowCount != null) STATE.windowCount = String(j.perFloorWindowCount);
+  }
   STATE.liftEnabled = j.liftEnabled || false;
   STATE.liftDays = j.liftDays || "1";
   STATE.permitEnabled = j.permitEnabled || false;
@@ -15604,7 +15628,7 @@ function exportCustomerPDF(mode) {
     ["House Type", STATE.houseType],
     ["Construction", STATE.constructionType],
     ["Glass Type", STATE.impact],
-    ["Stories", STATE.stories],
+    ["Stories", storyLabel(STATE.stories)],
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
@@ -15743,7 +15767,7 @@ async function buildCustomerSharePayload() {
     ["House Type",    STATE.houseType],
     ["Construction",  STATE.constructionType],
     ["Glass Type",    STATE.impact],
-    ["Stories",       STATE.stories],
+    ["Stories",       storyLabel(STATE.stories)],
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
@@ -16351,7 +16375,7 @@ function exportPDF(mode) {
     ["House Type", STATE.houseType],
     ["Construction", STATE.constructionType],
     ["Glass Type", STATE.impact],
-    ["Stories", STATE.stories],
+    ["Stories", storyLabel(STATE.stories)],
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) details.push(["Window Count", `${r.wc}`]);
@@ -20932,7 +20956,7 @@ function renderComparisonModal(jobs) {
   const getRow = (job, id) => (job.rows || []).find(r => r.id === id);
   const jobName = (j, i) => j.name || `Job ${i + 1}`;
   const jobDetail = j => [j.manufacturer, j.application, j.houseType, j.constructionType,
-    j.stories || "1 Story", `${j.totalLF} LF`, ...(j.windowCount > 0 ? [`${j.windowCount} windows`] : [])]
+    storyLabel(j.stories), `${j.totalLF} LF`, ...(j.windowCount > 0 ? [`${j.windowCount} windows`] : [])]
     .filter(Boolean).join(" · ");
 
   // "best price" = lowest selling price; spread = cheapest vs priciest
