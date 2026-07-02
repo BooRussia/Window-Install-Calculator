@@ -1102,6 +1102,9 @@
   .ef-row { border: 1px solid rgba(148,163,184,0.18); border-radius: 10px; padding: 8px; }
   .ef-remove { flex: none; width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(148,163,184,0.3); background: transparent; color: #94a3b8; cursor: pointer; }
   .ef-remove:hover { border-color: rgba(225,29,72,0.5); color: #f43f5e; }
+  /* "Suggest: 12d" chips next to days/months inputs — computed from crew-hours */
+  .sug-chip { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: #c9a558; background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.35); border-radius: 999px; padding: 3px 9px; cursor: pointer; }
+  .sug-chip:hover { background: rgba(181,143,74,0.22); }
   .hero-input {
     background: transparent;
     border: none;
@@ -3027,6 +3030,7 @@
   [data-theme="light"] .rail-add-btn:hover { border-color: rgba(181,143,74,0.55); color: #9c7a36; }
   [data-theme="light"] .ef-row { border-color: #cbd5e1; }
   [data-theme="light"] .ef-remove { border-color: #cbd5e1; color: #475569; }
+  [data-theme="light"] .sug-chip { color: #8a6a2e; background: rgba(138,106,46,0.08); border-color: rgba(138,106,46,0.4); }
 
   /* Pricing tier cards: the feature list under each plan was #cbd5e1 — nearly
      invisible on white. Darken the list text and the divider. */
@@ -3704,6 +3708,7 @@
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all { color: #64748b; }
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: #97772e; }
   [data-theme="light"] #remodelNudge { color: #97772e !important; }
+  [data-theme="light"] #accessNudge { color: #97772e !important; }
   [data-theme="light"] .text-\[\#dfc07a\] { color: #8a6a2e !important; }
   [data-theme="light"] .modal-close { color: #64748b; }
   [data-theme="light"] .modal-close:hover,
@@ -5733,6 +5738,7 @@
             <span class="lbl">Lift days</span>
             <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
+          <button type="button" id="suggestLiftDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
         </div>
       </div>
       <div id="swingStageRailField" class="rail-field hidden">
@@ -5744,6 +5750,7 @@
             <span class="lbl">Stage days</span>
             <input id="swingStageDaysInput" type="number" min="1" step="1" value="3" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
+          <button type="button" id="suggestSwingDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
         </div>
       </div>
       <div class="rail-field">
@@ -5758,6 +5765,7 @@
             <span class="lbl">Months</span>
             <input id="projectedMonthsInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
+          <button type="button" id="suggestMonths" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
         </div>
       </div>
       <div class="rail-field">
@@ -5771,6 +5779,9 @@
       <!-- /accordion -->
       <div id="remodelNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
         ↑ Enter window count for accurate setup labor &amp; materials
+      </div>
+      <div id="accessNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
+        ↑ 4+ stories with no lift or swing stage &mdash; add access equipment in Extras
       </div>
       <div id="materialsRow" class="hidden"></div>
 
@@ -6786,9 +6797,25 @@
               <div class="set-field">
                 <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
                 <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">18-ga finish-nail box price (one nail every 16").</span>
+                <span class="set-hint">18-ga finish-nail box price.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminBradSpacing">Nail spacing (in)</label>
+                <input id="adminBradSpacing" type="text" inputmode="numeric" autocomplete="off" placeholder="16" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">One finish nail every this many inches of trim.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminSwingMinStories">Swing stage from (stories)</label>
+                <input id="adminSwingMinStories" type="text" inputmode="numeric" autocomplete="off" placeholder="4" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">Offer the swing stage at this building height and up.</span>
+              </div>
+              <div class="set-field">
+                <label class="set-label" for="adminHeightCap">Height premium cap (&times;)</label>
+                <input id="adminHeightCap" type="text" inputmode="decimal" autocomplete="off" placeholder="2.0" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                <span class="set-hint">The high-rise labor premium never exceeds this multiplier.</span>
               </div>
             </div>
+            <div class="mt-3 text-[12px] text-slate-400">With this efficiency, 10 identical floors price like <span id="adminEffReadout" class="text-[#c9a558] font-bold">&mdash;</span> floors of install labor.</div>
             <div class="mt-3 text-[12px] text-slate-400">Crew costs you <span id="adminCrewCostReadout" class="text-[#c9a558] font-bold">—</span></div>
             <label class="mt-3 flex items-center gap-2 cursor-pointer select-none">
               <input id="adminShowLaborHoursInPDF" type="checkbox" class="rounded border-slate-700 bg-slate-900 text-[#c9a558] focus:ring-[#b58f4a]" />
@@ -10066,6 +10093,14 @@ function render() {
       qtyStr = `${formatQty(row.quantity)} <span class="text-slate-500">${row.unit}</span>`;
     }
 
+    // Multi-floor: show the per-floor quantity under the building total for
+    // rows that scale with the floor count (job-level lines don't divide).
+    const _pfm = floorMult();
+    if (_pfm > 1 && typeof row.quantity === "number" && isFinite(row.quantity) && !row.asNeeded
+        && !["labor", "block_sealer", "permit", "lift_rental", "swing_stage", "material_storage"].includes(row.id)) {
+      qtyStr += `<div class="text-[9px] text-slate-500 mt-0.5" style="font-variant-numeric: tabular-nums;">&approx; ${formatQty(row.quantity / _pfm)} /floor</div>`;
+    }
+
     // Case Count: packs needed for procurement
     const caseStr = proc
       ? `${proc.packs} <span class="text-slate-500">${proc.packLabel}</span>`
@@ -10282,6 +10317,33 @@ function render() {
   const nudgeEl = document.getElementById("remodelNudge");
   const showNudge = lf_ > 0 && wc_ === 0;
   nudgeEl.classList.toggle("hidden", !showNudge);
+
+  // Access-equipment nudge — a 4+-story job with neither a lift nor a swing
+  // stage is almost certainly missing a real access cost. Soft prompt only.
+  const accessEl = document.getElementById("accessNudge");
+  if (accessEl) {
+    const showAccess = storyNum(STATE.stories) > 3 && !STATE.liftEnabled && !STATE.swingStageEnabled && (lf_ > 0 || wc_ > 0);
+    accessEl.classList.toggle("hidden", !showAccess);
+  }
+  // Suggested lift / swing-stage days + storage months, derived from the job's
+  // own labor model (~8 crew-hrs/day on site, ~22 working days/month). The chip
+  // shows only when it differs from what's entered; tapping applies it.
+  {
+    const lbS = buildingLaborBreakdown();
+    const days = Math.max(1, Math.ceil(lbS.totalHrs / 8));
+    const months = Math.max(1, Math.ceil(days / 22));
+    const chip = (id, show, n, unit, cur) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const on = !!show && lbS.totalHrs > 0.01 && n !== cur;
+      el.classList.toggle("hidden", !on);
+      if (on) el.textContent = `Suggest: ${n}${unit}`;
+      el._suggest = n;
+    };
+    chip("suggestLiftDays", STATE.liftEnabled, days, "d", parseInt(STATE.liftDays, 10) || 1);
+    chip("suggestSwingDays", STATE.swingStageEnabled && storyNum(STATE.stories) >= ((DATA.config.swingStage && DATA.config.swingStage.minStories) || 4), days, "d", parseInt(STATE.swingStageDays, 10) || 1);
+    chip("suggestMonths", (parseFloat(STATE.storageMonthlyCost) || 0) > 0, months, " mo", parseInt(STATE.projectedMonths, 10) || 1);
+  }
 
   // Per-job material variant toggles
   renderMaterialsToggle();
@@ -14455,6 +14517,18 @@ function bindControls() {
     }
   }
 
+  // Suggestion chips — tap to apply the crew-hours-derived estimate
+  [["suggestLiftDays", v => { STATE.liftDays = String(v); const i = document.getElementById("liftDaysInput"); if (i) i.value = v; }],
+   ["suggestSwingDays", v => { STATE.swingStageDays = String(v); const i = document.getElementById("swingStageDaysInput"); if (i) i.value = v; }],
+   ["suggestMonths", v => { STATE.projectedMonths = String(v); const i = document.getElementById("projectedMonthsInput"); if (i) i.value = v; }]]
+  .forEach(([id, apply]) => {
+    const el = document.getElementById(id);
+    if (el && !el._wired) {
+      el.addEventListener("click", () => { if (el._suggest != null) { apply(el._suggest); updateJobExtrasSummary(); render(); } });
+      el._wired = true;
+    }
+  });
+
   // Other floors (one-off lobby / penthouse takeoffs on top of the stack)
   const efList = document.getElementById("extraFloorsList");
   if (efList && !efList._wired) {
@@ -18381,7 +18455,12 @@ function buildAdminUI() {
   { const el = document.getElementById("adminRepeatFloorEff"); if (el) el.value = Math.round((LM.repeatFloorEfficiency ?? 0.85) * 100); }
   { const el = document.getElementById("adminHeightPremium"); if (el) el.value = Math.round((LM.heightPremiumPerStoryAbove3 ?? 0.05) * 100); }
   { const ss = DATA.config.swingStage || {}; const a = document.getElementById("adminSwingStageRate"); if (a) a.value = ss.ratePerDay ?? 850; const b = document.getElementById("adminSwingStageSetup"); if (b) b.value = ss.setupFee ?? 1200; }
-  { const tr = DATA.config.trim || {}; const a = document.getElementById("adminTrimRate"); if (a) a.value = tr.boardRatePerLF ?? 3; const b = document.getElementById("adminBradBoxPrice"); if (b) b.value = tr.bradNailBoxPrice ?? 24; }
+  { const tr = DATA.config.trim || {}; const a = document.getElementById("adminTrimRate"); if (a) a.value = tr.boardRatePerLF ?? 3; const b = document.getElementById("adminBradBoxPrice"); if (b) b.value = tr.bradNailBoxPrice ?? 24;
+    const sp = document.getElementById("adminBradSpacing"); if (sp) sp.value = tr.bradNailSpacingIn ?? 16;
+    const ss2 = DATA.config.swingStage || {}; const ms = document.getElementById("adminSwingMinStories"); if (ms) ms.value = ss2.minStories ?? 4;
+    const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
+  updateEffReadout();
+  { const effIn = document.getElementById("adminRepeatFloorEff"); if (effIn && !effIn._effWired) { effIn.addEventListener("input", updateEffReadout); effIn._effWired = true; } }
   updateCrewCostReadout();
 
   // Swing doors — populate the editor with current rates
@@ -19093,6 +19172,19 @@ function variantRowHTML(catId, unit, v, isDefault) {
 }
 
 // Live "crew costs you $X/hr" readout in the Labor settings (size × pay).
+// Live example under the efficiency % — makes the abstract knob tangible:
+// "10 identical floors price like ~8.7 floors of install labor".
+function updateEffReadout() {
+  const el = document.getElementById("adminEffReadout");
+  if (!el) return;
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+  const input = document.getElementById("adminRepeatFloorEff");
+  let pct = input ? parseFloat(input.value) : NaN;
+  if (isNaN(pct)) pct = (LM.repeatFloorEfficiency ?? 0.85) * 100;
+  const eff = Math.min(1, Math.max(LM.repeatFloorMinFactor ?? 0.70, pct / 100));
+  el.textContent = "~" + (Math.round((1 + 9 * eff) * 10) / 10);
+}
+
 function updateCrewCostReadout() {
   const el = document.getElementById("adminCrewCostReadout");
   if (!el) return;
@@ -19181,6 +19273,12 @@ function commitAdmin() {
   if (!isNaN(trRate) && trRate >= 0) DATA.config.trim.boardRatePerLF = trRate;
   const brPrice = parseFloat(document.getElementById("adminBradBoxPrice").value);
   if (!isNaN(brPrice) && brPrice >= 0) DATA.config.trim.bradNailBoxPrice = brPrice;
+  const brSpacing = parseFloat(document.getElementById("adminBradSpacing").value);
+  if (!isNaN(brSpacing) && brSpacing >= 4 && brSpacing <= 48) DATA.config.trim.bradNailSpacingIn = brSpacing;
+  const ssMin = parseInt(document.getElementById("adminSwingMinStories").value, 10);
+  if (!isNaN(ssMin) && ssMin >= 2 && ssMin <= 20) DATA.config.swingStage.minStories = ssMin;
+  const hCap = parseFloat(document.getElementById("adminHeightCap").value);
+  if (!isNaN(hCap) && hCap >= 1 && hCap <= 10) DATA.config.laborModel.heightPremiumCap = hCap;
   document.querySelectorAll("[data-unitprice]").forEach(inp => {
     const it = DATA.costItems.find(c => c.id === inp.dataset.unitprice);
     const v = parseFloat(inp.value);
