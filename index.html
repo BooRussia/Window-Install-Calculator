@@ -8557,6 +8557,20 @@ function storyLabel(v) {
 function floorMult() {
   return STATE.likeFloors ? storyNum(STATE.stories) : 1;
 }
+// Human summary of the building's floor make-up for quotes/PDFs, e.g.
+// "17 identical floors + Lobby + Penthouse — 19 floors". Empty for a plain job
+// (no multiplier, no one-off floors), so single-home quotes are untouched.
+function buildingSummaryText() {
+  const n = floorMult();
+  const extras = (Array.isArray(STATE.extraFloors) ? STATE.extraFloors : [])
+    .filter(f => (parseFloat(f.totalLF) || 0) > 0 || (parseInt(f.windowCount, 10) || 0) > 0)
+    .map(f => ({ label: String(f.label || "").trim() || "One-off floor", count: Math.max(1, parseInt(f.count, 10) || 1) }));
+  if (n <= 1 && !extras.length) return "";
+  const parts = [n > 1 ? `${n} identical floors` : "main floor"];
+  extras.forEach(e => parts.push(e.count > 1 ? `${e.count}× ${e.label}` : e.label));
+  const total = n + extras.reduce((sum, e) => sum + e.count, 0);
+  return `${parts.join(" + ")} — ${total} floor${total === 1 ? "" : "s"}`;
+}
 // Low-rise labor access premium (climbing to upper floors), applied to per-LF
 // labor. Only in whole-building mode (Like Floors OFF); in Like-Floors mode each
 // floor is multiplied on its own, so this would double-count -> return 1.
@@ -15727,6 +15741,7 @@ function exportCustomerPDF(mode) {
     ["Construction", STATE.constructionType],
     ["Glass Type", STATE.impact],
     ["Stories", storyLabel(STATE.stories)],
+    ...(buildingSummaryText() ? [["Building", buildingSummaryText()]] : []),
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
@@ -15866,6 +15881,7 @@ async function buildCustomerSharePayload() {
     ["Construction",  STATE.constructionType],
     ["Glass Type",    STATE.impact],
     ["Stories",       storyLabel(STATE.stories)],
+    ...(buildingSummaryText() ? [["Building", buildingSummaryText()]] : []),
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) scope.push(["Window Count", `${r.wc} windows`]);
@@ -16474,6 +16490,7 @@ function exportPDF(mode) {
     ["Construction", STATE.constructionType],
     ["Glass Type", STATE.impact],
     ["Stories", storyLabel(STATE.stories)],
+    ...(buildingSummaryText() ? [["Building", buildingSummaryText()]] : []),
     ["Linear Footage", `${r.lf} ft`],
   ];
   if (r.wc > 0) details.push(["Window Count", `${r.wc}`]);
@@ -16502,6 +16519,30 @@ function exportPDF(mode) {
     doc.text(String(d[1]), labelX + valOffset, rowY);
   });
   y += half * 13 + 18;
+
+  // ---------- Floor schedule (multi-floor jobs only) ----------
+  // One line per floor group so a GC can see exactly what repeats where.
+  if (buildingSummaryText()) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text("FLOOR SCHEDULE", M, y);
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(20, 20, 20);
+    getFloorGroups().forEach(g => {
+      const doors = (Array.isArray(g.slidingDoors) ? g.slidingDoors : []).reduce((sum, d) => sum + Math.max(1, parseInt(d && d.qty, 10) || 1), 0)
+                  + (Array.isArray(g.bifoldDoors) ? g.bifoldDoors : []).reduce((sum, d) => sum + Math.max(1, parseInt(d && d.qty, 10) || 1), 0)
+                  + normalizeSwingDoors(g.swingDoors).length;
+      const label = g.id === "primary" ? "Typical floor" : (String(g.label || "").trim() || "One-off floor");
+      const lfG = parseFloat(g.totalLF) || 0;
+      const wcG = parseInt(g.windowCount, 10) || 0;
+      if (lfG <= 0 && wcG <= 0 && doors <= 0) return;   // skip empty rows
+      doc.text(`${g.count} × ${label} — ${lfG} LF · ${wcG} window${wcG === 1 ? "" : "s"}${doors ? ` · ${doors} door${doors === 1 ? "" : "s"}` : ""} each`, M, y);
+      y += 12;
+    });
+    y += 8;
+  }
 
   // ---------- Breakdown table ----------
   const rows = r.rows.map(row => {
