@@ -8571,6 +8571,36 @@ function repeatEfficiencyFactor() {
   return (1 + (N - 1) * eff) / N;
 }
 
+// Phase-3 realism applied to a labor breakdown: repeat-floor efficiency and the
+// high-rise height premium hit the ON-SITE install/setup hours only —
+// mobilization + the inspection return trip stay full. Identity when both
+// factors are 1.0 (Like Floors off / ≤3 stories), so normal jobs are untouched.
+// Adds explanatory rows so the Labor Detail card matches the quote line exactly.
+function applyLaborRealism(lb) {
+  const eff = repeatEfficiencyFactor();
+  const hp = getHeightPremiumMultiplier();
+  if (eff === 1 && hp === 1) return lb;
+  const fixedHrs = (lb.mobilizationHrs || 0) + (lb.inspectionHrs || 0);
+  const onsiteHrs = Math.max(0, lb.totalHrs - fixedHrs);
+  const totalHrs = onsiteHrs * eff * hp + fixedHrs;
+  const breakdown = lb.breakdown.slice();
+  if (eff !== 1) breakdown.push({ label: `Repeat-floor efficiency (identical floors ×${eff.toFixed(2)})`, hrs: onsiteHrs * (eff - 1) });
+  if (hp !== 1) breakdown.push({ label: `High-rise height premium (×${hp.toFixed(2)})`, hrs: onsiteHrs * eff * (hp - 1) });
+  return { ...lb, totalHrs, laborCost: totalHrs * lb.crewCostPerHr, breakdown };
+}
+
+// Building-total labor: the aggregated floor-groups takeoff with the realism
+// factors applied — the SAME hours and cost as the quote's labor row. Used by
+// the Labor Detail card + the customer-PDF labor-hours line (the bare
+// estimateLaborBreakdown() only reads the single live takeoff).
+function buildingLaborBreakdown() {
+  const agg = aggregateTakeoff(getFloorGroups());
+  const sd = computeSwingDoors({ swingDoors: agg.swingDoors });
+  const sgd = computeSlidingDoors({ slidingDoors: agg.slidingDoors });
+  const bifold = computeBifoldDoors({ bifoldDoors: agg.bifoldDoors });
+  return applyLaborRealism(estimateLaborBreakdown({ wc: agg.windowCount, lf: agg.windowLF, sd, sgd, bifold }));
+}
+
 // True when the INSTALLATION is to impact spec — either the job is impact glass,
 // or the brand is flagged alwaysImpactSpec (it attaches to impact spec regardless
 // of glass type). Mirrors useImpactPattern() so labor and materials agree.
@@ -9371,25 +9401,19 @@ function calculate() {
   // install, per-opening setup, and mobilization. Marked up by the job
   // margin like every other cost (no separate bill rate).
   {
-    const lb = estimateLaborBreakdown({ wc, lf: windowLF, sd, sgd, bifold });
-    // Phase 3 — repeat-floor efficiency (crews speed up on identical floors) and a
-    // high-rise height premium apply to ON-SITE install/setup hours only;
-    // mobilization + the inspection return trip stay full. Both factors are 1.0
-    // for a normal job (Like Floors off, <=3 stories) → labor is unchanged there.
-    const fixedHrs = (lb.mobilizationHrs || 0) + (lb.inspectionHrs || 0);
-    const onsiteHrs = Math.max(0, lb.totalHrs - fixedHrs);
-    const adjHrs = onsiteHrs * repeatEfficiencyFactor() * getHeightPremiumMultiplier() + fixedHrs;
-    const laborCost = adjHrs * lb.crewCostPerHr;
-    if (laborCost > 0) {
+    // Repeat-floor efficiency + height premium via applyLaborRealism — the same
+    // helper the Labor Detail card uses, so the card and this row can't drift.
+    const lb = applyLaborRealism(estimateLaborBreakdown({ wc, lf: windowLF, sd, sgd, bifold }));
+    if (lb.laborCost > 0) {
       rows.push({
         id: "labor", name: "Labor (install + cleanup)", isLabor: true,
-        rateLabel: `${adjHrs.toFixed(1)} crew-hrs × $${formatMoneyRaw(lb.crewCostPerHr)}/hr`,
-        ratePerLF: lf > 0 ? laborCost / lf : 0,
-        quantity: Math.round(adjHrs * 10) / 10, unit: "hr",
-        totalCost: laborCost,
+        rateLabel: `${lb.totalHrs.toFixed(1)} crew-hrs × $${formatMoneyRaw(lb.crewCostPerHr)}/hr`,
+        ratePerLF: lf > 0 ? lb.laborCost / lf : 0,
+        quantity: Math.round(lb.totalHrs * 10) / 10, unit: "hr",
+        totalCost: lb.laborCost,
       });
-      totalCost += laborCost;
-      if (lf > 0) perLfCost += laborCost / lf;
+      totalCost += lb.laborCost;
+      if (lf > 0) perLfCost += lb.laborCost / lf;
     }
   }
 
@@ -10098,7 +10122,7 @@ function render() {
   // nothing to estimate (no LF, no doors).
   const laborCard = document.getElementById("laborDetailCard");
   if (laborCard) {
-    const lb = estimateLaborBreakdown();
+    const lb = buildingLaborBreakdown();
     if (lb.totalHrs > 0.01) {
       laborCard.classList.remove("hidden");
       // First render — wire the Adjust button once
@@ -15664,7 +15688,7 @@ function exportCustomerPDF(mode) {
   // ("Show labor hours line on the customer's quote PDF"). Some installers
   // like the customer to see the on-site effort behind the price.
   if (DATA.config && DATA.config.laborModel && DATA.config.laborModel.showLaborHoursInPDF) {
-    const lb = estimateLaborBreakdown();
+    const lb = buildingLaborBreakdown();
     if (lb.totalHrs > 0) scope.push(["Estimated Labor", `~${lb.totalHrs.toFixed(0)} crew-hours on site`]);
   }
   const labelX = M, valueX = M + 130;
