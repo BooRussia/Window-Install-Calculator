@@ -313,6 +313,29 @@
   .mat-body { padding: 2px 14px 14px; }
   [data-theme="light"] .mat-card { border-color: #e2e8f0; background: #f8fafc; }
   [data-theme="light"] .mat-title { color: #64748b; }
+  /* Interior-trim dimension pickers (type / width / length) in the rail. */
+  .trim-picker { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
+  .trim-pick { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .trim-pick > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; font-weight: 700; }
+  .trim-sel { width: 100%; padding: 7px 8px; font-size: 12px; font-weight: 600; border-radius: 9px;
+    background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7); color: #e2e8f0;
+    -webkit-appearance: none; appearance: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .trim-sel:hover { border-color: rgba(100,116,139,0.85); }
+  .trim-sel:focus-visible { outline: 2px solid #c9a558; outline-offset: 1px; border-color: #b58f4a; }
+  .trim-rate { grid-column: 1 / -1; margin-top: 1px; font-size: 11px; font-weight: 700; color: #c9a558; text-align: right; }
+  [data-theme="light"] .trim-pick > span { color: #64748b; }
+  [data-theme="light"] .trim-sel { background: #fff; border-color: #cbd5e1; color: #1e293b; }
+  [data-theme="light"] .trim-rate { color: #9a7636; }
+  /* Settings 3×3 trim price grid ($/LF by material × width). */
+  .trim-grid { display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 5px 7px; align-items: center; margin-top: 6px; }
+  .trim-grid .tg-h { font-size: 10px; font-weight: 700; color: #94a3b8; text-align: center; }
+  .trim-grid .tg-rowlab { font-size: 11px; font-weight: 700; color: #cbd5e1; padding-right: 4px; }
+  .trim-grid input { width: 100%; padding: 5px 7px; font-size: 12px; border-radius: 7px; text-align: right;
+    background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7); color: #e2e8f0; }
+  .trim-grid input:focus-visible { outline: 2px solid #c9a558; outline-offset: 1px; border-color: #b58f4a; }
+  [data-theme="light"] .trim-grid .tg-rowlab { color: #1e293b; }
+  [data-theme="light"] .trim-grid .tg-h { color: #64748b; }
+  [data-theme="light"] .trim-grid input { background: #fff; border-color: #cbd5e1; color: #1e293b; }
   /* Wood-bucking in-quote toggle: a full-width tappable row with a sliding switch,
      so it clearly reads as an interactive control (not a static badge). */
   .buck-switch { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
@@ -6803,6 +6826,11 @@
                 <input id="adminSwingStageSetup" type="text" inputmode="decimal" autocomplete="off" placeholder="1200" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
                 <span class="set-hint">One-time rig / engineering fee.</span>
               </div>
+              <div class="set-field" style="grid-column:1/-1;margin-top:2px;">
+                <label class="set-label">Interior trim board — $/LF by material &amp; width</label>
+                <div id="adminTrimGrid" class="trim-grid"></div>
+                <span class="set-hint">Price per linear foot of opening trim. Length (the dropdown in the quote) is the stick you buy/cut &mdash; procurement only, it doesn't change $/LF.</span>
+              </div>
               <div class="set-field">
                 <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
                 <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
@@ -7591,7 +7619,18 @@ const DEFAULT_DATA = {
     swingStage: { minStories: 4, ratePerDay: 850, setupFee: 1200, defaultDays: 3 },
     // Interior trim — PLACEHOLDER rates; tune in Settings later. boardRatePerLF is
     // $/LF of opening footage; nails are 18-ga, one every 16", bought by the box.
-    trim: { boardRatePerLF: 3.00, bradNailSpacingIn: 16, bradNailBoxCount: 2000, bradNailBoxPrice: 24 },
+    trim: { boardRatePerLF: 3.00, bradNailSpacingIn: 16, bradNailBoxCount: 2000, bradNailBoxPrice: 24,
+      // Interior trim is picked by three dropdowns: board type × width set the
+      // $/LF (the 3×3 grid below, editable in Settings); length is the stick you
+      // buy/cut (procurement only). PLACEHOLDER $/LF — tune in Settings → Rates.
+      types: [ { id: "pine", name: "Primed Pine" }, { id: "mdf", name: "MDF" }, { id: "pvc", name: "PVC" } ],
+      widths: [ "1x4", "1x6", "1x8" ],
+      lengths: [ 8, 12, 16 ],
+      pricePerLF: {
+        pine: { "1x4": 3.00, "1x6": 4.71, "1x8": 6.21 },
+        mdf:  { "1x4": 2.10, "1x6": 3.30, "1x8": 4.35 },
+        pvc:  { "1x4": 5.25, "1x6": 8.25, "1x8": 10.85 } },
+      defaultType: "pine", defaultWidth: "1x4", defaultLength: 16 },
     // Swing doors — priced per UNIT, not per LF. Enabled by default (like sliding
     // & bifold) so the everyday entry/French door is visible in the Openings rail.
     // Defaults below are construction-shop estimates; tune in Settings → Rates.
@@ -8155,19 +8194,13 @@ const DEFAULT_DATA = {
         { id: "wood_bucking__2x10", brand: "2x10 PT", unitPrice: 1.95,
           procurement: { caseSize: 8, packName: "board", packPlural: "boards" } }
       ] },
-    { id: "trim_board", name: "Interior Trim", unit: "LF", rates: { default: 0 }, unverified: true,
+    { id: "trim_board", name: "Interior Trim", unit: "LF", rates: { default: 0 }, unverified: true },
       // Priced from OPENING footage (header/jambs/sill), not materialLF — the
-      // per-LF loop skips it and the trim block in calculate() prices it.
-      // Variants = the trim material choice; procurement counts sticks.
-      defaultVariant: "trim_board__pine",
-      variants: [
-        { id: "trim_board__pine", brand: "Primed Pine 1x4 (16 ft)", unitPrice: 3.00,
-          procurement: { caseSize: 16, packName: "stick", packPlural: "sticks" } },
-        { id: "trim_board__mdf", brand: "MDF 1x4 (16 ft)", unitPrice: 2.10,
-          procurement: { caseSize: 16, packName: "stick", packPlural: "sticks" } },
-        { id: "trim_board__pvc", brand: "PVC 1x4 (18 ft)", unitPrice: 5.25,
-          procurement: { caseSize: 18, packName: "stick", packPlural: "sticks" } }
-      ] },
+      // per-LF loop skips it and the trim block in calculate() prices it. The
+      // material spec (type × width → $/LF, length → stick size) comes from
+      // DATA.config.trim via trimSelection(); getUnitPrice/itemProcurement/
+      // itemDisplayName special-case "trim_board" so all downstream code (cut
+      // list, procurement, PDFs) reads the picked dimensions.
     { id: "block_sealer", name: "Block Sealer", unit: "gallon", rates: { default: 0, "Block Framed": 0 },
       calculationType: "fixed_job", unverified: true,
       defaultVariant: "block_sealer__1",
@@ -8355,6 +8388,30 @@ function loadData() {
       if (!has(/2\s*x\s*10/i)) wb.variants.push({ id: "wood_bucking__2x10", brand: "2x10 PT", unitPrice: 1.95, procurement: clone(proc) });
       if (!wb.defaultVariant) wb.defaultVariant = wb.variants[0].id;
     }
+    // Interior trim: ensure the dimensional pricing model (type × width → $/LF,
+    // length → stick) exists. Configs saved before this model only had
+    // boardRatePerLF + brad-nail fields, and mergeData shallow-replaces
+    // config.trim — so seed the option lists + 3×3 grid from defaults here,
+    // idempotently, without clobbering any prices the user has already set.
+    merged.config = merged.config || {};
+    const dt = DEFAULT_DATA.config.trim;
+    const mt = merged.config.trim = merged.config.trim || {};
+    if (!Array.isArray(mt.types) || !mt.types.length) mt.types = clone(dt.types);
+    if (!Array.isArray(mt.widths) || !mt.widths.length) mt.widths = clone(dt.widths);
+    if (!Array.isArray(mt.lengths) || !mt.lengths.length) mt.lengths = clone(dt.lengths);
+    if (!mt.pricePerLF || typeof mt.pricePerLF !== "object") {
+      mt.pricePerLF = clone(dt.pricePerLF);
+    } else {
+      mt.types.forEach(t => {
+        mt.pricePerLF[t.id] = mt.pricePerLF[t.id] || {};
+        mt.widths.forEach(w => {
+          if (mt.pricePerLF[t.id][w] == null) mt.pricePerLF[t.id][w] = ((dt.pricePerLF[t.id] || {})[w]) ?? dt.boardRatePerLF ?? 3;
+        });
+      });
+    }
+    if (mt.defaultType == null) mt.defaultType = dt.defaultType;
+    if (mt.defaultWidth == null) mt.defaultWidth = dt.defaultWidth;
+    if (mt.defaultLength == null) mt.defaultLength = dt.defaultLength;
     return merged;
   } catch { return clone(DEFAULT_DATA); }
 }
@@ -8508,6 +8565,9 @@ function buildState() {
     storageMonthlyCost: "",
     projectedMonths: "1",
     trimEnabled: false,
+    trimType: "pine",
+    trimWidth: "1x4",
+    trimLength: 16,
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
@@ -8814,11 +8874,43 @@ function activeVariant(item) {
       || item.variants.find(v => v.id === item.defaultVariant)
       || item.variants[0];
 }
+// Resolve the job's interior-trim spec from the three dropdowns, validated
+// against DATA.config.trim (falls back to the first/default option and the
+// legacy flat rate so a malformed selection can never throw or zero-price).
+function trimSelection() {
+  const tc = (typeof DATA !== "undefined" && DATA.config && DATA.config.trim) || {};
+  const types = Array.isArray(tc.types) ? tc.types : [];
+  const widths = Array.isArray(tc.widths) ? tc.widths : [];
+  const lengths = Array.isArray(tc.lengths) ? tc.lengths : [];
+  const pp = tc.pricePerLF || {};
+  const st = (typeof STATE !== "undefined") ? STATE : {};
+  const typeId = pp[st.trimType] ? st.trimType
+    : (pp[tc.defaultType] ? tc.defaultType : ((types[0] && types[0].id) || "pine"));
+  const widthId = widths.includes(st.trimWidth) ? st.trimWidth
+    : (widths.includes(tc.defaultWidth) ? tc.defaultWidth : (widths[0] || "1x4"));
+  const lenNum = Number(st.trimLength);
+  const lengthV = lengths.includes(lenNum) ? lenNum
+    : (lengths.includes(Number(tc.defaultLength)) ? Number(tc.defaultLength) : (lengths[lengths.length - 1] || 16));
+  const typeName = ((types.find(t => t.id === typeId) || {}).name) || typeId;
+  const gridPrice = (pp[typeId] || {})[widthId];
+  const price = (gridPrice != null) ? gridPrice : (tc.boardRatePerLF != null ? tc.boardRatePerLF : 3);
+  return { typeId, widthId, lengthV, typeName, price };
+}
+function trimDisplayName() {
+  const s = trimSelection();
+  const w = String(s.widthId).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
+  return `${s.typeName} ${w} (${s.lengthV} ft)`;
+}
 function itemProcurement(item) {
+  // Interior trim: stick length is the picked length; qty already in LF.
+  if (item && item.id === "trim_board") {
+    return { caseSize: trimSelection().lengthV, packName: "stick", packPlural: "sticks" };
+  }
   const v = activeVariant(item);
   return v ? v.procurement : item.procurement;
 }
 function itemDisplayName(item) {
+  if (item && item.id === "trim_board") return trimDisplayName();
   const v = activeVariant(item);
   return v ? v.brand : item.name;
 }
@@ -8865,6 +8957,7 @@ function computeProcurement(totalQty, item) {
 }
 
 function getUnitPrice(item) {
+  if (item && item.id === "trim_board") return trimSelection().price;   // $/LF from type×width grid
   if (item.unitPriceByApplication && item.unitPriceByApplication[STATE.application] != null) {
     return item.unitPriceByApplication[STATE.application];
   }
@@ -9174,6 +9267,9 @@ function floorPersistFields() {
     storageMonthlyCost: STATE.storageMonthlyCost || "",
     projectedMonths: STATE.projectedMonths || "1",
     trimEnabled: !!STATE.trimEnabled,
+    trimType: STATE.trimType || "pine",
+    trimWidth: STATE.trimWidth || "1x4",
+    trimLength: STATE.trimLength || 16,
   };
 }
 
@@ -10527,6 +10623,9 @@ function render() {
     storageMonthlyCost: STATE.storageMonthlyCost,
     projectedMonths: STATE.projectedMonths,
     trimEnabled: STATE.trimEnabled,
+    trimType: STATE.trimType,
+    trimWidth: STATE.trimWidth,
+    trimLength: STATE.trimLength,
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -10695,18 +10794,42 @@ function renderMaterialsToggle() {
   // "2×6 PT" typography. Purely cosmetic — the stored brand string is untouched.
   const segMainLabel = str => String(str || "").replace(/(\d)\s*[xX]\s*(\d)/g, "$1×$2");
   const multi = (DATA.costItems || []).filter(c => {
+    // Interior trim is a dimensional add-on (type/width/length dropdowns, not
+    // brand variants) — list it on ANY job so its switch is always available.
+    if (c.id === "trim_board") return true;
     if (!Array.isArray(c.variants) || c.variants.length <= 1) return false;
     // Wood bucking carries its own in-quote toggle, so keep it listed on any
     // Block-Framed job even when toggled OFF (otherwise the toggle would vanish).
     if (c.id === "wood_bucking") return STATE.houseType === "Block Framed";
-    // Interior trim is an optional add-on on ANY job — keep it listed so its
-    // switch is always discoverable (its qty is 0 until the switch is on).
-    if (c.id === "trim_board") return true;
     return materialAppliesToJob(c);
   });
   if (!multi.length) { wrap.classList.add("hidden"); wrap.innerHTML = ""; return; }
   STATE.variants = STATE.variants || {};
   const rows = multi.map(item => {
+    if (item.id === "trim_board") {
+      const on = !!STATE.trimEnabled;
+      const tc = DATA.config.trim || {};
+      const sel = trimSelection();
+      const wLabel = w => String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
+      const typeOpts = (tc.types || []).map(t => `<option value="${escHtml(t.id)}"${t.id === sel.typeId ? " selected" : ""}>${escHtml(t.name)}</option>`).join("");
+      const widthOpts = (tc.widths || []).map(w => `<option value="${escHtml(w)}"${w === sel.widthId ? " selected" : ""}>${escHtml(wLabel(w))}</option>`).join("");
+      const lengthOpts = (tc.lengths || []).map(L => `<option value="${L}"${Number(L) === sel.lengthV ? " selected" : ""}>${L} ft</option>`).join("");
+      return `<div>
+        <button type="button" data-trim-toggle role="switch" aria-checked="${on}" class="buck-switch ${on ? "on" : ""}" title="Header, jambs &amp; sill trim on every opening (all 4 sides) + 18-ga finish nails — priced off the opening footage">
+          <span class="buck-switch-main">
+            <span class="buck-switch-name">${escHtml(item.name)}</span>
+            <span class="buck-switch-state">${on ? "In quote" : "Not included — tap to add"}</span>
+          </span>
+          <span class="buck-switch-track"><span class="buck-switch-thumb"></span></span>
+        </button>
+        ${on ? `<div class="trim-picker">
+          <label class="trim-pick"><span>Board</span><select class="trim-sel" data-trim="type">${typeOpts}</select></label>
+          <label class="trim-pick"><span>Width</span><select class="trim-sel" data-trim="width">${widthOpts}</select></label>
+          <label class="trim-pick"><span>Length</span><select class="trim-sel" data-trim="length">${lengthOpts}</select></label>
+          <div class="trim-rate">${escHtml(sel.typeName)} ${escHtml(wLabel(sel.widthId))} · ${sel.lengthV} ft — $${sel.price.toFixed(2)}/LF</div>
+        </div>` : ""}
+      </div>`;
+    }
     const active = activeVariant(item);
     const btns = item.variants.map(v => {
       // Split a descriptive brand ("Primed Pine 1x4 (16 ft)") into a bold main
@@ -10727,21 +10850,6 @@ function renderMaterialsToggle() {
           <span class="buck-switch-main">
             <span class="buck-switch-name">${escHtml(item.name)}</span>
             <span class="buck-switch-state">${on ? "In quote" : "Already bucked — tap to add"}</span>
-          </span>
-          <span class="buck-switch-track"><span class="buck-switch-thumb"></span></span>
-        </button>
-        ${on
-          ? `<div class="seg seg-rail mt-2" style="max-width:none">${btns}</div>`
-          : ""}
-      </div>`;
-    }
-    if (item.id === "trim_board") {
-      const on = !!STATE.trimEnabled;
-      return `<div>
-        <button type="button" data-trim-toggle role="switch" aria-checked="${on}" class="buck-switch ${on ? "on" : ""}" title="Header, jambs &amp; sill trim on every opening (all 4 sides) + 18-ga finish nails — priced off the opening footage">
-          <span class="buck-switch-main">
-            <span class="buck-switch-name">${escHtml(item.name)}</span>
-            <span class="buck-switch-state">${on ? "In quote" : "Not included — tap to add"}</span>
           </span>
           <span class="buck-switch-track"><span class="buck-switch-thumb"></span></span>
         </button>
@@ -14879,6 +14987,9 @@ function resetAll() {
     storageMonthlyCost: "",
     projectedMonths: "1",
     trimEnabled: false,
+    trimType: "pine",
+    trimWidth: "1x4",
+    trimLength: 16,
   };
   saveState(STATE);
   clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
@@ -15646,6 +15757,9 @@ function applyJobToState(j) {
   STATE.storageMonthlyCost = j.storageMonthlyCost || "";
   STATE.projectedMonths = j.projectedMonths || "1";
   STATE.trimEnabled = !!j.trimEnabled;
+  STATE.trimType = j.trimType || "pine";
+  STATE.trimWidth = j.trimWidth || "1x4";
+  STATE.trimLength = j.trimLength || 16;
   // Restore the per-floor takeoff ONLY when the multiplier will actually run
   // (Like Floors on) — that's what stops a reload re-multiplying. With Like
   // Floors off (incl. legacy jobs saved with a multiplied building total), the
@@ -18716,6 +18830,22 @@ function buildAdminUI() {
     const sp = document.getElementById("adminBradSpacing"); if (sp) sp.value = tr.bradNailSpacingIn ?? 16;
     const ss2 = DATA.config.swingStage || {}; const ms = document.getElementById("adminSwingMinStories"); if (ms) ms.value = ss2.minStories ?? 4;
     const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
+  // Interior trim 3×3 price grid ($/LF per material × width)
+  { const tgc = DATA.config.trim || {}; const grid = document.getElementById("adminTrimGrid");
+    if (grid) {
+      const types = Array.isArray(tgc.types) ? tgc.types : [];
+      const widths = Array.isArray(tgc.widths) ? tgc.widths : [];
+      const pp = tgc.pricePerLF || {};
+      const wLabel = w => String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
+      let h = `<div class="tg-h"></div>` + widths.map(w => `<div class="tg-h">${escHtml(wLabel(w))}</div>`).join("");
+      types.forEach(t => {
+        h += `<div class="tg-rowlab">${escHtml(t.name)}</div>` + widths.map(w => {
+          const v = (pp[t.id] || {})[w];
+          return `<input type="text" inputmode="decimal" autocomplete="off" data-trim-price data-type="${escHtml(t.id)}" data-width="${escHtml(w)}" value="${v != null ? v : ""}" placeholder="0.00" />`;
+        }).join("");
+      });
+      grid.innerHTML = h;
+    } }
   updateEffReadout();
   { const effIn = document.getElementById("adminRepeatFloorEff"); if (effIn && !effIn._effWired) { effIn.addEventListener("input", updateEffReadout); effIn._effWired = true; } }
   updateCrewCostReadout();
@@ -19530,6 +19660,16 @@ function commitAdmin() {
   if (!isNaN(brPrice) && brPrice >= 0) DATA.config.trim.bradNailBoxPrice = brPrice;
   const brSpacing = parseFloat(document.getElementById("adminBradSpacing").value);
   if (!isNaN(brSpacing) && brSpacing >= 4 && brSpacing <= 48) DATA.config.trim.bradNailSpacingIn = brSpacing;
+  // Interior trim 3×3 price grid
+  DATA.config.trim.pricePerLF = DATA.config.trim.pricePerLF || {};
+  document.querySelectorAll("#adminTrimGrid [data-trim-price]").forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (isNaN(v) || v < 0) return;
+    const t = inp.dataset.type, w = inp.dataset.width;
+    DATA.config.trim.pricePerLF[t] = DATA.config.trim.pricePerLF[t] || {};
+    DATA.config.trim.pricePerLF[t][w] = v;
+  });
+  if (DATA.config.trim.unverified) DATA.config.trim.unverified = false;
   const ssMin = parseInt(document.getElementById("adminSwingMinStories").value, 10);
   if (!isNaN(ssMin) && ssMin >= 2 && ssMin <= 20) DATA.config.swingStage.minStories = ssMin;
   const hCap = parseFloat(document.getElementById("adminHeightCap").value);
@@ -24402,6 +24542,17 @@ function init() {
       if (!btn) return;
       STATE.variants = STATE.variants || {};
       STATE.variants[btn.dataset.varCat] = btn.dataset.varId;
+      render();
+    });
+    // Interior-trim dimension dropdowns (type / width / length) — one shared
+    // trim spec for the whole job; update in place and re-render.
+    _matRow.addEventListener("change", e => {
+      const sel = e.target.closest("[data-trim]");
+      if (!sel) return;
+      const k = sel.getAttribute("data-trim");
+      if (k === "type") STATE.trimType = sel.value;
+      else if (k === "width") STATE.trimWidth = sel.value;
+      else if (k === "length") STATE.trimLength = parseInt(sel.value, 10) || sel.value;
       render();
     });
     _matRow._wired = true;
