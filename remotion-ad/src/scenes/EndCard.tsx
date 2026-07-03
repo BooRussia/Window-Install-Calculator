@@ -35,7 +35,22 @@ export const EndCard: React.FC = () => {
     <AbsoluteFill style={{ background: T.navy, overflow: 'hidden' }}>
       <AbsoluteFill style={{ background: T.heroAmbient, opacity: 0.5 + breathe * 0.25 }} />
       <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', opacity: 1 - fadeOut }}>
-        <AnchorGlyph size={128} draw={draw} glow strokeWidth={8} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
+          <AnchorGlyph size={110} draw={draw} glow strokeWidth={8} />
+          <span
+            style={{
+              fontFamily: INTER,
+              fontWeight: 800,
+              fontSize: 88,
+              letterSpacing: '-0.045em',
+              color: T.text1,
+              opacity: win(f, 26, 42),
+              lineHeight: 1,
+            }}
+          >
+            Anchor
+          </span>
+        </div>
 
         <div style={{ marginTop: 40, textAlign: 'center' }}>
           <div

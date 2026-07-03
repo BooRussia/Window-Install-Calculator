@@ -91,12 +91,12 @@ export const PlanSheet: React.FC<{
               <div
                 style={{
                   position: 'absolute',
-                  right: -width * 0.012,
+                  right: width * 0.025,
                   top: '50%',
-                  transform: `translate(100%, -50%) scale(${hi})`,
+                  transform: `translate(0, -50%) scale(${hi})`,
                   background: 'linear-gradient(180deg,#d8b765,#b58f4a)',
                   color: '#1a1206',
-                  fontSize: width * 0.0148,
+                  fontSize: width * 0.0138,
                   fontWeight: 900,
                   borderRadius: 999,
                   padding: `${width * 0.004}px ${width * 0.012}px`,

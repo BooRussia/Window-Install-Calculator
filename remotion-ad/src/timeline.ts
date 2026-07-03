@@ -17,7 +17,7 @@ export const SC = {
 
 /** The honest stopwatch: runs 1:1 with the film. */
 export const TIMER_START = 400; // job-name focus — first input
-export const TIMER_STOP = 1580; // customer quote PDF fully composed
+export const TIMER_STOP = 1612; // "Quote approved" — the job story ends here
 export const timerSeconds = (frame: number) =>
   Math.max(0, (Math.min(frame, TIMER_STOP) - TIMER_START) / 30);
 export const timerLabel = (frame: number) => {

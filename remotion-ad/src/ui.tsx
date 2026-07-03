@@ -290,7 +290,7 @@ export const Control: React.FC<{
       }}
     >
       <span style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>
-        {value || placeholder}
+        {value || (focused ? '' : placeholder)}
         {caret ? (
           <span
             style={{

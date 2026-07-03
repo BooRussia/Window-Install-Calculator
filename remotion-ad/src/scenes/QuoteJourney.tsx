@@ -141,11 +141,29 @@ const AntonOverlay: React.FC<{
   x?: number;
   y?: number;
   size?: number;
-}> = ({ lines, from, to, frame, fps, sub, x = 520, y = 806, size = 72 }) => {
+  scrim?: boolean;
+}> = ({ lines, from, to, frame, fps, sub, x = 520, y = 806, size = 72, scrim = false }) => {
   if (frame < from || frame > to + 14) return null;
   const out = easeOutWin(frame, to, to + 12);
   return (
-    <div style={{ position: 'absolute', left: x, top: y, zIndex: 40, opacity: 1 - out, transform: `translateY(${out * 26}px)` }}>
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        zIndex: 40,
+        opacity: 1 - out,
+        transform: `translateY(${out * 26}px)`,
+        ...(scrim
+          ? {
+              background: 'rgba(2,6,23,0.82)',
+              borderRadius: 18,
+              padding: '18px 28px',
+              backdropFilter: 'blur(6px)',
+            }
+          : {}),
+      }}
+    >
       {lines.map((l, i) => {
         const p = springIn(frame, fps, from + i * 12, 20);
         return (
@@ -220,10 +238,12 @@ export const QuoteJourney: React.FC = () => {
     windows: f >= B.windows + 6 ? '27' : '0',
     doorsSummary: f >= B.goldCascade + 30 ? '1 door · 3 panels · 12 LF' : undefined,
     aiGlow,
-    // scroll down to the LF input for the math beats, back up before the upload click
+    // scroll down to the LF input for the math beats, back up before the upload
+    // click, then nudge once the AI badges add height so WINDOWS stays in frame
     scrollY:
       interpolate(f, [B.ddPick + 14, B.lfFocus], [0, 240], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) -
-      interpolate(f, [B.aiDim, B.aiDim + 20], [0, 240], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+      interpolate(f, [B.aiDim, B.aiDim + 20], [0, 240], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) +
+      interpolate(f, [B.goldCascade + 10, B.goldCascade + 34], [0, 52], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
   };
 
   /* ---------------- price math ---------------- */
@@ -253,7 +273,7 @@ export const QuoteJourney: React.FC = () => {
   const pdfP = win(f, B.pdfIn, B.pdfIn + 22);
 
   // dim the stage while the modal + plan scan own the frame; restore on the hit
-  const stageDim = 1 - 0.75 * win(f, B.aiDim, B.aiDim + 16) + 0.75 * win(f, B.hit, B.hit + 14);
+  const stageDim = 1 - 0.88 * win(f, B.aiDim, B.aiDim + 16) + 0.88 * win(f, B.hit, B.hit + 14);
 
   /* camera: locked off — element motion carries the energy, nothing crops */
   const camScale = 1;
@@ -322,7 +342,7 @@ export const QuoteJourney: React.FC = () => {
                     Get an instant price
                   </div>
                   <div style={{ fontFamily: INTER, fontSize: 18, color: T.text4, marginTop: 12, maxWidth: 620, textAlign: 'center', lineHeight: 1.5 }}>
-                    Tap a sample job below to fill it in instantly — or enter your own in a few taps.
+                    Tap a sample job below to fill it in instantly — or enter your own in a few{' '}taps.
                   </div>
                   <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
                     {['240 ft · Concrete block · Impact glass · 2-story', '180 ft · Wood frame · Standard glass · 1-story'].map((c) => (
@@ -356,7 +376,14 @@ export const QuoteJourney: React.FC = () => {
                   {/* stat cards + breakdown */}
                   {f >= B.bdIn ? (
                     <div style={{ position: 'absolute', left: 0, right: 0, top: 420, display: 'flex', justifyContent: 'center' }}>
-                      <div style={{ transform: `translateY(${(1 - springIn(f, fps, B.bdIn, 24)) * 60}px)`, opacity: springIn(f, fps, B.bdIn, 24) }}>
+                      <div
+                        style={{
+                          transform: `translateY(${(1 - springIn(f, fps, B.bdIn, 24)) * 60}px)`,
+                          opacity: springIn(f, fps, B.bdIn, 24),
+                          // grow the card with the row cascade so it never sits mostly empty
+                          clipPath: `inset(0 0 ${(1 - win(f, B.bdRows, B.bdRows + 96)) * 52}% 0 round 16px)`,
+                        }}
+                      >
                         <BreakdownCard
                           rowsVisible={interpolate(f, [B.bdRows, B.bdRows + 88], [0, 9], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}
                           perLf="$56.85"
@@ -488,9 +515,17 @@ export const QuoteJourney: React.FC = () => {
         </div>
       </div>
 
-      {/* PLAN SCAN — center stage, above app */}
+      {/* PLAN SCAN — center stage, above app (opaque fast so layers never double-expose) */}
       {planP > 0.01 ? (
-        <div style={{ position: 'absolute', left: 560, top: 200, opacity: planP, transform: `scale(${0.94 + 0.06 * planP})` }}>
+        <div
+          style={{
+            position: 'absolute',
+            left: 560,
+            top: 200 + (1 - planP) * 46,
+            opacity: Math.min(1, planP * 3),
+            transform: `scale(${0.94 + 0.06 * planP})`,
+          }}
+        >
           <div style={{ position: 'relative' }}>
             <PlanSheet width={900} rowHi={rowHi} dim={0.12} />
             <ScanBeam p={scanP} width={900} height={900 * 0.72} />
@@ -542,8 +577,8 @@ export const QuoteJourney: React.FC = () => {
             <div
               style={{
                 position: 'absolute',
-                left: interpolate(sheetFly, [0, 1], [1700, 900]),
-                top: interpolate(sheetFly, [0, 1], [1000, 560]),
+                left: interpolate(sheetFly, [0, 1], [1700, 1150]),
+                top: interpolate(sheetFly, [0, 1], [1000, 640]),
                 transform: `rotate(${(1 - sheetFly) * 14 - 3}deg) scale(${0.32})`,
                 transformOrigin: 'top left',
                 opacity: Math.min(1, sheetFly * 2),
@@ -589,7 +624,7 @@ export const QuoteJourney: React.FC = () => {
               />
             </div>
             {/* signature draw + approved badge */}
-            <svg width="240" height="70" viewBox="0 0 240 70" style={{ position: 'absolute', left: 60, bottom: 88 }}>
+            <svg width="200" height="58" viewBox="0 0 240 70" style={{ position: 'absolute', left: 56, bottom: 66 }}>
               <path
                 d="M10 48 C 30 14 44 60 62 40 C 76 24 82 52 100 40 C 118 28 122 50 142 36 C 158 25 170 46 194 30 C 206 22 218 34 230 26"
                 fill="none"
@@ -605,11 +640,16 @@ export const QuoteJourney: React.FC = () => {
               <div
                 style={{
                   position: 'absolute',
-                  right: -230,
-                  top: 300,
+                  right: -348,
+                  top: 470,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
+                  gap: 14,
+                  background: 'rgba(15,23,42,0.95)',
+                  border: '1px solid rgba(16,185,129,0.45)',
+                  borderRadius: 16,
+                  padding: '16px 22px',
+                  boxShadow: '0 24px 48px -12px rgba(0,0,0,0.7)',
                   transform: `scale(${popIn(f, fps, B.approved)})`,
                 }}
               >
@@ -693,7 +733,7 @@ export const QuoteJourney: React.FC = () => {
       {/* Anton copy overlays */}
       <AntonOverlay frame={f} fps={fps} lines={['NO SPREADSHEETS.', 'JUST TAPS.']} from={96} to={210} x={560} y={720} size={68} />
       <AntonOverlay frame={f} fps={fps} lines={['TYPE THE FOOTAGE.']} from={B.key1 - 4} to={B.key3 + 30} x={1180} y={190} size={58} />
-      <AntonOverlay frame={f} fps={fps} lines={['WATCH IT PRICE ITSELF.']} from={B.bdRows + 30} to={B.bdTotal + 28} x={520} y={880} size={62} sub="Real materials. Real crew-hours. To the foot." />
+      <AntonOverlay frame={f} fps={fps} lines={['WATCH IT PRICE ITSELF.']} from={B.bdRows + 30} to={B.bdTotal + 28} x={506} y={866} size={60} sub="Real materials. Real crew-hours. To the foot." scrim />
       <AntonOverlay frame={f} fps={fps} lines={['OR DON’T TYPE AT ALL.']} from={B.aiDim + 4} to={B.modalIn + 30} x={520} y={140} size={78} />
       <AntonOverlay frame={f} fps={fps} lines={['AI READS THE PLAN.']} from={B.toastIn + 26} to={B.priceBridge + 56} x={520} y={96} size={72} sub="Every opening. Counts, sizes, types — in seconds." />
       <AntonOverlay frame={f} fps={fps} lines={['ENTER IT ONCE.', 'GET EVERY DOCUMENT.']} from={B.filesIn + 12} to={B.viewClick - 6} x={520} y={780} size={64} />

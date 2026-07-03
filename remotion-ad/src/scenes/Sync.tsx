@@ -118,8 +118,10 @@ export const Sync: React.FC = () => {
               </div>
               {jobRow('Smith Residence', '$23,666', popIn(f, fps, 64), true)}
               {jobRow('Hernandez remodel', '$11,480', 1)}
+              {jobRow('Palm Bay duplex', '$9,275', 1)}
+              {jobRow('Ortega lanai', '$6,830', 1)}
             </div>
-            {/* real mobile sticky bottom bar */}
+            {/* synced-job bar */}
             <div
               style={{
                 position: 'absolute',
@@ -135,8 +137,10 @@ export const Sync: React.FC = () => {
               }}
             >
               <div>
-                <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: T.text4 }}>Selling price</div>
-                <div style={{ fontFamily: INTER, fontSize: 10, fontWeight: 600, color: T.text5 }}>@ 35% markup</div>
+                <div style={{ fontFamily: INTER, fontSize: 11, fontWeight: 700, color: T.text4 }}>Smith Residence</div>
+                <div style={{ fontFamily: INTER, fontSize: 10, fontWeight: 600, color: T.emerald, opacity: Math.min(1, popIn(f, fps, 66)) }}>
+                  ✓ Synced just now
+                </div>
               </div>
               <div style={{ fontFamily: INTER, fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em', color: T.text0, ...TNUM }}>
                 $23,666

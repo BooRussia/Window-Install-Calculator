@@ -9,9 +9,9 @@ import { Card } from '../ui';
  * S10 (local 0–120): the three real plans, verbatim taglines + one display-size
  * feature line each, then the trial banner.
  */
-const TIERS = [
+const TIERS: { name: string; price: string; tag: string; line: string; line2?: string; popular?: boolean }[] = [
   { name: 'Starter', price: '$39', tag: 'Small shops doing a job or two a month', line: '25 quotes / mo' },
-  { name: 'Pro', price: '$99', tag: 'Active contractors quoting every week', line: '100 AI plan reads / mo', popular: true },
+  { name: 'Pro', price: '$99', tag: 'Active contractors quoting every week', line: '200 quotes / mo', line2: '100 AI plan reads / mo', popular: true },
   { name: 'Shop', price: '$199', tag: 'High-volume shops and growing teams', line: 'Unlimited quotes' },
 ];
 
@@ -105,6 +105,21 @@ export const Plans: React.FC = () => {
                 >
                   {t.line}
                 </div>
+                {t.line2 ? (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontFamily: INTER,
+                      fontSize: 21,
+                      fontWeight: 800,
+                      color: T.goldHi,
+                      opacity: win(f, 48 + i * 8, 60 + i * 8),
+                      ...TNUM,
+                    }}
+                  >
+                    {t.line2}
+                  </div>
+                ) : null}
               </Card>
             );
           })}

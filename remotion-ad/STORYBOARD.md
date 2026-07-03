@@ -1,4 +1,4 @@
-# Anchor — "THE 52-SECOND QUOTE" (master cut)
+# Anchor — "THE 40-SECOND QUOTE" (master cut)
 
 1920×1080 · 30fps · 2100 frames (70s) · silent autoplay ad.
 Synthesis of three storyboards (speed-run spine + problem-board's price bridge + brand-film polish),
@@ -7,8 +7,8 @@ judged by a creative-director pass. Every string, color, and number is verbatim 
 ## Devices
 
 - **The honest timer**: a stopwatch HUD (top-right) runs 1:1 with the film from the first
-  input (f170) and freezes at f1742 → **0:52.4** — proving the landing's "under 60 seconds"
-  claim on-screen.
+  input (f400) and freezes the moment the customer signs — "Quote approved", f1612 →
+  **0:40.4** — proving the landing's "under 60 seconds" claim on-screen.
 - **One number set** (all verified in-app): Smith Residence — 240 LF · 27 windows ·
   New · Block · Impact · 2 Story · Viwinco · Nail-fin. Cost $13,644.00
   (materials $6,144 + labor $7,500) → 35% markup → **$18,419.40** ($76.75/LF selling,
@@ -28,7 +28,7 @@ judged by a creative-director pass. Every string, color, and number is verbatim 
 | 4. AI wow | 700–1160 | "NOW SKIP THE TYPING." · Upload modal (CRT open, credits meter) · plan sheet + scan beam · chips arc to rail · Applied toast (60f hold) · fields flip gold w/ AI badges · price $18,419.40→$23,666.00 · "The stuff you'd forget — counted." · FL approvals card · CUT LIST READY · "1 AI read used" |
 | 5. Save + documents | 1160–1480 | Save job press · "Job saved" toast · Job Files cascade ("ONE JOB. FOUR DOCUMENTS.") · Customer Quote PDF rises, builds top-down to $23,666 |
 | 6. E-sign + sync | 1480–1720 | PDF match-cuts into phone · share page · signature draws itself · "Quote approved" · phone+desktop sync arc ("EVERY JOB. EVERY DEVICE.") |
-| 7. Timer payoff | 1720–1830 | Everything falls away · timer freezes 0:52.4, flies center, 5× scale + ring shockwave · "UNDER 60 SECONDS." |
+| 7. Timer payoff | 1790–1900 | Everything falls away · the frozen 0:40.4 stopwatch lands center at 5× + ring shockwave · "UNDER 60 SECONDS." |
 | 8. Plans | 1830–1965 | Starter $39 / Pro $99 (Most popular) / Shop $199 · "14-day free trial · 8 quotes · No credit card required" |
 | 9. End card | 1965–2100 | Anchor glyph stroke-draws · wordmark · "Anchor your profit. Reel in your time." · CTA "Get Started Free" · ANCHORQUOTING.COM (scroll-cue treatment) · trust chips · scroll-cue line pulse out |
 
