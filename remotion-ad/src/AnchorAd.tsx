@@ -3,8 +3,7 @@ import { AbsoluteFill, Sequence, useCurrentFrame } from 'remotion';
 import { T } from './theme';
 import { SC } from './timeline';
 import { TimerChip } from './Timer';
-import { Pain } from './scenes/Pain';
-import { Pivot } from './scenes/Pivot';
+import { BrandOpen } from './scenes/BrandOpen';
 import { QuoteJourney } from './scenes/QuoteJourney';
 import { Sync } from './scenes/Sync';
 import { TimerPayoff } from './scenes/TimerPayoff';
@@ -15,11 +14,8 @@ export const AnchorAd: React.FC = () => {
   const frame = useCurrentFrame();
   return (
     <AbsoluteFill style={{ backgroundColor: T.navy }}>
-      <Sequence from={SC.painA.from} durationInFrames={SC.painB.to - SC.painA.from} name="Pain">
-        <Pain />
-      </Sequence>
-      <Sequence from={SC.pivot.from} durationInFrames={SC.pivot.to - SC.pivot.from} name="Pivot">
-        <Pivot />
+      <Sequence from={SC.open.from} durationInFrames={SC.open.to - SC.open.from} name="BrandOpen">
+        <BrandOpen />
       </Sequence>
       <Sequence from={SC.journey.from} durationInFrames={SC.journey.to - SC.journey.from} name="QuoteJourney">
         <QuoteJourney />

@@ -22,20 +22,22 @@ import { ExtractChip, PlanSheet, ScanBeam } from '../plan';
  *   SETUP 0–260 · MATH 260–560 · AI 560–990 · DOCS 990–1280
  * ------------------------------------------------------------------------- */
 
-// ---- beat map (local frames)
+// ---- beat map (local frames). Interactions run strictly top-to-bottom down the
+// rail so the cursor never backtracks; each state flip is keyed to the same frame
+// the cursor clicks its control (Glass stays on the Florida-default Impact — the
+// "everything's pre-set" callout — so it needs no click).
 const B = {
   assemble: 0,
-  nameFocus: 40, // == TIMER_START (abs 400)
-  tapBlock: 100,
-  tapStories: 130,
-  tapImpact: 165,
-  ddOpen: 190,
-  ddPick: 222,
-  lfFocus: 262,
-  key1: 275, // "2"    → $153.50
-  key2: 292, // "24"   → $1,842.00
-  key3: 309, // "240"  → $18,419.40
-  windows: 340,
+  nameFocus: 40, // Job name (y150)
+  tapBlock: 104, // House · Block Framed (y533)
+  tapStories: 138, // Stories · 2 Story (y630)
+  ddOpen: 170, // Manufacturer (y723)
+  ddPick: 196, // Manufacturer · Viwinco
+  lfFocus: 232, // LF input (y870)
+  key1: 246, // "2"    → $153.50
+  key2: 266, // "24"   → $1,842.00
+  key3: 286, // "240"  → $18,419.40
+  windows: 322, // Windows pill (y1036)
   cards: 382,
   bdIn: 412,
   bdRows: 424, // rows cascade start
@@ -74,34 +76,38 @@ const COST_1 = 13644;
 const COST_2 = 17530.37;
 
 // ---- cursor waypoints {frame, x, y, click?}
+// Coordinates are the real on-screen field centers at scrollY=0 (verified against
+// rendered stills). The rail does NOT scroll during the tap sequence, so a field
+// never moves out from under the cursor — every click lands on its own control.
 type Waypoint = { f: number; x: number; y: number; click?: boolean };
 const WAYPOINTS: Waypoint[] = [
-  { f: 0, x: 1500, y: 900 },
-  { f: 34, x: 250, y: 172, click: true }, // job name
-  { f: 78, x: 250, y: 172 }, // hold while typing
-  { f: B.tapBlock - 8, x: 130, y: 560 },
-  { f: B.tapBlock, x: 130, y: 560, click: true }, // Block Framed
-  { f: B.tapStories - 8, x: 165, y: 655 },
-  { f: B.tapStories, x: 165, y: 655, click: true }, // 2 Story
-  { f: B.tapImpact - 8, x: 110, y: 968 },
-  { f: B.tapImpact, x: 110, y: 968, click: true }, // Impact
-  { f: B.ddOpen - 8, x: 220, y: 760 },
-  { f: B.ddOpen, x: 220, y: 760, click: true }, // manufacturer dd
-  { f: B.ddPick, x: 240, y: 830, click: true }, // Viwinco
-  { f: B.lfFocus - 6, x: 230, y: 880 },
-  { f: B.lfFocus, x: 230, y: 880, click: true }, // LF input
-  { f: B.windows, x: 180, y: 1020, click: true }, // windows
-  { f: B.windows + 20, x: 600, y: 700 },
-  { f: B.uploadClick - 10, x: 205, y: 258 },
-  { f: B.uploadClick, x: 205, y: 258, click: true }, // upload btn
-  { f: B.choosePress - 8, x: 960, y: 700 },
-  { f: B.choosePress, x: 960, y: 700, click: true }, // choose plan file
-  { f: B.choosePress + 14, x: 1400, y: 940 },
-  { f: B.savePress - 12, x: 1730, y: 985 },
-  { f: B.savePress, x: 1730, y: 985, click: true }, // save job FAB
-  { f: B.viewClick - 10, x: 645, y: 428 },
-  { f: B.viewClick, x: 645, y: 428, click: true }, // view quote
-  { f: B.viewClick + 16, x: 1560, y: 950 },
+  { f: 0, x: 1400, y: 880 },
+  { f: B.nameFocus - 8, x: 210, y: 150 },
+  { f: B.nameFocus, x: 210, y: 150, click: true }, // Job name
+  { f: B.nameFocus + 34, x: 210, y: 150 }, // dwell through typing
+  { f: B.tapBlock - 10, x: 84, y: 533 },
+  { f: B.tapBlock, x: 84, y: 533, click: true }, // House · Block Framed
+  { f: B.tapStories - 10, x: 135, y: 630 },
+  { f: B.tapStories, x: 135, y: 630, click: true }, // Stories · 2 Story
+  { f: B.ddOpen - 10, x: 210, y: 723 },
+  { f: B.ddOpen, x: 210, y: 723, click: true }, // Manufacturer (open)
+  { f: B.ddPick, x: 210, y: 723, click: true }, // Manufacturer · Viwinco
+  { f: B.lfFocus - 10, x: 210, y: 870 },
+  { f: B.lfFocus, x: 210, y: 870, click: true }, // LF input
+  { f: B.key3 + 8, x: 210, y: 870 }, // dwell through typing
+  { f: B.windows - 8, x: 124, y: 1036 },
+  { f: B.windows, x: 124, y: 1036, click: true }, // Windows pill
+  { f: B.aiDim - 14, x: 210, y: 241 }, // drift up to the AI upload button
+  { f: B.uploadClick - 8, x: 210, y: 241 },
+  { f: B.uploadClick, x: 210, y: 241, click: true }, // Upload Window Schedule
+  { f: B.choosePress - 10, x: 960, y: 606 },
+  { f: B.choosePress, x: 960, y: 606, click: true }, // Choose plan file (modal)
+  { f: B.choosePress + 16, x: 1320, y: 820 }, // away for the scan
+  { f: B.savePress - 12, x: 1770, y: 1008 },
+  { f: B.savePress, x: 1770, y: 1008, click: true }, // Save job FAB
+  { f: B.viewClick - 10, x: 805, y: 405 },
+  { f: B.viewClick, x: 805, y: 405, click: true }, // View · Customer Quote card
+  { f: B.viewClick + 16, x: 1200, y: 620 },
 ];
 
 const cursorAt = (f: number) => {
@@ -234,16 +240,17 @@ export const QuoteJourney: React.FC = () => {
     lf: lfStr,
     lfCaret: f >= B.lfFocus && f < B.windows - 4,
     lfHint: f >= B.windows + 14 ? '≈ 8.9 LF / window' : undefined,
-    glass: f >= B.tapImpact ? 0 : 1,
+    glass: 0, // Impact — pre-set Florida default (no click needed)
     windows: f >= B.windows + 6 ? '27' : '0',
     doorsSummary: f >= B.goldCascade + 30 ? '1 door · 3 panels · 12 LF' : undefined,
     aiGlow,
-    // scroll down to the LF input for the math beats, back up before the upload
-    // click, then nudge once the AI badges add height so WINDOWS stays in frame
-    scrollY:
-      interpolate(f, [B.ddPick + 14, B.lfFocus], [0, 240], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) -
-      interpolate(f, [B.aiDim, B.aiDim + 20], [0, 240], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) +
-      interpolate(f, [B.goldCascade + 10, B.goldCascade + 34], [0, 52], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+    // The rail is locked at scrollY=0 through the whole tap sequence (all fields
+    // fit in frame), so clicks never miss. It only nudges up once the AI badges
+    // add height, to keep the WINDOWS row visible — and no clicking happens then.
+    scrollY: interpolate(f, [B.goldCascade + 10, B.goldCascade + 34], [0, 52], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }),
   };
 
   /* ---------------- price math ---------------- */
@@ -302,7 +309,7 @@ export const QuoteJourney: React.FC = () => {
   const specTokens: [string, number][] = [
     ['New', B.tapBlock + 4],
     ['Block', B.tapBlock + 4],
-    ['Impact', B.tapImpact + 4],
+    ['Impact', B.tapStories + 4],
     ['Viwinco', B.ddPick + 6],
     ['Nail-fin', B.ddPick + 6],
   ];
@@ -731,12 +738,15 @@ export const QuoteJourney: React.FC = () => {
       ) : null}
 
       {/* Anton copy overlays */}
-      <AntonOverlay frame={f} fps={fps} lines={['NO SPREADSHEETS.', 'JUST TAPS.']} from={96} to={210} x={560} y={720} size={68} />
-      <AntonOverlay frame={f} fps={fps} lines={['TYPE THE FOOTAGE.']} from={B.key1 - 4} to={B.key3 + 30} x={1180} y={190} size={58} />
-      <AntonOverlay frame={f} fps={fps} lines={['WATCH IT PRICE ITSELF.']} from={B.bdRows + 30} to={B.bdTotal + 28} x={506} y={866} size={60} sub="Real materials. Real crew-hours. To the foot." scrim />
-      <AntonOverlay frame={f} fps={fps} lines={['OR DON’T TYPE AT ALL.']} from={B.aiDim + 4} to={B.modalIn + 30} x={520} y={140} size={78} />
-      <AntonOverlay frame={f} fps={fps} lines={['AI READS THE PLAN.']} from={B.toastIn + 26} to={B.priceBridge + 56} x={520} y={96} size={72} sub="Every opening. Counts, sizes, types — in seconds." />
-      <AntonOverlay frame={f} fps={fps} lines={['ENTER IT ONCE.', 'GET EVERY DOCUMENT.']} from={B.filesIn + 12} to={B.viewClick - 6} x={520} y={780} size={64} />
+      {/* Copy overlays — all share one left margin (x=500) and two consistent
+          bands: lower-third (y≈806) over live UI, upper (y≈108) when the stage
+          is dimmed for the AI beats. Scrim on every one for phone legibility. */}
+      <AntonOverlay frame={f} fps={fps} lines={['NO SPREADSHEETS.', 'JUST TAPS.']} from={70} to={B.tapStories + 20} x={500} y={796} size={62} scrim />
+      <AntonOverlay frame={f} fps={fps} lines={['TYPE THE FOOTAGE.']} from={B.lfFocus - 4} to={B.key3 + 34} x={500} y={806} size={62} scrim />
+      <AntonOverlay frame={f} fps={fps} lines={['WATCH IT PRICE ITSELF.']} from={B.bdRows + 30} to={B.bdTotal + 28} x={500} y={806} size={60} sub="Real materials. Real crew-hours. To the foot." scrim />
+      <AntonOverlay frame={f} fps={fps} lines={['OR DON’T TYPE AT ALL.']} from={B.aiDim + 4} to={B.modalIn + 30} x={500} y={108} size={74} scrim />
+      <AntonOverlay frame={f} fps={fps} lines={['AI READS THE PLAN.']} from={B.toastIn + 26} to={B.priceBridge + 56} x={500} y={108} size={70} sub="Every opening. Counts, sizes, types — in seconds." scrim />
+      <AntonOverlay frame={f} fps={fps} lines={['ENTER IT ONCE.', 'GET EVERY DOCUMENT.']} from={B.filesIn + 12} to={B.viewClick - 6} x={500} y={796} size={62} scrim />
 
       {/* hit flash */}
       {hitFlash > 0 ? <AbsoluteFill style={{ background: '#fdf2d0', opacity: hitFlash * 0.85, zIndex: 55 }} /> : null}
