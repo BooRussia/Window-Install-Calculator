@@ -293,8 +293,14 @@
   .seg-btn:hover { color: #cbd5e1; }
   .seg-btn:active { transform: scale(0.97); }
   /* Per-job "Materials — this job" toggles: full-width, equal buttons that fit
-     even a narrow rail (3 buck sizes). Slightly tighter so labels never clip. */
-  .seg-rail .seg-btn { padding: 8px 6px; font-size: 12px; min-width: 0; }
+     even a narrow rail. Buck sizes ("2×6 PT") are short, but trim variants carry
+     long descriptive names ("Primed Pine 1×4 (16 ft)") — let them wrap and
+     center instead of clipping/overlapping on one nowrap line. */
+  .seg-rail .seg-btn { padding: 7px 6px; font-size: 12px; min-width: 0;
+    white-space: normal; line-height: 1.18; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  /* Two-tier trim label: material/profile bold on top, length muted beneath. */
+  .seg-btn .seg-sub { display: block; font-size: 10px; font-weight: 600; opacity: 0.72; margin-top: 1px; }
   /* "Materials — this job" — collapsible per-job variable-material picker */
   .mat-card { border: 1px solid rgba(51,65,85,0.6); border-radius: 16px; background: rgba(15,23,42,0.4); overflow: hidden; }
   .mat-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 12px 14px; -webkit-tap-highlight-color: transparent; }
@@ -10685,6 +10691,9 @@ let _matToggleOpen = true;
 function renderMaterialsToggle() {
   const wrap = document.getElementById("materialsRow");
   if (!wrap) return;
+  // Normalize dimension crosses ("1x4" → "1×4") so trim labels match the buck
+  // "2×6 PT" typography. Purely cosmetic — the stored brand string is untouched.
+  const segMainLabel = str => String(str || "").replace(/(\d)\s*[xX]\s*(\d)/g, "$1×$2");
   const multi = (DATA.costItems || []).filter(c => {
     if (!Array.isArray(c.variants) || c.variants.length <= 1) return false;
     // Wood bucking carries its own in-quote toggle, so keep it listed on any
@@ -10699,9 +10708,18 @@ function renderMaterialsToggle() {
   STATE.variants = STATE.variants || {};
   const rows = multi.map(item => {
     const active = activeVariant(item);
-    const btns = item.variants.map(v => `
+    const btns = item.variants.map(v => {
+      // Split a descriptive brand ("Primed Pine 1x4 (16 ft)") into a bold main
+      // label + a muted length sub-line so long trim names read cleanly in the
+      // segmented control. Short labels (buck "2×6 PT", no parens) render as-is.
+      const m = String(v.brand || "").match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+      const label = m
+        ? `${escHtml(segMainLabel(m[1]))}<span class="seg-sub">${escHtml(m[2])}</span>`
+        : escHtml(segMainLabel(v.brand));
+      return `
       <button type="button" class="seg-btn ${active && v.id === active.id ? "active" : ""}"
-        data-var-cat="${item.id}" data-var-id="${escHtml(v.id)}">${escHtml(v.brand)}</button>`).join("");
+        data-var-cat="${item.id}" data-var-id="${escHtml(v.id)}">${label}</button>`;
+    }).join("");
     if (item.id === "wood_bucking") {
       const on = buckingIncluded();
       return `<div>
