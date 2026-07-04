@@ -640,7 +640,7 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
   pointer-events: none; z-index: 3;
   opacity: 0; visibility: hidden;
-  transition: opacity .3s ease, visibility .3s, left .15s linear;
+  transition: opacity .3s ease, visibility .3s;
 }
 .try-pill::before {
   content: ""; position: absolute; left: 50%; top: -4px; transform: translateX(-50%);
@@ -1268,10 +1268,12 @@ footer {
   var tryPill = document.getElementById("tryPill");
   var teaseDone = false;
   function runCalc(quiet) {
+    // q can be fractional mid-sweep (the tease glides with step="any");
+    // the readout stays integer, the gauges roll through the in-betweens
     var q = +slider.value;
     var hrs = Math.round(q * WEEKS * (OLD_S - NEW_S) / 3600);
     var eve = Math.round(hrs / 4);
-    qOut.textContent = q;
+    qOut.textContent = Math.round(q);
     if (hrsOdo) hrsOdo.setVal(hrs);
     if (eveOdo) eveOdo.setVal(eve);
     if (!quiet) {
@@ -1279,7 +1281,7 @@ footer {
       slider.setAttribute("aria-valuetext", q + " quotes a week — about " + hrs + " hours and " + eve + " evenings back per year");
       if (calcSr) calcSr.textContent = "About " + hrs + " hours and " + eve + " evenings per year";
     }
-    if (maxCap) maxCap.classList.toggle("show", q >= 15);
+    if (maxCap) maxCap.classList.toggle("show", Math.round(q) >= 15);
   }
   // "Try me!" pill rides the thumb (26px thumb, so center = 13px + f * (w - 26))
   function pillPos() {
@@ -1290,6 +1292,9 @@ footer {
   function dismissTease() {
     if (teaseDone) return;
     teaseDone = true;
+    // the glide runs with step="any" — hand the integer stops back to the user
+    slider.step = "1";
+    slider.value = Math.round(+slider.value);
     if (tryPill) tryPill.classList.add("gone");
     slider.classList.remove("hint");
   }
@@ -1522,22 +1527,25 @@ footer {
       // sweep can't dismiss itself — only a real touch does.
       if (teaseDone || !slider) return;
       slider.classList.add("hint");
+      slider.step = "any";                     // glide continuously; a real grab restores step=1
       pillPos();
       var pts = [[0, 5], [0.32, 8], [0.72, 3], [1, 5]];
-      tween(2400, 600, linear, function (t) {
+      tween(2600, 600, linear, function (t) {
         if (teaseDone) return;                 // user grabbed it mid-sweep
         var v = 5;
         for (var i = 1; i < pts.length; i++) {
           if (t <= pts[i][0]) {
             var lt = (t - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
-            lt = lt * lt * (3 - 2 * lt);       // smoothstep per segment
-            v = Math.round(pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * lt);
+            lt = lt * lt * (3 - 2 * lt);       // smoothstep per segment: eases to a stop at each turn
+            v = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * lt;
             break;
           }
         }
-        if (+slider.value !== v) { slider.value = v; runCalc(true); pillPos(); }
+        slider.value = v;
+        runCalc(true);
+        pillPos();
       }, function () {
-        if (!teaseDone) { slider.value = 5; runCalc(false); pillPos(); }
+        if (!teaseDone) { slider.step = "1"; slider.value = 5; runCalc(false); pillPos(); }
       });
     },
   };
