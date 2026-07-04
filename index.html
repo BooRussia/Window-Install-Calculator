@@ -1816,6 +1816,13 @@
     transition: border-color .25s ease, transform .25s ease;
   }
   .lp-card:hover { border-color: rgba(181,143,74,0.35); transform: translateY(-3px); }
+  /* See-it-in-action demo video frame — same card border convention, soft shadow, no hover jiggle */
+  .lp-demo-frame {
+    border: 1px solid rgba(30,41,59,0.9);
+    background: #020617;
+    box-shadow: 0 30px 70px -30px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  }
+  .lp-demo-cap { font-size: 12px; color: #64748b; font-weight: 500; }
   .lp-feature-card { transition: border-color .25s ease, transform .3s ease; }
   .lp-feature-card:hover { border-color: rgba(181,143,74,0.35); transform: scale(1.05); }
   /* "How it works" step number badge */
@@ -2996,6 +3003,9 @@
      we no longer hide it. The #lpFL background is the pre-fade-in state before
      the canvas reaches full opacity, matched to the shader's light bg. */
   [data-theme="light"] #lpFL { background: radial-gradient(900px 520px at 50% 38%, rgba(181,143,74,0.07), transparent 62%), #f3f4f7; }
+  /* See-it-in-action demo: match the other light cards' border, keep the caption muted */
+  [data-theme="light"] .lp-demo-frame { border-color: #e6e8ec; box-shadow: 0 20px 50px -24px rgba(15,23,42,0.22); }
+  [data-theme="light"] .lp-demo-cap { color: #64748b; }
   /* Sand footer: the tan band (#c8b083) is the same in both themes, but the
      inverted slate text washes out on it. Force solid dark-brown tones so the
      wordmark, tagline, and disclaimer stay legible on the sand. */
@@ -4669,6 +4679,21 @@
   </section>
 
   <!-- Pricing now lives in its own standalone #pricingScreen below — see further down -->
+
+  <!-- See-it-in-action demo: the looping AnchorLoop film (empty form → signed quote in 0:40.4) -->
+  <section id="lpDemo" class="scroll-mt-20 max-w-5xl mx-auto px-5 sm:px-6 pt-12 sm:pt-16 pb-20 sm:pb-28">
+    <div class="lp-reveal text-center">
+      <span class="lp-eyebrow">See it in action</span>
+      <h2 class="text-3xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-5">Watch a real job get quoted.</h2>
+      <p class="text-slate-400 mt-3 max-w-lg mx-auto">One take, honest clock &mdash; empty form to signed quote in 40 seconds. Sample rates; your rates make it exact.</p>
+    </div>
+    <div class="lp-reveal mt-8">
+      <div class="lp-demo-frame mx-auto rounded-2xl overflow-hidden" style="max-width:1000px;">
+        <video id="lpDemoVideo" src="anchor-demo-loop.mp4" poster="anchor-demo-poster.jpg" autoplay loop muted playsinline preload="metadata" aria-label="Demo: a full window job quoted, documented and signed in 40 seconds" style="width:100%;height:auto;display:block;cursor:pointer;"></video>
+      </div>
+      <p class="lp-demo-cap text-center mt-3">0:40.4 from first tap to signed quote.</p>
+    </div>
+  </section>
 
   <!-- CTA band -->
   <section class="max-w-4xl mx-auto px-5 sm:px-6 pb-16">
@@ -24744,6 +24769,47 @@ document.addEventListener("DOMContentLoaded", boot);
     }
   }, { rootMargin: "200px" });
   io.observe(fl);
+})();
+</script>
+
+<!-- ============================================================
+     See-it-in-action demo video: only plays while ≥35% on-screen,
+     pauses when scrolled away (saves battery / decode). Honors
+     prefers-reduced-motion: no autoplay, click-to-play. Click always
+     toggles. Fully null-guarded so non-landing views never throw.
+     ============================================================ -->
+<script>
+(function () {
+  var vid = document.getElementById("lpDemoVideo");
+  if (!vid) return;
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (reduce) {
+    // No auto-motion: strip autoplay so only the poster shows until the user clicks.
+    vid.removeAttribute("autoplay");
+    try { vid.pause(); } catch (e) {}
+  }
+
+  // Click toggles play/pause (works in both motion modes).
+  vid.addEventListener("click", function () {
+    if (vid.paused) { vid.play().catch(function () {}); }
+    else { vid.pause(); }
+  });
+
+  // Only auto-manage playback when motion is allowed.
+  if (!reduce && "IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        var e = entries[i];
+        if (e.isIntersecting && e.intersectionRatio >= 0.35) {
+          vid.play().catch(function () {});
+        } else {
+          vid.pause();
+        }
+      }
+    }, { threshold: [0, 0.35, 0.6] });
+    io.observe(vid);
+  }
 })();
 </script>
 

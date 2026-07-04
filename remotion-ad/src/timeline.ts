@@ -16,10 +16,10 @@ export const DURATION = SC.end.to;
 /** The honest stopwatch: runs 1:1 with the film. */
 export const TIMER_START = SC.journey.from + 40; // job-name focus — first input
 export const TIMER_STOP = SC.journey.from + 1252; // "Quote approved" — job story ends
-export const timerSeconds = (frame: number) =>
-  Math.max(0, (Math.min(frame, TIMER_STOP) - TIMER_START) / 30);
-export const timerLabel = (frame: number) => {
-  const s = timerSeconds(frame);
+export const timerSeconds = (frame: number, start = TIMER_START, stop = TIMER_STOP) =>
+  Math.max(0, (Math.min(frame, stop) - start) / 30);
+export const timerLabel = (frame: number, start = TIMER_START, stop = TIMER_STOP) => {
+  const s = timerSeconds(frame, start, stop);
   const m = Math.floor(s / 60);
   const rest = s - m * 60;
   return `${m}:${rest < 10 ? '0' : ''}${rest.toFixed(1)}`;

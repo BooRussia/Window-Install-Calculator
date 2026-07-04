@@ -10,13 +10,18 @@ import { TIMER_START, TIMER_STOP, timerLabel } from './timeline';
  * Runs 1:1 with the film from TIMER_START; freezes at TIMER_STOP.
  * `appearAt` is the absolute frame it pops in.
  */
-export const TimerChip: React.FC<{ appearAt: number; scale?: number }> = ({ appearAt, scale = 1 }) => {
+export const TimerChip: React.FC<{ appearAt: number; scale?: number; start?: number; stop?: number }> = ({
+  appearAt,
+  scale = 1,
+  start = TIMER_START,
+  stop = TIMER_STOP,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   if (frame < appearAt) return null;
   const pop = popIn(frame, fps, appearAt);
-  const frozen = frame >= TIMER_STOP;
-  const running = frame >= TIMER_START && !frozen;
+  const frozen = frame >= stop;
+  const running = frame >= start && !frozen;
   return (
     <div
       style={{
@@ -62,7 +67,7 @@ export const TimerChip: React.FC<{ appearAt: number; scale?: number }> = ({ appe
             ...TNUM,
           }}
         >
-          {timerLabel(frame)}
+          {timerLabel(frame, start, stop)}
         </span>
       </div>
     </div>
