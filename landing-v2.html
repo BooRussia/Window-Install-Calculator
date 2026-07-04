@@ -276,14 +276,20 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
   line-height: 1.04; text-transform: uppercase; color: var(--ink-1);
 }
 .hero-l1 { position: relative; display: inline-block; color: var(--ink-4); }
-.hero-l1 .strike {
-  position: absolute; left: -2%; right: -2%; top: 50%; height: 0.075em; margin-top: -0.03em;
+/* two stacked segments, each its own line — so each carries its own strike that
+   crosses ITS text. A single strike across the whole block landed in the gap
+   between the wrapped lines on narrow screens. */
+.hl-seg { position: relative; display: block; }
+.hl-seg .strike {
+  position: absolute; left: -3%; right: -3%; top: 50%; height: 0.075em; margin-top: -0.03em;
   background: linear-gradient(90deg, var(--gold), var(--gold-pale));
   transform: scaleX(0); transform-origin: 0 50%;
-  transition: transform .8s var(--ease-out) .1s;
+  transition: transform .7s var(--ease-out) .1s;
   box-shadow: 0 0 14px rgba(216,185,106,0.45);
 }
-.hero-h.struck .hero-l1 .strike { transform: scaleX(1); }
+/* second line's strike trails the first so the two read as one sweep */
+.hl-seg:last-child .strike { transition-delay: .22s; }
+.hero-h.struck .strike { transform: scaleX(1); }
 .hero-l2 {
   display: block; margin-top: 0.08em;
   filter: drop-shadow(0 0 24px rgba(181,143,74,0.25));
@@ -809,7 +815,7 @@ footer {
   .bar-fill { transform: scaleX(0.0044) !important; }
   .beam { display: none; }
   .odo .strip { transition: none !important; }
-  .hero-l1 .strike { transition: none; }
+  .strike { transition: none; }
 }
 </style>
 </head>
@@ -861,7 +867,7 @@ footer {
 <section id="hero">
   <span class="eyebrow hero-eyebrow">Built for Florida window &amp; door installers</span>
   <h1 class="hero-h anton" id="heroH">
-    <span class="hero-l1"><span class="hero-w" style="--w:0">An</span> <span class="hero-w" style="--w:1">evening</span> <span class="hero-w" style="--w:2">of</span> <span class="hero-w" style="--w:3">spreadsheets.</span><span class="strike" aria-hidden="true"></span></span>
+    <span class="hero-l1"><span class="hl-seg"><span class="hero-w" style="--w:0">An</span> <span class="hero-w" style="--w:1">evening</span> <span class="hero-w" style="--w:2">of</span><span class="strike" aria-hidden="true"></span></span><span class="hl-seg"><span class="hero-w" style="--w:3">spreadsheets.</span><span class="strike" aria-hidden="true"></span></span></span>
     <span class="hero-l2"><span class="hero-w" style="--w:4">Or</span> <span class="hero-w" style="--w:5">sixty</span> <span class="hero-w" style="--w:6">seconds.</span></span>
   </h1>
   <p class="hero-sub">Anchor prices a full window &amp; door install <b>while this page scrolls</b>. Watch it happen to one job, start to finish.</p>
@@ -1415,7 +1421,9 @@ footer {
       if (e.isIntersecting) { e.target.classList.add("in", "go", "go2"); io.unobserve(e.target); }
     });
   }, { threshold: 0.35, rootMargin: "0px 0px -8% 0px" });
-  document.querySelectorAll(".rv, [data-io]").forEach(function (el) { io.observe(el); });
+  // .jamb is handed to the replay system below (its screw-drive re-arms), so
+  // keep it out of the one-time reveal observer
+  document.querySelectorAll(".rv:not(.jamb), [data-io]").forEach(function (el) { io.observe(el); });
 
   /* hero entrance */
   window.addEventListener("load", function () { document.body.classList.add("loaded"); });
@@ -1582,92 +1590,119 @@ footer {
     window.scrollTo({ top: vh * 0.96, behavior: "smooth" });
   });
 
-  /* ---------- auto-play beats: fire once on entry, scroll on freely ---------- */
+  /* ---------- auto-play beats: play on entry, RESET on full exit, so they
+       replay every time the user scrolls back through — no refresh needed ---- */
   function tween(dur, delay, ease, step, done) {
-    var t0 = null;
+    var t0 = null, raf = 0, dead = false;
     function frame(ts) {
+      if (dead) return;
       if (t0 === null) t0 = ts + delay;
       var t = (ts - t0) / dur;
-      if (t < 0) { requestAnimationFrame(frame); return; }
+      if (t < 0) { raf = requestAnimationFrame(frame); return; }
       t = Math.min(1, t);
       step(ease(t));
-      if (t < 1) requestAnimationFrame(frame);
+      if (t < 1) raf = requestAnimationFrame(frame);
       else if (done) done();
     }
-    requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
+    return function cancel() { dead = true; if (raf) cancelAnimationFrame(raf); };
   }
   function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
   function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
   function linear(t) { return t; }
 
-  var plays = {
-    scan: function () {
-      scanSec.classList.add("play");                    // beam sweep + row stagger (CSS)
-      tween(2800, 200, linear, function (t) {
-        if (scanOdo) scanOdo.setVal(14 * t);
-      }, function () {
-        if (scanOdo) scanOdo.setVal(14);
-        if (scanSr) scanSr.textContent = "14 openings found";
+  // play() when the element is ≥30% on screen; reset() once it has fully left
+  // (either edge). The next entry plays it fresh. Removing a CSS-animation class
+  // on exit and re-adding on entry restarts the animation across the reflow.
+  function replay(el, play, reset) {
+    if (!el) return;
+    var on = false;
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting && e.intersectionRatio >= 0.3) { if (!on) { on = true; play(); } }
+        else if (!e.isIntersecting && on) { on = false; reset(); }
       });
-    },
-    quote: function () {
-      if (quotePaper) quotePaper.classList.add("play"); // line items stagger in (CSS)
-      tween(2000, 600, easeOutCubic, function (t) {
-        if (totalOdo) totalOdo.setVal(14351.78 * t);
-      });
-    },
-    time: function () {
-      if (timeTrack) timeTrack.classList.add("play");   // old-way bar collapses (CSS)
-      tween(2400, 300, easeInOutCubic, function (t) {
-        if (oldTime) oldTime.textContent = fmtHMS(13200 - (13200 - 58) * t);
-      }, function () {
-        if (goldRow) goldRow.classList.add("pinged");
-      });
-    },
-    calcTease: function () {
-      // one-time slider wiggle: 5 → 8 → 3 → 5, gauges rolling live, pill riding
-      // the thumb. Programmatic .value writes fire no input events, so the
-      // sweep can't dismiss itself — only a real touch does.
-      if (teaseDone || !slider) return;
-      slider.classList.add("hint");
-      slider.step = "any";                     // glide continuously; a real grab restores step=1
-      pillPos();
-      var pts = [[0, 5], [0.32, 8], [0.72, 3], [1, 5]];
-      tween(2600, 600, linear, function (t) {
-        if (teaseDone) return;                 // user grabbed it mid-sweep
-        var v = 5;
-        for (var i = 1; i < pts.length; i++) {
-          if (t <= pts[i][0]) {
-            var lt = (t - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
-            lt = lt * lt * (3 - 2 * lt);       // smoothstep per segment: eases to a stop at each turn
-            v = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * lt;
-            break;
-          }
+    }, { threshold: [0, 0.3] }).observe(el);
+  }
+
+  var jamb = document.querySelector(".jamb");
+  var calcEl = document.querySelector(".calc");
+  var cScan, cQuote, cTime, cTease;
+
+  // SNAP — beam sweeps the schedule, rows light, counter climbs to 14
+  replay(scanSec, function () {
+    if (cScan) cScan();
+    scanSec.classList.add("play");
+    cScan = tween(2800, 200, linear,
+      function (t) { if (scanOdo) scanOdo.setVal(14 * t); },
+      function () { if (scanOdo) scanOdo.setVal(14); if (scanSr) scanSr.textContent = "14 openings found"; });
+  }, function () {
+    if (cScan) cScan();
+    scanSec.classList.remove("play");
+    if (scanOdo) scanOdo.setVal(0);
+    if (scanSr) scanSr.textContent = "0 openings found";
+  });
+
+  // ESTIMATE — line items stagger in, total rolls up
+  replay(quoteSec, function () {
+    if (cQuote) cQuote();
+    if (quotePaper) quotePaper.classList.add("play");
+    cQuote = tween(2000, 600, easeOutCubic, function (t) { if (totalOdo) totalOdo.setVal(14351.78 * t); });
+  }, function () {
+    if (cQuote) cQuote();
+    if (quotePaper) quotePaper.classList.remove("play");
+    if (totalOdo) totalOdo.setVal(0);
+  });
+
+  // EVENINGS — the old-way bar collapses, gold bar pings
+  replay(timeTrack, function () {
+    if (cTime) cTime();
+    if (timeTrack) timeTrack.classList.add("play");
+    if (goldRow) goldRow.classList.remove("pinged");   // re-arm before it fires
+    cTime = tween(2400, 300, easeInOutCubic,
+      function (t) { if (oldTime) oldTime.textContent = fmtHMS(13200 - (13200 - 58) * t); },
+      function () { if (goldRow) goldRow.classList.add("pinged"); });
+  }, function () {
+    if (cTime) cTime();
+    if (timeTrack) timeTrack.classList.remove("play");
+    if (oldTime) oldTime.textContent = "3:40:00";
+    if (goldRow) goldRow.classList.remove("pinged");
+  });
+
+  // FL cross-section — fasteners drive in; on exit keep the card, re-arm the screws
+  replay(document.getElementById("fl"), function () {
+    if (jamb) jamb.classList.add("in", "go");
+  }, function () {
+    if (jamb) jamb.classList.remove("go");
+  });
+
+  // slider tease — replays until the user actually grabs the handle
+  replay(calcEl, function () {
+    if (teaseDone || !slider) return;
+    if (cTease) cTease();
+    slider.classList.add("hint");
+    slider.step = "any";                     // glide continuously; a real grab restores step=1
+    pillPos();
+    var pts = [[0, 5], [0.32, 8], [0.72, 3], [1, 5]];
+    cTease = tween(2600, 700, linear, function (t) {
+      if (teaseDone) return;
+      var v = 5;
+      for (var i = 1; i < pts.length; i++) {
+        if (t <= pts[i][0]) {
+          var lt = (t - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
+          lt = lt * lt * (3 - 2 * lt);       // smoothstep per segment: eases to a stop at each turn
+          v = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * lt;
+          break;
         }
-        slider.value = v;
-        runCalc(true);
-        pillPos();
-      }, function () {
-        if (!teaseDone) { slider.step = "1"; slider.value = 5; runCalc(false); pillPos(); }
-      });
-    },
-  };
-  var playTargets = [
-    { el: scanSec, fn: plays.scan },
-    { el: quoteSec, fn: plays.quote },
-    { el: timeTrack, fn: plays.time },
-    { el: document.querySelector(".calc"), fn: plays.calcTease },
-  ];
-  var playIO = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (!e.isIntersecting) return;
-      playIO.unobserve(e.target);
-      for (var i = 0; i < playTargets.length; i++) {
-        if (playTargets[i].el === e.target) playTargets[i].fn();
       }
+      slider.value = v; runCalc(true); pillPos();
+    }, function () {
+      if (!teaseDone) { slider.step = "1"; slider.value = 5; runCalc(false); pillPos(); }
     });
-  }, { threshold: 0.4 });
-  playTargets.forEach(function (t) { if (t.el) playIO.observe(t.el); });
+  }, function () {
+    if (cTease) cTease();
+    if (!teaseDone && slider) { slider.step = "1"; slider.value = 5; runCalc(true); slider.classList.remove("hint"); pillPos(); }
+  });
 
   run();
 })();
