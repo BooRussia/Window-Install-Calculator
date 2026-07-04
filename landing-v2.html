@@ -277,21 +277,26 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
   line-height: 1.04; text-transform: uppercase; color: var(--ink-1);
 }
 .hero-l1 { position: relative; display: inline-block; color: var(--ink-4); }
-/* two segments, each carrying its own strike that crosses ITS text. inline-block:
-   on desktop they share one line (the strikes chain into one sweep, bridged by
-   their -3% overhang); on narrow screens they wrap as whole units, so each line
-   gets a strike through its text instead of one landing in the gap between. */
 .hl-seg { position: relative; display: inline-block; }
-.hl-seg .strike {
-  position: absolute; left: -3%; right: -3%; top: 50%; height: 0.075em; margin-top: -0.03em;
+/* The headline is one line on desktop, two when it wraps. JS measures which and
+   sets .one-line / .two-line, so we can draw ONE continuous strike across the
+   whole line, or one strike per wrapped line — never a seam mid-line, never a
+   line stranded in the gap between rows. */
+.strike, .strike-full {
+  position: absolute; top: 50%; height: 0.075em; margin-top: -0.03em;
   background: linear-gradient(90deg, var(--gold), var(--gold-pale));
   transform: scaleX(0); transform-origin: 0 50%;
-  transition: transform .7s var(--ease-out) .1s;
+  transition: transform .8s var(--ease-out) .1s;
   box-shadow: 0 0 14px rgba(216,185,106,0.45);
+  display: none;                      /* JS reveals the right one(s) after measuring */
 }
-/* second line's strike trails the first so the two read as one sweep */
-.hl-seg:last-child .strike { transition-delay: .22s; }
-.hero-h.struck .strike { transform: scaleX(1); }
+.strike-full { left: -1.5%; right: -1.5%; }   /* spans the whole line as one gradient */
+.hl-seg .strike { left: -3%; right: -3%; }     /* each crosses its own segment */
+.hero-l1.one-line .strike-full { display: block; }
+.hero-l1.two-line .hl-seg .strike { display: block; }
+.hero-l1.two-line .hl-seg:last-child .strike { transition-delay: .18s; }
+.hero-h.struck .hero-l1.one-line .strike-full,
+.hero-h.struck .hero-l1.two-line .strike { transform: scaleX(1); }
 .hero-l2 {
   display: block; margin-top: 0.08em;
   filter: drop-shadow(0 0 24px rgba(181,143,74,0.25));
@@ -848,7 +853,7 @@ footer {
   .bar-fill { transform: scaleX(0.0044) !important; }
   .beam { display: none; }
   .odo .strip { transition: none !important; }
-  .strike { transition: none; }
+  .strike, .strike-full { transition: none; }
 }
 </style>
 </head>
@@ -900,7 +905,7 @@ footer {
 <section id="hero">
   <span class="eyebrow hero-eyebrow">Built for Florida window &amp; door installers</span>
   <h1 class="hero-h anton" id="heroH">
-    <span class="hero-l1"><span class="hl-seg"><span class="hero-w" style="--w:0">An</span> <span class="hero-w" style="--w:1">evening</span> <span class="hero-w" style="--w:2">of</span><span class="strike" aria-hidden="true"></span></span> <span class="hl-seg"><span class="hero-w" style="--w:3">spreadsheets.</span><span class="strike" aria-hidden="true"></span></span></span>
+    <span class="hero-l1"><span class="hl-seg"><span class="hero-w" style="--w:0">An</span> <span class="hero-w" style="--w:1">evening</span> <span class="hero-w" style="--w:2">of</span><span class="strike" aria-hidden="true"></span></span> <span class="hl-seg"><span class="hero-w" style="--w:3">spreadsheets.</span><span class="strike" aria-hidden="true"></span></span><span class="strike-full" aria-hidden="true"></span></span>
     <span class="hero-l2"><span class="hero-w" style="--w:4">Or</span> <span class="hero-w" style="--w:5">sixty</span> <span class="hero-w" style="--w:6">seconds.</span></span>
   </h1>
   <p class="hero-sub">Anchor prices a full window &amp; door install <b>while this page scrolls</b>. Watch it happen to one job, start to finish.</p>
@@ -1483,6 +1488,21 @@ footer {
   /* hero entrance */
   window.addEventListener("load", function () { document.body.classList.add("loaded"); });
   document.body.classList.add("loaded"); // fonts swap in; don't hold the words hostage
+
+  /* hero strike: measure whether the headline sits on one line or wrapped, and
+     pick a single continuous strike vs one-per-line. Runs in the reduced-motion
+     path too (defined before its early return); re-measured on resize + font load. */
+  var heroL1 = document.querySelector(".hero-l1");
+  function layoutStrike() {
+    if (!heroL1) return;
+    var segs = heroL1.querySelectorAll(".hl-seg");
+    var oneLine = segs.length < 2 || (segs[1].offsetTop - segs[0].offsetTop) < 4;
+    heroL1.classList.toggle("one-line", oneLine);
+    heroL1.classList.toggle("two-line", !oneLine);
+  }
+  layoutStrike();
+  window.addEventListener("resize", layoutStrike, { passive: true });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutStrike);
 
   if (reduce) {
     // settle everything; no scroll engine, no scrub layout
