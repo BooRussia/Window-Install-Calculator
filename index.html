@@ -1786,6 +1786,47 @@
     white-space: nowrap;
   }
 
+  /* CALC-8 — inline markup lever (per-job override, sits just under the price) */
+  .margin-lever-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .margin-lever {
+    display: inline-flex; align-items: center; gap: 2px;
+    border: 1px solid rgba(148,163,184,0.28); border-radius: 9999px;
+    background: rgba(30,41,59,0.45); padding: 3px;
+  }
+  .margin-lever.is-override { border-color: rgba(201,165,88,0.55); background: rgba(201,165,88,0.09); }
+  .margin-step {
+    width: 44px; height: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 9999px; color: #cbd5e1; font-size: 22px; font-weight: 700; line-height: 1;
+    background: transparent; border: none; cursor: pointer; transition: background .12s, color .12s;
+    font-variant-numeric: normal;
+  }
+  .margin-step:hover { background: rgba(148,163,184,0.14); color: #f1f5f9; }
+  .margin-step:active { background: rgba(148,163,184,0.22); }
+  .margin-lever-field { display: inline-flex; align-items: baseline; gap: 3px; padding: 0 4px; min-width: 92px; justify-content: center; }
+  #marginInput {
+    width: 3ch; min-width: 3ch; background: transparent; border: none; outline: none;
+    color: #c9a558; font-size: 20px; font-weight: 800; text-align: right; letter-spacing: 0;
+    font-variant-numeric: tabular-nums; padding: 0; -moz-appearance: textfield;
+  }
+  #marginInput:focus-visible { box-shadow: 0 2px 0 0 #c9a558; }
+  .margin-lever-unit { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; }
+  .margin-reset {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #94a3b8;
+    background: none; border: none; cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+    min-height: 32px; padding: 2px 6px;
+  }
+  .margin-reset:hover { color: #c9a558; }
+  [data-theme="light"] .margin-lever { border-color: rgba(100,116,139,0.35); background: rgba(241,245,249,0.7); }
+  [data-theme="light"] .margin-lever.is-override { border-color: rgba(138,106,46,0.5); background: rgba(201,165,88,0.12); }
+  [data-theme="light"] .margin-step { color: #475569; }
+  [data-theme="light"] .margin-step:hover { background: rgba(100,116,139,0.14); color: #0f172a; }
+  [data-theme="light"] #marginInput { color: #8a6a2e; }
+  [data-theme="light"] .margin-lever-unit { color: #64748b; }
+  [data-theme="light"] .margin-reset { color: #64748b; }
+  [data-theme="light"] .margin-reset:hover { color: #8a6a2e; }
+  /* FLR-11 building summary — darker gold in light mode for contrast on the light rail */
+  [data-theme="light"] #buildingSummary { color: #8a6a2e !important; }
+
   /* Info tooltip */
   .info-tip {
     position: relative; display: inline-flex; align-items: center; justify-content: center;
@@ -5770,7 +5811,7 @@
         <div class="rail-acc-body space-y-3">
       <div class="rail-field">
         <label><span class="lbl-impact med">High-rise / multi-floor</span></label>
-        <p class="mb-2 text-[11px] leading-snug text-slate-500">Pricing a building with repeating floors? Turning this on adds Like Floors, one-off floors, swing stage &amp; material storage. Leave off for a normal house.</p>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Pricing a building with repeating floors? Turning this on adds repeat-floor pricing, one-off floors &amp; swing stage. Leave off for a normal house.</p>
         <button id="highRiseToggleBtn" type="button" class="toggle-pill"><span class="lbl">High-rise mode</span><span class="val">Off</span></button>
       </div>
       <div class="rail-field"><label><span class="lbl-impact high">Construction</span><span class="info-tip" tabindex="0" role="button" aria-label="How construction type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Construction type swings labor the most — roughly 10 min/LF for stick-framed new work, ~25 for block-framed (adds buck-install time), and 40 min/LF on a remodel.</span></span></label>
@@ -5779,13 +5820,21 @@
       <div class="rail-field"><label><span class="lbl-impact high">House</span><span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Concrete-block walls, or wood-frame walls?</p>
         <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
-      <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
+      <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge. In high-rise mode with &ldquo;Repeat this floor on every story&rdquo; on, this instead sets how many identical floors to price.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How many floors — upper floors add labor (and sometimes a lift).</p>
-        <label class="margin-pill" style="cursor:text">
-          <span class="lbl">Stories</span>
-          <input id="storiesInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="1" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-        </label>
-        <button id="likeFloorsToggleBtn" type="button" class="toggle-pill mt-2 hidden"><span class="lbl">Like Floors &mdash; multiply every floor</span><span class="val">Off</span></button></div>
+        <!-- FLR-3: hybrid stories — one-tap 1-4 for the common house, "5+" reveals a number field for towers. -->
+        <div id="segStories" class="seg" role="tablist" aria-label="Number of stories"></div>
+        <!-- id + .hidden live on the DIV wrapper (not the <label>): a `.rail-field
+             label { display:block }` rule outranks `.hidden` on a bare label. -->
+        <div id="storiesExactWrap" class="mt-2 hidden">
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">How many stories</span>
+            <input id="storiesInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="5" style="width:56px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+        </div>
+        <button id="likeFloorsToggleBtn" type="button" class="toggle-pill mt-2 hidden"><span class="lbl">Repeat this floor on every story</span><span class="val">Off</span></button>
+        <!-- FLR-11: live plain-language building make-up (e.g. "17 identical floors + Lobby — 18 floors") -->
+        <div id="buildingSummary" class="hidden text-[11px] leading-snug mt-2 font-semibold" style="color: rgba(201,165,88,0.82); font-variant-numeric: tabular-nums;"></div></div>
       <div class="rail-field hidden" id="extraFloorsField">
         <details class="mat-card">
           <summary class="mat-head">
@@ -5794,7 +5843,7 @@
             <svg class="mat-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
           </summary>
           <div class="mat-body space-y-2">
-            <p class="mb-1 text-[11px] leading-snug text-slate-500">Non-typical floors priced on top of the stack &mdash; e.g. a lobby or penthouse with different openings. Enter that floor's own footage &amp; windows. Two identical penthouses? Set &ldquo;Floors like this&rdquo; to 2 instead of adding the floor twice. All floors identical? Leave this closed.</p>
+            <p class="mb-1 text-[11px] leading-snug text-slate-500">Non-typical floors priced on top of the stack &mdash; e.g. a lobby or penthouse with different openings. Enter that floor's own footage &amp; windows. Two identical penthouses? Set &ldquo;Number of these floors&rdquo; to 2 instead of adding the floor twice. All floors identical? Leave this closed.</p>
             <div id="extraFloorsList" class="space-y-2"></div>
             <button id="addExtraFloorBtn" type="button" class="rail-add-btn">+ Add floor</button>
           </div>
@@ -6012,8 +6061,20 @@
   <section id="results" class="mt-12 hidden">
     <div class="text-center">
       <div id="sellingPrice" class="price-glow text-6xl sm:text-7xl md:text-8xl font-black tracking-tightest leading-none pulse-once">$0.00</div>
-      <div class="text-slate-500 text-[11px] sm:text-sm tracking-[0.2em] uppercase mt-4 font-semibold">
-        Selling Price <span class="text-slate-600">·</span> @ <span id="marginLabel">35</span>% markup
+      <div class="text-slate-500 text-[11px] sm:text-sm tracking-[0.2em] uppercase mt-4 font-semibold">Selling Price</div>
+      <!-- CALC-8: inline markup lever — adjust THIS job's markup right at the price,
+           instead of four screens away in Settings. Sets a per-job override; the
+           account default (Settings → Rates) is unchanged. -->
+      <div class="margin-lever-wrap mt-2.5">
+        <div class="margin-lever" role="group" aria-label="Markup percent for this job">
+          <button type="button" class="margin-step" id="marginDown" aria-label="Decrease markup by 1 percent">&minus;</button>
+          <span class="margin-lever-field">
+            <input id="marginInput" type="text" inputmode="decimal" aria-label="Markup percent for this job" value="35" autocomplete="off" />
+            <span class="margin-lever-unit">% markup</span>
+          </span>
+          <button type="button" class="margin-step" id="marginUp" aria-label="Increase markup by 1 percent">+</button>
+        </div>
+        <button type="button" id="marginReset" class="margin-reset hidden">&#8635; Reset to default <span id="marginDefaultVal">35</span>%</button>
       </div>
     </div>
 
@@ -8717,6 +8778,9 @@ function buildState() {
     trimType: "pine",
     trimWidth: "1x4",
     trimLength: 16,
+    // CALC-8: per-job markup override. null = use the account default
+    // (DATA.config.defaultMargin); a number overrides it for THIS job only.
+    marginOverride: null,
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
@@ -8801,6 +8865,9 @@ function buildingSummaryText() {
   if (n <= 1 && !extras.length) return "";
   const parts = [n > 1 ? `${n} identical floors` : "main floor"];
   extras.forEach(e => parts.push(e.count > 1 ? `${e.count}× ${e.label}` : e.label));
+  // Only add the "— N floors" total when there are one-off floors (otherwise it
+  // just restates the count, e.g. "6 identical floors — 6 floors").
+  if (!extras.length) return parts.join(" + ");
   const total = n + extras.reduce((sum, e) => sum + e.count, 0);
   return `${parts.join(" + ")} — ${total} floor${total === 1 ? "" : "s"}`;
 }
@@ -9419,6 +9486,9 @@ function floorPersistFields() {
     trimType: STATE.trimType || "pine",
     trimWidth: STATE.trimWidth || "1x4",
     trimLength: STATE.trimLength || 16,
+    // CALC-8: not a floor field, but this fn is the single point every job-build
+    // site spreads, so the per-job markup override rides along to all of them.
+    marginOverride: STATE.marginOverride ?? null,
   };
 }
 
@@ -9826,7 +9896,13 @@ function calculate() {
     }
   }
 
-  const margin = DATA.config.defaultMargin ?? 35;   // honor an intentional 0% (?? not ||)
+  // CALC-8: a per-job markup override (set via the results-card lever) wins over
+  // the account default. null/"" → fall back to the account default. STATE holds
+  // an already-clamped number, but Number()+isFinite guards a bad persisted blob.
+  const _mo = STATE.marginOverride;
+  const margin = (_mo != null && _mo !== "" && isFinite(Number(_mo)))
+    ? Number(_mo)
+    : (DATA.config.defaultMargin ?? 35);   // honor an intentional 0% (?? not ||)
   const sellingPrice = totalCost * (1 + margin / 100);
   const profit = sellingPrice - totalCost;
 
@@ -10203,6 +10279,29 @@ function updateLiftVisibility() {
   if (typeof updateJobExtrasSummary === "function") updateJobExtrasSummary();
 }
 
+// FLR-3: reflect STATE.stories onto the segmented control + reveal the exact-count
+// field only for towers (>4). Never stomps the field while it's being typed in.
+function syncStoriesControl() {
+  const n = storyNum(STATE.stories);
+  const sel = n <= 4 ? String(n) : "5+";
+  if (typeof SEGMENTS !== "undefined" && SEGMENTS.segStories) SEGMENTS.segStories.setValue(sel, false);
+  const wrap = document.getElementById("storiesExactWrap");
+  if (wrap) wrap.classList.toggle("hidden", sel !== "5+");
+  const inp = document.getElementById("storiesInput");
+  if (inp && document.activeElement !== inp) inp.value = String(n);
+}
+
+// FLR-11: show the plain-language building make-up live in the rail (only for a
+// real multi-floor building; empty string otherwise → hidden, so a normal house
+// never sees it).
+function renderBuildingSummary() {
+  const el = document.getElementById("buildingSummary");
+  if (!el) return;
+  const txt = (typeof buildingSummaryText === "function") ? buildingSummaryText() : "";
+  el.textContent = txt;
+  el.classList.toggle("hidden", !txt);
+}
+
 // High-rise mode gates every multi-floor control: the Like Floors toggle, the
 // Other-floors editor, swing stage and material storage. The
 // engine is gated the same way, so nothing hidden ever prices — but the entered
@@ -10393,7 +10492,7 @@ function renderExtraFloors() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <label class="margin-pill" style="cursor:text"><span class="lbl">LF</span><input class="ef-in num-input" data-f="totalLF" type="number" min="0" step="0.1" inputmode="decimal" value="${f.totalLF || ""}" placeholder="0" style="width:60px;text-align:right;-moz-appearance:textfield;" /></label>
         <label class="margin-pill" style="cursor:text"><span class="lbl">Windows</span><input class="ef-in num-input" data-f="windowCount" type="number" min="0" step="1" inputmode="numeric" value="${f.windowCount || ""}" placeholder="&mdash;" style="width:48px;text-align:right;-moz-appearance:textfield;" /></label>
-        <label class="margin-pill" style="cursor:text" title="How many identical copies of this floor the building has — 2 matching penthouses = 2"><span class="lbl">Floors like this</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text" title="How many identical copies of this floor the building has — 2 matching penthouses = 2"><span class="lbl">Number of these floors</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
       </div>
       <div class="text-[9px] uppercase tracking-[0.14em] text-slate-600 font-bold" style="margin-top:8px;margin-bottom:4px;">Doors on this floor &mdash; optional</div>
       <div class="space-y-2">${efDoorsHTML(f)}</div>
@@ -10460,9 +10559,76 @@ function updateSwingDoorsUI() {
   updateSwingDoorsSummary();   // lightweight: chip + visibility only (no list rebuild)
 }
 
+// CALC-8 — per-job markup lever helpers.
+// Clamp to a sane [0, 999] range; returns null for non-numeric (so an empty /
+// garbage field clears the override rather than pricing at NaN).
+function clampMarginPct(v) {
+  if (v == null || String(v).trim() === "") return null;
+  const n = Number(v);
+  if (!isFinite(n)) return null;
+  return Math.max(0, Math.min(999, Math.round(n * 100) / 100));
+}
+function setMarginOverride(v) {   // numeric set (from ± steppers / arrow keys)
+  STATE.marginOverride = clampMarginPct(v);
+  markCalculatorFirstInteraction();
+  render();
+}
+function resetMarginOverride() {  // explicit clear → back to the account default
+  STATE.marginOverride = null;
+  markCalculatorFirstInteraction();
+  render();
+}
+function renderMarginLever(r) {
+  const input = document.getElementById("marginInput");
+  const lever = document.querySelector(".margin-lever");
+  if (!input || !lever) return;
+  const reset = document.getElementById("marginReset");
+  const defVal = document.getElementById("marginDefaultVal");
+  const def = DATA.config.defaultMargin ?? 35;
+  const overridden = STATE.marginOverride != null && STATE.marginOverride !== "";
+  // Never stomp the field mid-type — only reflect the computed margin when the
+  // user isn't editing it.
+  if (document.activeElement !== input) input.value = String(r.margin);
+  lever.classList.toggle("is-override", overridden);
+  if (reset) reset.classList.toggle("hidden", !overridden);
+  if (defVal) defVal.textContent = String(def);
+  if (!input._wired) {
+    const effective = () => (STATE.marginOverride != null && STATE.marginOverride !== "")
+      ? Number(STATE.marginOverride) : (DATA.config.defaultMargin ?? 35);
+    const up = document.getElementById("marginUp");
+    const down = document.getElementById("marginDown");
+    if (up) up.addEventListener("click", () => setMarginOverride(effective() + 1));
+    if (down) down.addEventListener("click", () => setMarginOverride(effective() - 1));
+    input.addEventListener("input", () => {
+      const raw = input.value.trim();
+      // Empty field = cleared override; otherwise take the clamped value but let
+      // the activeElement guard above keep the field showing exactly what's typed.
+      STATE.marginOverride = raw === "" ? null : clampMarginPct(raw);
+      markCalculatorFirstInteraction();
+      render();
+    });
+    input.addEventListener("blur", () => {
+      // Normalize on exit: garbage/empty → default, valid → clamped. Set the
+      // field text explicitly (don't rely on render()'s activeElement guard,
+      // whose timing can leave the raw "9999" showing after a clamp to 999).
+      const c = clampMarginPct(input.value);
+      STATE.marginOverride = c;   // null when cleared/garbage → back to default
+      input.value = (c == null) ? String(DATA.config.defaultMargin ?? 35) : String(c);
+      render();
+    });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setMarginOverride(effective() + 1); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setMarginOverride(effective() - 1); }
+    });
+    if (reset) reset.addEventListener("click", resetMarginOverride);
+    input._wired = true;
+  }
+}
+
 function render() {
   const r = calculate();
-  document.getElementById("marginLabel").textContent = String(r.margin);
+  renderMarginLever(r);   // CALC-8: keep the markup lever in sync with the price
   updateBuckButtonVisibility();
   updateSwingDoorsUI();
 
@@ -10480,6 +10646,7 @@ function render() {
     if (_mbar) { _mbar.classList.toggle("show", hasInput); document.body.classList.toggle("mtotal-on", hasInput); } }
   // The recap band sits above results/empty and should always reflect STATE.
   renderLiveRecap();
+  renderBuildingSummary();   // FLR-11: live building make-up in the rail
   // Wire the accordion + open a section BEFORE the empty-job early-return below,
   // or a fresh job would have every section sealed shut and the headers dead.
   initRailAccordion();
@@ -10813,6 +10980,7 @@ function render() {
     trimType: STATE.trimType,
     trimWidth: STATE.trimWidth,
     trimLength: STATE.trimLength,
+    marginOverride: STATE.marginOverride ?? null,   // CALC-8: per-job markup override
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -14949,20 +15117,37 @@ function bindControls() {
   createSegmented("segHouseType", DATA.houseTypes, STATE.houseType, v => { STATE.houseType = v; markCalculatorFirstInteraction(); render(); }, SEG_LABELS.house);
   createSegmented("segApplication", DATA.applicationTypes, STATE.application, v => { STATE.application = v; markCalculatorFirstInteraction(); render(); });
   createSegmented("segImpact", DATA.impactOptions, STATE.impact, v => { STATE.impact = v; markCalculatorFirstInteraction(); render(); });
-  // Stories - a plain number now (towers go past 3). Drives the labor access
-  // premium, lift/swing visibility and (with Like Floors) the per-floor multiplier.
+  // FLR-3: hybrid Stories control. Segmented 1-4 covers ~every house in one tap;
+  // "5+" reveals a number field for towers. Drives the labor access premium,
+  // lift/swing visibility and (with repeat-floor pricing) the per-floor multiplier.
   const storiesInput = document.getElementById("storiesInput");
-  if (storiesInput) {
-    storiesInput.value = String(storyNum(STATE.stories));
-    if (!storiesInput._wired) {
-      storiesInput.addEventListener("input", e => {
-        STATE.stories = Math.max(1, parseInt(e.target.value, 10) || 1);
-        markCalculatorFirstInteraction();
-        updateLiftVisibility();
-        render();
-      });
-      storiesInput._wired = true;
+  const _storiesSel = storyNum(STATE.stories) <= 4 ? String(storyNum(STATE.stories)) : "5+";
+  createSegmented("segStories", ["1", "2", "3", "4", "5+"], _storiesSel, v => {
+    if (v === "5+") {
+      if (storyNum(STATE.stories) < 5) STATE.stories = 5;
+      const w = document.getElementById("storiesExactWrap"); if (w) w.classList.remove("hidden");
+      if (storiesInput) { storiesInput.value = String(storyNum(STATE.stories)); setTimeout(() => storiesInput.focus(), 0); }
+    } else {
+      STATE.stories = Math.max(1, parseInt(v, 10) || 1);
+      const w = document.getElementById("storiesExactWrap"); if (w) w.classList.add("hidden");
     }
+    markCalculatorFirstInteraction();
+    updateLiftVisibility();
+    updateSwingStageVisibility();
+    render();
+  });
+  syncStoriesControl();
+  if (storiesInput && !storiesInput._wired) {
+    storiesInput.addEventListener("input", e => {
+      STATE.stories = Math.max(1, parseInt(e.target.value, 10) || 1);
+      markCalculatorFirstInteraction();
+      updateLiftVisibility();
+      updateSwingStageVisibility();
+      render();
+    });
+    // Typed 1-4 into the "5+" field → snap back to the chip on exit.
+    storiesInput.addEventListener("blur", syncStoriesControl);
+    storiesInput._wired = true;
   }
   const likeFloorsBtn = document.getElementById("likeFloorsToggleBtn");
   if (likeFloorsBtn) {
@@ -16166,6 +16351,9 @@ function applyJobToState(j) {
   STATE.slidingDoors = Array.isArray(j.slidingDoors) ? clone(j.slidingDoors) : [];
   STATE.bifoldDoors = Array.isArray(j.bifoldDoors) ? clone(j.bifoldDoors) : [];
   STATE.variants = j.variants ? clone(j.variants) : {};
+  // CALC-8: restore the per-job markup override. Legacy jobs (no field) load as
+  // null → they reprice at the current account default, exactly as before.
+  STATE.marginOverride = (j.marginOverride != null && j.marginOverride !== "") ? Number(j.marginOverride) : null;
   STATE.currentJobId = j.id;
   // Swing doors — migrate legacy {single,double,withFlashing} → per-door array.
   STATE.swingDoors = normalizeSwingDoors(j.swingDoors);
