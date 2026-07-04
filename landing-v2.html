@@ -626,6 +626,44 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
   background: var(--gold-pale); border: 2px solid #0b1120; box-shadow: 0 2px 8px rgba(0,0,0,0.55); cursor: pointer; }
 .range::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--gold-pale); border: 2px solid #0b1120; cursor: pointer; }
 .range-scale { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; color: var(--ink-4); margin-top: 6px; }
+/* "Try me!" bubble + thumb pulse — advertises that the slider is draggable.
+   Shown when the calc reveals; a one-time auto-sweep wiggles the handle with
+   the gauges rolling live; first real touch dismisses it for good. */
+.range-wrap { position: relative; }
+.try-pill {
+  position: absolute; top: calc(100% + 9px);
+  left: calc(13px + (100% - 26px) * 0.28571);   /* under the default value, 5 of 1–15 */
+  transform: translateX(-50%);
+  background: var(--gold-pale); color: #1b1206;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+  padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  pointer-events: none; z-index: 3;
+  opacity: 0; visibility: hidden;
+  transition: opacity .3s ease, visibility .3s, left .15s linear;
+}
+.try-pill::before {
+  content: ""; position: absolute; left: 50%; top: -4px; transform: translateX(-50%);
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-bottom: 5px solid var(--gold-pale);
+}
+.js .calc.go .try-pill { opacity: 1; visibility: visible; animation: pillBob 1.4s ease-in-out .2s infinite; }
+.try-pill.gone { opacity: 0 !important; visibility: hidden !important; animation: none !important; }
+@keyframes pillBob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(4px); }
+}
+@keyframes thumbPulse {
+  0%   { box-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 0 0 0 rgba(223,192,122,0.55); }
+  100% { box-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 0 0 10px rgba(223,192,122,0); }
+}
+.range.hint::-webkit-slider-thumb { animation: thumbPulse .9s ease-out infinite; }
+.range.hint::-moz-range-thumb { animation: thumbPulse .9s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .js .calc.go .try-pill { animation: none; }
+  .range.hint::-webkit-slider-thumb { animation: none; }
+  .range.hint::-moz-range-thumb { animation: none; }
+}
 .gauges { display: grid; gap: 22px; }
 .gauge .g-lbl { font-size: 10px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 6px; }
 .gauge .odo { font-size: clamp(2.2rem, 4.5vw, 3rem); color: var(--ink-1); }
@@ -1060,7 +1098,10 @@ footer {
         <div>
           <h3 class="anton">How many evenings is your spreadsheet costing you?</h3>
           <label class="calc-q" for="qWeek"><span>Quotes you write per week</span><output id="qOut" for="qWeek">5</output></label>
-          <input class="range" type="range" id="qWeek" min="1" max="15" step="1" value="5" aria-describedby="calcResult">
+          <div class="range-wrap">
+            <input class="range" type="range" id="qWeek" min="1" max="15" step="1" value="5" aria-describedby="calcResult">
+            <span class="try-pill" id="tryPill" aria-hidden="true">Try me!</span>
+          </div>
           <div class="range-scale" aria-hidden="true"><span>1</span><span>5</span><span>10</span><span>15</span></div>
         </div>
         <div class="gauges" id="calcResult" aria-live="polite">
@@ -1224,18 +1265,41 @@ footer {
   var OLD_S = 3 * 3600 + 40 * 60, NEW_S = 58, WEEKS = 50;
   var slider = document.getElementById("qWeek"), qOut = document.getElementById("qOut");
   var calcSr = document.getElementById("calcSr"), maxCap = document.getElementById("maxCap");
-  function runCalc() {
+  var tryPill = document.getElementById("tryPill");
+  var teaseDone = false;
+  function runCalc(quiet) {
     var q = +slider.value;
     var hrs = Math.round(q * WEEKS * (OLD_S - NEW_S) / 3600);
     var eve = Math.round(hrs / 4);
     qOut.textContent = q;
     if (hrsOdo) hrsOdo.setVal(hrs);
     if (eveOdo) eveOdo.setVal(eve);
-    slider.setAttribute("aria-valuetext", q + " quotes a week — about " + hrs + " hours and " + eve + " evenings back per year");
-    if (calcSr) calcSr.textContent = "About " + hrs + " hours and " + eve + " evenings per year";
+    if (!quiet) {
+      // skipped during the auto-sweep so the live region isn't machine-gunned
+      slider.setAttribute("aria-valuetext", q + " quotes a week — about " + hrs + " hours and " + eve + " evenings back per year");
+      if (calcSr) calcSr.textContent = "About " + hrs + " hours and " + eve + " evenings per year";
+    }
     if (maxCap) maxCap.classList.toggle("show", q >= 15);
   }
-  if (slider) { slider.addEventListener("input", runCalc); runCalc(); }
+  // "Try me!" pill rides the thumb (26px thumb, so center = 13px + f * (w - 26))
+  function pillPos() {
+    if (!tryPill) return;
+    var f = (slider.value - slider.min) / (slider.max - slider.min);
+    tryPill.style.left = (13 + f * (slider.clientWidth - 26)).toFixed(1) + "px";
+  }
+  function dismissTease() {
+    if (teaseDone) return;
+    teaseDone = true;
+    if (tryPill) tryPill.classList.add("gone");
+    slider.classList.remove("hint");
+  }
+  if (slider) {
+    slider.addEventListener("input", function () { dismissTease(); runCalc(false); });
+    slider.addEventListener("pointerdown", dismissTease);
+    slider.addEventListener("keydown", dismissTease);
+    window.addEventListener("resize", function () { if (!teaseDone) pillPos(); }, { passive: true });
+    runCalc(false);
+  }
 
   /* ---------- reveal-on-enter ---------- */
   var io = new IntersectionObserver(function (entries) {
@@ -1452,11 +1516,36 @@ footer {
         if (goldRow) goldRow.classList.add("pinged");
       });
     },
+    calcTease: function () {
+      // one-time slider wiggle: 5 → 8 → 3 → 5, gauges rolling live, pill riding
+      // the thumb. Programmatic .value writes fire no input events, so the
+      // sweep can't dismiss itself — only a real touch does.
+      if (teaseDone || !slider) return;
+      slider.classList.add("hint");
+      pillPos();
+      var pts = [[0, 5], [0.32, 8], [0.72, 3], [1, 5]];
+      tween(2400, 600, linear, function (t) {
+        if (teaseDone) return;                 // user grabbed it mid-sweep
+        var v = 5;
+        for (var i = 1; i < pts.length; i++) {
+          if (t <= pts[i][0]) {
+            var lt = (t - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
+            lt = lt * lt * (3 - 2 * lt);       // smoothstep per segment
+            v = Math.round(pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * lt);
+            break;
+          }
+        }
+        if (+slider.value !== v) { slider.value = v; runCalc(true); pillPos(); }
+      }, function () {
+        if (!teaseDone) { slider.value = 5; runCalc(false); pillPos(); }
+      });
+    },
   };
   var playTargets = [
     { el: scanSec, fn: plays.scan },
     { el: quoteSec, fn: plays.quote },
     { el: timeTrack, fn: plays.time },
+    { el: document.querySelector(".calc"), fn: plays.calcTease },
   ];
   var playIO = new IntersectionObserver(function (entries) {
     entries.forEach(function (e) {
