@@ -524,6 +524,10 @@
   @media (max-width: 1023px) {
     body.mtotal-on #jobRail > .overflow-y-auto { padding-bottom: 88px; }
     body.mtotal-on #jobSpecsFab { bottom: calc(88px + env(safe-area-inset-bottom)); }
+    /* VIS-1: reserve space below the results so the fixed FAB + sticky total bar
+       never sit on top of the last content (e.g. the Customer Quote Download
+       button). Without this the FAB overlapped tap targets in the Job Files card. */
+    #results { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
   }
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
 
@@ -3181,6 +3185,12 @@
   .dash-card-load:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
   .dash-card-del { background: transparent; color: #64748b; border: 1px solid transparent; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
   .dash-card-del:hover { color: #f87171; background: rgba(248,113,113,0.1); }
+  /* CMP-1: per-card "add to comparison" toggle (re-exposes the compare feature). */
+  .dash-card-compare { font-size: 11px; font-weight: 700; border-radius: 9999px; padding: 6px 11px; cursor: pointer; background: transparent; color: #94a3b8; border: 1px solid rgba(100,116,139,0.45); transition: all .15s ease; white-space: nowrap; }
+  .dash-card-compare:hover { color: #c9a558; border-color: rgba(181,143,74,0.55); }
+  .dash-card-compare.is-on { background: rgba(181,143,74,0.16); color: #c9a558; border-color: #c9a558; }
+  [data-theme="light"] .dash-card-compare { color: #475569; border-color: #cbd5e1; }
+  [data-theme="light"] .dash-card-compare.is-on { color: #8a6a2e; border-color: #b58f4a; background: rgba(181,143,74,0.12); }
   /* ---- Launchpad cards (modular dashboard home) ---- */
   .dash-launch-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
   .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
@@ -3783,6 +3793,7 @@
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: #97772e; }
   [data-theme="light"] #remodelNudge { color: #97772e !important; }
   [data-theme="light"] #accessNudge { color: #97772e !important; }
+  [data-theme="light"] #lfFloorTotalHint { color: #8a6a2e !important; }
   [data-theme="light"] .text-\[\#dfc07a\] { color: #8a6a2e !important; }
   [data-theme="light"] .modal-close { color: #64748b; }
   [data-theme="light"] .modal-close:hover,
@@ -5106,6 +5117,9 @@
       <div id="obAdvisory" class="hidden text-[11px] text-amber-300/80 text-center"></div>
       <div id="obMsg" class="hidden text-[12px] text-rose-300 text-center font-medium"></div>
       <button id="obSubmit" type="button" class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#b58f4a]">Submit &amp; Get Started</button>
+      <!-- ONBD-6: an opt-in profile screen must have an exit. Without this the only
+           way out (before all 4 required fields are filled) was to reload. -->
+      <button id="obLater" type="button" class="btn rounded-full w-full px-5 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-100 min-h-[44px]">Maybe later — take me to the calculator</button>
     </div>
   </div>
 </div>
@@ -5396,6 +5410,13 @@
           </div>
         </div>
         <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <!-- CMP-1: floating comparison bar — appears when 2+ jobs are selected via
+             the per-card "Compare" toggle, and opens the (intact) compareModal. -->
+        <div id="compareBar" class="hidden fixed left-1/2 -translate-x-1/2 bottom-5 z-[60] items-center gap-2 rounded-full border border-[#b58f4a]/50 bg-slate-900/95 px-3 py-2 shadow-2xl" style="backdrop-filter: blur(8px);">
+          <span id="compareBarCount" class="text-xs font-bold text-slate-300 pl-2" style="font-variant-numeric: tabular-nums;"></span>
+          <button id="viewCompareBtn" type="button" class="btn rounded-full px-4 py-2 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] min-h-[44px]">Compare &rarr;</button>
+          <button id="compareClearBtn" type="button" class="btn text-slate-500 hover:text-slate-300 text-xl leading-none px-2 min-h-[44px]" aria-label="Clear comparison">&times;</button>
+        </div>
       </div>
 
       <!-- E-signatures view -->
@@ -5748,8 +5769,8 @@
         </button>
         <div class="rail-acc-body space-y-3">
       <div class="rail-field">
-        <label for="totalLF">Total window width <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span></label>
-        <p class="mt-0.5 mb-2 text-[11px] leading-snug text-slate-500">Add up the width of every window opening, in feet.</p>
+        <label for="totalLF" id="totalLFLabel">Total window width <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span></label>
+        <p id="totalLFHelp" class="mt-0.5 mb-2 text-[11px] leading-snug text-slate-500">Add up the width of every window opening, in feet.</p>
         <div class="rail-lf-input-wrap">
           <input
             id="totalLF"
@@ -5764,6 +5785,7 @@
           <span class="lf-unit">ft</span>
         </div>
         <div id="lfPerWindowHint" class="hidden mt-2 text-slate-500 text-[10px] tracking-[0.16em] uppercase font-semibold" style="font-variant-numeric: tabular-nums;"></div>
+        <div id="lfFloorTotalHint" class="hidden mt-1 text-[10px] tracking-[0.16em] uppercase font-bold" style="color: var(--gold-hi, #c9a558); font-variant-numeric: tabular-nums;"></div>
       </div>
       <div class="rail-field"><label><span class="lbl-impact med">Application</span><span class="info-tip" tabindex="0" role="button" aria-label="How application affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>The install detail (nail-fin vs. leg) can carry its own per-LF unit pricing for some brands. Match it to the actual opening.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How the window attaches to the wall — match what the job uses.</p>
@@ -5830,7 +5852,7 @@
       </div>
       <div id="swingStageRailField" class="rail-field hidden">
         <label><span class="lbl-impact med">Swing stage</span></label>
-        <p class="mb-2 text-[11px] leading-snug text-slate-500">Suspended scaffold for high-rise work &mdash; only shows above 3 stories. Placeholder rate for now; tune later.</p>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Suspended scaffold for high-rise work &mdash; only shows above 3 stories. Set the daily rate in Settings &rarr; Rates &rarr; Labor.</p>
         <div class="space-y-2">
           <button id="swingStageToggleBtn" type="button" class="toggle-pill"><span class="lbl">Swing stage</span><span class="val">Off</span></button>
           <label id="swingStageDaysWrap" class="margin-pill hidden" style="cursor:text">
@@ -5914,7 +5936,7 @@
   <svg class="nudge-icon" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <circle cx="10" cy="10" r="8"/><line x1="10" y1="6.5" x2="10" y2="10.5"/><circle cx="10" cy="13.5" r="0.6" fill="currentColor" stroke="none"/>
   </svg>
-  <span class="nudge-text">Finish setup to unlock customer PDFs &amp; save jobs.</span>
+  <span class="nudge-text">You're on sample rates &amp; branding — set yours up before quoting a real customer.</span>
   <button id="setupNudgeCta" type="button" class="nudge-cta">Set up profile →</button>
   <button id="setupNudgeDismiss" type="button" class="nudge-dismiss" aria-label="Dismiss">×</button>
 </div>
@@ -6406,6 +6428,23 @@
   </div>
 </div>
 
+<!-- ONBD-1 / OUT-3: pre-export trust guard. Replaces the old inverted confirm()
+     where "Cancel" shipped a demo-branded/demo-priced quote. Buttons are explicit
+     and non-inverted: the safe action (set it up) is primary; "Send anyway" is a
+     deliberate secondary; the X / backdrop simply cancels (never sends). -->
+<div id="demoGuardModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[82]">
+  <div class="absolute inset-0 modal-backdrop" data-close-demoguard></div>
+  <div class="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-6">
+    <h3 id="demoGuardTitle" class="text-base font-bold text-slate-100">Before you send this quote</h3>
+    <p id="demoGuardMsg" class="text-sm text-slate-400 mt-2 leading-relaxed"></p>
+    <div class="mt-5 space-y-2">
+      <button id="demoGuardSetup" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Set it up first</button>
+      <button id="demoGuardSend" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-slate-800 text-slate-100 border border-slate-700 hover:border-[#b58f4a]/50">Send anyway</button>
+      <button data-close-demoguard type="button" class="btn w-full rounded-xl px-4 py-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Manage Customers Modal — toggle which saved customers appear in the
      quick-pick list. Unchecking only hides them from the picker; the job and
      its contact details are never touched. Layers above the Save Job modal. -->
@@ -6490,7 +6529,7 @@
 </div>
 
 <!-- Job Comparison Modal -->
-<div id="compareModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+<div id="compareModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[82]">
   <div class="absolute inset-0 modal-backdrop" data-close-compare></div>
   <div class="relative card rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
@@ -10166,10 +10205,44 @@ function updateSwingStageToggleUI() {
 
 function updateLikeFloorsToggleUI() {
   const btn = document.getElementById("likeFloorsToggleBtn");
-  if (!btn) return;
-  const valEl = btn.querySelector(".val");
-  btn.classList.toggle("active", STATE.likeFloors);
-  if (valEl) valEl.textContent = STATE.likeFloors ? "On" : "Off";
+  if (btn) {
+    const valEl = btn.querySelector(".val");
+    btn.classList.toggle("active", STATE.likeFloors);
+    if (valEl) valEl.textContent = STATE.likeFloors ? "On" : "Off";
+  }
+  updateLfLabelForFloors();
+}
+
+// FLR-1 / CALC-2: With "Like Floors" on, getFloorGroups() treats the primary
+// window LF / count as ONE typical floor and multiplies it across every story.
+// Relabel the input so the number the user types is unambiguous, and echo the
+// multiplied building total — otherwise someone entering the WHOLE building's
+// footage prices it at N× (or 1/N), a real-dollar error on the flagship feature.
+function updateLfLabelForFloors() {
+  const labelEl = document.getElementById("totalLFLabel");
+  const helpEl = document.getElementById("totalLFHelp");
+  const floorHint = document.getElementById("lfFloorTotalHint");
+  if (!labelEl) return;
+  const n = storyNum(STATE.stories);
+  const stacking = STATE.highRise && STATE.likeFloors && n > 1;
+  const unit = ' <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span>';
+  if (stacking) {
+    labelEl.innerHTML = "Window width per floor" + unit;
+    if (helpEl) helpEl.textContent = "Enter ONE typical floor — it's multiplied across all " + n + " floors.";
+    if (floorHint) {
+      const lf = parseFloat(STATE.totalLF) || 0;
+      if (lf > 0) {
+        floorHint.textContent = "× " + n + " floors = " + (lf * n).toFixed(1) + " LF total";
+        floorHint.classList.remove("hidden");
+      } else {
+        floorHint.classList.add("hidden");
+      }
+    }
+  } else {
+    labelEl.innerHTML = "Total window width" + unit;
+    if (helpEl) helpEl.textContent = "Add up the width of every window opening, in feet.";
+    if (floorHint) floorHint.classList.add("hidden");
+  }
 }
 
 // One-off floor takeoff (lobby / penthouse). Same shape as the primary floor so
@@ -10340,10 +10413,11 @@ function render() {
   updateBuckButtonVisibility();
   updateSwingDoorsUI();
 
-  // Either footage OR swing-door units constitutes "have a quote"
-  const hasLf = (parseFloat(STATE.totalLF) || 0) > 0;
-  const hasDoors = !!(r.swingDoors && r.swingDoors.total > 0 && r.swingDoors.enabled);
-  const hasInput = hasLf || hasDoors;
+  // CALC-1: "have a quote" = ANY priced opening — window footage, swing, sliding,
+  // OR bifold doors (and one-off-floor footage). The old gate only counted window
+  // LF + swing doors, so a sliding-/bifold-only job priced internally but the
+  // results + sticky total stayed hidden. Reuse the same test the export paths use.
+  const hasInput = hasQuoteInput(r);
   const results = document.getElementById("results");
   const empty = document.getElementById("emptyState");
   results.classList.toggle("hidden", !hasInput);
@@ -10604,6 +10678,9 @@ function render() {
   } else {
     hintEl.classList.add("hidden");
   }
+  // FLR-1 / CALC-2: keep the "per floor" relabel + multiplied-total echo current
+  // as stories / footage change (the toggle handler covers on/off).
+  updateLfLabelForFloors();
 
   // Window-count nudge (F2) — a blank count silently omits per-opening SETUP
   // LABOR (every construction type, not just remodel) plus caulk/screws and, on
@@ -13015,6 +13092,7 @@ function dashJobCard(j) {
       <div class="flex items-center justify-between gap-2 mt-auto pt-3.5">
         ${statusSel}
         <div class="flex items-center gap-1.5">
+          ${j.isDraft ? "" : `<button type="button" data-dash-compare="${j.id}" class="dash-card-compare${compareSet.has(j.id) ? " is-on" : ""}" aria-pressed="${compareSet.has(j.id)}" title="Add to side-by-side comparison">${compareSet.has(j.id) ? "✓ Compare" : "Compare"}</button>`}
           <button type="button" data-dash-load="${j.id}" class="dash-card-load">Load &rarr;</button>
           <button type="button" data-dash-del="${j.id}" class="dash-card-del" title="Delete job">
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>
@@ -13072,6 +13150,7 @@ function renderDashJobs(jobs) {
     grid.innerHTML = list.map(dashJobCard).join("");
   }
   hydratePhotoThumbs(grid);
+  updateCompareBar();   // CMP-1: keep the floating compare bar in sync with selection
 }
 
 // Compress an uploaded photo to a small JPEG data URL (stored on the job).
@@ -13155,7 +13234,13 @@ async function saveJobPhoto(id, dataUrl) {
   const j = jobs.find(x => x.id === id);
   if (!j) return;
   let uploaded = false;
-  if (dataUrl && sb && sb.storage && currentUser && isUuid(j.id)) {
+  // PHOTO-4: never upload a DRAFT cover to Storage. Every draft shares one
+  // deterministic id (draftIdFor), so its Storage path (userId/<draftId>.jpg) is
+  // identical for every draft — and ups:true means the next draft's cover
+  // overwrites the previous (now-promoted) job's cover bytes. Drafts keep their
+  // cover as base64 locally; it's carried forward on promotion and migrated to a
+  // per-job path once the job has its own unique uuid.
+  if (dataUrl && sb && sb.storage && currentUser && isUuid(j.id) && !j.isDraft) {
     try {
       const path = currentUser.id + "/" + j.id + ".jpg";
       const blob = dataURLToBlob(dataUrl);
@@ -13803,6 +13888,8 @@ function wireDashboard() {
       if (photoBtn) { _dashPhotoTargetId = photoBtn.dataset.dashPhoto; document.getElementById("dashPhotoInput")?.click(); return; }
       const genThumbBtn = e.target.closest("[data-dash-genthumb]");
       if (genThumbBtn) { generateJobThumbnail(genThumbBtn.dataset.dashGenthumb, genThumbBtn); return; }
+      const cmpBtn = e.target.closest("[data-dash-compare]");
+      if (cmpBtn) { toggleCompareJob(cmpBtn.dataset.dashCompare, cmpBtn); return; }
       const detailsBtn = e.target.closest("[data-dash-details]");
       if (detailsBtn) { openJobDetails(detailsBtn.dataset.dashDetails); return; }
       const loadBtn = e.target.closest("[data-dash-load]");
@@ -15495,6 +15582,18 @@ function doSaveJob(overrideId) {
     if (_photoSrc.shopChecked) job.shopChecked = _photoSrc.shopChecked;   // shopping-list checkmarks
   }
 
+  // VER-3: deal status + e-signature live only on the job record, not in rail
+  // STATE, so an in-place re-save (which rebuilds the job from STATE) would
+  // silently wipe an Approved/signed job's status and e-sign link — inconsistent
+  // with the Cmd+S quick-save path. Preserve them across an OVERWRITE only; a
+  // brand-new save must start unsigned/Quoted (see VER-1).
+  if (overwrite) {
+    if (overwrite.status) job.status = overwrite.status;
+    if (overwrite.signedAt) job.signedAt = overwrite.signedAt;
+    if (overwrite.signerName) job.signerName = overwrite.signerName;
+    if (overwrite.signedQuoteId) job.signedQuoteId = overwrite.signedQuoteId;
+  }
+
   // Drop the working draft, then overwrite the target in place or append fresh.
   let next = jobs.filter(x => !x.isDraft);
   if (overwrite) next = next.map(x => x.id === id ? job : x);
@@ -15529,6 +15628,53 @@ function showSaveConflict(twin) {
   if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
 }
 function closeSaveConflict() { tvDismiss(document.getElementById("saveConflictModal")); }
+
+// ONBD-1 / OUT-3: pre-export trust guard. Shows a real modal with two explicit
+// actions instead of the old inverted confirm() (where Cancel shipped a demo
+// quote). opts.demoBrand / opts.demoRates pick the message; onSetup routes the
+// user to fix it; onSend is the deliberate "send anyway"; Cancel/backdrop never
+// sends. If the modal node is missing we fail SAFE (do nothing — no demo send).
+function showDemoExportGuard(opts) {
+  opts = opts || {};
+  const m = document.getElementById("demoGuardModal");
+  if (!m) return;
+  const msgEl = document.getElementById("demoGuardMsg");
+  const setupBtn = document.getElementById("demoGuardSetup");
+  const sendBtn = document.getElementById("demoGuardSend");
+  const cn = (DATA.config.brand && DATA.config.brand.companyName) || DEMO_BRAND.companyName;
+  const issues = [];
+  if (opts.demoBrand) issues.push('the demo company name "' + cn + '"');
+  if (opts.demoRates) issues.push("sample pricing (you haven't entered your own rates yet)");
+  const seesReal = opts.demoBrand && opts.demoRates ? "branding and prices"
+    : opts.demoRates ? "prices" : "company name, logo, and contact info";
+  if (msgEl) msgEl.textContent = "This customer quote still uses " + issues.join(" and ") +
+    ". Set that up first so the customer sees your real " + seesReal + ".";
+  if (setupBtn) setupBtn.textContent = (opts.demoRates && !opts.demoBrand) ? "Enter my rates" : "Set up my profile";
+  const close = () => tvDismiss(m);
+  if (setupBtn) setupBtn.onclick = () => { close(); if (opts.onSetup) opts.onSetup(); };
+  if (sendBtn) sendBtn.onclick = () => { close(); if (opts.onSend) opts.onSend(); };
+  m.querySelectorAll("[data-close-demoguard]").forEach(el => { el.onclick = close; });
+  m.classList.remove("hidden"); m.classList.add("flex");
+}
+
+// ONBD-1/OUT-3 shared gate: returns true and shows the guard modal when a
+// customer-facing export still uses demo branding OR demo pricing; `resume` is
+// the "Send anyway" action. Returns false when it's safe to proceed immediately.
+function demoExportBlocked(resume) {
+  const cn = (DATA.config.brand && DATA.config.brand.companyName) || "";
+  const demoBrand = !DATA.config.onboarded || cn === DEMO_BRAND.companyName;
+  const demoRates = !DATA.config.ratesCustomized;
+  if (!demoBrand && !demoRates) return false;
+  showDemoExportGuard({
+    demoBrand, demoRates,
+    onSetup: () => {
+      if (demoRates && !demoBrand) { try { openAdmin(); showSettingsTab("rates"); showRatesLeaf("money"); } catch (_) {} }
+      else { try { startSetupFlow(); } catch (_) {} }
+    },
+    onSend: resume,
+  });
+  return true;
+}
 
 function saveCurrentJob() { openSaveJobModal(); }
 
@@ -15580,6 +15726,10 @@ function quickSaveOrPrompt() {
 
 // "Save as new version" — clone the currently-loaded job under "<name> vN"
 function saveAsNewVersion() {
+  // VER-9: double-fire guard — an accidental double-tap must not mint two junk
+  // versions and burn two quote credits. Ignore repeat calls within 1.2s of the
+  // last successful version save (a deliberate later re-version still works).
+  if (saveAsNewVersion._lastAt && (Date.now() - saveAsNewVersion._lastAt) < 1200) return;
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!STATE.currentJobId) { toast("Load a saved job first"); return; }
@@ -15641,13 +15791,24 @@ function saveAsNewVersion() {
   // inherit the original's logged usage (it would skew calibration twice).
   delete newJob.actuals; delete newJob.actualsUpdatedAt;
   delete newJob.shopChecked;   // fresh shopping list for the new version
+  // VER-1: a new version is an UNSENT revision — it must NEVER inherit the
+  // original's deal status or e-signature. The `...base` spread copies them, so a
+  // revised v2 the customer never saw would display as "Approved / signed by
+  // <customer>" — a legal-integrity bug. Reset to a fresh, unsigned Quoted state.
+  delete newJob.status;          // jobStatus() then defaults to "Quoted"
+  delete newJob.signedAt; delete newJob.signerName; delete newJob.signedQuoteId;
   jobs.push(newJob);
   if (!saveJobs(jobs)) {   // write failed (device storage full) → no version, so spend no credit
     toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
     return;
   }
   if (needsQuote) consumeQuote();   // spend the quote only after a confirmed write
+  saveAsNewVersion._lastAt = Date.now();   // VER-9: arm the double-fire guard
   STATE.currentJobId = newJob.id;
+  // VER-2: point the rail (and the next save) at the new version. Without this,
+  // STATE.jobName still held the base name, so the very next save saw v2 as
+  // "<base>" and collided with the original v1 in the save-conflict check.
+  STATE.jobName = newName;
   pushJobToCloud(newJob);
   logQuoteEvent("saved_job_version");
   // Fires both names: spec lists job_versioned and job_duplicated as siblings
@@ -16007,23 +16168,16 @@ function requireSavedJobForExport() {
   return false;
 }
 
-function exportCustomerPDF(mode) {
+function exportCustomerPDF(mode, force) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!requireSavedJobForExport()) return;
-  // Guard: don't let a customer-facing quote go out with the demo company
-  // name still in place. A non-technical user could easily ship "Prime
-  // Window & Door" to a real customer without noticing.
-  const cn = (DATA.config.brand && DATA.config.brand.companyName) || "";
-  if (!DATA.config.onboarded || cn === DEMO_BRAND.companyName) {
-    const proceed = confirm(
-      "Heads up — this quote still shows the demo company name \"" + (cn || "Prime Window & Door") + "\".\n\n" +
-      "Set up your profile first so the customer sees YOUR company name, logo, and contact info.\n\n" +
-      "OK = set up now   ·   Cancel = generate with demo branding anyway"
-    );
-    if (proceed) { startSetupFlow(); return; }
-    // else fall through and generate with demo branding (their choice)
-  }
+  // ONBD-1 / OUT-3: don't let a customer-facing quote go out on demo BRANDING
+  // *or* demo PRICING. The old code only checked the demo company name, so a
+  // user who set their brand but never entered rates could ship a demo-priced
+  // quote silently. A real modal (not an inverted confirm) offers the safe fix
+  // and an explicit "Send anyway"; force=true re-enters past the guard.
+  if (!force && demoExportBlocked(() => exportCustomerPDF(mode, true))) return;
   logQuoteEvent("customer_quote");
   window.track("customer_pdf_downloaded");
   const { jsPDF } = window.jspdf;
@@ -16328,10 +16482,15 @@ async function buildCustomerSharePayload() {
   };
 }
 
-async function shareCustomerQuote() {
+async function shareCustomerQuote(force) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!window.PublicQuote) { toast("Share unavailable — refresh the page"); return; }
+  // OUT-5: a shared public link is a customer-facing document — require a saved
+  // job just like View/Download (was the only one of the three that skipped it).
+  if (!requireSavedJobForExport()) return;
+  // ONBD-1: it's also the most public artifact — guard demo branding/pricing.
+  if (!force && demoExportBlocked(() => shareCustomerQuote(true))) return;
 
   let payload, url;
   try {
@@ -19799,7 +19958,22 @@ function updateCrewCostReadout() {
 // Reads the entire admin form into DATA and persists. Every field is range/NaN
 // guarded, so an autosave fired mid-edit on one field can't write a partial or
 // invalid value — it just skips the in-flight one. Silent: no close, no toast.
+// SET-1 / ONBD-5: signature of everything a Settings save can change EXCEPT
+// brand identity and job defaults — i.e. the actual pricing (margin, tax, labor,
+// window/door/material/trim rates) plus manufacturer rates. commitAdmin mutates
+// only brand, jobDefaults, manufacturers and pricing, so blanking brand +
+// jobDefaults means any signature change is a genuine RATE edit. Used to clear
+// the demo banner only when a real price changes — never on a brand/company edit.
+function _pricingSignature() {
+  const c = clone(DATA.config || {});
+  c.brand = null;
+  c.jobDefaults = null;
+  c.ratesCustomized = null;
+  return JSON.stringify({ config: c, mfrRates: DATA.manufacturerRates });
+}
+
 function commitAdmin() {
+  const _ratesBefore = _pricingSignature();
   // Brand
   if (!DATA.config.brand) DATA.config.brand = {};
   DATA.config.brand.companyName = document.getElementById("brandCompanyName").value.trim();
@@ -20010,8 +20184,13 @@ function commitAdmin() {
   const bfLift = document.getElementById("adminBfInspExtraLiftDay");
   bf.inspection.extraLiftDay = !!(bfLift && bfLift.checked);
 
-  // Saving real rates counts as customizing — clears the demo banner
-  DATA.config.ratesCustomized = true;
+  // SET-1 / ONBD-5: only certify "rates customized" when a real PRICING value
+  // actually changed. Editing brand/company info (or the wizard writing pre-filled
+  // demo values) must NOT silently clear the demo-rates banner — that's how a
+  // demo-priced quote escapes to a real customer. Never un-set once true.
+  if (!DATA.config.ratesCustomized && _pricingSignature() !== _ratesBefore) {
+    DATA.config.ratesCustomized = true;
+  }
   saveData(DATA);
   applyBrandToUI();
   bindControls();
@@ -20551,12 +20730,21 @@ async function handlePlanUpload(files, source) {
       return;
     }
 
+    // AIPLAN-2 (partial): report the outcome in ONE message so the partial-read /
+    // truncation WARNING is never overwritten by the credits note. Previously each
+    // fired its own 1.6s toast into a single slot, and the warning — the message
+    // the user must act on — lost the race to the credits toast. The warning leads.
+    // NOTE: the full fix (a persistent result panel instead of a toast, plus a
+    // "retry only the failed sheets" that merges without re-billing succeeded
+    // chunks — AIPLAN-1) needs the live read flow and is tracked for that pass.
+    const _readMsg = [];
+    if (failChunks) _readMsg.push(`⚠ Read ${okChunks} of ${chunks.length} sections — about ${failChunks * PLAN_CHUNK_SIZE} pages couldn't be read; re-upload just those sheets`);
+    if (truncated) _readMsg.push(`only the first ${MAX_PLAN_PAGES} of ${detectedPages} pages were read`);
     if (!adminUser) {
       const rem = getAiReadsRemaining();
-      if (rem !== Infinity) toast(`${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
+      if (rem !== Infinity) _readMsg.push(`${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
     }
-    if (failChunks) toast(`Read ${okChunks} of ${chunks.length} sections — about ${failChunks * PLAN_CHUNK_SIZE} pages couldn't be read. Re-upload those sheets to finish.`);
-    if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " of " + detectedPages + " pages. Contact your admin to raise the page limit, or re-upload just the schedule sheets.");
+    if (_readMsg.length) toast(_readMsg.join(" · "));
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
     try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length, chunks: chunks.length, okChunks }); } catch (_) {}
   } catch (err) {
@@ -21662,6 +21850,34 @@ function exportCutListPDF(mode) {
 /* ============================================================
    JOB COMPARISON
    ============================================================ */
+// CMP-1: re-exposed comparison entry points. The redesigned dashboard dropped
+// the per-card toggle and the "view comparison" bar, orphaning a paid feature
+// whose engine (openComparison / renderComparisonModal / compareModal) is fully
+// intact. These restore the toggle + a floating bar; the bar's button is wired
+// to openComparison. compareSet is the same Set the engine already reads.
+function updateCompareBar() {
+  const bar = document.getElementById("compareBar");
+  if (!bar) return;
+  const n = compareSet.size;
+  const show = n >= 2;
+  bar.classList.toggle("hidden", !show);
+  bar.classList.toggle("flex", show);
+  const cnt = document.getElementById("compareBarCount");
+  if (cnt) cnt.textContent = n + " selected";
+}
+function toggleCompareJob(id, btn) {
+  if (compareSet.has(id)) compareSet.delete(id);
+  else {
+    const cap = compareCap();
+    if (compareSet.size >= cap) { toast(`You can compare up to ${cap} jobs on your plan — remove one first`); return; }
+    compareSet.add(id);
+  }
+  const on = compareSet.has(id);
+  if (btn) { btn.classList.toggle("is-on", on); btn.setAttribute("aria-pressed", String(on)); btn.textContent = on ? "✓ Compare" : "Compare"; }
+  updateCompareBar();
+}
+function clearCompare() { compareSet.clear(); updateCompareBar(); try { renderDashJobs(loadJobs()); } catch (_) {} }
+
 function openComparison() {
   const all = loadJobs();
   // preserve the user's selection order; resolve to job objects, drop misses
@@ -22796,7 +23012,7 @@ function aiReadsMeterHtml() {
   const remaining = getAiReadsRemaining();
   const where = getEntitlements().plan === "trial" ? "in your trial" : "this month";
   const tier = remaining <= 0 ? "limit" : (remaining <= 1 ? "low" : "ok");
-  const tail = remaining <= 0 ? ` &middot; <span class="aim-cta">Upgrade for more</span>` : "";
+  const tail = remaining <= 0 ? ` &middot; <span class="aim-cta" data-aim-upgrade role="button" tabindex="0">Upgrade for more</span>` : "";
   return `<span class="aim aim-${tier}">✨ ${remaining} of ${cap} AI plan read${cap === 1 ? "" : "s"} left ${where}${tail}</span>`;
 }
 function renderAiReadsMeter() {
@@ -24011,6 +24227,10 @@ const DEMO_BRAND = { companyName: "Prime Window & Door", city: "Ocala", state: "
 
 function showOnboarding() {
   window.track("onboarding_opened");
+  // ONBD-3: the onboard screen is z-70, below the dashboard (z-74). Opening it
+  // from the dashboard avatar menu would render it UNDERNEATH — the click looked
+  // like it did nothing. Close the dashboard first.
+  try { closeDashboard(); } catch (_) {}
   const b = DATA.config.brand || {};
   // Before first onboarding, treat demo placeholders as empty so the user
   // types their own. After they've onboarded, show whatever they saved.
@@ -24303,6 +24523,7 @@ function showSetupStep(n) {
 }
 
 function showSetupWizard() {
+  try { closeDashboard(); } catch (_) {}   // ONBD-3: setupScreen is z-72, below the dashboard (z-74)
   document.getElementById("setupLabor").value = (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30;
   document.getElementById("setupMargin").value = DATA.config.defaultMargin ?? 35;
   document.getElementById("setupMfrBody").dataset.filled = "";
@@ -24329,6 +24550,7 @@ function setupBack() {
 // Save whatever the user entered, then close the wizard.
 // viaSkip = they bailed — leaves ratesCustomized false so the demo banner shows.
 function completeSetup(viaSkip) {
+  const _ratesBefore = _pricingSignature();
   const labor = parseFloat(document.getElementById("setupLabor").value);
   const margin = parseFloat(document.getElementById("setupMargin").value);
   // Write to the crew-pay rate that actually drives the quote's labor line
@@ -24347,7 +24569,10 @@ function completeSetup(viaSkip) {
     if (!DATA.manufacturers.includes(STATE.manufacturer)) STATE.manufacturer = DATA.manufacturers[0];
   }
   DATA.config.setupComplete = true;
-  if (!viaSkip) DATA.config.ratesCustomized = true;
+  // ONBD-5: only certify customized when the wizard actually changed a pricing
+  // value (labor/margin/mfr rates) — clicking through pre-filled demo numbers
+  // must leave the demo banner up so demo-priced quotes can't slip out.
+  if (!viaSkip && _pricingSignature() !== _ratesBefore) DATA.config.ratesCustomized = true;
   saveData(DATA);
   hideSetupWizard();
   applyBrandToUI();
@@ -25014,6 +25239,16 @@ function init() {
   });
   const subResetBtn = document.getElementById("subResetEntitlements");
   if (subResetBtn) subResetBtn.addEventListener("click", resetEntitlementsDev);
+  // AIPLAN-9: the "Upgrade for more" text in the exhausted AI-reads meter was
+  // styled clickable but had no handler. Delegate a click/Enter to open pricing.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-aim-upgrade]")) showPricing("ai_reads_meter");
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest("[data-aim-upgrade]")) {
+      e.preventDefault(); showPricing("ai_reads_meter");
+    }
+  });
 
   // PFP menu → "My plan" — drops into the Subscription tab in Settings
   const pfpMyPlanBtn = document.getElementById("pfpMyPlan");
@@ -25039,6 +25274,14 @@ function init() {
 
   // Onboarding wizard
   document.getElementById("obSubmit").addEventListener("click", submitOnboarding);
+  // ONBD-6: exit the opt-in profile screen without filling it out. Lands in the
+  // calculator (demo data + the setup nudge keep pointing them back when ready).
+  document.getElementById("obLater")?.addEventListener("click", () => {
+    const ob = document.getElementById("onboardScreen");
+    ob.classList.add("hidden"); ob.classList.remove("flex");
+    try { closeDashboard(); } catch (_) {}
+    try { renderSetupNudge(); } catch (_) {}
+  });
   document.getElementById("obLogoBtn").addEventListener("click", () => document.getElementById("obLogoInput").click());
   document.getElementById("obLogoInput").addEventListener("change", async e => {
     const f = e.target.files[0]; e.target.value = "";
@@ -25139,6 +25382,7 @@ function init() {
   _rail.addEventListener("mouseleave", () => { _railMouseOver = false; railUnpeek(); });
 
   document.getElementById("viewCompareBtn")?.addEventListener("click", openComparison);
+  document.getElementById("compareClearBtn")?.addEventListener("click", clearCompare);
   document.getElementById("exportComparisonPdf").addEventListener("click", () => exportComparisonPDF("download"));
   document.getElementById("viewComparisonPdf").addEventListener("click", () => exportComparisonPDF("view"));
   document.getElementById("compareModal").addEventListener("click", e => {
