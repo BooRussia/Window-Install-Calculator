@@ -168,26 +168,79 @@ a { color: inherit; }
 .odo--ease .strip { transition: transform .7s var(--ease-out); }
 
 /* Plumb line + riding anchor — desktop only */
+/* Chapter rail — a progress plumb line whose anchor rides the scroll. Hover to
+   reveal chapter labels, drag the anchor to scrub, click a chapter to jump.
+   --railX is the x of the line/dots/anchor; the band runs 12%→88% of height. */
 .rail {
-  position: fixed; top: 0; bottom: 0; left: var(--rail-inset); width: 60px;
-  z-index: 40; pointer-events: none;
-  opacity: 1; transition: opacity .5s ease;
+  position: fixed; top: 0; bottom: 0; left: 0; width: 76px;
+  --railX: 44px; --band: 76;   /* band height in % of the rail */
+  z-index: 40; pointer-events: auto;   /* the 76px column (empty left margin) catches hover */
+  opacity: 1; transition: opacity .4s ease;
 }
-.rail::before {
-  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
-  background: linear-gradient(180deg, transparent, rgba(216,185,106,0.32) 6%, rgba(216,185,106,0.32) 94%, transparent);
+.rail-line {
+  position: absolute; left: var(--railX); top: 12%; bottom: 12%; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(216,185,106,0.30) 4%, rgba(216,185,106,0.30) 96%, transparent);
 }
-.rail-tick {
-  position: absolute; left: calc(50% - 5px); width: 11px; height: 1px;
-  background: rgba(216,185,106,0.30);
+/* the travelled portion glows brighter behind the anchor */
+.rail-fill {
+  position: absolute; left: var(--railX); top: 12%; width: 1px; height: calc(var(--ap, 0) * var(--band) * 1%);
+  background: linear-gradient(180deg, rgba(216,185,106,0.15), var(--gold-pale));
+  transform-origin: top;
 }
+.rail-chapters { position: absolute; inset: 0; pointer-events: none; }
+.rail-chapter {
+  position: absolute; left: var(--railX); top: calc(12% + var(--cp, 0) * var(--band) * 1%);
+  transform: translateY(-50%); margin-left: -3.5px;   /* centre the 7px dot on the line */
+  display: flex; align-items: center; gap: 11px;
+  background: none; border: 0; padding: 7px 8px 7px 0; margin-top: 0; cursor: pointer;
+  pointer-events: none; color: var(--ink-2);   /* clickable only while labels are revealed */
+}
+.rail:hover .rail-chapter, .rail.reveal .rail-chapter { pointer-events: auto; }
+.rail-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(216,185,106,0.35); box-shadow: 0 0 0 0 rgba(216,185,106,0.4);
+  transition: transform .3s var(--spring), background .3s ease, box-shadow .3s ease;
+}
+.rail-chapter:hover .rail-dot { transform: scale(1.55); background: var(--gold-pale); }
+.rail-chapter.active .rail-dot { background: var(--gold-pale); box-shadow: 0 0 10px 1px rgba(216,185,106,0.55); }
+.rail-name {
+  white-space: nowrap; font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-2);
+  background: rgba(6,13,30,0.86); border: 1px solid rgba(216,185,106,0.22);
+  padding: 4px 11px; border-radius: 999px;
+  opacity: 0; transform: translateX(-8px); pointer-events: none;
+  transition: opacity .32s ease, transform .38s var(--ease-out), color .2s ease;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.rail-chapter:hover .rail-name { color: var(--gold-pale); }
+.rail-chapter.active .rail-name { color: var(--gold-pale); border-color: rgba(216,185,106,0.4); }
+/* reveal on hover of the rail column or while dragging; staggered from the top */
+.rail:hover .rail-name, .rail.reveal .rail-name { opacity: 1; transform: translateX(0); }
+.rail:hover .rail-chapter:nth-child(2) .rail-name, .rail.reveal .rail-chapter:nth-child(2) .rail-name { transition-delay: .03s; }
+.rail:hover .rail-chapter:nth-child(3) .rail-name, .rail.reveal .rail-chapter:nth-child(3) .rail-name { transition-delay: .06s; }
+.rail:hover .rail-chapter:nth-child(4) .rail-name, .rail.reveal .rail-chapter:nth-child(4) .rail-name { transition-delay: .09s; }
+.rail:hover .rail-chapter:nth-child(5) .rail-name, .rail.reveal .rail-chapter:nth-child(5) .rail-name { transition-delay: .12s; }
+.rail:hover .rail-chapter:nth-child(6) .rail-name, .rail.reveal .rail-chapter:nth-child(6) .rail-name { transition-delay: .15s; }
+.rail:hover .rail-chapter:nth-child(7) .rail-name, .rail.reveal .rail-chapter:nth-child(7) .rail-name { transition-delay: .18s; }
+.rail:hover .rail-chapter:nth-child(8) .rail-name, .rail.reveal .rail-chapter:nth-child(8) .rail-name { transition-delay: .21s; }
+.rail:hover .rail-chapter:nth-child(9) .rail-name, .rail.reveal .rail-chapter:nth-child(9) .rail-name { transition-delay: .24s; }
 .rail-anchor {
-  position: absolute; left: 50%; top: 88px; width: 34px; height: 34px;
-  margin-left: -17px; color: var(--gold-hi);
+  position: absolute; left: var(--railX); top: 12%; width: 32px; height: 32px;
+  margin: -16px 0 0 -16px; color: var(--gold-hi);
   filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
-  will-change: transform;
+  transform: translateY(calc(var(--ap, 0) * var(--band) * 1vh));
+  pointer-events: auto; cursor: grab; touch-action: none; will-change: transform;
+  transition: filter .25s ease, scale .2s var(--spring);
 }
-.rail.hide { opacity: 0; }
+.rail:hover .rail-anchor { filter: drop-shadow(0 0 8px rgba(216,185,106,0.5)) drop-shadow(0 2px 5px rgba(0,0,0,0.5)); }
+.rail-anchor:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 4px; border-radius: 6px; }
+.rail-anchor.dragging { cursor: grabbing; scale: 1.12; }
+.rail-anchor svg { width: 100%; height: 100%; }
+.rail.hide { opacity: 0; pointer-events: none; }
+/* the rail is JS-driven progress + nav — under reduced-motion or no-JS, hide it
+   rather than show a dead, mispositioned control (scrolling still works fully) */
+@media (prefers-reduced-motion: reduce) { .rail { display: none; } }
+.no-js .rail { display: none; }
 @media (max-width: 1099px) { .rail { display: none; } }
 
 /* Scroll cue — the Prime-style vertical label + draining gold line */
@@ -879,15 +932,24 @@ footer {
   <span class="sr-only" id="clockSr">0 minutes 0 seconds</span>
 </div>
 
-<aside class="rail" id="rail" aria-hidden="true">
-  <span class="rail-tick" style="top:12%"></span>
-  <span class="rail-tick" style="top:26%"></span>
-  <span class="rail-tick" style="top:40%"></span>
-  <span class="rail-tick" style="top:54%"></span>
-  <span class="rail-tick" style="top:68%"></span>
-  <span class="rail-tick" style="top:82%"></span>
-  <div class="rail-anchor" id="railAnchor">
-    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+<aside class="rail" id="rail" aria-label="Chapters">
+  <span class="rail-line" aria-hidden="true"></span>
+  <span class="rail-fill" aria-hidden="true"></span>
+  <nav class="rail-chapters" id="railChapters" aria-label="Jump to chapter">
+    <button class="rail-chapter" data-target="hero" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Intro</span></button>
+    <button class="rail-chapter" data-target="oldway" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">The problem</span></button>
+    <button class="rail-chapter" data-target="scan" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Snap</span></button>
+    <button class="rail-chapter" data-target="quote" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Price</span></button>
+    <button class="rail-chapter" data-target="fl" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Approvals</span></button>
+    <button class="rail-chapter" data-target="docs" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Documents</span></button>
+    <button class="rail-chapter" data-target="time" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Your time</span></button>
+    <button class="rail-chapter" data-target="demo" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Live demo</span></button>
+    <button class="rail-chapter" data-target="close" type="button"><span class="rail-dot" aria-hidden="true"></span><span class="rail-name">Start free</span></button>
+  </nav>
+  <div class="rail-anchor" id="railAnchor" role="slider" tabindex="0"
+       aria-label="Scroll progress — drag to scrub, arrow keys to change chapter"
+       aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
       <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
     </svg>
@@ -1539,6 +1601,9 @@ footer {
   var clockSr = document.getElementById("clockSr");
   var rail = document.getElementById("rail");
   var railAnchor = document.getElementById("railAnchor");
+  var railChapters = rail ? [].slice.call(rail.querySelectorAll(".rail-chapter")) : [];
+  var railSecs = railChapters.map(function (b) { return document.getElementById(b.getAttribute("data-target")); });
+  var railActive = -1, railDragging = false;
   var scanSec = document.getElementById("scan");
   var scanSr = document.getElementById("scanSr");
   var quoteSec = document.getElementById("quote");
@@ -1629,10 +1694,11 @@ footer {
       if (whole !== lastSrSec && whole % 10 === 0) { lastSrSec = whole; clockSr.textContent = whole + " seconds elapsed"; }
     }
 
-    // rail anchor rides the plumb line; rail bows out for the finale
-    if (railAnchor) {
-      railAnchor.style.transform = "translateY(" + (pageP * (vh - 240)).toFixed(1) + "px)";
-      rail.classList.toggle("hide", closeTop < vh * 0.5);
+    // rail anchor rides the plumb line; active chapter tracks the scroll
+    if (rail && !railDragging) {
+      rail.style.setProperty("--ap", pageP.toFixed(4));
+      railAnchor.setAttribute("aria-valuenow", Math.round(pageP * 100));
+      updateActiveChapter(st);
     }
 
     // docs fan: stack → fan → grid, four direct transform writes
@@ -1664,6 +1730,88 @@ footer {
   cue.addEventListener("click", function () {
     window.scrollTo({ top: vh * 0.96, behavior: "smooth" });
   });
+
+  /* ---------- chapter rail: hover reveals labels, drag the anchor to scrub,
+       click a chapter (or tap the anchor) to jump ---------- */
+  function railMax() { return Math.max(1, doc.scrollHeight - vh); }
+  function layoutRail() {
+    // place each chapter dot at its section's normalized scroll position, so the
+    // anchor (which rides pageP) lines up with a dot when that section is reached
+    var max = railMax();
+    for (var i = 0; i < railChapters.length; i++) {
+      var s = railSecs[i];
+      var cp = s ? Math.min(1, Math.max(0, s.offsetTop / max)) : 0;
+      railChapters[i].style.setProperty("--cp", cp.toFixed(4));
+    }
+  }
+  function updateActiveChapter(st) {
+    var idx = 0;
+    for (var i = 0; i < railSecs.length; i++) {
+      if (railSecs[i] && railSecs[i].offsetTop <= st + vh * 0.35) idx = i;
+    }
+    if (idx === railActive) return;
+    if (railActive > -1 && railChapters[railActive]) railChapters[railActive].classList.remove("active");
+    railActive = idx;
+    if (railChapters[idx]) railChapters[idx].classList.add("active");
+  }
+  if (rail && railAnchor && railChapters.length) {
+    layoutRail();
+    updateActiveChapter(window.scrollY);
+    window.addEventListener("resize", layoutRail, { passive: true });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutRail);
+
+    // click a chapter → smooth-scroll to it
+    railChapters.forEach(function (b, i) {
+      b.addEventListener("click", function () {
+        var s = railSecs[i];
+        if (s) window.scrollTo({ top: s.offsetTop, behavior: "smooth" });
+      });
+    });
+
+    // jump one chapter from the active one (anchor tap / keyboard)
+    function railJump(dir) {
+      var i = Math.min(railChapters.length - 1, Math.max(0, railActive + dir));
+      if (railSecs[i]) window.scrollTo({ top: railSecs[i].offsetTop, behavior: "smooth" });
+    }
+    function bandP(clientY) {
+      var r = rail.getBoundingClientRect();
+      return Math.min(1, Math.max(0, (clientY - (r.top + r.height * 0.12)) / (r.height * 0.76)));
+    }
+    var dragMoved = false, dragStartY = 0;
+    railAnchor.addEventListener("pointerdown", function (e) {
+      railDragging = true; dragMoved = false; dragStartY = e.clientY;
+      railAnchor.classList.add("dragging"); rail.classList.add("reveal");
+      try { railAnchor.setPointerCapture(e.pointerId); } catch (_) {}
+      doc.style.scrollBehavior = "auto";   // 1:1 tracking — don't fight smooth scroll
+      e.preventDefault();
+    });
+    railAnchor.addEventListener("pointermove", function (e) {
+      if (!railDragging) return;
+      if (Math.abs(e.clientY - dragStartY) > 4) dragMoved = true;
+      var p = bandP(e.clientY);
+      rail.style.setProperty("--ap", p.toFixed(4));
+      railAnchor.setAttribute("aria-valuenow", Math.round(p * 100));
+      window.scrollTo(0, p * railMax());
+    });
+    function endRailDrag(e) {
+      if (!railDragging) return;
+      railDragging = false;
+      railAnchor.classList.remove("dragging"); rail.classList.remove("reveal");
+      doc.style.scrollBehavior = "";
+      try { railAnchor.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (!dragMoved) railJump(1);          // a tap (no drag) on the anchor = next chapter
+      schedule();
+    }
+    railAnchor.addEventListener("pointerup", endRailDrag);
+    railAnchor.addEventListener("pointercancel", endRailDrag);
+    railAnchor.addEventListener("keydown", function (e) {
+      var k = e.key;
+      if (k === "ArrowDown" || k === "ArrowRight" || k === "PageDown" || k === "Enter" || k === " ") { railJump(1); e.preventDefault(); }
+      else if (k === "ArrowUp" || k === "ArrowLeft" || k === "PageUp") { railJump(-1); e.preventDefault(); }
+      else if (k === "Home") { window.scrollTo({ top: 0, behavior: "smooth" }); e.preventDefault(); }
+      else if (k === "End") { window.scrollTo({ top: railMax(), behavior: "smooth" }); e.preventDefault(); }
+    });
+  }
 
   /* ---------- auto-play beats: play on entry, RESET on full exit, so they
        replay every time the user scrolls back through — no refresh needed ---- */
