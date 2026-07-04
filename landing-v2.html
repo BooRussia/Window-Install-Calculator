@@ -74,6 +74,7 @@ a { color: inherit; }
 #fl      { background: var(--navy-0); }
 #docs    { background: linear-gradient(180deg, var(--navy-0), var(--navy-2)); }
 #time    { background: linear-gradient(180deg, var(--navy-2), var(--navy-3)); }
+#demo    { background: var(--navy-3); }
 #close   { background: var(--navy-3); }
 
 /* ============================================================
@@ -701,6 +702,37 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .js .maxcap.show { opacity: 1; }
 
 /* ============================================================
+   DEMO — the receipts: the real app on a seamless loop
+   ============================================================ */
+#demo { padding: 15vh 0 16vh; }
+.demo-head { text-align: center; margin-bottom: 36px; }
+.demo-shell {
+  max-width: 940px; margin: 0 auto; border-radius: 18px; overflow: hidden;
+  border: 1px solid rgba(216,185,106,0.28);
+  background: #0b1526;
+  box-shadow: 0 50px 110px -45px rgba(0,0,0,0.95), 0 0 80px -30px rgba(181,143,74,0.2);
+}
+.demo-bar {
+  display: flex; align-items: center; gap: 7px; padding: 11px 14px;
+  background: rgba(10,18,38,0.92);
+  border-bottom: 1px solid rgba(120,150,200,0.14);
+}
+.demo-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(148,163,184,0.28); }
+.demo-dot:first-child { background: rgba(216,185,106,0.55); }
+.demo-url {
+  margin-left: 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.demo-shell video { display: block; width: 100%; height: auto; background: #0b1526; }
+@media (max-width: 560px) {
+  #demo { padding: 10vh 0 12vh; }
+  .demo-shell { border-radius: 12px; }
+  .demo-bar { padding: 8px 11px; }
+  .demo-dot { width: 8px; height: 8px; }
+}
+
+/* ============================================================
    BEAT 8 — CLOSE (drumbeats, signature, anchor sets, CTA)
    ============================================================ */
 .drums { height: 320vh; position: relative; }
@@ -1234,6 +1266,28 @@ footer {
   </div>
 </section>
 
+<!-- ============ DEMO — THE RECEIPTS (0:56) ============ -->
+<section id="demo">
+  <div class="wrap">
+    <div class="demo-head rv">
+      <p class="stamp">0:56 · <b>No mockups — the receipts</b></p>
+      <h2 class="anton" style="margin-top:8px">The real thing, in real time.</h2>
+      <p class="sub" style="margin-left:auto; margin-right:auto;">A straight screen capture, one take, no cuts — a whole job scanned, priced, and documented with the clock running.</p>
+    </div>
+    <figure class="demo-shell rv" style="--d:.12s">
+      <div class="demo-bar" aria-hidden="true">
+        <span class="demo-dot"></span><span class="demo-dot"></span><span class="demo-dot"></span>
+        <span class="demo-url">Anchor · live demo · 0:54</span>
+      </div>
+      <video id="demoVid" muted loop playsinline controls preload="metadata"
+             poster="anchor-demo-poster.jpg" width="1920" height="1080"
+             aria-label="Screen recording of Anchor pricing a full window job in fifty-four seconds">
+        <source src="anchor-demo-loop.mp4" type="video/mp4">
+      </video>
+    </figure>
+  </div>
+</section>
+
 <!-- ============ BEAT 8 — CLOSE (0:60) ============ -->
 <section id="close">
   <div class="drums track" data-scrub>
@@ -1703,6 +1757,21 @@ footer {
     if (cTease) cTease();
     if (!teaseDone && slider) { slider.step = "1"; slider.value = 5; runCalc(true); slider.classList.remove("hint"); pillPos(); }
   });
+
+  // DEMO — the real app on a loop. JS owns playback: native controls off, play
+  // only while on screen (battery), pause when it leaves. It's a seamless loop,
+  // so re-entry resumes rather than restarts. Reduced-motion never reaches this
+  // (early return above) — those users keep the poster + native controls.
+  var demoVid = document.getElementById("demoVid");
+  if (demoVid) {
+    demoVid.controls = false;
+    replay(demoVid, function () {
+      var p = demoVid.play();
+      if (p && p.catch) p.catch(function () { demoVid.controls = true; }); // autoplay blocked → hand back controls
+    }, function () {
+      demoVid.pause();
+    });
+  }
 
   run();
 })();
