@@ -109,6 +109,13 @@ a { color: inherit; }
 }
 .btn-gold:hover { background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-hi) 100%); transform: translateY(-1px); }
 .btn-gold:active { transform: translateY(0); }
+/* phones/tablets: backdrop blur re-filters on every scrolled frame — swap the
+   two fixed glass surfaces for near-solid fills, and lighten the doc shadows */
+@media (max-width: 860px) {
+  .nav { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(3,9,24,0.94); }
+  .clock { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(3,9,24,0.9); }
+  .doc { box-shadow: 0 16px 34px -18px rgba(0,0,0,0.8); }
+}
 @media (max-width: 560px) {
   .nav-inner { height: 56px; padding: 0 12px; }
   .nav-brand img { height: 26px; }
@@ -246,6 +253,13 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   overflow: clip;
 }
+/* Auto-play beats: same stage layout, but a normal in-flow section — the
+   animation fires once on entry (IO adds .play) and the page scrolls freely */
+.stage--flow {
+  position: static; height: auto;
+  min-height: 100vh; min-height: 100svh;
+  overflow: visible;
+}
 
 /* ============================================================
    BEAT 1 — HERO
@@ -339,8 +353,7 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 /* ============================================================
    BEAT 3 — SCAN (sticky scrub: beam reads the schedule)
    ============================================================ */
-#scan { height: 300vh; }
-#scan .stage { flex-direction: row; gap: clamp(28px, 5vw, 90px); padding: 0 24px; }
+#scan .stage { flex-direction: row; gap: clamp(28px, 5vw, 90px); padding: 40px 24px; }
 .scan-copy { max-width: 26rem; }
 .scan-copy .stamp { margin-bottom: 18px; display: block; }
 .phone {
@@ -368,20 +381,29 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .srow .c1 { width: 34px; font-weight: 800; }
 .srow .c2 { flex: 1; }
 .srow .c3 { width: 74px; text-align: right; color: #6b7280; }
-/* lit twin: gold left bar + brightened text, opacity-crossfaded */
+/* lit twin: gold left bar + brightened text, opacity-crossfaded. Rows light
+   on a stagger timed to the auto-playing beam sweep. */
+.srow { transition: color .35s ease; }
 .srow::before {
   content: ""; position: absolute; inset: 0;
   background: rgba(181,143,74,0.14);
   border-left: 3px solid var(--gold);
   opacity: 0; transition: opacity .35s ease;
 }
-.srow.lit::before { opacity: 1; }
-.srow.lit { color: #111827; }
+.srow.lit::before, .play .srow::before { opacity: 1; }
+.srow.lit, .play .srow { color: #111827; }
+.play .srow, .play .srow::before { transition-delay: calc(0.85s + var(--i) * 0.28s); }
 .beam {
   position: absolute; left: 0; right: 0; top: -6px; height: 3px; z-index: 3;
   background: linear-gradient(90deg, transparent, var(--gold-pale) 18%, var(--gold-pale) 82%, transparent);
   box-shadow: 0 0 16px 3px rgba(216,185,106,0.55);
-  transform: translateY(calc(var(--p, 0) * var(--screenH)));
+  opacity: 0; transform: translateY(0);
+}
+.play .beam { animation: beamSweep 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) 0.2s forwards; }
+@keyframes beamSweep {
+  0%   { opacity: 1; transform: translateY(0); }
+  88%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(var(--screenH)); }
 }
 .scan-count { display: flex; align-items: baseline; gap: 12px; margin-top: 26px; }
 .scan-count .odo { font-size: clamp(3rem, 6vw, 4.6rem); color: var(--gold-pale); }
@@ -408,11 +430,10 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 /* ============================================================
    BEAT 4 — THE QUOTE BUILDS ITSELF (sticky scrub, paper card)
    ============================================================ */
-#quote { height: 360vh; }
-#quote .stage { gap: 26px; padding: 0 20px; }
+#quote .stage { gap: 26px; padding: 40px 20px; }
 @media (max-width: 560px) {
   .stamp-tail { display: none; }
-  #quote .stage { justify-content: flex-start; padding-top: 128px; gap: 18px; }
+  #quote .stage { justify-content: flex-start; padding-top: 128px; padding-bottom: 70px; gap: 18px; }
 }
 .q-head { text-align: center; }
 .paper {
@@ -437,7 +458,8 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .q-row .qt { width: 96px; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
 .q-row.mk .qn, .q-row.mk .qt { color: var(--gold-lo); }
 .js .q-row { opacity: 0; transform: translateX(-14px); transition: opacity .5s ease, transform .55s var(--ease-out); }
-.js .q-row.on { opacity: 1; transform: none; }
+.js .q-row.on, .js .play .q-row { opacity: 1; transform: none; }
+.js .play .q-row { transition-delay: calc(0.2s + var(--i) * 0.18s); }
 .q-total { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; }
 .q-total .lbl { font-size: 10px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: #5b6b8c; }
 .q-total .odo { font-size: clamp(1.9rem, 4.6vw, 2.6rem); color: #10203c; }
@@ -448,7 +470,8 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
   color: #6b4f1d; font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
 }
 .js .q-chip { opacity: 0; transform: translateY(8px) scale(0.94); transition: opacity .5s ease, transform .6s var(--spring); }
-.js .q-chip.on { opacity: 1; transform: none; }
+.js .q-chip.on, .js .play .q-chip { opacity: 1; transform: none; }
+.js .play .q-chip { transition-delay: 2.3s; }
 .q-perlf { font-size: 12px; font-weight: 700; color: var(--ink-4); letter-spacing: 0.06em; margin-top: 18px; text-transform: uppercase; }
 .q-perlf b { color: var(--gold-hi); }
 
@@ -496,8 +519,6 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .docs-head { text-align: center; padding: 0 24px; position: relative; z-index: 5; }
 .docs-stage { position: relative; width: 100%; max-width: 1240px; height: min(46vh, 430px); }
 .doc {
-  --pa: clamp(0, calc(var(--p, 0) / 0.45), 1);
-  --pb: clamp(0, calc((var(--p, 0) - 0.55) / 0.4), 1);
   position: absolute; left: 50%; top: 50%;
   width: var(--docW, 250px); margin-left: calc(var(--docW, 250px) / -2);
   height: var(--docH, 320px); margin-top: calc(var(--docH, 320px) / -2);
@@ -505,11 +526,11 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
   background: linear-gradient(180deg, rgba(20,30,52,0.96), rgba(8,14,30,0.96));
   border: 1px solid rgba(120,150,200,0.2);
   box-shadow: 0 30px 70px -30px rgba(0,0,0,0.85);
-  transform:
-    translate(calc((var(--fx) * var(--pa)) + ((var(--gx) - var(--fx)) * var(--pb))),
-              calc((var(--sy) * (1 - var(--pa))) + (var(--fy) * var(--pa)) + ((var(--gy) - var(--fy)) * var(--pb))))
-    rotate(calc((var(--sr) * (1 - var(--pa))) + var(--fr) * var(--pa) * (1 - var(--pb))))
-    scale(calc(0.94 + 0.06 * var(--pb)));
+  /* stack pose is the resting state; JS interpolates stack → fan → grid per
+     frame by writing transform directly (a var(--p) chain here would restyle
+     the whole card subtree on every scroll frame — the mobile jank source) */
+  transform: translate(0, var(--sy)) rotate(var(--sr)) scale(0.94);
+  will-change: transform;
 }
 .doc.paper-doc { background: var(--paper); color: var(--paper-ink); border-color: rgba(255,255,255,0.1); }
 .doc-tag { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); }
@@ -570,16 +591,18 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
    BEAT 7 — TIME (collapsing hours + evenings calculator)
    ============================================================ */
 #time { padding: 0 0 14vh; }
-.time-track { height: 220vh; position: relative; }
+.time-track { position: relative; }
 .time-stick {
-  position: sticky; top: 0; height: 100vh; height: 100svh;
   display: flex; flex-direction: column; justify-content: center; gap: 34px;
+  min-height: 72vh; min-height: 72svh; padding: 14vh 0 4vh;
 }
 .bar-row { margin-top: 10px; }
 .bar-lbl { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px; }
 .bar-lbl .t { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--ink-2); }
 .bar { height: 14px; border-radius: 999px; background: rgba(148,163,184,0.10); overflow: hidden; position: relative; }
-.bar-fill { position: absolute; inset: 0; border-radius: 999px; background: linear-gradient(90deg, #33415c, #64748b); transform-origin: 0 50%; transform: scaleX(calc(1 - var(--p, 0) * 0.9956)); }
+.bar-fill { position: absolute; inset: 0; border-radius: 999px; background: linear-gradient(90deg, #33415c, #64748b); transform-origin: 0 50%; transform: scaleX(1); }
+.play .fill-old { animation: barCollapse 2.4s cubic-bezier(0.65, 0, 0.35, 1) 0.3s forwards; }
+@keyframes barCollapse { to { transform: scaleX(0.0044); } }
 .bar-row.gold .bar-fill { background: linear-gradient(90deg, var(--gold), var(--gold-pale)); transform: scaleX(0.0044); box-shadow: 0 0 12px rgba(216,185,106,0.5); }
 .bar-row.gold .bar { overflow: visible; }
 .bar-row.gold .t { color: var(--gold-pale); }
@@ -791,7 +814,7 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
 </section>
 
 <!-- ============ BEAT 2 — THE OLD WAY (0:06) ============ -->
-<section id="oldway" data-scrub>
+<section id="oldway" data-scrub="css">
   <div class="wrap">
     <p class="stamp rv">The old way · <b>one quote = an evening</b></p>
     <h2 class="anton rv" style="--d:.06s">You know this spreadsheet.</h2>
@@ -826,8 +849,8 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
 </section>
 
 <!-- ============ BEAT 3 — SCAN (0:14) — the SPEED beat ============ -->
-<section id="scan" class="track" data-scrub>
-  <div class="stage">
+<section id="scan">
+  <div class="stage stage--flow">
     <div class="scan-copy">
       <span class="stamp">0:14 · <b>The speed part</b></span>
       <h2 class="anton">Snap the schedule.</h2>
@@ -837,7 +860,7 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
         <span class="lbl">openings<br>found</span>
         <span class="sr-only" id="scanSr">14 openings found</span>
       </div>
-      <p class="scan-cap">The Delgado job: 14 openings read in seconds. Your scroll is the scanner.</p>
+      <p class="scan-cap">The Delgado job: 14 openings, read before you finish this sentence.</p>
     </div>
     <div class="phone" aria-hidden="true">
       <div class="phone-notch"></div>
@@ -847,12 +870,12 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
           <div class="sheet-title">Window schedule — sheet A-601</div>
           <div class="sheet-name">Delgado Residence · Cape Coral</div>
           <!-- perimeters sum to exactly 187 LF across 14 openings — installers total these -->
-          <div class="srow" style="margin-top:10px"><span class="c1">W1</span><span class="c2">37 × 50 · Single hung</span><span class="c3">×4</span></div>
-          <div class="srow"><span class="c1">W2</span><span class="c2">30 × 44 · Single hung</span><span class="c3">×4</span></div>
-          <div class="srow"><span class="c1">W3</span><span class="c2">24 × 36 · Casement</span><span class="c3">×2</span></div>
-          <div class="srow"><span class="c1">W4</span><span class="c2">21 × 28 · Fixed</span><span class="c3">×2</span></div>
-          <div class="srow"><span class="c1">W5</span><span class="c2">48 × 60 · Horiz. roller</span><span class="c3">×1</span></div>
-          <div class="srow"><span class="c1">SGD</span><span class="c2">72 × 80 · Slider, 2-panel</span><span class="c3">×1</span></div>
+          <div class="srow" style="margin-top:10px; --i:0"><span class="c1">W1</span><span class="c2">37 × 50 · Single hung</span><span class="c3">×4</span></div>
+          <div class="srow" style="--i:1"><span class="c1">W2</span><span class="c2">30 × 44 · Single hung</span><span class="c3">×4</span></div>
+          <div class="srow" style="--i:2"><span class="c1">W3</span><span class="c2">24 × 36 · Casement</span><span class="c3">×2</span></div>
+          <div class="srow" style="--i:3"><span class="c1">W4</span><span class="c2">21 × 28 · Fixed</span><span class="c3">×2</span></div>
+          <div class="srow" style="--i:4"><span class="c1">W5</span><span class="c2">48 × 60 · Horiz. roller</span><span class="c3">×1</span></div>
+          <div class="srow" style="--i:5"><span class="c1">SGD</span><span class="c2">72 × 80 · Slider, 2-panel</span><span class="c3">×1</span></div>
         </div>
       </div>
     </div>
@@ -860,8 +883,8 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
 </section>
 
 <!-- ============ BEAT 4 — THE QUOTE BUILDS ITSELF (0:26) ============ -->
-<section id="quote" class="track" data-scrub>
-  <div class="stage">
+<section id="quote">
+  <div class="stage stage--flow">
     <div class="q-head">
       <h2 class="sr-only">The quote builds itself</h2>
       <span class="stamp">0:26 · <b>Per linear foot.<span class="stamp-tail"> Per opening. Per screw.</span></b></span>
@@ -878,13 +901,13 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
         </svg>
       </div>
       <div class="q-rows">
-        <div class="q-row" data-at="0.08"><span class="qn">Caulking</span><span class="qr">$2.47 /LF</span><span class="qt">$461.16</span></div>
-        <div class="q-row" data-at="0.15"><span class="qn">Backer rod</span><span class="qr">$0.53 /LF</span><span class="qt">$99.26</span></div>
-        <div class="q-row" data-at="0.22"><span class="qn">Wood bucking</span><span class="qr">$2.25 /LF</span><span class="qt">$420.99</span></div>
-        <div class="q-row" data-at="0.29"><span class="qn">Shims, screws &amp; anchors</span><span class="qr">$0.75 /LF</span><span class="qt">$140.01</span></div>
-        <div class="q-row" data-at="0.36"><span class="qn">Block sealer</span><span class="qr">fixed</span><span class="qt">$400.00</span></div>
-        <div class="q-row" data-at="0.43"><span class="qn">Install labor — 2-man crew</span><span class="qr">$48.71 /LF</span><span class="qt">$9,109.53</span></div>
-        <div class="q-row mk" data-at="0.50"><span class="qn">Your markup · 35%</span><span class="qr"></span><span class="qt">+ $3,720.83</span></div>
+        <div class="q-row" style="--i:0"><span class="qn">Caulking</span><span class="qr">$2.47 /LF</span><span class="qt">$461.16</span></div>
+        <div class="q-row" style="--i:1"><span class="qn">Backer rod</span><span class="qr">$0.53 /LF</span><span class="qt">$99.26</span></div>
+        <div class="q-row" style="--i:2"><span class="qn">Wood bucking</span><span class="qr">$2.25 /LF</span><span class="qt">$420.99</span></div>
+        <div class="q-row" style="--i:3"><span class="qn">Shims, screws &amp; anchors</span><span class="qr">$0.75 /LF</span><span class="qt">$140.01</span></div>
+        <div class="q-row" style="--i:4"><span class="qn">Block sealer</span><span class="qr">fixed</span><span class="qt">$400.00</span></div>
+        <div class="q-row" style="--i:5"><span class="qn">Install labor — 2-man crew</span><span class="qr">$48.71 /LF</span><span class="qt">$9,109.53</span></div>
+        <div class="q-row mk" style="--i:6"><span class="qn">Your markup · 35%</span><span class="qr"></span><span class="qt">+ $3,720.83</span></div>
       </div>
       <div class="q-total">
         <span class="lbl">Grand total</span>
@@ -893,7 +916,7 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
       </div>
       <span class="q-chip" id="qChip">⚓ Margin locked · $3,720.83</span>
     </div>
-    <p class="q-perlf">That's <b>$76.75 / LF</b> — tuned to your rates, not ours. Scroll up and it un-builds.</p>
+    <p class="q-perlf">That's <b>$76.75 / LF</b> — tuned to your rates, not ours.</p>
   </div>
 </section>
 
@@ -946,7 +969,7 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
 </section>
 
 <!-- ============ BEAT 6 — DOCUMENTS (0:46) ============ -->
-<section id="docs" class="track" data-scrub>
+<section id="docs" class="track" data-scrub="js">
   <div class="stage">
     <div class="docs-head">
       <p class="stamp">0:46 · <b>Enter the job once</b></p>
@@ -1006,20 +1029,20 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
 
 <!-- ============ BEAT 7 — TIME (0:52) ============ -->
 <section id="time">
-  <div class="time-track" data-scrub id="timeTrack">
+  <div class="time-track" id="timeTrack">
     <div class="time-stick">
       <div class="wrap" style="width:100%">
         <p class="stamp">0:52 · <b>The time-saving part</b></p>
         <h2 class="anton" style="margin-top:8px">Your evenings, returned.</h2>
         <div class="bar-row">
           <div class="bar-lbl"><span>One quote, the old way</span><span class="t" id="oldTime">3:40:00</span></div>
-          <div class="bar"><span class="bar-fill"></span></div>
+          <div class="bar"><span class="bar-fill fill-old"></span></div>
         </div>
         <div class="bar-row gold" id="goldRow">
           <div class="bar-lbl"><span>One quote, with Anchor</span><span class="t">0:00:58</span></div>
           <div class="bar"><span class="bar-fill"></span><span class="ping" aria-hidden="true"></span></div>
         </div>
-        <p class="time-kicker" style="margin-top:18px">Keep scrolling — squeeze the evening out of it.</p>
+        <p class="time-kicker" style="margin-top:18px">Then it's your turn — set your week below.</p>
       </div>
     </div>
   </div>
@@ -1256,9 +1279,9 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
   var scanSec = document.getElementById("scan");
   var scanSr = document.getElementById("scanSr");
   var quoteSec = document.getElementById("quote");
-  var qRows = quoteSec ? [].slice.call(quoteSec.querySelectorAll(".q-row")) : [];
-  var qChip = document.getElementById("qChip");
-  var srows = [].slice.call(document.querySelectorAll(".srow"));
+  var quotePaper = quoteSec ? quoteSec.querySelector(".paper") : null;
+  var docsSec = document.getElementById("docs");
+  var docCards = [].slice.call(document.querySelectorAll(".doc"));
   var scrubs = [].slice.call(document.querySelectorAll("[data-scrub]"));
   var timeTrack = document.getElementById("timeTrack");
   var oldTime = document.getElementById("oldTime");
@@ -1267,7 +1290,34 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
   var closeSec = document.getElementById("close");
   var lastSrSec = -1;
 
-  window.addEventListener("resize", function () { vh = window.innerHeight; schedule(); }, { passive: true });
+  /* doc-card poses live in CSS custom props (media queries pick the breakpoint
+     values); read them once per resize, then interpolate in JS per frame — a
+     var(--p) chain in CSS would restyle each card's whole subtree every frame,
+     which is what made mid-range phones stutter */
+  function parseLen(v) {
+    var m = /^(-?[\d.]+)(px|vw)?$/.exec((v || "").trim());
+    if (!m) return 0;
+    return m[2] === "vw" ? parseFloat(m[1]) * window.innerWidth / 100 : parseFloat(m[1]);
+  }
+  var docPoses = [];
+  function readDocPoses() {
+    docPoses = docCards.map(function (el) {
+      var cs = getComputedStyle(el);
+      return {
+        el: el,
+        sy: parseLen(cs.getPropertyValue("--sy")), sr: parseFloat(cs.getPropertyValue("--sr")) || 0,
+        fx: parseLen(cs.getPropertyValue("--fx")), fy: parseLen(cs.getPropertyValue("--fy")),
+        fr: parseFloat(cs.getPropertyValue("--fr")) || 0,
+        gx: parseLen(cs.getPropertyValue("--gx")), gy: parseLen(cs.getPropertyValue("--gy")),
+      };
+    });
+  }
+  readDocPoses();
+  var lastDocsP = -1;
+
+  window.addEventListener("resize", function () {
+    vh = window.innerHeight; readDocPoses(); lastDocsP = -1; schedule();
+  }, { passive: true });
 
   function trackP(rect) {
     var total = rect.height - vh;
@@ -1297,7 +1347,11 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
     var closeTop = closeSec.getBoundingClientRect().top;
 
     /* -- writes -- */
-    scrubs.forEach(function (el, i) { el.style.setProperty("--p", ps[i].toFixed(4)); });
+    // only the old-way wreckage consumes --p from CSS; everything else is
+    // driven directly to avoid whole-subtree style recalcs per frame
+    scrubs.forEach(function (el, i) {
+      if (el.getAttribute("data-scrub") === "css") el.style.setProperty("--p", ps[i].toFixed(4));
+    });
 
     // hero strike + cue
     heroH.classList.toggle("struck", st > 30);
@@ -1318,38 +1372,20 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
       rail.classList.toggle("hide", closeTop < vh * 0.5);
     }
 
-    // scan rows light as the beam passes; counter follows
-    var scanIdx = scrubs.indexOf(scanSec);
-    if (scanIdx > -1) {
-      var sp = ps[scanIdx];
-      srows.forEach(function (row, i) { row.classList.toggle("lit", sp > (i + 0.55) / srows.length); });
-      if (scanOdo) {
-        var found = Math.min(14, 14 * sp * 1.08);
-        scanOdo.setVal(found);
-        var w = Math.floor(found);
-        if (scanSr.__v !== w) { scanSr.__v = w; scanSr.textContent = w + " openings found"; }
+    // docs fan: stack → fan → grid, four direct transform writes
+    var dIdx = scrubs.indexOf(docsSec);
+    if (dIdx > -1 && ps[dIdx] !== lastDocsP) {
+      lastDocsP = ps[dIdx];
+      var pa = Math.min(1, Math.max(0, lastDocsP / 0.45));
+      var pb = Math.min(1, Math.max(0, (lastDocsP - 0.55) / 0.4));
+      for (var di = 0; di < docPoses.length; di++) {
+        var o = docPoses[di];
+        o.el.style.transform =
+          "translate(" + (o.fx * pa + (o.gx - o.fx) * pb).toFixed(1) + "px," +
+          (o.sy * (1 - pa) + o.fy * pa + (o.gy - o.fy) * pb).toFixed(1) + "px)" +
+          " rotate(" + (o.sr * (1 - pa) + o.fr * pa * (1 - pb)).toFixed(2) + "deg)" +
+          " scale(" + (0.94 + 0.06 * pb).toFixed(3) + ")";
       }
-    }
-
-    // quote line items commit; total rolls up; chip lands
-    var qIdx = scrubs.indexOf(quoteSec);
-    if (qIdx > -1) {
-      var qp = ps[qIdx];
-      qRows.forEach(function (row) { row.classList.toggle("on", qp > +row.getAttribute("data-at")); });
-      if (totalOdo) {
-        var w2 = Math.min(1, Math.max(0, (qp - 0.56) / 0.26));
-        var eased = 1 - Math.pow(1 - w2, 3);
-        totalOdo.setVal(14351.78 * eased);
-      }
-      if (qChip) qChip.classList.toggle("on", qp > 0.86);
-    }
-
-    // collapsing hours
-    if (timeTrack) {
-      var tIdx = scrubs.indexOf(timeTrack);
-      var tp = ps[tIdx];
-      if (oldTime) oldTime.textContent = fmtHMS(13200 - (13200 - 58) * tp);
-      if (goldRow && tp > 0.97) goldRow.classList.add("pinged");
     }
 
     // drumbeats
@@ -1365,6 +1401,66 @@ footer { padding: 60px 24px calc(34px + env(safe-area-inset-bottom)); text-align
   cue.addEventListener("click", function () {
     window.scrollTo({ top: vh * 0.96, behavior: "smooth" });
   });
+
+  /* ---------- auto-play beats: fire once on entry, scroll on freely ---------- */
+  function tween(dur, delay, ease, step, done) {
+    var t0 = null;
+    function frame(ts) {
+      if (t0 === null) t0 = ts + delay;
+      var t = (ts - t0) / dur;
+      if (t < 0) { requestAnimationFrame(frame); return; }
+      t = Math.min(1, t);
+      step(ease(t));
+      if (t < 1) requestAnimationFrame(frame);
+      else if (done) done();
+    }
+    requestAnimationFrame(frame);
+  }
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+  function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function linear(t) { return t; }
+
+  var plays = {
+    scan: function () {
+      scanSec.classList.add("play");                    // beam sweep + row stagger (CSS)
+      tween(2800, 200, linear, function (t) {
+        if (scanOdo) scanOdo.setVal(14 * t);
+      }, function () {
+        if (scanOdo) scanOdo.setVal(14);
+        if (scanSr) scanSr.textContent = "14 openings found";
+      });
+    },
+    quote: function () {
+      if (quotePaper) quotePaper.classList.add("play"); // line items stagger in (CSS)
+      tween(2000, 600, easeOutCubic, function (t) {
+        if (totalOdo) totalOdo.setVal(14351.78 * t);
+      });
+    },
+    time: function () {
+      if (timeTrack) timeTrack.classList.add("play");   // old-way bar collapses (CSS)
+      tween(2400, 300, easeInOutCubic, function (t) {
+        if (oldTime) oldTime.textContent = fmtHMS(13200 - (13200 - 58) * t);
+      }, function () {
+        if (goldRow) goldRow.classList.add("pinged");
+      });
+    },
+  };
+  var playTargets = [
+    { el: scanSec, fn: plays.scan },
+    { el: quoteSec, fn: plays.quote },
+    { el: timeTrack, fn: plays.time },
+  ];
+  var playIO = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      playIO.unobserve(e.target);
+      for (var i = 0; i < playTargets.length; i++) {
+        if (playTargets[i].el === e.target) playTargets[i].fn();
+      }
+    });
+  }, { threshold: 0.4 });
+  playTargets.forEach(function (t) { if (t.el) playIO.observe(t.el); });
+
   run();
 })();
 </script>
