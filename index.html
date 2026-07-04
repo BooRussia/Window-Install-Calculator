@@ -336,6 +336,51 @@
   [data-theme="light"] .trim-grid .tg-rowlab { color: #1e293b; }
   [data-theme="light"] .trim-grid .tg-h { color: #64748b; }
   [data-theme="light"] .trim-grid input { background: #fff; border-color: #cbd5e1; color: #1e293b; }
+  /* AI price-fetch button + review modal */
+  .ai-price-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:9px; font-size:12px; font-weight:700;
+    background:rgba(181,143,74,0.16); color:#c9a558; border:1px solid rgba(181,143,74,0.4); cursor:pointer; -webkit-tap-highlight-color:transparent;
+    transition:background .18s ease, border-color .18s ease, opacity .18s ease; }
+  .ai-price-btn:hover { background:rgba(181,143,74,0.26); border-color:#c9a558; }
+  .ai-price-btn:disabled { opacity:0.6; cursor:default; }
+  .ai-price-btn.loading svg { animation:apb-spin 0.9s linear infinite; }
+  .ai-price-btn.locked::after { content:"PRO"; font-size:8.5px; font-weight:800; letter-spacing:0.06em; background:#c9a558; color:#0b1220; border-radius:4px; padding:1px 4px; margin-left:2px; }
+  @keyframes apb-spin { to { transform:rotate(360deg); } }
+  .ai-price-note { margin-top:6px; font-size:10.5px; line-height:1.4; color:#64748b; }
+  .ai-price-stamp { color:#c9a558; font-weight:600; }
+  [data-theme="light"] .ai-price-btn { background:#faf3e2; color:#9a7636; border-color:#e4cd95; }
+  [data-theme="light"] .ai-price-stamp { color:#9a7636; }
+  .tpr-overlay { position:fixed; inset:0; z-index:2000; background:rgba(2,6,16,0.72); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .tpr-modal { width:100%; max-width:520px; max-height:88vh; overflow:auto; background:linear-gradient(180deg,#0d1426,#0a0f1e); border:1px solid rgba(51,65,85,0.7); border-radius:18px; box-shadow:0 30px 80px -20px rgba(0,0,0,0.8); padding:18px; }
+  .tpr-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .tpr-title { font-size:15px; font-weight:800; color:#e2e8f0; }
+  .tpr-area { font-size:11px; color:#94a3b8; margin-top:2px; }
+  .tpr-x { background:none; border:0; color:#64748b; font-size:22px; line-height:1; cursor:pointer; padding:0 4px; }
+  .tpr-x:hover { color:#e2e8f0; }
+  .tpr-note { font-size:11.5px; color:#94a3b8; margin:8px 0 10px; }
+  .tpr-tablewrap { overflow-x:auto; }
+  .tpr-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .tpr-table th { text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:0.07em; color:#64748b; font-weight:700; padding:4px 6px; border-bottom:1px solid rgba(51,65,85,0.6); }
+  .tpr-table td { padding:8px 6px; border-bottom:1px solid rgba(51,65,85,0.35); vertical-align:top; color:#cbd5e1; }
+  .tpr-mat { font-weight:700; color:#e2e8f0; }
+  .tpr-src { font-size:10px; font-weight:500; color:#64748b; margin-top:2px; }
+  .tpr-old { color:#94a3b8; white-space:nowrap; }
+  .tpr-new { font-weight:800; color:#c9a558; white-space:nowrap; }
+  .tpr-range { font-size:9.5px; font-weight:600; color:#64748b; margin-top:2px; }
+  .tpr-conf { text-transform:uppercase; }
+  .tpr-conf-high { color:#4ade80; } .tpr-conf-medium { color:#c9a558; } .tpr-conf-low { color:#f87171; }
+  .tpr-chk input { width:16px; height:16px; accent-color:#b58f4a; }
+  .tpr-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+  .tpr-btn { padding:9px 16px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; border:1px solid transparent; }
+  .tpr-cancel { background:transparent; color:#94a3b8; border-color:rgba(51,65,85,0.7); }
+  .tpr-cancel:hover { color:#e2e8f0; }
+  .tpr-apply { background:#b58f4a; color:#0b1220; }
+  .tpr-apply:hover { background:#c9a558; }
+  .tpr-disclaimer { font-size:10px; color:#64748b; margin-top:10px; text-align:center; }
+  [data-theme="light"] .tpr-modal { background:#fff; border-color:#e2e8f0; }
+  [data-theme="light"] .tpr-title, [data-theme="light"] .tpr-mat { color:#1e293b; }
+  [data-theme="light"] .tpr-table td { color:#334155; }
+  [data-theme="light"] .tpr-new { color:#9a7636; }
+  [data-theme="light"] .tpr-apply { color:#fff; }
   /* Wood-bucking in-quote toggle: a full-width tappable row with a sliding switch,
      so it clearly reads as an interactive control (not a static badge). */
   .buck-switch { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
@@ -6567,6 +6612,10 @@
               <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">State</label>
               <input id="brandState" type="text" autocomplete="address-level1" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
             </div>
+            <div>
+              <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">ZIP <span class="text-slate-600 normal-case tracking-normal">· used for local AI pricing</span></label>
+              <input id="brandZip" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="10" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" />
+            </div>
             <div class="sm:col-span-2">
               <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">County <span class="text-slate-600 normal-case tracking-normal">· sets the Materials Tax rate</span></label>
               <div class="county-combo relative" data-county-prefix="brand">
@@ -6827,9 +6876,16 @@
                 <span class="set-hint">One-time rig / engineering fee.</span>
               </div>
               <div class="set-field" style="grid-column:1/-1;margin-top:2px;">
-                <label class="set-label">Interior trim board — $/LF by material &amp; width</label>
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
+                  <label class="set-label" style="margin:0;">Interior trim board — $/LF by material &amp; width</label>
+                  <button id="adminTrimFetchBtn" type="button" class="ai-price-btn" title="Search Lowe's, Home Depot & local suppliers near your ZIP and average current prices">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 4.6L18 9l-4.4 1.4L12 15l-1.6-4.6L6 9l4.4-1.4z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/></svg>
+                    <span class="apb-label">Update with AI</span>
+                  </button>
+                </div>
                 <div id="adminTrimGrid" class="trim-grid"></div>
-                <span class="set-hint">Price per linear foot of opening trim. Length (the dropdown in the quote) is the stick you buy/cut &mdash; procurement only, it doesn't change $/LF.</span>
+                <span class="set-hint">Price per linear foot of opening trim. Length (the dropdown in the quote) is the stick you buy/cut &mdash; procurement only, it doesn't change $/LF.<span id="adminTrimFetchedAt" class="ai-price-stamp"></span></span>
+                <p class="ai-price-note">✨ <b>Pro &amp; Shop:</b> searches Lowe's, Home Depot &amp; local suppliers near your ZIP and averages the current price. You review every number before it's applied.</p>
               </div>
               <div class="set-field">
                 <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
@@ -7600,6 +7656,7 @@ const DEFAULT_DATA = {
       tagline: "",
       city: "Ocala",
       state: "Florida",
+      zip: "",
       phone: "",
       email: "",
       website: "",
@@ -18778,12 +18835,165 @@ function mfrCardHTML(name, rate, opts) {
     </details>`;
 }
 
+// ── AI material pricing (Grok Live Search) — Pro & Shop ──────────────────────
+// Assembles the trim 3×3 grid as pricing items (type × width → $/LF), calls the
+// gated fetch-material-prices edge function, and lets the user review before any
+// number lands in the grid. The edge function is the real gate + cost meter.
+function trimFetchItems() {
+  const tc = DATA.config.trim || {};
+  const types = Array.isArray(tc.types) ? tc.types : [];
+  const widths = Array.isArray(tc.widths) ? tc.widths : [];
+  const items = [];
+  types.forEach(t => widths.forEach(w => {
+    const wLabel = String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
+    items.push({ id: `${t.id}__${w}`, label: `${t.name} ${wLabel} interior trim board`, unit: "LF" });
+  }));
+  return items;
+}
+
+let _trimFetchBusy = false;
+async function fetchTrimPricesAI() {
+  if (_trimFetchBusy) return;
+  if (!planAllows("pro")) { showUpsellModal("ai_pricing_locked"); return; }   // UX gate; server re-checks
+  const brand = (DATA.config && DATA.config.brand) || {};
+  const zip = String(brand.zip || "").trim();
+  const city = String(brand.city || "").trim();
+  if (!zip && !city) {
+    toast("Add your ZIP in Settings → Business first so we can price your local area.");
+    const el = document.getElementById("brandZip"); if (el) el.focus();
+    return;
+  }
+  const btn = document.getElementById("adminTrimFetchBtn");
+  const setBusy = (on, label) => {
+    _trimFetchBusy = on;
+    if (!btn) return;
+    btn.classList.toggle("loading", on); btn.disabled = on;
+    const l = btn.querySelector(".apb-label"); if (l) l.textContent = label;
+  };
+  setBusy(true, "Searching…");
+  try {
+    if (!sb && window.supabase) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await sb.functions.invoke("fetch-material-prices", {
+      body: { zip, city, state: String(brand.state || "").trim(), kind: "trim", items: trimFetchItems() }
+    });
+    if (error) {
+      let code = "", msg = "";
+      try { const j = await error.context.json(); code = j.code || ""; msg = j.error || ""; } catch (_) {}
+      if (code === "plan_gate" || code === "trial_expired") { showUpsellModal("ai_pricing_locked"); return; }
+      if (code === "cap_reached") { toast("You're out of AI price updates this cycle — resets next billing period."); return; }
+      toast(msg || "Couldn't fetch prices right now — try again shortly.");
+      return;
+    }
+    if (!data || !data.ok || !Array.isArray(data.prices) || !data.prices.length) {
+      toast((data && data.error) || "Couldn't find current prices — try again, or enter them by hand.");
+      return;
+    }
+    openTrimPriceReview(data);
+  } catch (_) {
+    toast("Couldn't reach the pricing service — check your connection and try again.");
+  } finally {
+    setBusy(false, "Update with AI");
+  }
+}
+
+// Review-before-apply modal: current vs AI price per cell, store range +
+// confidence, per-row opt-out. Nothing is written until "Apply selected".
+function openTrimPriceReview(resp) {
+  const tc = DATA.config.trim || {};
+  const pp = tc.pricePerLF || {};
+  const nameByType = {}; (tc.types || []).forEach(t => nameByType[t.id] = t.name);
+  const rows = resp.prices.map(pr => {
+    const parts = String(pr.id || "").split("__"); const typeId = parts[0], w = parts[1];
+    const cur = (pp[typeId] || {})[w];
+    const wLabel = String(w || "").replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
+    const label = `${nameByType[typeId] || typeId} ${wLabel}`;
+    const stores = (pr.stores || []).map(x => `${escHtml(x.name)} $${(+x.price).toFixed(2)}`).join(" · ");
+    const range = (pr.low && pr.high && pr.high > pr.low) ? `$${(+pr.low).toFixed(2)}–$${(+pr.high).toFixed(2)}` : "";
+    const conf = String(pr.confidence || "medium");
+    return `<tr data-tpr-id="${escHtml(pr.id)}" data-tpr-new="${(+pr.price)}">
+      <td class="tpr-mat">${escHtml(label)}<div class="tpr-src">${stores || "—"}${pr.note ? " · " + escHtml(pr.note) : ""}</div></td>
+      <td class="tpr-old">${cur != null ? "$" + (+cur).toFixed(2) : "—"}</td>
+      <td class="tpr-new">$${(+pr.price).toFixed(2)}<div class="tpr-range">${range}${range ? " · " : ""}<span class="tpr-conf tpr-conf-${escHtml(conf)}">${escHtml(conf)}</span></div></td>
+      <td class="tpr-chk"><input type="checkbox" data-tpr-apply checked></td>
+    </tr>`;
+  }).join("");
+  const old = document.getElementById("trimPriceReviewModal"); if (old) old.remove();
+  const modal = document.createElement("div");
+  modal.id = "trimPriceReviewModal";
+  modal.className = "tpr-overlay";
+  modal.innerHTML = `<div class="tpr-modal" role="dialog" aria-modal="true" aria-label="Review AI trim prices">
+    <div class="tpr-head">
+      <div><div class="tpr-title">AI price update — trim boards</div><div class="tpr-area">Averaged from Lowe's, Home Depot &amp; local suppliers near ${escHtml(resp.area || "your area")}</div></div>
+      <button type="button" class="tpr-x" data-tpr-close aria-label="Close">×</button>
+    </div>
+    <div class="tpr-note">Review the fetched $/LF, uncheck any you don't want, then apply. Nothing changes until you hit Apply.</div>
+    <div class="tpr-tablewrap"><table class="tpr-table"><thead><tr><th>Material</th><th>Current</th><th>AI price</th><th>Use</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tpr-actions">
+      <button type="button" class="tpr-btn tpr-cancel" data-tpr-close>Cancel</button>
+      <button type="button" class="tpr-btn tpr-apply" data-tpr-apply-btn>Apply selected</button>
+    </div>
+    <div class="tpr-disclaimer">AI estimates from public listings — double-check before quoting. Prices vary by store and day.</div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", e => {
+    if (e.target.closest("[data-tpr-close]") || e.target === modal) { modal.remove(); return; }
+    if (e.target.closest("[data-tpr-apply-btn]")) applyTrimPriceReview(modal);
+  });
+}
+
+function applyTrimPriceReview(modal) {
+  DATA.config.trim = DATA.config.trim || {};
+  DATA.config.trim.pricePerLF = DATA.config.trim.pricePerLF || {};
+  let applied = 0;
+  modal.querySelectorAll("tr[data-tpr-id]").forEach(tr => {
+    const chk = tr.querySelector("[data-tpr-apply]");
+    if (!chk || !chk.checked) return;
+    const id = tr.getAttribute("data-tpr-id");
+    const val = parseFloat(tr.getAttribute("data-tpr-new"));
+    if (!(val > 0)) return;
+    const parts = String(id).split("__"); const typeId = parts[0], w = parts[1];
+    if (!typeId || !w) return;
+    DATA.config.trim.pricePerLF[typeId] = DATA.config.trim.pricePerLF[typeId] || {};
+    DATA.config.trim.pricePerLF[typeId][w] = Math.round(val * 100) / 100;
+    applied++;
+  });
+  if (applied) {
+    DATA.config.trim.pricesFetchedAt = Date.now();
+    DATA.config.trim.unverified = false;
+    saveData(DATA);
+    if (typeof buildAdminUI === "function") buildAdminUI();   // refresh grid + stamp
+    if (typeof render === "function") render();                // refresh the trim picker rate line
+    toast(`Updated ${applied} trim price${applied === 1 ? "" : "s"}.`);
+  } else {
+    toast("Nothing selected — no prices changed.");
+  }
+  modal.remove();
+}
+
+function updateTrimFetchedStamp() {
+  const el = document.getElementById("adminTrimFetchedAt");
+  if (!el) return;
+  const ts = DATA.config.trim && DATA.config.trim.pricesFetchedAt;
+  if (!ts) { el.textContent = ""; return; }
+  let when = "";
+  try { when = new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch (_) {}
+  el.textContent = when ? ` · AI-updated ${when}` : "";
+}
+
+function wireTrimFetchBtn() {
+  const btn = document.getElementById("adminTrimFetchBtn");
+  if (!btn) return;
+  if (!btn._wired) { btn._wired = true; btn.addEventListener("click", fetchTrimPricesAI); }
+  btn.classList.toggle("locked", !planAllows("pro"));   // show the PRO tag to lower tiers
+}
+
 function buildAdminUI() {
   const b = DATA.config.brand || {};
   document.getElementById("brandCompanyName").value = b.companyName || "";
   document.getElementById("brandTagline").value = b.tagline || "";
   document.getElementById("brandCity").value = b.city || "";
   document.getElementById("brandState").value = b.state || "";
+  { const z = document.getElementById("brandZip"); if (z) z.value = b.zip || ""; }
   setupCountyCombobox("brand");
   setCountyValue("brand", b.county || "");
   document.getElementById("brandPhone").value = b.phone || "";
@@ -18845,7 +19055,10 @@ function buildAdminUI() {
         }).join("");
       });
       grid.innerHTML = h;
-    } }
+    }
+    updateTrimFetchedStamp();
+    wireTrimFetchBtn();
+  }
   updateEffReadout();
   { const effIn = document.getElementById("adminRepeatFloorEff"); if (effIn && !effIn._effWired) { effIn.addEventListener("input", updateEffReadout); effIn._effWired = true; } }
   updateCrewCostReadout();
@@ -19593,6 +19806,7 @@ function commitAdmin() {
   DATA.config.brand.tagline = document.getElementById("brandTagline").value.trim();
   DATA.config.brand.city = document.getElementById("brandCity").value.trim();
   DATA.config.brand.state = document.getElementById("brandState").value.trim();
+  { const z = document.getElementById("brandZip"); if (z) DATA.config.brand.zip = z.value.trim(); }
   DATA.config.brand.county = document.getElementById("brandCounty").value;
   DATA.config.brand.phone = document.getElementById("brandPhone").value.trim();
   DATA.config.brand.email = document.getElementById("brandEmail").value.trim();
@@ -22520,6 +22734,22 @@ function getPlanDef() {
   return PLANS.find(p => p.id === e.plan) || PLANS[0];
 }
 
+// ── Tier gating ─────────────────────────────────────────────────────────────
+// Ordinal plan rank so "Pro and up" is one comparison, not an id list.
+// A client-side gate is UX ONLY (entitlements are user-editable in devtools);
+// anything with real cost MUST also be enforced server-side — see the
+// fetch-material-prices / extract-plan-openings edge functions.
+const PLAN_RANK = { trial: 0, starter: 1, pro: 2, unlimited: 3 };
+function planRankOf(id) { return PLAN_RANK[id] != null ? PLAN_RANK[id] : 0; }
+function currentPlanId() { return (getEntitlements() || {}).plan || "trial"; }
+// True if the account may use a feature requiring at least `minPlanId`. Admin
+// always allowed. A lapsed paid sub still ranks by its plan (the server blocks
+// the paid action regardless).
+function planAllows(minPlanId) {
+  if (typeof isAdmin === "function" && isAdmin()) return true;
+  return planRankOf(currentPlanId()) >= planRankOf(minPlanId);
+}
+
 function getPlanLimit() {
   const e = getEntitlements();
   if (e.plan === "trial") return TRIAL.quotes;
@@ -22808,6 +23038,11 @@ const UPSELL_COPY = {
     eyebrow: "Action needed",
     headline: "Your subscription is inactive",
     body: "Reactivate your plan or update your payment method to keep quoting. Your saved jobs and settings stay put."
+  },
+  ai_pricing_locked: {
+    eyebrow: "Pro & Shop feature",
+    headline: "AI price updates are a Pro feature",
+    body: "Upgrade to Pro or Shop to let Grok search Lowe's, Home Depot & local suppliers near your ZIP and refresh your material prices for you. You can always edit prices by hand on any plan."
   }
 };
 
