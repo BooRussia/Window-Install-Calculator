@@ -814,10 +814,13 @@
      keep the default slate icon (no marker). The tint is the icon's RESTING
      color via --tip-color; hover still brightens via --tip-hover (see .info-tip).
      Matches the tooltip's tip-tag tokens so icon + tip agree. */
-  .rail-field > label .lbl-impact.high + .info-tip { --tip-color: #f43f5e; --tip-hover: #fb7185; }
-  .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: var(--gold-hi, #c9a558); --tip-hover: var(--gold-pale, #dfc07a); }
-  [data-theme="light"] .rail-field > label .lbl-impact.high + .info-tip { --tip-color: #e11d48; --tip-hover: #be123c; }
-  [data-theme="light"] .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #97772e; --tip-hover: #b58f4a; }
+  /* VIS-7: the help "?" icons are neutral slate — a red icon on a pristine form
+     reads as an error/validation failure. The impact level still shows as a
+     "High/Medium impact" tag INSIDE each popover, so no signal is lost. */
+  .rail-field > label .lbl-impact.high + .info-tip,
+  .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #64748b; --tip-hover: #94a3b8; }
+  [data-theme="light"] .rail-field > label .lbl-impact.high + .info-tip,
+  [data-theme="light"] .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #64748b; --tip-hover: #475569; }
   /* Reset-job pill at the bottom of the rail */
   .rail-save-btn {
     width: 100%;
@@ -9244,6 +9247,14 @@ function normalizeSwingDoors(v) {
   return out;
 }
 function swingDoorCount() { return normalizeSwingDoors(STATE.swingDoors).length; }
+// CALC-9: total door COUNT for recaps/summaries. Swing entries are one door
+// each; sliding/bifold entries carry a `qty` (2 identical sliders = one row,
+// qty 2), so count quantities — not editor rows — or the recap disagrees with
+// the priced job.
+function totalDoorCount() {
+  const sumQty = arr => (Array.isArray(arr) ? arr : []).reduce((s, d) => s + Math.max(1, parseInt(d && d.qty, 10) || 1), 0);
+  return swingDoorCount() + sumQty(STATE.slidingDoors) + sumQty(STATE.bifoldDoors);
+}
 
 function computeSwingDoors(takeoff = STATE) {
   const doors = normalizeSwingDoors(takeoff.swingDoors);
@@ -10497,7 +10508,7 @@ function renderExtraFloors() {
         <label class="margin-pill" style="cursor:text"><span class="lbl">Windows</span><input class="ef-in num-input" data-f="windowCount" type="number" min="0" step="1" inputmode="numeric" value="${f.windowCount || ""}" placeholder="&mdash;" style="width:48px;text-align:right;-moz-appearance:textfield;" /></label>
         <label class="margin-pill" style="cursor:text" title="How many identical copies of this floor the building has — 2 matching penthouses = 2"><span class="lbl">Number of these floors</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
       </div>
-      <div class="text-[9px] uppercase tracking-[0.14em] text-slate-600 font-bold" style="margin-top:8px;margin-bottom:4px;">Doors on this floor &mdash; optional</div>
+      <div class="text-[11px] uppercase tracking-[0.14em] text-slate-500 font-bold" style="margin-top:8px;margin-bottom:4px;">Doors on this floor &mdash; optional</div>
       <div class="space-y-2">${efDoorsHTML(f)}</div>
       <div style="margin-top:6px;">
         <label class="margin-pill" style="cursor:pointer"><span class="lbl">Interior trim this floor</span><input class="ef-in" data-f="trim" type="checkbox"${f.trimEnabled ? " checked" : ""} style="accent-color:#b58f4a;width:14px;height:14px;" /></label>
@@ -11003,8 +11014,7 @@ function cleanLF(v) { const n = parseFloat(v); return isFinite(n) ? Math.round(n
 function jobSummaryTiers() {
   const lf = cleanLF(STATE.totalLF);
   const wc = parseInt(STATE.windowCount, 10) || 0;
-  const doors = swingDoorCount()
-    + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
+  const doors = totalDoorCount();   // CALC-9: quantities, not editor rows
   const size = [];
   const _floors = floorMult();
   if (_floors > 1) size.push(`× ${_floors} floors`);   // per-floor figures below, repeated
@@ -11063,8 +11073,7 @@ function renderRailAccSummaries() {
   const lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
   const wc = parseInt(STATE.windowCount, 10) || 0;
   const floors = floorMult();
-  const doors = swingDoorCount()
-    + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
+  const doors = totalDoorCount();   // CALC-9: quantities, not editor rows
   let storyTxt = "";
   if (STATE.stories) { const m = String(STATE.stories).match(/(\d+)/); storyTxt = m ? m[1] + "-story" : STATE.stories; }
   const sums = {
