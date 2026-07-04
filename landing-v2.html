@@ -503,12 +503,31 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .jamb-head .jh-t { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); }
 .jamb-head .jh-b { font-size: 11px; font-weight: 800; color: var(--gold-hi); }
 .jamb svg text { font-family: 'Inter', sans-serif; }
-.screw { transform-origin: center; transform-box: fill-box; }
-.js .screw { opacity: 0; transform: scale(0); }
-.js .go .screw { transition: opacity .35s ease, transform .5s var(--spring); transition-delay: calc(0.9s + var(--i) * 60ms); opacity: 1; transform: scale(1); }
+/* fasteners drive in from the right: accelerate through the frame, seat with
+   a 2px recoil, and an impact ring blooms where the head meets the frame */
+.js .fast .screw-drive { opacity: 0; transform: translateX(84px); }
+.js .go .fast .screw-drive {
+  animation: screwDrive .55s cubic-bezier(0.5, 0, 0.55, 1) both;
+  animation-delay: calc(1.2s + var(--i) * 0.4s);
+}
+@keyframes screwDrive {
+  0%   { opacity: 0; transform: translateX(84px); }
+  18%  { opacity: 1; }
+  78%  { transform: translateX(-2px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.fast .hit { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.js .go .fast .hit {
+  animation: hitRing .5s ease-out both;
+  animation-delay: calc(1.2s + var(--i) * 0.4s + 0.4s);
+}
+@keyframes hitRing {
+  0%   { opacity: 0.75; transform: scale(0.35); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
 .dim { transform-box: fill-box; }
 .js .dim { opacity: 0; }
-.js .go .dim { transition: opacity .6s ease 1.7s; opacity: 1; }
+.js .go .dim { transition: opacity .6s ease 3.4s; opacity: 1; }
 .fl-note { font-size: 11px; color: var(--ink-4); margin-top: 14px; }
 
 /* ============================================================
@@ -778,7 +797,8 @@ footer {
   .js .rv { opacity: 1; transform: none; transition: none; }
   .js .q-row, .js .q-chip { opacity: 1; transform: none; transition: none; }
   .js .drum { transition: none; }
-  .js .screw { opacity: 1; transform: none; transition: none; }
+  .js .fast .screw-drive { opacity: 1; transform: none; animation: none !important; }
+  .js .fast .hit { display: none; }
   .js .dim { opacity: 1; transition: none; }
   .fl-type .mask { display: none; }
   .js .sig .sig-mask { display: none; }
@@ -987,26 +1007,109 @@ footer {
           <span class="jh-t">Anchoring schedule · jamb</span>
           <span class="jh-b">Masonry / block</span>
         </div>
-        <svg viewBox="0 0 380 240" width="100%" role="img" aria-label="Screw pattern diagram">
-          <rect x="40" y="30" width="44" height="180" rx="3" fill="rgba(181,143,74,0.13)" stroke="rgba(181,143,74,0.4)"/>
-          <rect x="92" y="30" width="18" height="180" rx="2" fill="rgba(148,163,184,0.12)" stroke="rgba(148,163,184,0.3)"/>
-          <text x="62" y="126" fill="#8a6a2e" font-size="10" font-weight="700" text-anchor="middle" transform="rotate(-90 62 126)">WOOD BUCK</text>
-          <text x="101" y="126" fill="#64748b" font-size="9" font-weight="700" text-anchor="middle" transform="rotate(-90 101 126)">FRAME</text>
-          <g fill="#dfc07a">
-            <circle class="screw" style="--i:0" cx="101" cy="46" r="5"/>
-            <circle class="screw" style="--i:1" cx="101" cy="86" r="5"/>
-            <circle class="screw" style="--i:2" cx="101" cy="126" r="5"/>
-            <circle class="screw" style="--i:3" cx="101" cy="166" r="5"/>
-            <circle class="screw" style="--i:4" cx="101" cy="200" r="5"/>
+        <svg viewBox="0 0 380 240" width="100%" role="img" aria-label="Anchoring cross-section: screws drive through the frame and wood buck into the block">
+          <!-- masonry block -->
+          <rect x="22" y="30" width="46" height="180" rx="3" fill="rgba(148,163,184,0.07)" stroke="rgba(148,163,184,0.25)"/>
+          <g stroke="rgba(148,163,184,0.16)" stroke-width="1">
+            <line x1="22" y1="90" x2="68" y2="90"/><line x1="22" y1="150" x2="68" y2="150"/>
           </g>
+          <g fill="rgba(148,163,184,0.22)">
+            <circle cx="34" cy="58" r="1.3"/><circle cx="53" cy="72" r="1"/><circle cx="43" cy="112" r="1.2"/>
+            <circle cx="58" cy="134" r="1"/><circle cx="33" cy="172" r="1.2"/><circle cx="50" cy="196" r="1"/>
+          </g>
+          <text x="45" y="120" fill="#7e8ca3" font-size="9" font-weight="700" text-anchor="middle" transform="rotate(-90 45 120)" letter-spacing="2">BLOCK</text>
+          <!-- wood buck with grain -->
+          <rect x="72" y="30" width="44" height="180" rx="3" fill="rgba(181,143,74,0.14)" stroke="rgba(181,143,74,0.45)"/>
+          <g stroke="rgba(181,143,74,0.3)" stroke-width="1" fill="none">
+            <path d="M82 34 C 80 82, 86 122, 82 206"/>
+            <path d="M104 34 C 107 92, 102 152, 105 206"/>
+          </g>
+          <text x="94" y="120" fill="#8a6a2e" font-size="9" font-weight="700" text-anchor="middle" transform="rotate(-90 94 120)" letter-spacing="1.5">WOOD BUCK</text>
+          <!-- aluminum frame -->
+          <rect x="120" y="30" width="20" height="180" rx="2" fill="rgba(148,163,184,0.16)" stroke="rgba(148,163,184,0.35)"/>
+          <line x1="124.5" y1="32" x2="124.5" y2="208" stroke="rgba(226,232,240,0.22)" stroke-width="1"/>
+          <text x="130" y="120" fill="#94a3b8" font-size="9" font-weight="700" text-anchor="middle" transform="rotate(-90 130 120)" letter-spacing="1.5">FRAME</text>
+          <!-- fasteners: drawn seated (tip through the buck, biting the block);
+               the whole screw slides in via translateX, so no-JS shows it seated -->
+          <g class="fast" style="--i:0" transform="translate(0 48)">
+            <g class="screw-drive">
+              <polygon points="60,0 68,-3.2 68,3.2" fill="#8a6a2e"/>
+              <rect x="68" y="-2.5" width="71" height="5" rx="1" fill="#c9a558"/>
+              <g stroke="#8a6a2e" stroke-width="1.3">
+                <line x1="75" y1="2.6" x2="79" y2="-2.6"/><line x1="85" y1="2.6" x2="89" y2="-2.6"/>
+                <line x1="95" y1="2.6" x2="99" y2="-2.6"/><line x1="105" y1="2.6" x2="109" y2="-2.6"/>
+                <line x1="115" y1="2.6" x2="119" y2="-2.6"/><line x1="126" y1="2.6" x2="130" y2="-2.6"/>
+              </g>
+              <rect x="139" y="-7" width="3" height="14" rx="1" fill="#dfc07a"/>
+              <rect x="142" y="-5" width="8" height="10" rx="1.5" fill="#dfc07a" stroke="#8a6a2e" stroke-width="1"/>
+            </g>
+            <circle class="hit" cx="140" cy="0" r="7" fill="none" stroke="#dfc07a" stroke-width="2"/>
+          </g>
+          <g class="fast" style="--i:1" transform="translate(0 84)">
+            <g class="screw-drive">
+              <polygon points="60,0 68,-3.2 68,3.2" fill="#8a6a2e"/>
+              <rect x="68" y="-2.5" width="71" height="5" rx="1" fill="#c9a558"/>
+              <g stroke="#8a6a2e" stroke-width="1.3">
+                <line x1="75" y1="2.6" x2="79" y2="-2.6"/><line x1="85" y1="2.6" x2="89" y2="-2.6"/>
+                <line x1="95" y1="2.6" x2="99" y2="-2.6"/><line x1="105" y1="2.6" x2="109" y2="-2.6"/>
+                <line x1="115" y1="2.6" x2="119" y2="-2.6"/><line x1="126" y1="2.6" x2="130" y2="-2.6"/>
+              </g>
+              <rect x="139" y="-7" width="3" height="14" rx="1" fill="#dfc07a"/>
+              <rect x="142" y="-5" width="8" height="10" rx="1.5" fill="#dfc07a" stroke="#8a6a2e" stroke-width="1"/>
+            </g>
+            <circle class="hit" cx="140" cy="0" r="7" fill="none" stroke="#dfc07a" stroke-width="2"/>
+          </g>
+          <g class="fast" style="--i:2" transform="translate(0 120)">
+            <g class="screw-drive">
+              <polygon points="60,0 68,-3.2 68,3.2" fill="#8a6a2e"/>
+              <rect x="68" y="-2.5" width="71" height="5" rx="1" fill="#c9a558"/>
+              <g stroke="#8a6a2e" stroke-width="1.3">
+                <line x1="75" y1="2.6" x2="79" y2="-2.6"/><line x1="85" y1="2.6" x2="89" y2="-2.6"/>
+                <line x1="95" y1="2.6" x2="99" y2="-2.6"/><line x1="105" y1="2.6" x2="109" y2="-2.6"/>
+                <line x1="115" y1="2.6" x2="119" y2="-2.6"/><line x1="126" y1="2.6" x2="130" y2="-2.6"/>
+              </g>
+              <rect x="139" y="-7" width="3" height="14" rx="1" fill="#dfc07a"/>
+              <rect x="142" y="-5" width="8" height="10" rx="1.5" fill="#dfc07a" stroke="#8a6a2e" stroke-width="1"/>
+            </g>
+            <circle class="hit" cx="140" cy="0" r="7" fill="none" stroke="#dfc07a" stroke-width="2"/>
+          </g>
+          <g class="fast" style="--i:3" transform="translate(0 156)">
+            <g class="screw-drive">
+              <polygon points="60,0 68,-3.2 68,3.2" fill="#8a6a2e"/>
+              <rect x="68" y="-2.5" width="71" height="5" rx="1" fill="#c9a558"/>
+              <g stroke="#8a6a2e" stroke-width="1.3">
+                <line x1="75" y1="2.6" x2="79" y2="-2.6"/><line x1="85" y1="2.6" x2="89" y2="-2.6"/>
+                <line x1="95" y1="2.6" x2="99" y2="-2.6"/><line x1="105" y1="2.6" x2="109" y2="-2.6"/>
+                <line x1="115" y1="2.6" x2="119" y2="-2.6"/><line x1="126" y1="2.6" x2="130" y2="-2.6"/>
+              </g>
+              <rect x="139" y="-7" width="3" height="14" rx="1" fill="#dfc07a"/>
+              <rect x="142" y="-5" width="8" height="10" rx="1.5" fill="#dfc07a" stroke="#8a6a2e" stroke-width="1"/>
+            </g>
+            <circle class="hit" cx="140" cy="0" r="7" fill="none" stroke="#dfc07a" stroke-width="2"/>
+          </g>
+          <g class="fast" style="--i:4" transform="translate(0 192)">
+            <g class="screw-drive">
+              <polygon points="60,0 68,-3.2 68,3.2" fill="#8a6a2e"/>
+              <rect x="68" y="-2.5" width="71" height="5" rx="1" fill="#c9a558"/>
+              <g stroke="#8a6a2e" stroke-width="1.3">
+                <line x1="75" y1="2.6" x2="79" y2="-2.6"/><line x1="85" y1="2.6" x2="89" y2="-2.6"/>
+                <line x1="95" y1="2.6" x2="99" y2="-2.6"/><line x1="105" y1="2.6" x2="109" y2="-2.6"/>
+                <line x1="115" y1="2.6" x2="119" y2="-2.6"/><line x1="126" y1="2.6" x2="130" y2="-2.6"/>
+              </g>
+              <rect x="139" y="-7" width="3" height="14" rx="1" fill="#dfc07a"/>
+              <rect x="142" y="-5" width="8" height="10" rx="1.5" fill="#dfc07a" stroke="#8a6a2e" stroke-width="1"/>
+            </g>
+            <circle class="hit" cx="140" cy="0" r="7" fill="none" stroke="#dfc07a" stroke-width="2"/>
+          </g>
+          <!-- dimension callouts, drawn after the screws seat -->
           <g class="dim" stroke="rgba(216,185,106,0.6)" stroke-width="1">
-            <line x1="150" y1="46" x2="150" y2="86"/><line x1="144" y1="46" x2="156" y2="46"/><line x1="144" y1="86" x2="156" y2="86"/>
-            <line x1="150" y1="126" x2="150" y2="166"/><line x1="144" y1="126" x2="156" y2="126"/><line x1="144" y1="166" x2="156" y2="166"/>
+            <line x1="162" y1="48" x2="162" y2="84"/><line x1="157" y1="48" x2="167" y2="48"/><line x1="157" y1="84" x2="167" y2="84"/>
+            <line x1="162" y1="120" x2="162" y2="156"/><line x1="157" y1="120" x2="167" y2="120"/><line x1="157" y1="156" x2="167" y2="156"/>
           </g>
           <g class="dim" fill="#c9a558" font-size="11" font-weight="700">
-            <text x="162" y="70">6 in. from corners</text>
-            <text x="162" y="150">16 in. o.c.</text>
-            <text x="162" y="196" fill="#94a3b8" font-size="10" font-weight="600">3/16" Ultracon · 1-1/4" min. embed</text>
+            <text x="174" y="70">6 in. from corners</text>
+            <text x="174" y="142">16 in. o.c.</text>
+            <text x="174" y="196" fill="#94a3b8" font-size="10" font-weight="600">3/16" Ultracon · 1-1/4" min. embed</text>
           </g>
         </svg>
       </div>
