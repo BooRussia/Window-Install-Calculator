@@ -11529,6 +11529,8 @@ function render() {
     if (_mbar) { _mbar.classList.toggle("show", hasInput); document.body.classList.toggle("mtotal-on", hasInput); } }
   // The recap band sits above results/empty and should always reflect STATE.
   renderLiveRecap();
+  renderJobSpecSummary();     // CALC-5: also update the mobile spec bar here, BEFORE the
+                              // !hasInput early-return — else clearing inputs left it stale.
   renderBuildingSummary();   // FLR-11: live building make-up in the rail
   // Wire the accordion + open a section BEFORE the empty-job early-return below,
   // or a fresh job would have every section sealed shut and the headers dead.
@@ -11824,7 +11826,6 @@ function render() {
 
   // Per-job material variant toggles
   renderMaterialsToggle();
-  renderJobSpecSummary();
   renderRailAccSummaries();     // refresh collapsed-card recaps after a full render
   renderPlanApprovals();
   updateSlidingDoorsSummary();
@@ -11903,11 +11904,20 @@ function jobSummaryTiers() {
   return { size, spec };
 }
 // Desktop recap band (centered, under the header).
+// CALC-5: the recap is "empty" (shows the CTA) only when there's no priceable
+// MEASUREMENT — window footage, window count, or any door. Stories + build spec
+// always carry defaults, so the old `!size && !spec` test was dead code (the CTA
+// never showed; the recap jumped straight to "2-story · New · Block…").
+function recapIsEmpty() {
+  const lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
+  const wc = parseInt(STATE.windowCount, 10) || 0;
+  return lf <= 0 && wc <= 0 && totalDoorCount() <= 0;
+}
 function renderLiveRecap() {
   const el = document.getElementById("liveRecap");
   if (!el) return;
   const { size, spec } = jobSummaryTiers();
-  if (!size.length && !spec.length) {
+  if (recapIsEmpty()) {
     el.classList.add("is-empty");
     el.textContent = "Add your window footage to see your price";
     return;
@@ -11923,7 +11933,7 @@ function renderJobSpecSummary() {
   const el = document.getElementById("jobSpecSummary");
   if (!el) return;
   const { size, spec } = jobSummaryTiers();
-  if (!size.length && !spec.length) {
+  if (recapIsEmpty()) {
     el.innerHTML = 'Set up your job <span aria-hidden="true">&rarr;</span>';
     el.classList.add("is-empty");
     return;
