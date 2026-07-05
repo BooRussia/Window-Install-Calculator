@@ -9788,17 +9788,41 @@ function repeatEfficiencyFactor() {
 // mobilization + the inspection return trip stay full. Identity when both
 // factors are 1.0 (Like Floors off / ≤3 stories), so normal jobs are untouched.
 // Adds explanatory rows so the Labor Detail card matches the quote line exactly.
-function applyLaborRealism(lb) {
+// FLR-14: `exemptOnsiteHrs` is the on-site labor of any one-off floors (lobby /
+// penthouse). They're NOT part of the identical-repeat stack, so they don't earn
+// the repeat-efficiency discount, and — with no known floor height — they aren't
+// charged the tower height premium either; they're priced as standalone floors.
+// Only the repeating-stack on-site hours get eff × hp. Default 0 ⇒ every existing
+// caller (and every job with no one-off floors) is byte-identical to before.
+function applyLaborRealism(lb, exemptOnsiteHrs = 0) {
   const eff = repeatEfficiencyFactor();
   const hp = getHeightPremiumMultiplier();
   if (eff === 1 && hp === 1) return lb;
   const fixedHrs = (lb.mobilizationHrs || 0) + (lb.inspectionHrs || 0);
   const onsiteHrs = Math.max(0, lb.totalHrs - fixedHrs);
-  const totalHrs = onsiteHrs * eff * hp + fixedHrs;
+  const exempt = Math.min(Math.max(0, exemptOnsiteHrs), onsiteHrs);   // one-off floors, un-scaled
+  const stackOnsite = onsiteHrs - exempt;                             // repeating stack, scaled
+  const totalHrs = stackOnsite * eff * hp + exempt + fixedHrs;
   const breakdown = lb.breakdown.slice();
-  if (eff !== 1) breakdown.push({ label: `Repeat-floor efficiency (identical floors ×${eff.toFixed(2)})`, hrs: onsiteHrs * (eff - 1) });
-  if (hp !== 1) breakdown.push({ label: `High-rise height premium (×${hp.toFixed(2)})`, hrs: onsiteHrs * eff * (hp - 1) });
+  if (eff !== 1) breakdown.push({ label: `Repeat-floor efficiency (identical floors ×${eff.toFixed(2)})`, hrs: stackOnsite * (eff - 1) });
+  if (hp !== 1) breakdown.push({ label: `High-rise height premium (×${hp.toFixed(2)})`, hrs: stackOnsite * eff * (hp - 1) });
   return { ...lb, totalHrs, laborCost: totalHrs * lb.crewCostPerHr, breakdown };
+}
+
+// FLR-14: on-site (setup + install) labor hours of just the one-off floors, so
+// applyLaborRealism can exempt them from the tower factors. Uses the same
+// estimate + linearity as the full building (mobilization/inspection are fixed
+// per-job, so they're stripped here — the full job counts them once).
+function oneoffFloorsOnsiteHrs() {
+  const extras = (STATE.highRise && Array.isArray(STATE.extraFloors)) ? STATE.extraFloors : [];
+  if (!extras.length) return 0;
+  const agg = aggregateTakeoff(extras.map(f => ({ ...f, count: Math.max(1, parseInt(f && f.count, 10) || 1) })));
+  const sd = computeSwingDoors({ swingDoors: agg.swingDoors });
+  const sgd = computeSlidingDoors({ slidingDoors: agg.slidingDoors });
+  const bifold = computeBifoldDoors({ bifoldDoors: agg.bifoldDoors });
+  const lb = estimateLaborBreakdown({ wc: agg.windowCount, lf: agg.windowLF, sd, sgd, bifold });
+  const fixedHrs = (lb.mobilizationHrs || 0) + (lb.inspectionHrs || 0);
+  return Math.max(0, lb.totalHrs - fixedHrs);
 }
 
 // Building-total labor: the aggregated floor-groups takeoff with the realism
@@ -9810,7 +9834,7 @@ function buildingLaborBreakdown() {
   const sd = computeSwingDoors({ swingDoors: agg.swingDoors });
   const sgd = computeSlidingDoors({ slidingDoors: agg.slidingDoors });
   const bifold = computeBifoldDoors({ bifoldDoors: agg.bifoldDoors });
-  return applyLaborRealism(estimateLaborBreakdown({ wc: agg.windowCount, lf: agg.windowLF, sd, sgd, bifold }));
+  return applyLaborRealism(estimateLaborBreakdown({ wc: agg.windowCount, lf: agg.windowLF, sd, sgd, bifold }), oneoffFloorsOnsiteHrs());
 }
 
 // True when the INSTALLATION is to impact spec — either the job is impact glass,
@@ -10665,7 +10689,7 @@ function calculate() {
   {
     // Repeat-floor efficiency + height premium via applyLaborRealism — the same
     // helper the Labor Detail card uses, so the card and this row can't drift.
-    const lb = applyLaborRealism(estimateLaborBreakdown({ wc, lf: windowLF, sd, sgd, bifold }));
+    const lb = applyLaborRealism(estimateLaborBreakdown({ wc, lf: windowLF, sd, sgd, bifold }), oneoffFloorsOnsiteHrs());
     if (lb.laborCost > 0) {
       rows.push({
         id: "labor", name: "Labor (install + cleanup)", isLabor: true,
@@ -11168,8 +11192,19 @@ function updateSwingStageVisibility() {
   const minS = (DATA.config.swingStage && DATA.config.swingStage.minStories) || 4;
   const show = !!STATE.highRise && storyNum(STATE.stories) >= minS;
   if (field) field.classList.toggle("hidden", !show);
-  if (!show && STATE.swingStageEnabled) {
-    STATE.swingStageEnabled = false;
+  // FLR-10: don't permanently DISCARD the user's swing-stage choice when the
+  // building drops below the threshold — stash it (so it can't leak into pricing,
+  // which the engine also guards on stories) and restore it if they raise the
+  // stories back. Manually turning it off clears the stash below.
+  if (!show) {
+    if (STATE.swingStageEnabled) {
+      STATE._swingStageWanted = true;
+      STATE.swingStageEnabled = false;
+      if (typeof updateSwingStageToggleUI === "function") updateSwingStageToggleUI();
+    }
+  } else if (STATE._swingStageWanted && !STATE.swingStageEnabled) {
+    STATE.swingStageEnabled = true;
+    STATE._swingStageWanted = false;
     if (typeof updateSwingStageToggleUI === "function") updateSwingStageToggleUI();
   }
 }
@@ -16070,6 +16105,7 @@ function bindControls() {
   if (swingBtn && !swingBtn._wired) {
     swingBtn.addEventListener("click", () => {
       STATE.swingStageEnabled = !STATE.swingStageEnabled;
+      STATE._swingStageWanted = false;   // FLR-10: a manual toggle is the user's final word — don't auto-restore
       updateSwingStageToggleUI();
       updateJobExtrasSummary();
       render();
