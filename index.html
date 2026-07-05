@@ -1129,6 +1129,15 @@
   .jf-btn-dl:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
   .jf-btn-share { background: transparent; color: #64748b; border: 1px solid transparent; }
   .jf-btn-share:hover { color: #c9a558; }
+  /* OUT-13: lift the Job Files controls to the 44px touch floor on touch devices. The
+     collapsed-header icons keep their compact 34px visual box (so the icon row never
+     wraps on 320px screens) but gain a centered, transparent 44px tap area. */
+  @media (pointer: coarse) {
+    .jf-iconbtn { position: relative; }
+    .jf-iconbtn::after { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; }
+    .jf-menu button { min-height: 44px; }
+    .jf-btn { min-height: 44px; }
+  }
   /* In-site PDF preview modal — renders generated docs (PDF.js canvases) so
      "View" works inline on mobile instead of downloading. */
   #pdfPreviewPages { display: flex; flex-direction: column; align-items: center; gap: 14px; }
@@ -1140,6 +1149,11 @@
     background: #fff;            /* PDF pages are white regardless of app theme */
   }
   [data-theme="light"] .pdf-preview-canvas { border-color: rgba(203,213,225,0.9); box-shadow: 0 6px 24px rgba(15,23,42,0.12); }
+  /* OUT-2: tap a preview page to zoom it to full width for legibility on phones
+     (scoped to the modal — the global user-scalable=no is intentionally left intact). */
+  .pdf-preview-canvas { cursor: zoom-in; }
+  #pdfPreviewPages.zoomed { overflow: auto; align-items: flex-start; }
+  #pdfPreviewPages.zoomed .pdf-preview-canvas { max-width: none; cursor: zoom-out; }
   @media (max-width: 520px) {
     .jf-card { flex-wrap: wrap; }
     .jf-actions { width: 100%; justify-content: flex-end; padding-top: 4px; }
@@ -1839,6 +1853,22 @@
   [data-theme="light"] .margin-lever-unit { color: #64748b; }
   [data-theme="light"] .margin-reset { color: #64748b; }
   [data-theme="light"] .margin-reset:hover { color: #8a6a2e; }
+  /* OUT-14: Present mode — one tap hides every internal-only number so the installer
+     can turn the screen to the customer. Presentation-only (CSS visibility); the
+     render path keeps writing to the hidden nodes harmlessly. */
+  .present-toggle {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #94a3b8;
+    background: rgba(15,23,42,0.5); border: 1px solid rgba(71,85,105,0.5); border-radius: 9999px;
+    padding: 6px 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    -webkit-tap-highlight-color: transparent; transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .present-toggle:hover { color: #c9a558; border-color: rgba(201,165,88,0.5); }
+  body.present-mode .present-toggle { color: #c9a558; border-color: rgba(201,165,88,0.6); background: rgba(181,143,74,0.12); }
+  body.present-mode .internal-only { display: none !important; }
+  @media (pointer: coarse) { .present-toggle { min-height: 44px; padding: 8px 15px; } }
+  [data-theme="light"] .present-toggle { background: #fff; border-color: #d6dae1; color: #64748b; }
+  [data-theme="light"] .present-toggle:hover,
+  [data-theme="light"] body.present-mode .present-toggle { color: #8a6a2e; border-color: rgba(138,106,46,0.5); background: rgba(201,165,88,0.1); }
   /* FLR-11 building summary — darker gold in light mode for contrast on the light rail */
   [data-theme="light"] #buildingSummary { color: #8a6a2e !important; }
 
@@ -3561,7 +3591,6 @@
   .jd-cz-row input { width: 15px; height: 15px; accent-color: #b58f4a; flex-shrink: 0; cursor: pointer; }
   .jd-cz-label { font-size: 12px; color: #cbd5e1; flex: 1; min-width: 0; }
   .jd-cz-right { font-size: 11px; color: #94a3b8; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-  .jd-cz-important .jd-cz-label::after { content: " ⓘ"; color: #b58f4a; font-size: 9px; }
   .jd-cz-row input:not(:checked) ~ .jd-cz-label { color: #64748b; text-decoration: line-through; }
   .jd-cz-note { font-size: 9.5px; color: #64748b; margin-top: 7px; line-height: 1.45; }
   [data-theme="light"] .jd-cz-wrap { background: #f7f8fa; border-color: #e6e8ec; }
@@ -4715,10 +4744,22 @@
   }
 
   function buildShareURL(payload) {
-    var token = encodeQuote(payload);
     var origin = global.location.origin;
     var path = global.location.pathname.replace(/index\.html?$/i, "");
-    return origin + path + "#/q/" + token;
+    var url = origin + path + "#/q/" + encodeQuote(payload);
+    // OUT-1: SMS/email clients truncate very long URLs, and a truncated payload then
+    // decodes as "this quote link is invalid or expired". A logo data-URI is kilobytes,
+    // so any realistic logo blows past a safe URL length — drop it from the URL (only)
+    // and rebuild: a working link without the logo beats a broken one with it. The logo
+    // stays on the payload object for other consumers (notably the server-stored e-sign
+    // snapshot, which has no URL limit); a branded URL-share awaits the server-backed
+    // short link (deferred). So this ceiling being tighter than shrinkLogo's is intended.
+    var SAFE_URL_MAX = 1800;
+    if (url.length > SAFE_URL_MAX && payload && payload.brand && payload.brand.logo) {
+      var lean = Object.assign({}, payload, { brand: Object.assign({}, payload.brand, { logo: "" }) });
+      url = origin + path + "#/q/" + encodeQuote(lean);
+    }
+    return url;
   }
 
   // Downscale large data-URL logos so the URL stays manageable.
@@ -4728,8 +4769,11 @@
       if (!dataUrl || typeof dataUrl !== "string") return resolve("");
       var raw = dataUrl.split(",")[1] || "";
       var approxBytes = Math.floor(raw.length * 0.75);
-      var SOFT_LIMIT = 80 * 1024;
-      var HARD_LIMIT = maxBytes || 60 * 1024;
+      // OUT-1: keep embedded logos tiny so the whole quote URL stays SMS/email-safe.
+      // Anything above the soft limit gets recompressed; anything still over the hard
+      // limit is dropped (buildShareURL also enforces a total URL-length ceiling).
+      var SOFT_LIMIT = 6 * 1024;
+      var HARD_LIMIT = maxBytes || 10 * 1024;
       if (approxBytes <= SOFT_LIMIT) return resolve(dataUrl);
       try {
         var img = new Image();
@@ -4844,10 +4888,11 @@
         '</div>' +
         contactHTML +
         // Provenance note: this page renders entirely from the link's payload
-        // (no server record), so make clear it was authored by an Anchor user —
-        // a crafted link must not read as if anchorquoting.com vouches for it.
-        '<div class="pq-powered">Powered by <span>Anchor</span> &middot; ' +
-          'Estimate prepared by the sender, not by AnchorQuoting &mdash; verify you know who sent this link.' +
+        // (no server record), so name who prepared it — stated as a neutral fact,
+        // not a scam-warning under the price at the peak-end moment.
+        '<div class="pq-powered">' +
+          (brand.companyName ? 'Prepared and sent by ' + company + ' &middot; ' : '') +
+          'Powered by <span>Anchor</span>' +
         '</div>' +
       '</div>';
   }
@@ -5012,7 +5057,10 @@
       customer + itemized + scope + meta + contactHTML(s) + '</div>';
   }
 
-  function signFormHTML() {
+  function signFormHTML(brand) {
+    // OUT-16: cite the installer's own state (from the frozen snapshot) instead of
+    // hardcoding Florida; fall back to the nationwide-accurate UETA phrasing.
+    var lawTxt = (brand && brand.state) ? ('and applicable ' + esc(brand.state) + ' law') : 'and applicable state law (UETA)';
     return '<div class="sg-wrap"><div class="sg-signbox">' +
       '<div class="sg-signbox-title">Review &amp; Approve</div>' +
       '<p class="sg-signbox-sub">By signing below you accept this quote and authorize the work described above. Your signature is recorded electronically.</p>' +
@@ -5036,7 +5084,7 @@
         '<span>I agree to sign electronically and that my electronic signature is the legal equivalent of my handwritten signature on this quote.</span>' +
       '</label>' +
       '<button type="button" class="sg-btn" id="sgSubmit" disabled>Sign &amp; Approve Quote</button>' +
-      '<div class="sg-legal">Signed electronically under the U.S. E-SIGN Act and Florida law. Your name, signature, time, and device are recorded for verification.</div>' +
+      '<div class="sg-legal">Signed electronically under the U.S. E-SIGN Act ' + lawTxt + '. Your name, signature, time, and device are recorded for verification.</div>' +
     '</div></div>';
   }
 
@@ -5212,7 +5260,7 @@
       host().innerHTML = header + errorHTML("This link has expired", "Ask the contractor to send you an updated quote link.");
       return;
     }
-    host().innerHTML = header + bodyHtml + signFormHTML() +
+    host().innerHTML = header + bodyHtml + signFormHTML(s.brand || {}) +
       '<div class="pq-powered" style="margin-top:8px;">Powered by <span>Anchor</span></div>';
     wireForm();
   }
@@ -6907,7 +6955,7 @@
   <button id="mtotalBtn" type="button" aria-controls="results" aria-label="View the full price breakdown">
     <span class="mtotal-meta">
       <span class="mtotal-cap">Selling price</span>
-      <span class="mtotal-sub">@ <span id="mtotalMargin">35</span>% markup</span>
+      <span class="mtotal-sub internal-only">@ <span id="mtotalMargin">35</span>% markup</span>
     </span>
     <output id="mtotalOut" class="mtotal-amount" aria-live="polite" aria-atomic="true"><span class="mtotal-sr">Selling price </span><span id="mtotalAmount">$0.00</span></output>
     <svg class="mtotal-chev" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 8 14 12"/></svg>
@@ -6951,13 +6999,18 @@
 
   <!-- Results -->
   <section id="results" class="mt-12 hidden">
+    <!-- OUT-14: Present mode hides internal-only numbers (profit, markup, cost, per-LF)
+         so the installer can turn the screen to the customer safely. Session-scoped. -->
+    <div class="flex justify-end -mb-3 sm:-mb-2">
+      <button type="button" id="presentToggle" class="present-toggle" aria-pressed="false" title="Hide profit, markup, cost & per-LF — show the customer just the price">Present mode</button>
+    </div>
     <div class="text-center">
       <div id="sellingPrice" class="price-glow text-6xl sm:text-7xl md:text-8xl font-black tracking-tightest leading-none pulse-once">$0.00</div>
       <div class="text-slate-500 text-[11px] sm:text-sm tracking-[0.2em] uppercase mt-4 font-semibold">Selling Price</div>
       <!-- CALC-8: inline markup lever — adjust THIS job's markup right at the price,
            instead of four screens away in Settings. Sets a per-job override; the
            account default (Settings → Rates) is unchanged. -->
-      <div class="margin-lever-wrap mt-2.5">
+      <div class="margin-lever-wrap mt-2.5 internal-only">
         <div class="margin-lever" role="group" aria-label="Markup percent for this job">
           <button type="button" class="margin-step" id="marginDown" aria-label="Decrease markup by 1 percent">&minus;</button>
           <span class="margin-lever-field">
@@ -6970,7 +7023,7 @@
       </div>
     </div>
 
-    <div class="mt-7 grid grid-cols-2 gap-3 sm:gap-4 max-w-2xl mx-auto">
+    <div class="mt-7 grid grid-cols-2 gap-3 sm:gap-4 max-w-2xl mx-auto internal-only">
       <div class="card rounded-2xl px-4 py-4 sm:px-5 sm:py-5 text-center">
         <div class="text-[10px] sm:text-xs tracking-[0.18em] uppercase text-slate-500 font-semibold">Total Job Cost</div>
         <div id="totalCost" class="mt-1 text-2xl sm:text-3xl font-extrabold text-slate-100" style="font-variant-numeric: tabular-nums;">$0.00</div>
@@ -6982,13 +7035,13 @@
     </div>
 
     <!-- Breakdown table -->
-    <div class="mt-10 card rounded-2xl overflow-hidden rcard" data-rcard="breakdown">
-      <button type="button" class="rcard-head border-b border-slate-800/80">
+    <div class="mt-10 card rounded-2xl overflow-hidden rcard internal-only" data-rcard="breakdown">
+      <button type="button" class="rcard-head border-b border-slate-800/80" aria-expanded="true">
         <span class="rcard-title">Full Breakdown</span>
         <span class="rcard-sum" id="breakdownSummary"></span>
         <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
       </button>
-      <div class="px-5 sm:px-6 pt-3 flex justify-end"><span id="perLfBadge" class="text-[10px] sm:text-xs text-slate-400 tracking-[0.16em] uppercase font-semibold">$0.00 / LF</span></div>
+      <div class="px-5 sm:px-6 pt-3 flex justify-end internal-only"><span id="perLfBadge" class="text-[10px] sm:text-xs text-slate-400 tracking-[0.16em] uppercase font-semibold">$0.00 / LF</span></div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm" style="font-variant-numeric: tabular-nums;">
           <thead>
@@ -7027,8 +7080,8 @@
     <!-- Labor Detail — the hour breakdown behind the single Labor line in
          the table above. Cost-plus: crew-hours × what the crew costs/hr.
          That cost is marked up by the job margin like everything else. -->
-    <div id="laborDetailCard" class="mt-6 card rounded-2xl overflow-hidden hidden rcard" data-rcard="labor">
-      <button type="button" class="rcard-head border-b border-slate-800/80">
+    <div id="laborDetailCard" class="mt-6 card rounded-2xl overflow-hidden hidden rcard internal-only" data-rcard="labor">
+      <button type="button" class="rcard-head border-b border-slate-800/80" aria-expanded="true">
         <span class="rcard-title">Labor Detail<span class="ml-1.5 align-middle text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold">Internal</span></span>
         <span class="rcard-sum rcard-sum-stack" id="laborSummary"></span>
         <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
@@ -7056,8 +7109,8 @@
     </div>
 
     <!-- Materials Needed (collapsible rcard, same as Full Breakdown / Labor / Job Files) -->
-    <div id="materialsCard" class="mt-6 card rounded-2xl overflow-hidden rcard" data-rcard="materials">
-      <button type="button" class="rcard-head border-b border-slate-800/80">
+    <div id="materialsCard" class="mt-6 card rounded-2xl overflow-hidden rcard internal-only" data-rcard="materials">
+      <button type="button" class="rcard-head border-b border-slate-800/80" aria-expanded="true">
         <span class="rcard-title">Materials Needed</span>
         <span class="rcard-sum" id="materialsSummary"></span>
         <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
@@ -7095,7 +7148,7 @@
 
     <!-- Job Files — each document is its own clearly-separated card -->
     <div class="mt-8 card rounded-2xl rcard" data-rcard="files">
-      <div class="rcard-head jf-head border-b border-slate-800/80">
+      <div class="rcard-head jf-head border-b border-slate-800/80" role="button" tabindex="0" aria-expanded="true">
         <span class="rcard-title">Job Files</span>
         <div id="jobFilesIcons" class="jf-icons"></div>
         <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
@@ -7427,8 +7480,8 @@
     <h3 class="text-base font-bold text-slate-100">This job already exists</h3>
     <p id="saveConflictMsg" class="text-sm text-slate-400 mt-2 leading-relaxed"></p>
     <div class="mt-5 space-y-2">
-      <button id="saveConflictOverwrite" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Overwrite the existing job</button>
-      <button id="saveConflictNew" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-slate-800 text-slate-100 border border-slate-700 hover:border-[#b58f4a]/50">Save as a new quote</button>
+      <button id="saveConflictNew" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save as a new quote</button>
+      <button id="saveConflictOverwrite" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-slate-800 text-slate-100 border border-slate-700 hover:border-[#b58f4a]/50">Overwrite the existing job</button>
       <button data-close-conflict type="button" class="btn w-full rounded-xl px-4 py-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
     </div>
   </div>
@@ -8512,6 +8565,7 @@
         <button id="pdfPreviewClose" class="modal-close" data-close-pdf aria-label="Close">×</button>
       </div>
     </div>
+    <div class="px-5 pt-2 text-[10px] text-slate-500 tracking-wide flex-shrink-0" aria-hidden="true">Tap a page to zoom</div>
     <div id="pdfPreviewPages" class="overflow-y-auto flex-1 px-3 sm:px-5 py-4 bg-slate-950/40"></div>
   </div>
 </div>
@@ -11472,6 +11526,23 @@ function resetMarginOverride() {  // explicit clear → back to the account defa
   markCalculatorFirstInteraction();
   render();
 }
+// OUT-14: Present mode — hide every .internal-only number (profit, markup, cost,
+// per-LF, the mobile markup sub) so the installer can show the screen to a customer.
+// Session-scoped (sessionStorage), presentation-only — never touches calculate().
+function applyPresentMode(on) {
+  document.body.classList.toggle("present-mode", !!on);
+  const btn = document.getElementById("presentToggle");
+  if (btn) {
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.textContent = on ? "Exit present mode" : "Present mode";
+  }
+}
+function togglePresentMode() {
+  const on = !document.body.classList.contains("present-mode");
+  applyPresentMode(on);
+  try { sessionStorage.setItem("presentMode", on ? "1" : "0"); } catch (_) {}
+}
+
 function renderMarginLever(r) {
   const input = document.getElementById("marginInput");
   const lever = document.querySelector(".margin-lever");
@@ -16701,9 +16772,23 @@ function closeManageCustomers() {
   tvDismiss(document.getElementById("manageCustomersModal"));
 }
 
+// OUT-7/OUT-10: an action (export a doc, create a signing link) can be interrupted
+// by the "save this job first" gate. Stash it here so doSaveJob resumes it once the
+// user actually saves; cleared on every open/abort so it can never fire stale.
+let _pendingAfterSave = null;
+
 function openSaveJobModal() {
+  _pendingAfterSave = null;   // a fresh open clears any stale pending; the gate re-sets it
   const r = calculate();
-  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
+  if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return false; }
+  // OUT-4: surface the plan wall BEFORE the user fills the whole form. A fresh save
+  // consumes a quote; an in-place re-save of a loaded saved job is free, so only
+  // pre-check when this open would actually consume one (mirrors doSaveJob's gate).
+  const wouldConsume = !isAdmin() && !(STATE.currentJobId && loadJobs().some(j => j.id === STATE.currentJobId && !j.isDraft));
+  if (wouldConsume) {
+    const chk = canGenerate();
+    if (!chk.allowed) { showUpsellModal(chk.reason); return false; }
+  }
   // Customer and job name are separate fields now: customer groups jobs, job name
   // distinguishes them. Prefill both from STATE (a loaded job sets both).
   document.getElementById("saveJobName").value = STATE.customerName || "";
@@ -16729,9 +16814,11 @@ function openSaveJobModal() {
   modal.classList.remove("hidden");
   modal.classList.add("flex");
   setTimeout(() => { try { document.getElementById("saveJobName").focus(); } catch {} }, 60);
+  return true;
 }
 
 function closeSaveJobModal() {
+  _pendingAfterSave = null;   // OUT-7: closing the save form abandons any interrupted action
   tvDismiss(document.getElementById("saveJobModal"));
 }
 
@@ -16857,6 +16944,8 @@ function doSaveJob(overrideId) {
     if (overwrite.signedAt) job.signedAt = overwrite.signedAt;
     if (overwrite.signerName) job.signerName = overwrite.signerName;
     if (overwrite.signedQuoteId) job.signedQuoteId = overwrite.signedQuoteId;
+    if (overwrite.quoteNo) job.quoteNo = overwrite.quoteNo;      // OUT-6: keep the minted quote number stable
+    if (overwrite.issuedAt) job.issuedAt = overwrite.issuedAt;   // OUT-6: keep the issue date stable
   }
 
   // Drop the working draft, then overwrite the target in place or append fresh.
@@ -16864,11 +16953,15 @@ function doSaveJob(overrideId) {
   if (overwrite) next = next.map(x => x.id === id ? job : x);
   else next = next.concat([job]);
   if (!saveJobs(next)) {   // write failed (device storage full) → no job, so spend no credit
+    _pendingAfterSave = null;   // OUT-7: drop the stashed action so a later successful save can't fire it stale
     toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
     return;
   }
   if (needsQuote) consumeQuote();   // spend the quote only after a confirmed write
   STATE.currentJobId = id;
+  // OUT-7: capture any interrupted action BEFORE closeSaveJobModal() clears the
+  // stash, then run it once the save fully settles (below).
+  const _resumeAfterSave = _pendingAfterSave; _pendingAfterSave = null;
 
   // Cancel any pending draft autosync and retire the promoted draft's cloud row
   // so the just-saved job can't be reverted by a stale background draft push.
@@ -16881,6 +16974,7 @@ function doSaveJob(overrideId) {
   renderSavedJobs();
   updateSaveVersionVisibility();
   toast(overwrite ? "Job updated" : (draftIdx >= 0 ? "Draft saved as job" : "Job saved"));
+  if (_resumeAfterSave) setTimeout(_resumeAfterSave, 0);   // OUT-7: resume the interrupted export/action
 }
 
 // Save-conflict prompt: a saved job already carries this job name + customer.
@@ -17071,6 +17165,10 @@ function saveAsNewVersion() {
   // <customer>" — a legal-integrity bug. Reset to a fresh, unsigned Quoted state.
   delete newJob.status;          // jobStatus() then defaults to "Quoted"
   delete newJob.signedAt; delete newJob.signerName; delete newJob.signedQuoteId;
+  // OUT-6: a new version is a DISTINCT job — it must mint its OWN quote number + issue
+  // date from its own id/createdAt, not inherit the original's (copied by the `...base`
+  // spread). Reset so ensureQuoteIssue() mints fresh on the version's first export.
+  delete newJob.quoteNo; delete newJob.issuedAt;
   jobs.push(newJob);
   if (!saveJobs(jobs)) {   // write failed (device storage full) → no version, so spend no credit
     toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
@@ -17377,6 +17475,7 @@ async function showPdfPreview(doc, filename, meta) {
   const buf = doc.output("arraybuffer");
   const pdf = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
   pages.innerHTML = "";
+  pages.classList.remove("zoomed");   // OUT-2: always start un-zoomed
   // Rasterize each page at a fixed CSS width (independent of the modal's
   // not-yet-settled clientWidth — reading it too early gave a tiny canvas) and
   // let CSS `max-width:100%` shrink it to fit narrow screens. Crisp on desktop
@@ -17437,19 +17536,39 @@ async function sharePDF(doc, filename, meta) {
 // the "build a quote, download every doc, never save → never counts" loophole.
 // Saving is the single entitlement-checked consumption point; once a job is
 // saved, re-downloading its docs is free. The owner/admin is exempt.
-function requireSavedJobForExport() {
+function requireSavedJobForExport(resume) {
   if (isAdmin()) return true;
   const id = STATE.currentJobId;
   if (id && loadJobs().find(x => x.id === id && !x.isDraft)) return true;
   toast("Save this job first to generate documents");
-  openSaveJobModal();
+  // OUT-7: openSaveJobModal clears any pending and returns false if it bailed to the
+  // upsell wall; only stash the resume when the save form actually opened.
+  if (openSaveJobModal()) _pendingAfterSave = resume || null;
   return false;
+}
+
+// OUT-6: a saved job's quote number + issue date must be STABLE — mint them once from
+// the job's own id + creation date and persist, so re-downloading the PDF or re-sharing
+// the link never yields a contradicting document. Returns { quoteNo, issuedAt(ms) }.
+function ensureQuoteIssue(jobId) {
+  const jobs = loadJobs();
+  const job = jobId ? jobs.find(x => x.id === jobId && !x.isDraft) : null;
+  if (!job) { const now = Date.now(); return { quoteNo: String(now).slice(-8), issuedAt: now }; }
+  let changed = false;
+  if (!job.quoteNo) {
+    job.quoteNo = String(job.id || "").replace(/-/g, "").slice(0, 8).toUpperCase() || String(Date.now()).slice(-8);
+    changed = true;
+  }
+  if (!job.issuedAt) { job.issuedAt = Date.parse(job.createdAt) || Date.now(); changed = true; }
+  if (changed) { try { saveJobs(jobs); } catch (_) {} }
+  return { quoteNo: job.quoteNo, issuedAt: Number(job.issuedAt) || Date.now() };
 }
 
 function exportCustomerPDF(mode, force) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
-  if (!requireSavedJobForExport()) return;
+  if (!requireSavedJobForExport(() => exportCustomerPDF(mode, force))) return;
+  const _issue = ensureQuoteIssue(STATE.currentJobId);   // OUT-6: stable No. + date
   // ONBD-1 / OUT-3: don't let a customer-facing quote go out on demo BRANDING
   // *or* demo PRICING. The old code only checked the demo company name, so a
   // user who set their brand but never entered rates could ship a demo-priced
@@ -17518,8 +17637,8 @@ function exportCustomerPDF(mode, force) {
 
   doc.setFontSize(9);
   doc.setTextColor(90, 90, 90);
-  doc.text(`Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, M, y);
-  doc.text(`Quote No. ${Date.now().toString().slice(-8)}`, pageW - M, y, { align: "right" });
+  doc.text(`Date: ${new Date(_issue.issuedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, M, y);
+  doc.text(`Quote No. ${_issue.quoteNo}`, pageW - M, y, { align: "right" });
   y += 14;
 
   doc.setDrawColor(210, 210, 210);
@@ -17756,7 +17875,7 @@ async function buildCustomerSharePayload() {
     customer:  STATE.customerName || "",
     total:     r.sellingPrice,
     scope:     scope,
-    createdAt: Date.now(),
+    createdAt: ensureQuoteIssue(STATE.currentJobId).issuedAt,   // OUT-6: same stable issue date as the PDF (falls back to now when unsaved)
     validDays: 30
   };
 }
@@ -17767,7 +17886,7 @@ async function shareCustomerQuote(force) {
   if (!window.PublicQuote) { toast("Share unavailable — refresh the page"); return; }
   // OUT-5: a shared public link is a customer-facing document — require a saved
   // job just like View/Download (was the only one of the three that skipped it).
-  if (!requireSavedJobForExport()) return;
+  if (!requireSavedJobForExport(() => shareCustomerQuote(force))) return;
   // ONBD-1: it's also the most public artifact — guard demo branding/pricing.
   if (!force && demoExportBlocked(() => shareCustomerQuote(true))) return;
 
@@ -17908,17 +18027,25 @@ async function buildSignSnapshotForJob(jobId, detailLevel) {
   return snap;
 }
 
-// Rescale line items so they sum exactly to the total (used after the installer
-// hides one or more buckets — the hidden dollars are spread proportionally so
-// nothing is misattributed and the parts still add up to the contract price).
-function reconcileLineItems(items, total) {
+// After the installer hides one or more price buckets, keep every remaining
+// bucket at its TRUE dollar amount and disclose the hidden remainder as a single
+// neutral "Other project costs" line. We never spread fee dollars proportionally
+// into the materials/labor buckets — that would keep the total honest but make
+// the categorical attribution the customer signs false (OUT-9).
+function foldExcludedLineItems(items, total) {
   total = Math.round(Number(total) || 0);
-  const sum = items.reduce((a, it) => a + (Number(it[1]) || 0), 0);
-  if (!items.length || sum <= 0) return items;
-  const scaled = items.map((it) => [it[0], Math.round((Number(it[1]) || 0) / sum * total)]);
-  const s2 = scaled.reduce((a, it) => a + it[1], 0);
-  if (s2 !== total) scaled[scaled.length - 1][1] += (total - s2);
-  return scaled;
+  const kept = items.map((it) => [it[0], Math.round(Number(it[1]) || 0)]);
+  if (!kept.length) return kept;
+  const sum = kept.reduce((a, it) => a + it[1], 0);
+  const remainder = total - sum;
+  if (remainder === 0) return kept;
+  // A POSITIVE remainder is a hidden bucket's real dollars — the source items were
+  // reconciled to sum exactly to the total, so any positive gap is a removed line, not
+  // rounding. Always disclose it honestly (never fold even a $1–$2 fee into the
+  // materials/labor buckets). Only a small NEGATIVE delta is genuine rounding drift.
+  if (remainder > 0) { kept.push(["Other project costs", remainder]); return kept; }
+  kept[kept.length - 1][1] += remainder;
+  return kept;
 }
 
 // Remove the scope rows / line items the installer unchecked in Customize.
@@ -17930,7 +18057,7 @@ function applySignExclusions(snap, exclude) {
   }
   if (Array.isArray(snap.lineItems)) {
     const kept = snap.lineItems.filter((li) => !exclude.has("item:" + li[0]));
-    snap.lineItems = kept.length ? reconcileLineItems(kept, snap.total) : undefined;
+    snap.lineItems = kept.length ? foldExcludedLineItems(kept, snap.total) : undefined;
   }
   return snap;
 }
@@ -17944,33 +18071,31 @@ async function loadSignCustomize(jobId, detailLevel) {
   const snap = await buildSignSnapshotForJob(jobId, detailLevel);
   if (!snap) { box.innerHTML = `<div class="jd-cz-loading">Add footage or doors to this job first.</div>`; return; }
 
-  const rowHtml = (key, label, right, important) => {
+  const rowHtml = (key, label, right) => {
     const checked = _jdSignExclude.has(key) ? "" : "checked";
-    return `<label class="jd-cz-row${important ? " jd-cz-important" : ""}">
+    return `<label class="jd-cz-row">
       <input type="checkbox" data-cz-key="${escHtml(key)}" ${checked}>
       <span class="jd-cz-label">${escHtml(label)}</span>
       ${right ? `<span class="jd-cz-right">${escHtml(right)}</span>` : ""}
     </label>`;
   };
 
-  // Rows installers most often want to hide get a subtle highlight.
-  const HIDE_HINT = /inspection|permit|disposal|lift|mobil/i;
-  let html = `<div class="jd-cz-wrap"><div class="jd-cz-head">Uncheck anything you'd rather not show the customer.</div>`;
+  let html = `<div class="jd-cz-wrap"><div class="jd-cz-head">Uncheck any line you don't want itemized separately. The total the customer signs is always the same.</div>`;
 
   if (Array.isArray(snap.scope) && snap.scope.length) {
     html += `<div class="jd-cz-group">Scope details</div>`;
     snap.scope.forEach((p) => {
       const label = String(p[0]);
-      html += rowHtml("scope:" + label, label, String(p[1] == null ? "" : p[1]), HIDE_HINT.test(label));
+      html += rowHtml("scope:" + label, label, String(p[1] == null ? "" : p[1]));
     });
   }
   if (detailLevel === "itemized" && Array.isArray(snap.lineItems) && snap.lineItems.length) {
     html += `<div class="jd-cz-group">Price breakdown</div>`;
     snap.lineItems.forEach((li) => {
       const label = String(li[0]);
-      html += rowHtml("item:" + label, label, formatMoney(Number(li[1]) || 0), HIDE_HINT.test(label));
+      html += rowHtml("item:" + label, label, formatMoney(Number(li[1]) || 0));
     });
-    html += `<div class="jd-cz-note">Hiding a price line spreads its amount across the others — the total the customer signs never changes.</div>`;
+    html += `<div class="jd-cz-note">Hiding a price line moves its amount into &quot;Other project costs&quot; — the total the customer signs never changes.</div>`;
   }
   html += `</div>`;
   box.innerHTML = html;
@@ -18253,8 +18378,10 @@ function renderSignedQuotePDF(row) {
   // ---------- Footer ----------
   doc.setFontSize(7); doc.setTextColor(150, 150, 150);
   const contactBits = [brand.phone, brand.email, brand.website].filter(Boolean).join("  ·  ");
+  // OUT-16: cite the installer's own state from the frozen snapshot, UETA fallback.
+  const lawTxt = brand.state ? ("and applicable " + brand.state + " law") : "and applicable state law (UETA)";
   doc.text(
-    "Signed electronically under the U.S. E-SIGN Act and applicable Florida law. This record reflects the quote at the time of acceptance.",
+    "Signed electronically under the U.S. E-SIGN Act " + lawTxt + ". This record reflects the quote at the time of acceptance.",
     pageW / 2, pageH - 40, { align: "center", maxWidth: pageW - M * 2 }
   );
   if (contactBits) doc.text(contactBits, pageW / 2, pageH - 26, { align: "center" });
@@ -18267,7 +18394,7 @@ function renderSignedQuotePDF(row) {
 function exportPDF(mode) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
-  if (!requireSavedJobForExport()) return;
+  if (!requireSavedJobForExport(() => exportPDF(mode))) return;
   logQuoteEvent("cost_basis");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -18490,7 +18617,7 @@ function hasEstimatedBucking(rows) {
 function exportMaterialsPDF(mode) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
-  if (!requireSavedJobForExport()) return;
+  if (!requireSavedJobForExport(() => exportMaterialsPDF(mode))) return;
   logQuoteEvent("materials_list");
   window.track("materials_pdf_downloaded");
 
@@ -19346,7 +19473,17 @@ document.addEventListener("click", e => {
   const card = head.closest(".rcard");
   if (!card) return;
   card.classList.toggle("collapsed");
+  head.setAttribute("aria-expanded", String(!card.classList.contains("collapsed")));   // OUT-12: expose disclosure state
   if (card.dataset.rcard === "files" && card.classList.contains("collapsed")) renderJobFileIcons();
+});
+// OUT-12: the Job Files header is a role="button" <div> (it wraps the icon row, so it
+// can't be a native <button>). Give it Enter/Space activation like a real button.
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+  const head = e.target.closest && e.target.closest('.rcard-head[role="button"]');
+  if (!head || head !== e.target) return;
+  e.preventDefault();
+  head.click();
 });
 
 // Job Files — minimized icon row + per-file popover menu (reuses the existing
@@ -19355,32 +19492,24 @@ const _svgView = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" st
 const _svgDl   = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg>';
 const _svgShare= '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>';
 const _svgSign = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
-// "Copy signing link" from the Job Files menu: ensure the quote is SAVED (auto-save
-// headless if needed — quota-checked), then reuse createSignLink (which builds the
-// e-sign snapshot, inserts shared_quotes, copies the URL + shows the result modal).
+// "Copy signing link" from the Job Files menu: ensure the quote is SAVED (opening the
+// Save form when needed — OUT-10: an explicit, entitlement-checked save, never a
+// silent headless one that quietly spends a quote), then reuse createSignLink (builds
+// the e-sign snapshot, inserts shared_quotes, copies the URL + shows the result modal).
 async function copySigningLinkFromFiles() {
   if (typeof sb === "undefined" || !sb || typeof currentUser === "undefined" || !currentUser) {
     toast("Sign in to create a signing link"); return;
   }
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
-  let saved = STATE.currentJobId && loadJobs().some(x => x.id === STATE.currentJobId && !x.isDraft);
+  const saved = STATE.currentJobId && loadJobs().some(x => x.id === STATE.currentJobId && !x.isDraft);
   if (!saved) {
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
-    set("saveJobName", STATE.customerName || "");
-    set("saveJobJobName", STATE.jobName || "");
-    set("saveJobAddress", STATE.customerAddress || "");
-    set("saveJobCompany", STATE.customerCompany || "");
-    set("saveJobPhone", STATE.customerPhone || "");
-    set("saveJobEmail", STATE.customerEmail || "");
-    set("saveJobNotes", STATE.customerNotes || "");
-    confirmSaveJob();   // quota-checked save; sets STATE.currentJobId, shows the upsell, OR opens the save-conflict prompt
-    saved = STATE.currentJobId && loadJobs().some(x => x.id === STATE.currentJobId && !x.isDraft);
-    if (!saved) {
-      const conf = document.getElementById("saveConflictModal");
-      if (conf && !conf.classList.contains("hidden")) toast("Resolve the save conflict, then tap “Copy signing link” again");
-      return; // conflict prompt is open (toast above), or save was blocked/quota-checked (confirmSaveJob already messaged)
-    }
+    // OUT-10: a signing link needs a saved job, and a fresh save spends a quote. Don't
+    // do that silently — open the Save form (prefilled from STATE, entitlement-checked)
+    // and resume link creation only once the user actually saves.
+    toast("Save this job first to create a signing link");
+    if (openSaveJobModal()) _pendingAfterSave = () => copySigningLinkFromFiles();
+    return;
   }
   _jdSignExclude = new Set();                    // no per-customer hidden rows for the quick link
   await createSignLink(STATE.currentJobId, _jdSignDetail || "summary");
@@ -23002,7 +23131,7 @@ function updateJobFilesUI() {
 function exportCutListPDF(mode) {
   const bl = STATE.buckList;
   if (!bl || !bl.boards || !bl.boards.length) { toast("Generate a cut list first"); return; }
-  if (!requireSavedJobForExport()) return;
+  if (!requireSavedJobForExport(() => exportCutListPDF(mode))) return;
   window.track("buck_pdf_downloaded");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -26568,9 +26697,14 @@ function init() {
   { const b = document.getElementById("pdfPreviewDownload"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) { _pdfPreviewDoc.save(_pdfPreviewName); toast("PDF downloaded"); } }); }
   { const b = document.getElementById("pdfPreviewShare"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) sharePDF(_pdfPreviewDoc, _pdfPreviewName, _pdfPreviewMeta); }); }
   { const b = document.getElementById("pdfPreviewClose"); if (b) b.addEventListener("click", closePdfPreview); }
+  // OUT-2: tap a rendered page to toggle full-width zoom (pan via the scroll container)
+  { const pv = document.getElementById("pdfPreviewPages"); if (pv) pv.addEventListener("click", e => { if (e.target.closest(".pdf-preview-canvas")) pv.classList.toggle("zoomed"); }); }
   { const m = document.getElementById("pdfPreviewModal"); if (m) m.addEventListener("click", e => { if (e.target.hasAttribute("data-close-pdf")) closePdfPreview(); }); }
   document.getElementById("saveJob").addEventListener("click", saveCurrentJob);
   { const _rs = document.getElementById("railSaveJobBtn"); if (_rs) _rs.addEventListener("click", saveCurrentJob); }
+  // OUT-14: present-mode toggle + restore the session's choice
+  { const _pt = document.getElementById("presentToggle"); if (_pt) _pt.addEventListener("click", togglePresentMode); }
+  try { if (sessionStorage.getItem("presentMode") === "1") applyPresentMode(true); } catch (_) {}
   document.getElementById("resetAll").addEventListener("click", resetAll);
   const saveVerBtn = document.getElementById("saveAsNewVersionBtn");
   if (saveVerBtn) saveVerBtn.addEventListener("click", saveAsNewVersion);
