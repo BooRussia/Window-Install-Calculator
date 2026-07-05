@@ -11432,7 +11432,7 @@ function updateJobExtrasSummary() {
     const d = parseInt(STATE.swingStageDays) || 1;
     active.push(d > 1 ? `Swing stage (${d}d)` : "Swing stage");
   }
-  if (STATE.highRise && (parseFloat(STATE.storageMonthlyCost) || 0) > 0) active.push("Storage");
+  if ((parseFloat(STATE.storageMonthlyCost) || 0) > 0) active.push("Storage");   // FLR-2: storage prices on any job now, so the summary must reflect it without the highRise gate
   if (active.length) {
     summary.textContent = active.join(", ");
     trigger.classList.add("active");
@@ -17245,6 +17245,7 @@ function applyJobToState(j) {
   STATE.extraFloors = Array.isArray(j.extraFloors) ? clone(j.extraFloors) : [];
   if (typeof renderExtraFloors === "function") renderExtraFloors();
   STATE.swingStageEnabled = !!j.swingStageEnabled;
+  STATE._swingStageWanted = false;   // FLR-10: clear the session stash on job load so a prior job's swing-stage intent can't leak onto this one
   STATE.swingStageDays = j.swingStageDays || "3";
   STATE.storageMonthlyCost = j.storageMonthlyCost || "";
   STATE.projectedMonths = j.projectedMonths || "1";
