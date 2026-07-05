@@ -3875,8 +3875,19 @@
   [data-theme="light"] body.rail-tidy #jobRail .rail-acc.open .rail-acc-chev { color: #97772e; }
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all { color: #64748b; }
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: #97772e; }
-  [data-theme="light"] #remodelNudge { color: #97772e !important; }
-  [data-theme="light"] #accessNudge { color: #97772e !important; }
+  /* CALC-10 / FLR-13 — actionable nudges: readable gold (was 55% opacity, sub-AA),
+     tappable (opens + focuses the field they point at), announced via aria-live. */
+  .rail-nudge { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+    min-height: 44px; padding: 8px 10px; margin-top: 6px; border-radius: 10px;
+    background: rgba(201,165,88,0.08); border: 1px solid rgba(201,165,88,0.28);
+    color: #dfc07a; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; line-height: 1.35;
+    cursor: pointer; transition: background .14s, border-color .14s; }
+  .rail-nudge:hover { background: rgba(201,165,88,0.14); border-color: rgba(201,165,88,0.45); }
+  .rail-nudge:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
+  [data-theme="light"] .rail-nudge { color: #8a6a2e; background: rgba(201,165,88,0.12); border-color: rgba(138,106,46,0.32); }
+  [data-theme="light"] .rail-nudge:hover { background: rgba(201,165,88,0.2); }
+  [data-theme="light"] #remodelNudge { color: #8a6a2e !important; }
+  [data-theme="light"] #accessNudge { color: #8a6a2e !important; }
   [data-theme="light"] #lfFloorTotalHint { color: #8a6a2e !important; }
   [data-theme="light"] .text-\[\#dfc07a\] { color: #8a6a2e !important; }
   [data-theme="light"] .modal-close { color: #64748b; }
@@ -6854,12 +6865,12 @@
         </div>
       </div>
       <!-- /accordion -->
-      <div id="remodelNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
+      <button type="button" id="remodelNudge" class="rail-nudge hidden" aria-live="polite" data-nudge-jump="windowCountInput">
         ↑ Enter window count for accurate setup labor &amp; materials
-      </div>
-      <div id="accessNudge" class="hidden text-[11px] tracking-[0.16em] uppercase font-semibold" style="color: rgba(201,165,88,0.55);">
-        ↑ 4+ stories with no lift or swing stage &mdash; add access equipment in Extras
-      </div>
+      </button>
+      <button type="button" id="accessNudge" class="rail-nudge hidden" aria-live="polite" data-nudge-jump="access">
+        ↑ 4+ stories with no lift or swing stage &mdash; tap to add access equipment in Extras
+      </button>
       <div id="materialsRow" class="hidden"></div>
 
       <!-- Save + Reset — bottom of rail, so you don't have to scroll the page -->
@@ -11781,6 +11792,7 @@ function render() {
   const nudgeEl = document.getElementById("remodelNudge");
   const showNudge = lf_ > 0 && wc_ === 0;
   nudgeEl.classList.toggle("hidden", !showNudge);
+  if (nudgeEl && !nudgeEl._wired) { nudgeEl.addEventListener("click", () => jumpToRailField(nudgeEl.dataset.nudgeJump)); nudgeEl._wired = true; }
 
   // Access-equipment nudge — a 4+-story job with neither a lift nor a swing
   // stage is almost certainly missing a real access cost. Soft prompt only.
@@ -11788,6 +11800,7 @@ function render() {
   if (accessEl) {
     const showAccess = storyNum(STATE.stories) > 3 && !STATE.liftEnabled && !STATE.swingStageEnabled && (lf_ > 0 || wc_ > 0);
     accessEl.classList.toggle("hidden", !showAccess);
+    if (!accessEl._wired) { accessEl.addEventListener("click", () => jumpToRailField(accessEl.dataset.nudgeJump)); accessEl._wired = true; }
   }
   // Suggested lift / swing-stage days + storage months, derived from the job's
   // own labor model (~8 crew-hrs/day on site, ~22 working days/month). The chip
@@ -12012,6 +12025,23 @@ function materialAppliesToJob(item) {
 // to this job. Hidden entirely when nothing applies (e.g. bucking on a
 // stick-framed job). Remembers open/closed across re-renders.
 let _matToggleOpen = true;
+// CALC-10: an actionable nudge opens the accordion holding the field it points
+// at and focuses/scrolls to it — so it can never point at a section you can't see.
+function jumpToRailField(target) {
+  const accKey = target === "access" ? "extras" : "openings";
+  const acc = document.querySelector(`#jobRail .rail-acc[data-acc="${accKey}"]`);
+  if (acc && document.body.classList.contains("rail-tidy")) {
+    document.querySelectorAll("#jobRail .rail-acc").forEach(a => a.classList.remove("open"));
+    acc.classList.add("open");
+    if (typeof updateExpandAllBtn === "function") updateExpandAllBtn();
+  }
+  const el = document.getElementById(target === "access" ? "liftToggleBtn" : "windowCountInput");
+  if (el) {
+    try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {}
+    setTimeout(() => { try { el.focus({ preventScroll: true }); } catch (_) {} }, 140);
+  }
+}
+
 function renderMaterialsToggle() {
   const wrap = document.getElementById("materialsRow");
   if (!wrap) return;
