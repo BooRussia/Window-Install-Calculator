@@ -526,6 +526,10 @@
   @media (max-width: 1023px) {
     body.mtotal-on #jobRail > .overflow-y-auto { padding-bottom: 88px; }
     body.mtotal-on #jobSpecsFab { bottom: calc(88px + env(safe-area-inset-bottom)); }
+    /* VIS-1: reserve space below the results so the fixed FAB + sticky total bar
+       never sit on top of the last content (e.g. the Customer Quote Download
+       button). Without this the FAB overlapped tap targets in the Job Files card. */
+    #results { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
   }
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
 
@@ -812,10 +816,13 @@
      keep the default slate icon (no marker). The tint is the icon's RESTING
      color via --tip-color; hover still brightens via --tip-hover (see .info-tip).
      Matches the tooltip's tip-tag tokens so icon + tip agree. */
-  .rail-field > label .lbl-impact.high + .info-tip { --tip-color: #f43f5e; --tip-hover: #fb7185; }
-  .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: var(--gold-hi, #c9a558); --tip-hover: var(--gold-pale, #dfc07a); }
-  [data-theme="light"] .rail-field > label .lbl-impact.high + .info-tip { --tip-color: #e11d48; --tip-hover: #be123c; }
-  [data-theme="light"] .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #97772e; --tip-hover: #b58f4a; }
+  /* VIS-7: the help "?" icons are neutral slate — a red icon on a pristine form
+     reads as an error/validation failure. The impact level still shows as a
+     "High/Medium impact" tag INSIDE each popover, so no signal is lost. */
+  .rail-field > label .lbl-impact.high + .info-tip,
+  .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #64748b; --tip-hover: #94a3b8; }
+  [data-theme="light"] .rail-field > label .lbl-impact.high + .info-tip,
+  [data-theme="light"] .rail-field > label .lbl-impact.med  + .info-tip { --tip-color: #64748b; --tip-hover: #475569; }
   /* Reset-job pill at the bottom of the rail */
   .rail-save-btn {
     width: 100%;
@@ -1783,6 +1790,47 @@
   #sellingPrice, #totalCost, #profit, #grandTotalFooter, #perLfFooter {
     white-space: nowrap;
   }
+
+  /* CALC-8 — inline markup lever (per-job override, sits just under the price) */
+  .margin-lever-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .margin-lever {
+    display: inline-flex; align-items: center; gap: 2px;
+    border: 1px solid rgba(148,163,184,0.28); border-radius: 9999px;
+    background: rgba(30,41,59,0.45); padding: 3px;
+  }
+  .margin-lever.is-override { border-color: rgba(201,165,88,0.55); background: rgba(201,165,88,0.09); }
+  .margin-step {
+    width: 44px; height: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 9999px; color: #cbd5e1; font-size: 22px; font-weight: 700; line-height: 1;
+    background: transparent; border: none; cursor: pointer; transition: background .12s, color .12s;
+    font-variant-numeric: normal;
+  }
+  .margin-step:hover { background: rgba(148,163,184,0.14); color: #f1f5f9; }
+  .margin-step:active { background: rgba(148,163,184,0.22); }
+  .margin-lever-field { display: inline-flex; align-items: baseline; gap: 3px; padding: 0 4px; min-width: 92px; justify-content: center; }
+  #marginInput {
+    width: 3ch; min-width: 3ch; background: transparent; border: none; outline: none;
+    color: #c9a558; font-size: 20px; font-weight: 800; text-align: right; letter-spacing: 0;
+    font-variant-numeric: tabular-nums; padding: 0; -moz-appearance: textfield;
+  }
+  #marginInput:focus-visible { box-shadow: 0 2px 0 0 #c9a558; }
+  .margin-lever-unit { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; }
+  .margin-reset {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #94a3b8;
+    background: none; border: none; cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+    min-height: 32px; padding: 2px 6px;
+  }
+  .margin-reset:hover { color: #c9a558; }
+  [data-theme="light"] .margin-lever { border-color: rgba(100,116,139,0.35); background: rgba(241,245,249,0.7); }
+  [data-theme="light"] .margin-lever.is-override { border-color: rgba(138,106,46,0.5); background: rgba(201,165,88,0.12); }
+  [data-theme="light"] .margin-step { color: #475569; }
+  [data-theme="light"] .margin-step:hover { background: rgba(100,116,139,0.14); color: #0f172a; }
+  [data-theme="light"] #marginInput { color: #8a6a2e; }
+  [data-theme="light"] .margin-lever-unit { color: #64748b; }
+  [data-theme="light"] .margin-reset { color: #64748b; }
+  [data-theme="light"] .margin-reset:hover { color: #8a6a2e; }
+  /* FLR-11 building summary — darker gold in light mode for contrast on the light rail */
+  [data-theme="light"] #buildingSummary { color: #8a6a2e !important; }
 
   /* Info tooltip */
   .info-tip {
@@ -3183,6 +3231,47 @@
   .dash-card-load:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
   .dash-card-del { background: transparent; color: #64748b; border: 1px solid transparent; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
   .dash-card-del:hover { color: #f87171; background: rgba(248,113,113,0.1); }
+  /* CMP-1: per-card "add to comparison" toggle (re-exposes the compare feature). */
+  .dash-card-compare { font-size: 11px; font-weight: 700; border-radius: 9999px; padding: 6px 11px; cursor: pointer; background: transparent; color: #94a3b8; border: 1px solid rgba(100,116,139,0.45); transition: all .15s ease; white-space: nowrap; }
+  .dash-card-compare:hover { color: #c9a558; border-color: rgba(181,143,74,0.55); }
+  .dash-card-compare.is-on { background: rgba(181,143,74,0.16); color: #c9a558; border-color: #c9a558; }
+  [data-theme="light"] .dash-card-compare { color: #475569; border-color: #cbd5e1; }
+  [data-theme="light"] .dash-card-compare.is-on { color: #8a6a2e; border-color: #b58f4a; background: rgba(181,143,74,0.12); }
+  /* ---- First-run activation checklist (DASH-1 / ONBD-2) ---- */
+  .dash-checklist { border: 1px solid rgba(181,143,74,0.35); border-radius: 18px; background: rgba(181,143,74,0.05); padding: 18px 18px 8px; }
+  .dash-check-head { display: flex; align-items: center; gap: 10px; }
+  .dash-check-title { font-size: 15px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.01em; }
+  .dash-check-progress { font-size: 11px; font-weight: 700; color: #c9a558; letter-spacing: 0.08em; text-transform: uppercase; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .dash-check-dismiss { flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; color: #64748b; font-size: 18px; line-height: 1; background: transparent; border: none; cursor: pointer; }
+  .dash-check-dismiss:hover { color: #cbd5e1; background: rgba(148,163,184,0.12); }
+  .dash-check-bar { height: 5px; border-radius: 999px; background: rgba(148,163,184,0.2); overflow: hidden; margin: 12px 0 4px; }
+  .dash-check-bar > span { display: block; height: 100%; background: #c9a558; border-radius: 999px; transition: width .3s ease; }
+  .dash-check-list { list-style: none; margin: 6px 0 0; padding: 0; }
+  .dash-check-item { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-top: 1px solid rgba(148,163,184,0.12); }
+  .dash-check-item:first-child { border-top: none; }
+  .dash-check-mark { flex-shrink: 0; width: 20px; height: 20px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #0b1020; background: #c9a558; }
+  .dash-check-item:not(.is-done) .dash-check-mark { background: transparent; border: 1.5px solid rgba(148,163,184,0.5); color: transparent; }
+  .dash-check-label { font-size: 13.5px; font-weight: 600; color: #e2e8f0; min-width: 0; }
+  .dash-check-item.is-done .dash-check-label { color: #94a3b8; text-decoration: line-through; text-decoration-color: rgba(148,163,184,0.5); }
+  .dash-check-cta { flex-shrink: 0; margin-left: auto; font-size: 12px; font-weight: 700; color: #c9a558; background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.5); border-radius: 999px; padding: 6px 13px; cursor: pointer; white-space: nowrap; min-height: 40px; transition: all .15s ease; }
+  .dash-check-cta:hover { background: rgba(181,143,74,0.22); border-color: #c9a558; }
+  .dash-firstrun-note { font-size: 12.5px; color: #94a3b8; margin: 14px 2px 0; text-align: center; }
+  .dash-firstrun-link { display: inline; font-size: 12.5px; font-weight: 700; color: #c9a558; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .dash-firstrun-link:hover { color: #dfc07a; }
+  [data-theme="light"] .dash-firstrun-link { color: #8a6a2e; }
+  [data-theme="light"] .dash-checklist { border-color: #e6d9bd; background: #fbf8f0; }
+  [data-theme="light"] .dash-check-title { color: #0f172a; }
+  [data-theme="light"] .dash-check-progress { color: #8a6a2e; }
+  [data-theme="light"] .dash-check-bar { background: #e2e8f0; }
+  [data-theme="light"] .dash-check-bar > span { background: #b58f4a; }
+  [data-theme="light"] .dash-check-item { border-top-color: #eceef1; }
+  [data-theme="light"] .dash-check-label { color: #334155; }
+  [data-theme="light"] .dash-check-item.is-done .dash-check-label { color: #94a3b8; }
+  [data-theme="light"] .dash-check-mark { color: #fff; background: #b58f4a; }
+  [data-theme="light"] .dash-check-item:not(.is-done) .dash-check-mark { border-color: #cbd5e1; background: transparent; color: transparent; }
+  [data-theme="light"] .dash-check-cta { color: #8a6a2e; border-color: #b58f4a; background: rgba(181,143,74,0.1); }
+  [data-theme="light"] .dash-check-dismiss { color: #94a3b8; }
+  [data-theme="light"] .dash-firstrun-note { color: #64748b; }
   /* ---- Launchpad cards (modular dashboard home) ---- */
   .dash-launch-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
   .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
@@ -3785,6 +3874,7 @@
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: #97772e; }
   [data-theme="light"] #remodelNudge { color: #97772e !important; }
   [data-theme="light"] #accessNudge { color: #97772e !important; }
+  [data-theme="light"] #lfFloorTotalHint { color: #8a6a2e !important; }
   [data-theme="light"] .text-\[\#dfc07a\] { color: #8a6a2e !important; }
   [data-theme="light"] .modal-close { color: #64748b; }
   [data-theme="light"] .modal-close:hover,
@@ -5108,6 +5198,9 @@
       <div id="obAdvisory" class="hidden text-[11px] text-amber-300/80 text-center"></div>
       <div id="obMsg" class="hidden text-[12px] text-rose-300 text-center font-medium"></div>
       <button id="obSubmit" type="button" class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#b58f4a]">Submit &amp; Get Started</button>
+      <!-- ONBD-6: an opt-in profile screen must have an exit. Without this the only
+           way out (before all 4 required fields are filled) was to reload. -->
+      <button id="obLater" type="button" class="btn rounded-full w-full px-5 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-100 min-h-[44px]">Maybe later — take me to the calculator</button>
     </div>
   </div>
 </div>
@@ -5227,22 +5320,31 @@
           <div id="authTitle" class="text-base font-bold text-slate-100">Log In</div>
           <div id="authSubtitle" class="text-xs text-slate-500 mt-0.5">Welcome back — sign in to your workspace.</div>
         </div>
-        <input id="authEmail" type="email" autocomplete="email" placeholder="Email"
-          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
-        <div class="relative">
-          <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password"
-            class="control rounded-xl px-4 py-3 pr-11 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <div>
+          <label for="authEmail" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Email</label>
+          <input id="authEmail" type="email" autocomplete="email" placeholder="you@company.com"
+            class="control rounded-xl px-4 py-3 w-full text-base sm:text-sm text-slate-100 placeholder:text-slate-600" />
+        </div>
+        <div>
+          <label for="authPassword" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Password</label>
+          <div class="relative">
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="Your password"
+            class="control rounded-xl px-4 py-3 pr-11 w-full text-base sm:text-sm text-slate-100 placeholder:text-slate-600" />
           <button id="authPwToggle" type="button" tabindex="-1" aria-label="Show or hide password"
             class="btn absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#c9a558] p-1.5">
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="10" cy="10" r="2.5"/></svg>
           </button>
+          </div>
         </div>
         <div id="authForgotRow" class="flex justify-end -mt-1">
           <button id="authForgotLink" type="button"
             class="btn text-[11px] text-slate-400 hover:text-[#c9a558] underline underline-offset-2 decoration-slate-600 hover:decoration-[#c9a558]">Forgot password?</button>
         </div>
-        <input id="authConfirm" type="password" autocomplete="new-password" placeholder="Confirm password"
-          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600 hidden" />
+        <div id="authConfirmWrap" class="hidden">
+          <label for="authConfirm" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Confirm password</label>
+          <input id="authConfirm" type="password" autocomplete="new-password" placeholder="Re-type your password"
+            class="control rounded-xl px-4 py-3 w-full text-base sm:text-sm text-slate-100 placeholder:text-slate-600" />
+        </div>
         <button id="authSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Log In</button>
         <div id="authMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
@@ -5268,8 +5370,11 @@
           <div id="recTitle" class="text-base font-bold text-slate-100">Reset Password</div>
           <div id="recSubtitle" class="text-xs text-slate-500 mt-0.5">Enter your email and we'll send you a reset link.</div>
         </div>
-        <input id="recEmail" type="email" autocomplete="email" placeholder="Email"
-          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <div>
+          <label for="recEmail" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Email</label>
+          <input id="recEmail" type="email" autocomplete="email" placeholder="you@company.com"
+            class="control rounded-xl px-4 py-3 w-full text-base sm:text-sm text-slate-100 placeholder:text-slate-600" />
+        </div>
         <button id="recSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Send reset link</button>
         <div id="recMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
@@ -5337,6 +5442,12 @@
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
     <div id="dashStats" class="mb-7 hidden"></div>
 
+    <!-- First-run activation (DASH-1/ONBD-2): a brand-new account (no saved jobs)
+         sees the endowed-progress checklist here instead of nine empty cards; once
+         they have jobs it shrinks to a dismissible progress strip above the
+         launchpad until the checklist is complete. Rendered by renderDashFirstRun(). -->
+    <div id="dashFirstRun" class="hidden mb-9"></div>
+
     <!-- Launchpad: modular cards you click into. Extensible — add a DASH_CARDS entry
          + a render fn and a new tile appears here with no layout surgery. -->
     <div id="dashLaunchpad" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-9"></div>
@@ -5398,6 +5509,13 @@
           </div>
         </div>
         <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <!-- CMP-1: floating comparison bar — appears when 2+ jobs are selected via
+             the per-card "Compare" toggle, and opens the (intact) compareModal. -->
+        <div id="compareBar" class="hidden fixed left-1/2 -translate-x-1/2 bottom-5 z-[60] items-center gap-2 rounded-full border border-[#b58f4a]/50 bg-slate-900/95 px-3 py-2 shadow-2xl" style="backdrop-filter: blur(8px);">
+          <span id="compareBarCount" class="text-xs font-bold text-slate-300 pl-2" style="font-variant-numeric: tabular-nums;"></span>
+          <button id="viewCompareBtn" type="button" class="btn rounded-full px-4 py-2 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] min-h-[44px]">Compare &rarr;</button>
+          <button id="compareClearBtn" type="button" class="btn text-slate-500 hover:text-slate-300 text-xl leading-none px-2 min-h-[44px]" aria-label="Clear comparison">&times;</button>
+        </div>
       </div>
 
       <!-- E-signatures view -->
@@ -5696,24 +5814,35 @@
           <svg class="rail-acc-chev" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
         </button>
         <div class="rail-acc-body space-y-3">
-      <div class="rail-field">
-        <label><span class="lbl-impact med">High-rise / multi-floor</span></label>
-        <p class="mb-2 text-[11px] leading-snug text-slate-500">Pricing a building with repeating floors? Turning this on adds Like Floors, one-off floors, swing stage &amp; material storage &mdash; a Pro &amp; Shop feature. Leave off for a normal house.</p>
-        <button id="highRiseToggleBtn" type="button" class="toggle-pill"><span class="lbl">High-rise mode</span><span class="val">Off</span></button>
-      </div>
       <div class="rail-field"><label><span class="lbl-impact high">Construction</span><span class="info-tip" tabindex="0" role="button" aria-label="How construction type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Construction type swings labor the most — roughly 10 min/LF for stick-framed new work, ~25 for block-framed (adds buck-install time), and 40 min/LF on a remodel.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Is this a new build, or replacing windows in an existing home?</p>
         <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">House</span><span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Concrete-block walls, or wood-frame walls?</p>
         <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
-      <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge.</span></span></label>
+      <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge. In high-rise mode with &ldquo;Repeat this floor on every story&rdquo; on, this instead sets how many identical floors to price.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How many floors — upper floors add labor (and sometimes a lift).</p>
-        <label class="margin-pill" style="cursor:text">
-          <span class="lbl">Stories</span>
-          <input id="storiesInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="1" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-        </label>
-        <button id="likeFloorsToggleBtn" type="button" class="toggle-pill mt-2 hidden"><span class="lbl">Like Floors &mdash; multiply every floor</span><span class="val">Off</span></button></div>
+        <!-- FLR-3: hybrid stories — one-tap 1-4 for the common house, "5+" reveals a number field for towers. -->
+        <div id="segStories" class="seg" role="tablist" aria-label="Number of stories"></div>
+        <!-- id + .hidden live on the DIV wrapper (not the <label>): a `.rail-field
+             label { display:block }` rule outranks `.hidden` on a bare label. -->
+        <div id="storiesExactWrap" class="mt-2 hidden">
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">How many stories</span>
+            <input id="storiesInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="5" style="width:56px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+        </div></div>
+      <!-- CALC-11: high-rise demoted below the common Construction/House/Stories
+           flow (rarest case no longer leads). Enabling it reveals the repeat-floor
+           toggle + one-off floors + swing stage. -->
+      <div class="rail-field">
+        <label><span class="lbl-impact med">High-rise / multi-floor</span></label>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Pricing a building with repeating floors? Turning this on adds repeat-floor pricing, one-off floors &amp; swing stage &mdash; a Pro &amp; Shop feature. Leave off for a normal house.</p>
+        <button id="highRiseToggleBtn" type="button" class="toggle-pill"><span class="lbl">High-rise mode</span><span class="val">Off</span></button>
+        <button id="likeFloorsToggleBtn" type="button" class="toggle-pill mt-2 hidden"><span class="lbl">Repeat this floor on every story</span><span class="val">Off</span></button>
+        <!-- FLR-11: live plain-language building make-up (e.g. "17 identical floors + Lobby — 18 floors") -->
+        <div id="buildingSummary" class="hidden text-[11px] leading-snug mt-2 font-semibold" style="color: rgba(201,165,88,0.82); font-variant-numeric: tabular-nums;"></div>
+      </div>
       <div class="rail-field hidden" id="extraFloorsField">
         <details class="mat-card">
           <summary class="mat-head">
@@ -5722,7 +5851,7 @@
             <svg class="mat-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
           </summary>
           <div class="mat-body space-y-2">
-            <p class="mb-1 text-[11px] leading-snug text-slate-500">Non-typical floors priced on top of the stack &mdash; e.g. a lobby or penthouse with different openings. Enter that floor's own footage &amp; windows. Two identical penthouses? Set &ldquo;Floors like this&rdquo; to 2 instead of adding the floor twice. All floors identical? Leave this closed.</p>
+            <p class="mb-1 text-[11px] leading-snug text-slate-500">Non-typical floors priced on top of the stack &mdash; e.g. a lobby or penthouse with different openings. Enter that floor's own footage &amp; windows. Two identical penthouses? Set &ldquo;Number of these floors&rdquo; to 2 instead of adding the floor twice. All floors identical? Leave this closed.</p>
             <div id="extraFloorsList" class="space-y-2"></div>
             <button id="addExtraFloorBtn" type="button" class="rail-add-btn">+ Add floor</button>
           </div>
@@ -5750,8 +5879,8 @@
         </button>
         <div class="rail-acc-body space-y-3">
       <div class="rail-field">
-        <label for="totalLF">Total window width <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span></label>
-        <p class="mt-0.5 mb-2 text-[11px] leading-snug text-slate-500">Add up the width of every window opening, in feet.</p>
+        <label for="totalLF" id="totalLFLabel">Total window width <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span></label>
+        <p id="totalLFHelp" class="mt-0.5 mb-2 text-[11px] leading-snug text-slate-500">Add up the width of every window opening, in feet.</p>
         <div class="rail-lf-input-wrap">
           <input
             id="totalLF"
@@ -5766,6 +5895,7 @@
           <span class="lf-unit">ft</span>
         </div>
         <div id="lfPerWindowHint" class="hidden mt-2 text-slate-500 text-[10px] tracking-[0.16em] uppercase font-semibold" style="font-variant-numeric: tabular-nums;"></div>
+        <div id="lfFloorTotalHint" class="hidden mt-1 text-[10px] tracking-[0.16em] uppercase font-bold" style="color: var(--gold-hi, #c9a558); font-variant-numeric: tabular-nums;"></div>
       </div>
       <div class="rail-field"><label><span class="lbl-impact med">Application</span><span class="info-tip" tabindex="0" role="button" aria-label="How application affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>The install detail (nail-fin vs. leg) can carry its own per-LF unit pricing for some brands. Match it to the actual opening.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How the window attaches to the wall — match what the job uses.</p>
@@ -5832,7 +5962,7 @@
       </div>
       <div id="swingStageRailField" class="rail-field hidden">
         <label><span class="lbl-impact med">Swing stage</span></label>
-        <p class="mb-2 text-[11px] leading-snug text-slate-500">Suspended scaffold for high-rise work &mdash; only shows above 3 stories. Placeholder rate for now; tune later.</p>
+        <p class="mb-2 text-[11px] leading-snug text-slate-500">Suspended scaffold for high-rise work &mdash; only shows above 3 stories. Set the daily rate in Settings &rarr; Rates &rarr; Labor.</p>
         <div class="space-y-2">
           <button id="swingStageToggleBtn" type="button" class="toggle-pill"><span class="lbl">Swing stage</span><span class="val">Off</span></button>
           <label id="swingStageDaysWrap" class="margin-pill hidden" style="cursor:text">
@@ -5907,7 +6037,7 @@
   <span class="text-[11px] sm:text-xs text-amber-300/90 font-semibold">
     You're using sample rates — update them with your real costs for accurate quotes.
   </span>
-  <button id="demoBannerSettings" class="ml-2 text-[11px] sm:text-xs text-amber-300 underline font-bold hover:text-amber-200">Open Settings</button>
+  <button id="demoBannerSettings" class="ml-2 text-[11px] sm:text-xs text-amber-300 underline font-bold hover:text-amber-200">Enter my rates</button>
   <button id="demoBannerDismiss" class="ml-3 text-amber-400/60 hover:text-amber-300 text-sm leading-none align-middle" aria-label="Dismiss">×</button>
 </div>
 
@@ -5916,7 +6046,7 @@
   <svg class="nudge-icon" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <circle cx="10" cy="10" r="8"/><line x1="10" y1="6.5" x2="10" y2="10.5"/><circle cx="10" cy="13.5" r="0.6" fill="currentColor" stroke="none"/>
   </svg>
-  <span class="nudge-text">Finish setup to unlock customer PDFs &amp; save jobs.</span>
+  <span class="nudge-text">Set up your brand so customer quotes show your company — not the demo.</span>
   <button id="setupNudgeCta" type="button" class="nudge-cta">Set up profile →</button>
   <button id="setupNudgeDismiss" type="button" class="nudge-dismiss" aria-label="Dismiss">×</button>
 </div>
@@ -5939,8 +6069,20 @@
   <section id="results" class="mt-12 hidden">
     <div class="text-center">
       <div id="sellingPrice" class="price-glow text-6xl sm:text-7xl md:text-8xl font-black tracking-tightest leading-none pulse-once">$0.00</div>
-      <div class="text-slate-500 text-[11px] sm:text-sm tracking-[0.2em] uppercase mt-4 font-semibold">
-        Selling Price <span class="text-slate-600">·</span> @ <span id="marginLabel">35</span>% markup
+      <div class="text-slate-500 text-[11px] sm:text-sm tracking-[0.2em] uppercase mt-4 font-semibold">Selling Price</div>
+      <!-- CALC-8: inline markup lever — adjust THIS job's markup right at the price,
+           instead of four screens away in Settings. Sets a per-job override; the
+           account default (Settings → Rates) is unchanged. -->
+      <div class="margin-lever-wrap mt-2.5">
+        <div class="margin-lever" role="group" aria-label="Markup percent for this job">
+          <button type="button" class="margin-step" id="marginDown" aria-label="Decrease markup by 1 percent">&minus;</button>
+          <span class="margin-lever-field">
+            <input id="marginInput" type="text" inputmode="decimal" aria-label="Markup percent for this job" value="35" autocomplete="off" />
+            <span class="margin-lever-unit">% markup</span>
+          </span>
+          <button type="button" class="margin-step" id="marginUp" aria-label="Increase markup by 1 percent">+</button>
+        </div>
+        <button type="button" id="marginReset" class="margin-reset hidden">&#8635; Reset to default <span id="marginDefaultVal">35</span>%</button>
       </div>
     </div>
 
@@ -6198,15 +6340,15 @@
     <p class="mt-2 text-slate-500 text-sm">Tap a sample job below to fill it in instantly — or enter your own in a few taps.</p>
     <div id="emptyStateChips" class="mt-6 flex flex-wrap justify-center gap-2 max-w-2xl mx-auto px-4">
       <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
-        data-lf="240" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="2 Story" data-lift="false">
+        data-lf="240" data-windows="60" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="2 Story" data-lift="false">
         240 ft &middot; Concrete block &middot; Impact glass &middot; 2-story
       </button>
       <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
-        data-lf="180" data-construction="New Construction" data-house="Stick Framed" data-impact="Non-Impact" data-stories="1 Story" data-lift="false">
+        data-lf="180" data-windows="45" data-construction="New Construction" data-house="Stick Framed" data-impact="Non-Impact" data-stories="1 Story" data-lift="false">
         180 ft &middot; Wood frame &middot; Standard glass &middot; 1-story
       </button>
       <button type="button" class="empty-chip btn rounded-full px-4 py-2 text-[12px] font-semibold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-tight"
-        data-lf="320" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="3 Story" data-lift="true">
+        data-lf="320" data-windows="80" data-construction="New Construction" data-house="Block Framed" data-impact="Impact" data-stories="3 Story" data-lift="true">
         320 ft &middot; Concrete block &middot; Impact glass &middot; 3-story &middot; Lift
       </button>
     </div>
@@ -6408,6 +6550,23 @@
   </div>
 </div>
 
+<!-- ONBD-1 / OUT-3: pre-export trust guard. Replaces the old inverted confirm()
+     where "Cancel" shipped a demo-branded/demo-priced quote. Buttons are explicit
+     and non-inverted: the safe action (set it up) is primary; "Send anyway" is a
+     deliberate secondary; the X / backdrop simply cancels (never sends). -->
+<div id="demoGuardModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[82]">
+  <div class="absolute inset-0 modal-backdrop" data-close-demoguard></div>
+  <div class="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-6">
+    <h3 id="demoGuardTitle" class="text-base font-bold text-slate-100">Before you send this quote</h3>
+    <p id="demoGuardMsg" class="text-sm text-slate-400 mt-2 leading-relaxed"></p>
+    <div class="mt-5 space-y-2">
+      <button id="demoGuardSetup" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Set it up first</button>
+      <button id="demoGuardSend" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-slate-800 text-slate-100 border border-slate-700 hover:border-[#b58f4a]/50">Send anyway</button>
+      <button data-close-demoguard type="button" class="btn w-full rounded-xl px-4 py-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Manage Customers Modal — toggle which saved customers appear in the
      quick-pick list. Unchecking only hides them from the picker; the job and
      its contact details are never touched. Layers above the Save Job modal. -->
@@ -6492,7 +6651,7 @@
 </div>
 
 <!-- Job Comparison Modal -->
-<div id="compareModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+<div id="compareModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[82]">
   <div class="absolute inset-0 modal-backdrop" data-close-compare></div>
   <div class="relative card rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
@@ -8627,6 +8786,9 @@ function buildState() {
     trimType: "pine",
     trimWidth: "1x4",
     trimLength: 16,
+    // CALC-8: per-job markup override. null = use the account default
+    // (DATA.config.defaultMargin); a number overrides it for THIS job only.
+    marginOverride: null,
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
@@ -8711,6 +8873,9 @@ function buildingSummaryText() {
   if (n <= 1 && !extras.length) return "";
   const parts = [n > 1 ? `${n} identical floors` : "main floor"];
   extras.forEach(e => parts.push(e.count > 1 ? `${e.count}× ${e.label}` : e.label));
+  // Only add the "— N floors" total when there are one-off floors (otherwise it
+  // just restates the count, e.g. "6 identical floors — 6 floors").
+  if (!extras.length) return parts.join(" + ");
   const total = n + extras.reduce((sum, e) => sum + e.count, 0);
   return `${parts.join(" + ")} — ${total} floor${total === 1 ? "" : "s"}`;
 }
@@ -9084,6 +9249,14 @@ function normalizeSwingDoors(v) {
   return out;
 }
 function swingDoorCount() { return normalizeSwingDoors(STATE.swingDoors).length; }
+// CALC-9: total door COUNT for recaps/summaries. Swing entries are one door
+// each; sliding/bifold entries carry a `qty` (2 identical sliders = one row,
+// qty 2), so count quantities — not editor rows — or the recap disagrees with
+// the priced job.
+function totalDoorCount() {
+  const sumQty = arr => (Array.isArray(arr) ? arr : []).reduce((s, d) => s + Math.max(1, parseInt(d && d.qty, 10) || 1), 0);
+  return swingDoorCount() + sumQty(STATE.slidingDoors) + sumQty(STATE.bifoldDoors);
+}
 
 function computeSwingDoors(takeoff = STATE) {
   const doors = normalizeSwingDoors(takeoff.swingDoors);
@@ -9329,6 +9502,9 @@ function floorPersistFields() {
     trimType: STATE.trimType || "pine",
     trimWidth: STATE.trimWidth || "1x4",
     trimLength: STATE.trimLength || 16,
+    // CALC-8: not a floor field, but this fn is the single point every job-build
+    // site spreads, so the per-job markup override rides along to all of them.
+    marginOverride: STATE.marginOverride ?? null,
   };
 }
 
@@ -9736,7 +9912,13 @@ function calculate() {
     }
   }
 
-  const margin = DATA.config.defaultMargin ?? 35;   // honor an intentional 0% (?? not ||)
+  // CALC-8: a per-job markup override (set via the results-card lever) wins over
+  // the account default. null/"" → fall back to the account default. STATE holds
+  // an already-clamped number, but Number()+isFinite guards a bad persisted blob.
+  const _mo = STATE.marginOverride;
+  const margin = (_mo != null && _mo !== "" && isFinite(Number(_mo)))
+    ? Number(_mo)
+    : (DATA.config.defaultMargin ?? 35);   // honor an intentional 0% (?? not ||)
   const sellingPrice = totalCost * (1 + margin / 100);
   const profit = sellingPrice - totalCost;
 
@@ -10113,6 +10295,29 @@ function updateLiftVisibility() {
   if (typeof updateJobExtrasSummary === "function") updateJobExtrasSummary();
 }
 
+// FLR-3: reflect STATE.stories onto the segmented control + reveal the exact-count
+// field only for towers (>4). Never stomps the field while it's being typed in.
+function syncStoriesControl() {
+  const n = storyNum(STATE.stories);
+  const sel = n <= 4 ? String(n) : "5+";
+  if (typeof SEGMENTS !== "undefined" && SEGMENTS.segStories) SEGMENTS.segStories.setValue(sel, false);
+  const wrap = document.getElementById("storiesExactWrap");
+  if (wrap) wrap.classList.toggle("hidden", sel !== "5+");
+  const inp = document.getElementById("storiesInput");
+  if (inp && document.activeElement !== inp) inp.value = String(n);
+}
+
+// FLR-11: show the plain-language building make-up live in the rail (only for a
+// real multi-floor building; empty string otherwise → hidden, so a normal house
+// never sees it).
+function renderBuildingSummary() {
+  const el = document.getElementById("buildingSummary");
+  if (!el) return;
+  const txt = (typeof buildingSummaryText === "function") ? buildingSummaryText() : "";
+  el.textContent = txt;
+  el.classList.toggle("hidden", !txt);
+}
+
 // High-rise mode gates every multi-floor control: the Like Floors toggle, the
 // Other-floors editor, swing stage and material storage. The
 // engine is gated the same way, so nothing hidden ever prices — but the entered
@@ -10170,10 +10375,44 @@ function updateSwingStageToggleUI() {
 
 function updateLikeFloorsToggleUI() {
   const btn = document.getElementById("likeFloorsToggleBtn");
-  if (!btn) return;
-  const valEl = btn.querySelector(".val");
-  btn.classList.toggle("active", STATE.likeFloors);
-  if (valEl) valEl.textContent = STATE.likeFloors ? "On" : "Off";
+  if (btn) {
+    const valEl = btn.querySelector(".val");
+    btn.classList.toggle("active", STATE.likeFloors);
+    if (valEl) valEl.textContent = STATE.likeFloors ? "On" : "Off";
+  }
+  updateLfLabelForFloors();
+}
+
+// FLR-1 / CALC-2: With "Like Floors" on, getFloorGroups() treats the primary
+// window LF / count as ONE typical floor and multiplies it across every story.
+// Relabel the input so the number the user types is unambiguous, and echo the
+// multiplied building total — otherwise someone entering the WHOLE building's
+// footage prices it at N× (or 1/N), a real-dollar error on the flagship feature.
+function updateLfLabelForFloors() {
+  const labelEl = document.getElementById("totalLFLabel");
+  const helpEl = document.getElementById("totalLFHelp");
+  const floorHint = document.getElementById("lfFloorTotalHint");
+  if (!labelEl) return;
+  const n = storyNum(STATE.stories);
+  const stacking = STATE.highRise && STATE.likeFloors && n > 1;
+  const unit = ' <span style="color:#64748b;font-weight:500;text-transform:none;letter-spacing:0;">(linear feet)</span>';
+  if (stacking) {
+    labelEl.innerHTML = "Window width per floor" + unit;
+    if (helpEl) helpEl.textContent = "Enter ONE typical floor — it's multiplied across all " + n + " floors.";
+    if (floorHint) {
+      const lf = parseFloat(STATE.totalLF) || 0;
+      if (lf > 0) {
+        floorHint.textContent = "× " + n + " floors = " + (lf * n).toFixed(1) + " LF total";
+        floorHint.classList.remove("hidden");
+      } else {
+        floorHint.classList.add("hidden");
+      }
+    }
+  } else {
+    labelEl.innerHTML = "Total window width" + unit;
+    if (helpEl) helpEl.textContent = "Add up the width of every window opening, in feet.";
+    if (floorHint) floorHint.classList.add("hidden");
+  }
 }
 
 // One-off floor takeoff (lobby / penthouse). Same shape as the primary floor so
@@ -10271,9 +10510,9 @@ function renderExtraFloors() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <label class="margin-pill" style="cursor:text"><span class="lbl">LF</span><input class="ef-in num-input" data-f="totalLF" type="number" min="0" step="0.1" inputmode="decimal" value="${f.totalLF || ""}" placeholder="0" style="width:60px;text-align:right;-moz-appearance:textfield;" /></label>
         <label class="margin-pill" style="cursor:text"><span class="lbl">Windows</span><input class="ef-in num-input" data-f="windowCount" type="number" min="0" step="1" inputmode="numeric" value="${f.windowCount || ""}" placeholder="&mdash;" style="width:48px;text-align:right;-moz-appearance:textfield;" /></label>
-        <label class="margin-pill" style="cursor:text" title="How many identical copies of this floor the building has — 2 matching penthouses = 2"><span class="lbl">Floors like this</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
+        <label class="margin-pill" style="cursor:text" title="How many identical copies of this floor the building has — 2 matching penthouses = 2"><span class="lbl">Number of these floors</span><input class="ef-in num-input" data-f="count" type="number" min="1" step="1" inputmode="numeric" value="${Math.max(1, parseInt(f.count, 10) || 1)}" style="width:44px;text-align:right;-moz-appearance:textfield;" /></label>
       </div>
-      <div class="text-[9px] uppercase tracking-[0.14em] text-slate-600 font-bold" style="margin-top:8px;margin-bottom:4px;">Doors on this floor &mdash; optional</div>
+      <div class="text-[11px] uppercase tracking-[0.14em] text-slate-500 font-bold" style="margin-top:8px;margin-bottom:4px;">Doors on this floor &mdash; optional</div>
       <div class="space-y-2">${efDoorsHTML(f)}</div>
       <div style="margin-top:6px;">
         <label class="margin-pill" style="cursor:pointer"><span class="lbl">Interior trim this floor</span><input class="ef-in" data-f="trim" type="checkbox"${f.trimEnabled ? " checked" : ""} style="accent-color:#b58f4a;width:14px;height:14px;" /></label>
@@ -10338,16 +10577,84 @@ function updateSwingDoorsUI() {
   updateSwingDoorsSummary();   // lightweight: chip + visibility only (no list rebuild)
 }
 
+// CALC-8 — per-job markup lever helpers.
+// Clamp to a sane [0, 999] range; returns null for non-numeric (so an empty /
+// garbage field clears the override rather than pricing at NaN).
+function clampMarginPct(v) {
+  if (v == null || String(v).trim() === "") return null;
+  const n = Number(v);
+  if (!isFinite(n)) return null;
+  return Math.max(0, Math.min(999, Math.round(n * 100) / 100));
+}
+function setMarginOverride(v) {   // numeric set (from ± steppers / arrow keys)
+  STATE.marginOverride = clampMarginPct(v);
+  markCalculatorFirstInteraction();
+  render();
+}
+function resetMarginOverride() {  // explicit clear → back to the account default
+  STATE.marginOverride = null;
+  markCalculatorFirstInteraction();
+  render();
+}
+function renderMarginLever(r) {
+  const input = document.getElementById("marginInput");
+  const lever = document.querySelector(".margin-lever");
+  if (!input || !lever) return;
+  const reset = document.getElementById("marginReset");
+  const defVal = document.getElementById("marginDefaultVal");
+  const def = DATA.config.defaultMargin ?? 35;
+  const overridden = STATE.marginOverride != null && STATE.marginOverride !== "";
+  // Never stomp the field mid-type — only reflect the computed margin when the
+  // user isn't editing it.
+  if (document.activeElement !== input) input.value = String(r.margin);
+  lever.classList.toggle("is-override", overridden);
+  if (reset) reset.classList.toggle("hidden", !overridden);
+  if (defVal) defVal.textContent = String(def);
+  if (!input._wired) {
+    const effective = () => (STATE.marginOverride != null && STATE.marginOverride !== "")
+      ? Number(STATE.marginOverride) : (DATA.config.defaultMargin ?? 35);
+    const up = document.getElementById("marginUp");
+    const down = document.getElementById("marginDown");
+    if (up) up.addEventListener("click", () => setMarginOverride(effective() + 1));
+    if (down) down.addEventListener("click", () => setMarginOverride(effective() - 1));
+    input.addEventListener("input", () => {
+      const raw = input.value.trim();
+      // Empty field = cleared override; otherwise take the clamped value but let
+      // the activeElement guard above keep the field showing exactly what's typed.
+      STATE.marginOverride = raw === "" ? null : clampMarginPct(raw);
+      markCalculatorFirstInteraction();
+      render();
+    });
+    input.addEventListener("blur", () => {
+      // Normalize on exit: garbage/empty → default, valid → clamped. Set the
+      // field text explicitly (don't rely on render()'s activeElement guard,
+      // whose timing can leave the raw "9999" showing after a clamp to 999).
+      const c = clampMarginPct(input.value);
+      STATE.marginOverride = c;   // null when cleared/garbage → back to default
+      input.value = (c == null) ? String(DATA.config.defaultMargin ?? 35) : String(c);
+      render();
+    });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setMarginOverride(effective() + 1); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setMarginOverride(effective() - 1); }
+    });
+    if (reset) reset.addEventListener("click", resetMarginOverride);
+    input._wired = true;
+  }
+}
+
 function render() {
   const r = calculate();
-  document.getElementById("marginLabel").textContent = String(r.margin);
+  renderMarginLever(r);   // CALC-8: keep the markup lever in sync with the price
   updateBuckButtonVisibility();
   updateSwingDoorsUI();
 
-  // Either footage OR swing-door units constitutes "have a quote"
-  const hasLf = (parseFloat(STATE.totalLF) || 0) > 0;
-  const hasDoors = !!(r.swingDoors && r.swingDoors.total > 0 && r.swingDoors.enabled);
-  const hasInput = hasLf || hasDoors;
+  // CALC-1: "have a quote" = ANY priced opening — window footage, swing, sliding,
+  // OR bifold doors (and one-off-floor footage). The old gate only counted window
+  // LF + swing doors, so a sliding-/bifold-only job priced internally but the
+  // results + sticky total stayed hidden. Reuse the same test the export paths use.
+  const hasInput = hasQuoteInput(r);
   const results = document.getElementById("results");
   const empty = document.getElementById("emptyState");
   results.classList.toggle("hidden", !hasInput);
@@ -10357,6 +10664,7 @@ function render() {
     if (_mbar) { _mbar.classList.toggle("show", hasInput); document.body.classList.toggle("mtotal-on", hasInput); } }
   // The recap band sits above results/empty and should always reflect STATE.
   renderLiveRecap();
+  renderBuildingSummary();   // FLR-11: live building make-up in the rail
   // Wire the accordion + open a section BEFORE the empty-job early-return below,
   // or a fresh job would have every section sealed shut and the headers dead.
   initRailAccordion();
@@ -10608,6 +10916,9 @@ function render() {
   } else {
     hintEl.classList.add("hidden");
   }
+  // FLR-1 / CALC-2: keep the "per floor" relabel + multiplied-total echo current
+  // as stories / footage change (the toggle handler covers on/off).
+  updateLfLabelForFloors();
 
   // Window-count nudge (F2) — a blank count silently omits per-opening SETUP
   // LABOR (every construction type, not just remodel) plus caulk/screws and, on
@@ -10687,6 +10998,7 @@ function render() {
     trimType: STATE.trimType,
     trimWidth: STATE.trimWidth,
     trimLength: STATE.trimLength,
+    marginOverride: STATE.marginOverride ?? null,   // CALC-8: per-job markup override
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -10706,8 +11018,7 @@ function cleanLF(v) { const n = parseFloat(v); return isFinite(n) ? Math.round(n
 function jobSummaryTiers() {
   const lf = cleanLF(STATE.totalLF);
   const wc = parseInt(STATE.windowCount, 10) || 0;
-  const doors = swingDoorCount()
-    + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
+  const doors = totalDoorCount();   // CALC-9: quantities, not editor rows
   const size = [];
   const _floors = floorMult();
   if (_floors > 1) size.push(`× ${_floors} floors`);   // per-floor figures below, repeated
@@ -10766,8 +11077,7 @@ function renderRailAccSummaries() {
   const lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
   const wc = parseInt(STATE.windowCount, 10) || 0;
   const floors = floorMult();
-  const doors = swingDoorCount()
-    + ((STATE.slidingDoors || []).length) + ((STATE.bifoldDoors || []).length);
+  const doors = totalDoorCount();   // CALC-9: quantities, not editor rows
   let storyTxt = "";
   if (STATE.stories) { const m = String(STATE.stories).match(/(\d+)/); storyTxt = m ? m[1] + "-story" : STATE.stories; }
   const sums = {
@@ -11138,7 +11448,24 @@ function renderDashboard() {
   const jobs = loadJobs();
   const brand = (DATA.config && DATA.config.brand) || {};
   const greet = document.getElementById("dashGreeting");
-  if (greet) greet.textContent = brand.companyName ? `Welcome back, ${brand.companyName}` : "Welcome back";
+  const sub = greet && greet.nextElementSibling;
+  // ONBD-8: don't greet a brand-new user "Welcome back" — and never echo the demo
+  // company name. Only a user who has set up their own brand gets the personalized
+  // "Welcome back, <company>"; everyone else gets a first-visit welcome.
+  const savedCount = jobs.filter(j => !j.isDraft).length;
+  const realBrand = DATA.config && DATA.config.onboarded && brand.companyName && brand.companyName !== DEMO_BRAND.companyName;
+  if (greet) {
+    if (realBrand) greet.textContent = `Welcome back, ${brand.companyName}`;
+    else if (savedCount === 0) greet.textContent = "Welcome to Anchor";
+    else greet.textContent = "Welcome back";
+  }
+  if (sub && sub.tagName === "P") {
+    sub.textContent = (savedCount === 0)
+      ? "Price your first job in under a minute — tap a sample or enter your own."
+      : "Your pipeline, your jobs, and where your money's going.";
+  }
+  const nq = document.getElementById("dashNewQuote");
+  if (nq) { const lbl = nq.childNodes[nq.childNodes.length - 1]; if (lbl && lbl.nodeType === 3) lbl.textContent = savedCount === 0 ? " Price your first job" : " New quote"; }
   // Build every section's content (cheap — string templating over local jobs) so
   // both the launchpad previews and the active drill-in are always fresh.
   renderDashStats(jobs);
@@ -11147,6 +11474,7 @@ function renderDashboard() {
   renderDashCalibration(jobs);
   renderDashFollowups(jobs);
   renderDashShopping(jobs);
+  renderDashFirstRun(jobs);
   renderDashLaunchpad(jobs);
   // E-sign hits the network, so only refresh it when its card is actually open.
   if (_dashView === "esign") renderDashEsign();
@@ -11394,6 +11722,74 @@ function dashCardBody(key, ctx, jobs) {
   return "";
 }
 
+// ── First-run activation checklist (DASH-1 / ONBD-2 / ONBD-10) ──────────────
+// Endowed-progress onboarding: two items pre-checked so the bar starts ~33% full
+// (Nunes & Drèze — a pre-stamped card nearly doubles completion). Every item maps
+// to a real, detectable state and deep-links to where it's done. A brand-new
+// account (no saved jobs) sees this in place of the empty launchpad; afterwards it
+// shrinks to a dismissible strip until complete.
+const DASH_CHECKLIST_DISMISS_KEY = "anchorChecklistDismissed";
+let _dashChecklistShow = false;   // is #dashFirstRun showing anything right now?
+let _dashFirstRunActive = false;  // true = brand-new (0 saved jobs) → hide launchpad
+function dashChecklistItems(jobs) {
+  const saved = jobs.filter(j => !j.isDraft).length;
+  const cfg = DATA.config || {};
+  const realBrand = cfg.onboarded && cfg.brand && cfg.brand.companyName && cfg.brand.companyName !== DEMO_BRAND.companyName;
+  return [
+    { key: "account",  label: "Create your account",                done: true },
+    { key: "demo",     label: "Sample rates loaded — ready to try", done: true },
+    { key: "price",    label: "Price your first job",               done: saved >= 1,           cta: "Open the calculator", act: "calc" },
+    { key: "rates",    label: "Enter your own rates",               done: !!cfg.ratesCustomized, cta: "Set my rates",        act: "rates" },
+    { key: "brand",    label: "Set up your brand",                  done: !!realBrand,           cta: "Set up profile",      act: "brand" },
+    { key: "send",     label: "Send your first quote",              done: !!cfg.firstQuoteSent,  cta: "Price a job to send", act: "calc" },
+  ];
+}
+function renderDashFirstRun(jobs) {
+  const el = document.getElementById("dashFirstRun");
+  if (!el) return;
+  const saved = jobs.filter(j => !j.isDraft).length;
+  const items = dashChecklistItems(jobs);
+  const doneCount = items.filter(i => i.done).length;
+  const allDone = doneCount === items.length;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(DASH_CHECKLIST_DISMISS_KEY) === "1"; } catch (_) {}
+  _dashFirstRunActive = saved === 0;
+  const showStrip = !_dashFirstRunActive && !allDone && !dismissed;
+  _dashChecklistShow = _dashFirstRunActive || showStrip;
+  if (!_dashChecklistShow) { el.innerHTML = ""; return; }
+  const pct = Math.round((doneCount / items.length) * 100);
+  const rows = items.map(i => `
+    <li class="dash-check-item${i.done ? " is-done" : ""}">
+      <span class="dash-check-mark" aria-hidden="true">${i.done ? "✓" : ""}</span>
+      <span class="dash-check-label">${escHtml(i.label)}</span>
+      ${(!i.done && i.cta) ? `<button type="button" class="dash-check-cta" data-fr="${i.act}">${escHtml(i.cta)} &rarr;</button>` : ""}
+    </li>`).join("");
+  el.innerHTML = `
+    <div class="dash-checklist" role="group" aria-label="Getting started checklist">
+      <div class="dash-check-head">
+        <span class="dash-check-title">${_dashFirstRunActive ? "Your first-job checklist" : "Finish setting up"}</span>
+        <span class="dash-check-progress">${doneCount} of ${items.length} done</span>
+        ${_dashFirstRunActive ? "" : `<button type="button" class="dash-check-dismiss" data-fr="dismiss" aria-label="Hide checklist" title="Hide">&times;</button>`}
+      </div>
+      <div class="dash-check-bar" role="progressbar" aria-valuenow="${doneCount}" aria-valuemin="0" aria-valuemax="${items.length}"><span style="width:${pct}%"></span></div>
+      <ul class="dash-check-list">${rows}</ul>
+    </div>
+    ${_dashFirstRunActive ? `<p class="dash-firstrun-note">Everything runs on sample rates until you enter your own — quote freely, nothing goes to a customer until you send it. <button type="button" class="dash-firstrun-link" data-fr="learn">New to window &amp; door pricing? See how it works &rarr;</button></p>` : ""}`;
+}
+
+// Route a checklist / first-run action button to where the task is completed.
+function dashFirstRunAction(act) {
+  if (act === "dismiss") {
+    try { localStorage.setItem(DASH_CHECKLIST_DISMISS_KEY, "1"); } catch (_) {}
+    renderDashboard();
+    return;
+  }
+  if (act === "calc") { closeDashboard(); return; }                       // land in the calculator
+  if (act === "rates") { try { openAdmin(); showSettingsTab("rates"); showRatesLeaf("money"); } catch (_) {} return; }
+  if (act === "brand") { try { startSetupFlow(); } catch (_) {} return; }
+  if (act === "learn") { try { openLearn(); } catch (_) {} return; }       // ONBD-11: how-it-works guide
+}
+
 function renderDashLaunchpad(jobs) {
   const wrap = document.getElementById("dashLaunchpad");
   if (!wrap) return;
@@ -11439,13 +11835,19 @@ function applyDashView() {
   const launch = document.getElementById("dashLaunchpad");
   const section = document.getElementById("dashSection");
   const stats = document.getElementById("dashStats");
+  const firstRun = document.getElementById("dashFirstRun");
   // The "Welcome back" hero belongs to the home only; drilling in pulls the
   // section header to the top for a less-cluttered, more focused view.
   if (hero) hero.classList.toggle("hidden", !home);
-  if (launch) launch.classList.toggle("hidden", !home);
+  // DASH-1: a brand-new account (no saved jobs) shows the first-run checklist in
+  // place of the empty launchpad; once it has jobs the launchpad returns and the
+  // checklist (if incomplete) rides above it as a strip.
+  if (firstRun) firstRun.classList.toggle("hidden", !home || !_dashChecklistShow);
+  if (launch) launch.classList.toggle("hidden", !home || _dashFirstRunActive);
   if (section) section.classList.toggle("hidden", home);
-  // KPI strip belongs to the glance/home; hide it inside a focused section.
-  if (stats && !home) stats.classList.add("hidden");
+  // KPI strip belongs to the glance/home; hide it inside a focused section (and for
+  // a brand-new account there are no numbers worth showing yet).
+  if (stats && (!home || _dashFirstRunActive)) stats.classList.add("hidden");
   else if (stats && home) stats.classList.toggle("hidden", !stats.innerHTML.trim());
   if (home) return;
   const meta = DASH_CARDS.find(c => c.key === _dashView);
@@ -13019,6 +13421,7 @@ function dashJobCard(j) {
       <div class="flex items-center justify-between gap-2 mt-auto pt-3.5">
         ${statusSel}
         <div class="flex items-center gap-1.5">
+          ${j.isDraft ? "" : `<button type="button" data-dash-compare="${j.id}" class="dash-card-compare${compareSet.has(j.id) ? " is-on" : ""}" aria-pressed="${compareSet.has(j.id)}" title="Add to side-by-side comparison">${compareSet.has(j.id) ? "✓ Compare" : "Compare"}</button>`}
           <button type="button" data-dash-load="${j.id}" class="dash-card-load">Load &rarr;</button>
           <button type="button" data-dash-del="${j.id}" class="dash-card-del" title="Delete job">
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>
@@ -13076,6 +13479,7 @@ function renderDashJobs(jobs) {
     grid.innerHTML = list.map(dashJobCard).join("");
   }
   hydratePhotoThumbs(grid);
+  updateCompareBar();   // CMP-1: keep the floating compare bar in sync with selection
 }
 
 // Compress an uploaded photo to a small JPEG data URL (stored on the job).
@@ -13159,7 +13563,13 @@ async function saveJobPhoto(id, dataUrl) {
   const j = jobs.find(x => x.id === id);
   if (!j) return;
   let uploaded = false;
-  if (dataUrl && sb && sb.storage && currentUser && isUuid(j.id)) {
+  // PHOTO-4: never upload a DRAFT cover to Storage. Every draft shares one
+  // deterministic id (draftIdFor), so its Storage path (userId/<draftId>.jpg) is
+  // identical for every draft — and ups:true means the next draft's cover
+  // overwrites the previous (now-promoted) job's cover bytes. Drafts keep their
+  // cover as base64 locally; it's carried forward on promotion and migrated to a
+  // per-job path once the job has its own unique uuid.
+  if (dataUrl && sb && sb.storage && currentUser && isUuid(j.id) && !j.isDraft) {
     try {
       const path = currentUser.id + "/" + j.id + ".jpg";
       const blob = dataURLToBlob(dataUrl);
@@ -13711,6 +14121,14 @@ function wireDashboard() {
     // Global dismiss for an open (mobile-tapped) tip.
     document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".dash-launch-cell.tip-open")) closeAllDashTips(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllDashTips(); });
+  }
+  // DASH-1 / ONBD-2: first-run checklist + hero action buttons.
+  const firstRunEl = document.getElementById("dashFirstRun");
+  if (firstRunEl) {
+    firstRunEl.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-fr]");
+      if (b) dashFirstRunAction(b.dataset.fr);
+    });
     window.addEventListener("scroll", () => closeAllDashTips(), { passive: true });
   }
   const backBtn = document.getElementById("dashBack");
@@ -13807,6 +14225,8 @@ function wireDashboard() {
       if (photoBtn) { _dashPhotoTargetId = photoBtn.dataset.dashPhoto; document.getElementById("dashPhotoInput")?.click(); return; }
       const genThumbBtn = e.target.closest("[data-dash-genthumb]");
       if (genThumbBtn) { generateJobThumbnail(genThumbBtn.dataset.dashGenthumb, genThumbBtn); return; }
+      const cmpBtn = e.target.closest("[data-dash-compare]");
+      if (cmpBtn) { toggleCompareJob(cmpBtn.dataset.dashCompare, cmpBtn); return; }
       const detailsBtn = e.target.closest("[data-dash-details]");
       if (detailsBtn) { openJobDetails(detailsBtn.dataset.dashDetails); return; }
       const loadBtn = e.target.closest("[data-dash-load]");
@@ -14713,20 +15133,37 @@ function bindControls() {
   createSegmented("segHouseType", DATA.houseTypes, STATE.houseType, v => { STATE.houseType = v; markCalculatorFirstInteraction(); render(); }, SEG_LABELS.house);
   createSegmented("segApplication", DATA.applicationTypes, STATE.application, v => { STATE.application = v; markCalculatorFirstInteraction(); render(); });
   createSegmented("segImpact", DATA.impactOptions, STATE.impact, v => { STATE.impact = v; markCalculatorFirstInteraction(); render(); });
-  // Stories - a plain number now (towers go past 3). Drives the labor access
-  // premium, lift/swing visibility and (with Like Floors) the per-floor multiplier.
+  // FLR-3: hybrid Stories control. Segmented 1-4 covers ~every house in one tap;
+  // "5+" reveals a number field for towers. Drives the labor access premium,
+  // lift/swing visibility and (with repeat-floor pricing) the per-floor multiplier.
   const storiesInput = document.getElementById("storiesInput");
-  if (storiesInput) {
-    storiesInput.value = String(storyNum(STATE.stories));
-    if (!storiesInput._wired) {
-      storiesInput.addEventListener("input", e => {
-        STATE.stories = Math.max(1, parseInt(e.target.value, 10) || 1);
-        markCalculatorFirstInteraction();
-        updateLiftVisibility();
-        render();
-      });
-      storiesInput._wired = true;
+  const _storiesSel = storyNum(STATE.stories) <= 4 ? String(storyNum(STATE.stories)) : "5+";
+  createSegmented("segStories", ["1", "2", "3", "4", "5+"], _storiesSel, v => {
+    if (v === "5+") {
+      if (storyNum(STATE.stories) < 5) STATE.stories = 5;
+      const w = document.getElementById("storiesExactWrap"); if (w) w.classList.remove("hidden");
+      if (storiesInput) { storiesInput.value = String(storyNum(STATE.stories)); setTimeout(() => storiesInput.focus(), 0); }
+    } else {
+      STATE.stories = Math.max(1, parseInt(v, 10) || 1);
+      const w = document.getElementById("storiesExactWrap"); if (w) w.classList.add("hidden");
     }
+    markCalculatorFirstInteraction();
+    updateLiftVisibility();
+    updateSwingStageVisibility();
+    render();
+  });
+  syncStoriesControl();
+  if (storiesInput && !storiesInput._wired) {
+    storiesInput.addEventListener("input", e => {
+      STATE.stories = Math.max(1, parseInt(e.target.value, 10) || 1);
+      markCalculatorFirstInteraction();
+      updateLiftVisibility();
+      updateSwingStageVisibility();
+      render();
+    });
+    // Typed 1-4 into the "5+" field → snap back to the chip on exit.
+    storiesInput.addEventListener("blur", syncStoriesControl);
+    storiesInput._wired = true;
   }
   const likeFloorsBtn = document.getElementById("likeFloorsToggleBtn");
   if (likeFloorsBtn) {
@@ -15504,6 +15941,18 @@ function doSaveJob(overrideId) {
     if (_photoSrc.shopChecked) job.shopChecked = _photoSrc.shopChecked;   // shopping-list checkmarks
   }
 
+  // VER-3: deal status + e-signature live only on the job record, not in rail
+  // STATE, so an in-place re-save (which rebuilds the job from STATE) would
+  // silently wipe an Approved/signed job's status and e-sign link — inconsistent
+  // with the Cmd+S quick-save path. Preserve them across an OVERWRITE only; a
+  // brand-new save must start unsigned/Quoted (see VER-1).
+  if (overwrite) {
+    if (overwrite.status) job.status = overwrite.status;
+    if (overwrite.signedAt) job.signedAt = overwrite.signedAt;
+    if (overwrite.signerName) job.signerName = overwrite.signerName;
+    if (overwrite.signedQuoteId) job.signedQuoteId = overwrite.signedQuoteId;
+  }
+
   // Drop the working draft, then overwrite the target in place or append fresh.
   let next = jobs.filter(x => !x.isDraft);
   if (overwrite) next = next.map(x => x.id === id ? job : x);
@@ -15538,6 +15987,62 @@ function showSaveConflict(twin) {
   if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
 }
 function closeSaveConflict() { tvDismiss(document.getElementById("saveConflictModal")); }
+
+// ONBD-1 / OUT-3: pre-export trust guard. Shows a real modal with two explicit
+// actions instead of the old inverted confirm() (where Cancel shipped a demo
+// quote). opts.demoBrand / opts.demoRates pick the message; onSetup routes the
+// user to fix it; onSend is the deliberate "send anyway"; Cancel/backdrop never
+// sends. If the modal node is missing we fail SAFE (do nothing — no demo send).
+function showDemoExportGuard(opts) {
+  opts = opts || {};
+  const m = document.getElementById("demoGuardModal");
+  if (!m) return;
+  const msgEl = document.getElementById("demoGuardMsg");
+  const setupBtn = document.getElementById("demoGuardSetup");
+  const sendBtn = document.getElementById("demoGuardSend");
+  const cn = (DATA.config.brand && DATA.config.brand.companyName) || DEMO_BRAND.companyName;
+  const issues = [];
+  if (opts.demoBrand) issues.push('the demo company name "' + cn + '"');
+  if (opts.demoRates) issues.push("sample pricing (you haven't entered your own rates yet)");
+  const seesReal = opts.demoBrand && opts.demoRates ? "branding and prices"
+    : opts.demoRates ? "prices" : "company name, logo, and contact info";
+  if (msgEl) msgEl.textContent = "This customer quote still uses " + issues.join(" and ") +
+    ". Set that up first so the customer sees your real " + seesReal + ".";
+  if (setupBtn) setupBtn.textContent = (opts.demoRates && !opts.demoBrand) ? "Enter my rates" : "Set up my profile";
+  const close = () => tvDismiss(m);
+  if (setupBtn) setupBtn.onclick = () => { close(); if (opts.onSetup) opts.onSetup(); };
+  if (sendBtn) sendBtn.onclick = () => { close(); if (opts.onSend) opts.onSend(); };
+  m.querySelectorAll("[data-close-demoguard]").forEach(el => { el.onclick = close; });
+  m.classList.remove("hidden"); m.classList.add("flex");
+}
+
+// ONBD-1/OUT-3 shared gate: returns true and shows the guard modal when a
+// customer-facing export still uses demo branding OR demo pricing; `resume` is
+// the "Send anyway" action. Returns false when it's safe to proceed immediately.
+function demoExportBlocked(resume) {
+  const cn = (DATA.config.brand && DATA.config.brand.companyName) || "";
+  const demoBrand = !DATA.config.onboarded || cn === DEMO_BRAND.companyName;
+  const demoRates = !DATA.config.ratesCustomized;
+  if (!demoBrand && !demoRates) return false;
+  showDemoExportGuard({
+    demoBrand, demoRates,
+    onSetup: () => {
+      if (demoRates && !demoBrand) { try { openAdmin(); showSettingsTab("rates"); showRatesLeaf("money"); } catch (_) {} }
+      else { try { startSetupFlow(); } catch (_) {} }
+    },
+    onSend: resume,
+  });
+  return true;
+}
+
+// ONBD-2 checklist item 6: record that the user has sent a customer-facing quote
+// (PDF, share link, or signing link) so "Send your first quote" can check off.
+function markFirstQuoteSent() {
+  if (DATA.config && !DATA.config.firstQuoteSent) {
+    DATA.config.firstQuoteSent = true;
+    try { saveData(DATA); } catch (_) {}
+  }
+}
 
 function saveCurrentJob() { openSaveJobModal(); }
 
@@ -15589,6 +16094,10 @@ function quickSaveOrPrompt() {
 
 // "Save as new version" — clone the currently-loaded job under "<name> vN"
 function saveAsNewVersion() {
+  // VER-9: double-fire guard — an accidental double-tap must not mint two junk
+  // versions and burn two quote credits. Ignore repeat calls within 1.2s of the
+  // last successful version save (a deliberate later re-version still works).
+  if (saveAsNewVersion._lastAt && (Date.now() - saveAsNewVersion._lastAt) < 1200) return;
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!STATE.currentJobId) { toast("Load a saved job first"); return; }
@@ -15650,13 +16159,24 @@ function saveAsNewVersion() {
   // inherit the original's logged usage (it would skew calibration twice).
   delete newJob.actuals; delete newJob.actualsUpdatedAt;
   delete newJob.shopChecked;   // fresh shopping list for the new version
+  // VER-1: a new version is an UNSENT revision — it must NEVER inherit the
+  // original's deal status or e-signature. The `...base` spread copies them, so a
+  // revised v2 the customer never saw would display as "Approved / signed by
+  // <customer>" — a legal-integrity bug. Reset to a fresh, unsigned Quoted state.
+  delete newJob.status;          // jobStatus() then defaults to "Quoted"
+  delete newJob.signedAt; delete newJob.signerName; delete newJob.signedQuoteId;
   jobs.push(newJob);
   if (!saveJobs(jobs)) {   // write failed (device storage full) → no version, so spend no credit
     toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud, or remove a photo and try again.");
     return;
   }
   if (needsQuote) consumeQuote();   // spend the quote only after a confirmed write
+  saveAsNewVersion._lastAt = Date.now();   // VER-9: arm the double-fire guard
   STATE.currentJobId = newJob.id;
+  // VER-2: point the rail (and the next save) at the new version. Without this,
+  // STATE.jobName still held the base name, so the very next save saw v2 as
+  // "<base>" and collided with the original v1 in the save-conflict check.
+  STATE.jobName = newName;
   pushJobToCloud(newJob);
   logQuoteEvent("saved_job_version");
   // Fires both names: spec lists job_versioned and job_duplicated as siblings
@@ -15852,6 +16372,9 @@ function applyJobToState(j) {
   STATE.slidingDoors = Array.isArray(j.slidingDoors) ? clone(j.slidingDoors) : [];
   STATE.bifoldDoors = Array.isArray(j.bifoldDoors) ? clone(j.bifoldDoors) : [];
   STATE.variants = j.variants ? clone(j.variants) : {};
+  // CALC-8: restore the per-job markup override. Legacy jobs (no field) load as
+  // null → they reprice at the current account default, exactly as before.
+  STATE.marginOverride = (j.marginOverride != null && j.marginOverride !== "") ? Number(j.marginOverride) : null;
   STATE.currentJobId = j.id;
   // Swing doors — migrate legacy {single,double,withFlashing} → per-door array.
   STATE.swingDoors = normalizeSwingDoors(j.swingDoors);
@@ -16016,24 +16539,18 @@ function requireSavedJobForExport() {
   return false;
 }
 
-function exportCustomerPDF(mode) {
+function exportCustomerPDF(mode, force) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!requireSavedJobForExport()) return;
-  // Guard: don't let a customer-facing quote go out with the demo company
-  // name still in place. A non-technical user could easily ship "Prime
-  // Window & Door" to a real customer without noticing.
-  const cn = (DATA.config.brand && DATA.config.brand.companyName) || "";
-  if (!DATA.config.onboarded || cn === DEMO_BRAND.companyName) {
-    const proceed = confirm(
-      "Heads up — this quote still shows the demo company name \"" + (cn || "Prime Window & Door") + "\".\n\n" +
-      "Set up your profile first so the customer sees YOUR company name, logo, and contact info.\n\n" +
-      "OK = set up now   ·   Cancel = generate with demo branding anyway"
-    );
-    if (proceed) { startSetupFlow(); return; }
-    // else fall through and generate with demo branding (their choice)
-  }
+  // ONBD-1 / OUT-3: don't let a customer-facing quote go out on demo BRANDING
+  // *or* demo PRICING. The old code only checked the demo company name, so a
+  // user who set their brand but never entered rates could ship a demo-priced
+  // quote silently. A real modal (not an inverted confirm) offers the safe fix
+  // and an explicit "Send anyway"; force=true re-enters past the guard.
+  if (!force && demoExportBlocked(() => exportCustomerPDF(mode, true))) return;
   logQuoteEvent("customer_quote");
+  markFirstQuoteSent();
   window.track("customer_pdf_downloaded");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -16337,10 +16854,15 @@ async function buildCustomerSharePayload() {
   };
 }
 
-async function shareCustomerQuote() {
+async function shareCustomerQuote(force) {
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!window.PublicQuote) { toast("Share unavailable — refresh the page"); return; }
+  // OUT-5: a shared public link is a customer-facing document — require a saved
+  // job just like View/Download (was the only one of the three that skipped it).
+  if (!requireSavedJobForExport()) return;
+  // ONBD-1: it's also the most public artifact — guard demo branding/pricing.
+  if (!force && demoExportBlocked(() => shareCustomerQuote(true))) return;
 
   let payload, url;
   try {
@@ -16367,6 +16889,7 @@ async function shareCustomerQuote() {
         method: (navigator.share ? "native" : "clipboard")
       });
     }
+    markFirstQuoteSent();   // ONBD-2 checklist item 6
   } catch (e) { /* analytics is best-effort */ }
   try { logQuoteEvent && logQuoteEvent("quote_shared"); } catch (e) {}
 
@@ -19808,7 +20331,22 @@ function updateCrewCostReadout() {
 // Reads the entire admin form into DATA and persists. Every field is range/NaN
 // guarded, so an autosave fired mid-edit on one field can't write a partial or
 // invalid value — it just skips the in-flight one. Silent: no close, no toast.
+// SET-1 / ONBD-5: signature of everything a Settings save can change EXCEPT
+// brand identity and job defaults — i.e. the actual pricing (margin, tax, labor,
+// window/door/material/trim rates) plus manufacturer rates. commitAdmin mutates
+// only brand, jobDefaults, manufacturers and pricing, so blanking brand +
+// jobDefaults means any signature change is a genuine RATE edit. Used to clear
+// the demo banner only when a real price changes — never on a brand/company edit.
+function _pricingSignature() {
+  const c = clone(DATA.config || {});
+  c.brand = null;
+  c.jobDefaults = null;
+  c.ratesCustomized = null;
+  return JSON.stringify({ config: c, mfrRates: DATA.manufacturerRates });
+}
+
 function commitAdmin() {
+  const _ratesBefore = _pricingSignature();
   // Brand
   if (!DATA.config.brand) DATA.config.brand = {};
   DATA.config.brand.companyName = document.getElementById("brandCompanyName").value.trim();
@@ -20019,8 +20557,13 @@ function commitAdmin() {
   const bfLift = document.getElementById("adminBfInspExtraLiftDay");
   bf.inspection.extraLiftDay = !!(bfLift && bfLift.checked);
 
-  // Saving real rates counts as customizing — clears the demo banner
-  DATA.config.ratesCustomized = true;
+  // SET-1 / ONBD-5: only certify "rates customized" when a real PRICING value
+  // actually changed. Editing brand/company info (or the wizard writing pre-filled
+  // demo values) must NOT silently clear the demo-rates banner — that's how a
+  // demo-priced quote escapes to a real customer. Never un-set once true.
+  if (!DATA.config.ratesCustomized && _pricingSignature() !== _ratesBefore) {
+    DATA.config.ratesCustomized = true;
+  }
   saveData(DATA);
   applyBrandToUI();
   bindControls();
@@ -20560,12 +21103,21 @@ async function handlePlanUpload(files, source) {
       return;
     }
 
+    // AIPLAN-2 (partial): report the outcome in ONE message so the partial-read /
+    // truncation WARNING is never overwritten by the credits note. Previously each
+    // fired its own 1.6s toast into a single slot, and the warning — the message
+    // the user must act on — lost the race to the credits toast. The warning leads.
+    // NOTE: the full fix (a persistent result panel instead of a toast, plus a
+    // "retry only the failed sheets" that merges without re-billing succeeded
+    // chunks — AIPLAN-1) needs the live read flow and is tracked for that pass.
+    const _readMsg = [];
+    if (failChunks) _readMsg.push(`⚠ Read ${okChunks} of ${chunks.length} sections — about ${failChunks * PLAN_CHUNK_SIZE} pages couldn't be read; re-upload just those sheets`);
+    if (truncated) _readMsg.push(`only the first ${MAX_PLAN_PAGES} of ${detectedPages} pages were read`);
     if (!adminUser) {
       const rem = getAiReadsRemaining();
-      if (rem !== Infinity) toast(`${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
+      if (rem !== Infinity) _readMsg.push(`${okChunks} AI read${okChunks === 1 ? "" : "s"} used — ${rem} left ${getEntitlements().plan === "trial" ? "in your trial" : "this month"}`);
     }
-    if (failChunks) toast(`Read ${okChunks} of ${chunks.length} sections — about ${failChunks * PLAN_CHUNK_SIZE} pages couldn't be read. Re-upload those sheets to finish.`);
-    if (truncated) toast("Read the first " + MAX_PLAN_PAGES + " of " + detectedPages + " pages. Contact your admin to raise the page limit, or re-upload just the schedule sheets.");
+    if (_readMsg.length) toast(_readMsg.join(" · "));
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
     try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length, chunks: chunks.length, okChunks }); } catch (_) {}
   } catch (err) {
@@ -21671,6 +22223,34 @@ function exportCutListPDF(mode) {
 /* ============================================================
    JOB COMPARISON
    ============================================================ */
+// CMP-1: re-exposed comparison entry points. The redesigned dashboard dropped
+// the per-card toggle and the "view comparison" bar, orphaning a paid feature
+// whose engine (openComparison / renderComparisonModal / compareModal) is fully
+// intact. These restore the toggle + a floating bar; the bar's button is wired
+// to openComparison. compareSet is the same Set the engine already reads.
+function updateCompareBar() {
+  const bar = document.getElementById("compareBar");
+  if (!bar) return;
+  const n = compareSet.size;
+  const show = n >= 2;
+  bar.classList.toggle("hidden", !show);
+  bar.classList.toggle("flex", show);
+  const cnt = document.getElementById("compareBarCount");
+  if (cnt) cnt.textContent = n + " selected";
+}
+function toggleCompareJob(id, btn) {
+  if (compareSet.has(id)) compareSet.delete(id);
+  else {
+    const cap = compareCap();
+    if (compareSet.size >= cap) { toast(`You can compare up to ${cap} jobs on your plan — remove one first`); return; }
+    compareSet.add(id);
+  }
+  const on = compareSet.has(id);
+  if (btn) { btn.classList.toggle("is-on", on); btn.setAttribute("aria-pressed", String(on)); btn.textContent = on ? "✓ Compare" : "Compare"; }
+  updateCompareBar();
+}
+function clearCompare() { compareSet.clear(); updateCompareBar(); try { renderDashJobs(loadJobs()); } catch (_) {} }
+
 function openComparison() {
   const all = loadJobs();
   // preserve the user's selection order; resolve to job objects, drop misses
@@ -21981,7 +22561,8 @@ function setAuthMode(mode) {
   document.getElementById("authPassword").setAttribute("placeholder",
     signup ? "Create a password" : "Password");
   const confirm = document.getElementById("authConfirm");
-  confirm.classList.toggle("hidden", !signup);
+  const confirmWrap = document.getElementById("authConfirmWrap");
+  (confirmWrap || confirm).classList.toggle("hidden", !signup);
   confirm.value = "";
   // Forgot-password link only makes sense in login mode
   document.getElementById("authForgotRow").classList.toggle("hidden", signup);
@@ -22627,6 +23208,15 @@ function closeAuth() {
   tvDismiss(document.getElementById("authScreen"));
 }
 
+// AUTH-8: true if any auth field has typed content, so a backdrop mis-tap won't
+// silently discard it.
+function authFormHasContent() {
+  return ["authEmail", "authPassword", "authConfirm", "recEmail"].some(id => {
+    const el = document.getElementById(id);
+    return el && typeof el.value === "string" && el.value.trim().length > 0;
+  });
+}
+
 // ====================================================================
 // Pricing — Phase 1 constants
 //   Pure-frontend tier model. Phase 2 will gate features off this; Phase 3
@@ -22805,7 +23395,7 @@ function aiReadsMeterHtml() {
   const remaining = getAiReadsRemaining();
   const where = getEntitlements().plan === "trial" ? "in your trial" : "this month";
   const tier = remaining <= 0 ? "limit" : (remaining <= 1 ? "low" : "ok");
-  const tail = remaining <= 0 ? ` &middot; <span class="aim-cta">Upgrade for more</span>` : "";
+  const tail = remaining <= 0 ? ` &middot; <span class="aim-cta" data-aim-upgrade role="button" tabindex="0">Upgrade for more</span>` : "";
   return `<span class="aim aim-${tier}">✨ ${remaining} of ${cap} AI plan read${cap === 1 ? "" : "s"} left ${where}${tail}</span>`;
 }
 function renderAiReadsMeter() {
@@ -23881,7 +24471,12 @@ async function boot() {
   document.getElementById("recCancel").addEventListener("click", () => setAuthMode("login"));
   document.getElementById("authNewPwForm").addEventListener("submit", handleNewPasswordSubmit);
   document.getElementById("authScreen").addEventListener("click", e => {
-    if (e.target.dataset.authClose !== undefined) closeAuth();
+    if (e.target.dataset.authClose === undefined) return;
+    // AUTH-8: a backdrop mis-tap must not silently discard a partly-typed form.
+    // The explicit × always closes; a backdrop tap is ignored while any auth field
+    // has content (Esc still closes too).
+    if (e.target.classList.contains("modal-backdrop") && authFormHasContent()) return;
+    closeAuth();
   });
 
   // React to auth-state changes (magic-link return, multi-tab sign-out, etc.)
@@ -24025,6 +24620,10 @@ const DEMO_BRAND = { companyName: "Prime Window & Door", city: "Ocala", state: "
 
 function showOnboarding() {
   window.track("onboarding_opened");
+  // ONBD-3: the onboard screen is z-70, below the dashboard (z-74). Opening it
+  // from the dashboard avatar menu would render it UNDERNEATH — the click looked
+  // like it did nothing. Close the dashboard first.
+  try { closeDashboard(); } catch (_) {}
   const b = DATA.config.brand || {};
   // Before first onboarding, treat demo placeholders as empty so the user
   // types their own. After they've onboarded, show whatever they saved.
@@ -24317,6 +24916,7 @@ function showSetupStep(n) {
 }
 
 function showSetupWizard() {
+  try { closeDashboard(); } catch (_) {}   // ONBD-3: setupScreen is z-72, below the dashboard (z-74)
   document.getElementById("setupLabor").value = (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30;
   document.getElementById("setupMargin").value = DATA.config.defaultMargin ?? 35;
   document.getElementById("setupMfrBody").dataset.filled = "";
@@ -24343,6 +24943,7 @@ function setupBack() {
 // Save whatever the user entered, then close the wizard.
 // viaSkip = they bailed — leaves ratesCustomized false so the demo banner shows.
 function completeSetup(viaSkip) {
+  const _ratesBefore = _pricingSignature();
   const labor = parseFloat(document.getElementById("setupLabor").value);
   const margin = parseFloat(document.getElementById("setupMargin").value);
   // Write to the crew-pay rate that actually drives the quote's labor line
@@ -24361,7 +24962,10 @@ function completeSetup(viaSkip) {
     if (!DATA.manufacturers.includes(STATE.manufacturer)) STATE.manufacturer = DATA.manufacturers[0];
   }
   DATA.config.setupComplete = true;
-  if (!viaSkip) DATA.config.ratesCustomized = true;
+  // ONBD-5: only certify customized when the wizard actually changed a pricing
+  // value (labor/margin/mfr rates) — clicking through pre-filled demo numbers
+  // must leave the demo banner up so demo-priced quotes can't slip out.
+  if (!viaSkip && _pricingSignature() !== _ratesBefore) DATA.config.ratesCustomized = true;
   saveData(DATA);
   hideSetupWizard();
   applyBrandToUI();
@@ -24400,7 +25004,10 @@ function renderSetupNudge() {
   // Auto-clear the dismiss flag once setup is truly done so future
   // partial-resets (rare) still surface the nudge.
   if (!incomplete) setNudgeDismissed(false);
-  const show = incomplete && !isNudgeDismissed();
+  // ONBD-12: never stack with the demo-rates banner. The rates message (pricing
+  // safety) takes priority; this brand-setup nudge only appears once rates are
+  // customized (so exactly one banner is ever shown at the top of the calculator).
+  const show = DATA.config.ratesCustomized && incomplete && !isNudgeDismissed();
   bar.classList.toggle("is-on", show);
   // Tweak CTA label so it matches the stage they're at
   const cta = document.getElementById("setupNudgeCta");
@@ -24418,7 +25025,10 @@ function renderSetupNudge() {
 function startSetupFlow() {
   if (!DATA.config.onboarded) showOnboarding();
   else if (!DATA.config.setupComplete) showSetupWizard();
-  else toast("Setup already complete");
+  // ONBD-7: never dead-end. If the wizard was skipped/finished but the user still
+  // wants to set things up, send them to the rates in Settings (the wizard's real
+  // job) instead of a "Setup already complete" toast that goes nowhere.
+  else { try { openAdmin(); showSettingsTab("rates"); showRatesLeaf("money"); } catch (_) { toast("Setup already complete"); } }
 }
 
 // Materials on the pricing checklist — generic item names, with the exact
@@ -24960,8 +25570,10 @@ function init() {
   document.getElementById("setupChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("download"));
   document.getElementById("viewChecklistBtn").addEventListener("click", () => exportPricingChecklistPDF("view"));
 
-  // Demo-data banner
-  document.getElementById("demoBannerSettings").addEventListener("click", openAdmin);
+  // Demo-data banner — SET-4: deep-link straight to the rates, not the Brand tab.
+  document.getElementById("demoBannerSettings").addEventListener("click", () => {
+    try { openAdmin(); showSettingsTab("rates"); showRatesLeaf("money"); } catch (_) { try { openAdmin(); } catch (_e) {} }
+  });
   document.getElementById("demoBannerDismiss").addEventListener("click", () => {
     demoBannerDismissed = true;
     renderDemoBanner();
@@ -25028,6 +25640,16 @@ function init() {
   });
   const subResetBtn = document.getElementById("subResetEntitlements");
   if (subResetBtn) subResetBtn.addEventListener("click", resetEntitlementsDev);
+  // AIPLAN-9: the "Upgrade for more" text in the exhausted AI-reads meter was
+  // styled clickable but had no handler. Delegate a click/Enter to open pricing.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-aim-upgrade]")) showPricing("ai_reads_meter");
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest("[data-aim-upgrade]")) {
+      e.preventDefault(); showPricing("ai_reads_meter");
+    }
+  });
 
   // PFP menu → "My plan" — drops into the Subscription tab in Settings
   const pfpMyPlanBtn = document.getElementById("pfpMyPlan");
@@ -25053,6 +25675,14 @@ function init() {
 
   // Onboarding wizard
   document.getElementById("obSubmit").addEventListener("click", submitOnboarding);
+  // ONBD-6: exit the opt-in profile screen without filling it out. Lands in the
+  // calculator (demo data + the setup nudge keep pointing them back when ready).
+  document.getElementById("obLater")?.addEventListener("click", () => {
+    const ob = document.getElementById("onboardScreen");
+    ob.classList.add("hidden"); ob.classList.remove("flex");
+    try { closeDashboard(); } catch (_) {}
+    try { renderSetupNudge(); } catch (_) {}
+  });
   document.getElementById("obLogoBtn").addEventListener("click", () => document.getElementById("obLogoInput").click());
   document.getElementById("obLogoInput").addEventListener("change", async e => {
     const f = e.target.files[0]; e.target.value = "";
@@ -25153,6 +25783,7 @@ function init() {
   _rail.addEventListener("mouseleave", () => { _railMouseOver = false; railUnpeek(); });
 
   document.getElementById("viewCompareBtn")?.addEventListener("click", openComparison);
+  document.getElementById("compareClearBtn")?.addEventListener("click", clearCompare);
   document.getElementById("exportComparisonPdf").addEventListener("click", () => exportComparisonPDF("download"));
   document.getElementById("viewComparisonPdf").addEventListener("click", () => exportComparisonPDF("view"));
   document.getElementById("compareModal").addEventListener("click", e => {
@@ -25169,6 +25800,7 @@ function init() {
   document.querySelectorAll("#emptyStateChips .empty-chip").forEach(chip => {
     chip.addEventListener("click", () => {
       const lf = chip.dataset.lf;
+      const windows = chip.dataset.windows;
       const construction = chip.dataset.construction;
       const house = chip.dataset.house;
       const impact = chip.dataset.impact;
@@ -25178,6 +25810,15 @@ function init() {
       STATE.totalLF = String(lf);
       const lfInput = document.getElementById("totalLF");
       if (lfInput) lfInput.value = STATE.totalLF;
+
+      // CALC-3: a sample must include a window count, or per-opening SETUP LABOR
+      // (caulk, screws, and the largest labor line) prices at zero and the demo
+      // reads far too cheap — the one number a prospect sanity-checks.
+      if (windows) {
+        STATE.windowCount = String(windows);
+        const wcInput = document.getElementById("windowCountInput");
+        if (wcInput) wcInput.value = STATE.windowCount;
+      }
 
       STATE.constructionType = construction;
       STATE.houseType = house;
