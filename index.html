@@ -6835,7 +6835,7 @@
           <button type="button" id="suggestSwingDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
         </div>
       </div>
-      <div class="rail-field hidden" id="storageRailField">
+      <div class="rail-field" id="storageRailField">
         <label><span class="lbl-impact med">Material storage</span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Monthly cost to store materials on site (container rental, semi drop, or both &mdash; you add it up) &times; the months the job runs.</p>
         <div class="space-y-2">
@@ -10786,7 +10786,7 @@ function calculate() {
   // Material storage — on-site container / semi drop: monthly cost × projected
   // months. Job-level pass-through (marked up, not taxed); user types the cost.
   {
-    const monthly = STATE.highRise ? (parseFloat(STATE.storageMonthlyCost) || 0) : 0;
+    const monthly = parseFloat(STATE.storageMonthlyCost) || 0;   // FLR-2: on-site material storage isn't high-rise-specific — prices whenever a cost is entered
     const months = Math.max(1, parseInt(STATE.projectedMonths, 10) || 1);
     const cost = monthly * months;
     if (cost > 0) {
@@ -11178,10 +11178,9 @@ function updateHighRiseVisibility() {
   }
   const lfBtn = document.getElementById("likeFloorsToggleBtn");
   if (lfBtn) lfBtn.classList.toggle("hidden", !on);
-  ["extraFloorsField", "storageRailField"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle("hidden", !on);
-  });
+  // extraFloors is high-rise-only; material storage (FLR-2) is available on any
+  // job, so it's no longer gated here — it lives in Extras like Permit.
+  { const _ef = document.getElementById("extraFloorsField"); if (_ef) _ef.classList.toggle("hidden", !on); }
   updateSwingStageVisibility();
 }
 
