@@ -5967,7 +5967,7 @@
             <tr><td>Materials list PDF</td><td class="cell-yes">&#10003;</td><td class="cell-yes">&#10003;</td><td class="cell-yes">&#10003;</td></tr>
             <tr><td>FL approval lookup</td><td class="cell-yes">&#10003;</td><td class="cell-yes">&#10003;</td><td class="cell-yes">&#10003;</td></tr>
             <tr><td>Buck cut list</td><td class="cell-no">&ndash;</td><td class="cell-yes">&#10003;</td><td class="cell-yes">&#10003;</td></tr>
-            <tr><td>AI plan reads / mo</td><td class="cell-val">2</td><td class="cell-val">100</td><td class="cell-val">Unlimited</td></tr>
+            <tr><td>AI plan reads / mo (25 pages each)</td><td class="cell-val">2</td><td class="cell-val">100</td><td class="cell-val">Unlimited</td></tr>
 
             <tr class="cat-row"><td colspan="4">Customer-facing</td></tr>
             <tr><td>Shareable quote URLs</td><td class="cell-no">&ndash;</td><td class="cell-yes">&#10003;</td><td class="cell-yes">&#10003;</td></tr>
@@ -6067,7 +6067,7 @@
           <summary>Do you charge for the AI plan-reader separately?
             <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
           </summary>
-          <div class="faq-a">AI plan reads are included on every paid plan — 2 a month on Starter, 100 a month on Pro, and unlimited on Shop — at no extra charge. The free trial includes a few so you can try it.</div>
+          <div class="faq-a">AI plan reads are included on every paid plan — 2 a month on Starter, 100 a month on Pro, and unlimited on Shop — at no extra charge. One read covers up to 25 plan pages, so a large multi-sheet plan uses one read per 25 pages. The free trial includes 5 so you can try it.</div>
         </details>
         <details class="lp-faq">
           <summary>Is there a setup fee?
@@ -6759,13 +6759,14 @@
 
       <!-- ─── QUICK START ─── -->
       <div class="rail-field">
-        <label><span class="lbl-impact low">AI tools</span><span class="info-tip" tabindex="0" role="button" aria-label="How AI tools affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag low">Low impact</span><br>Optional helpers — scan a plan or build a buck cut list to speed up entry. They fill in the job for you but don't change the price on their own.</span></span></label>
+        <label><span class="lbl-impact high">AI tools</span><span class="info-tip" tabindex="0" role="button" aria-label="How AI tools affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">Review before you quote</span><br>These fill the job straight from your plan — including window count and linear footage, which drive the price. Big time-savers, but double-check what they set.</span></span></label>
         <div class="space-y-2">
           <input id="readPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" multiple class="hidden" />
-          <label for="readPlanFile" id="readFromPlanBtn" class="btn w-full rounded-lg px-3 py-2.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.12em] uppercase inline-flex items-center justify-center gap-2 cursor-pointer">
+          <label for="readPlanFile" id="readFromPlanBtn" tabindex="0" role="button" class="btn w-full rounded-lg px-3 py-2.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.12em] uppercase inline-flex items-center justify-center gap-2 cursor-pointer">
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
             Upload Window Schedule
           </label>
+          <div class="ai-reads-meter"></div>
         </div>
       </div>
 
@@ -6861,6 +6862,8 @@
         </div>
         <div id="lfPerWindowHint" class="hidden mt-2 text-slate-500 text-[10px] tracking-[0.16em] uppercase font-semibold" style="font-variant-numeric: tabular-nums;"></div>
         <div id="lfFloorTotalHint" class="hidden mt-1 text-[10px] tracking-[0.16em] uppercase font-bold" style="color: var(--gold-hi, #c9a558); font-variant-numeric: tabular-nums;"></div>
+        <!-- AIPLAN-5: persistent link to review each opening the AI read (survives the toast). -->
+        <button type="button" id="aiReviewChip" class="hidden mt-2 text-[10px] font-bold tracking-[0.12em] uppercase text-[#c9a558] hover:text-[#d8b96a] inline-flex items-center gap-1"></button>
       </div>
       <div class="rail-field"><label><span class="lbl-impact med">Application</span><span class="info-tip" tabindex="0" role="button" aria-label="How application affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>The install detail (nail-fin vs. leg) can carry its own per-LF unit pricing for some brands. Match it to the actual opening.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How the window attaches to the wall — match what the job uses.</p>
@@ -7362,15 +7365,15 @@
       <button class="modal-close" data-close-read aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-5 overflow-y-auto">
-      <!-- ⚡ AI auto-upload — primary path; the manual Grok steps below remain as a fallback -->
+      <!-- ⚡ AI auto-upload — one file, read automatically (no manual Grok paste). -->
       <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
         <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
         <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window schedule. One upload fills the window count, total LF, and manufacturer — and builds your buck cut list — automatically. No Grok tab, no copy/paste.</div>
-        <label for="readPlanFile" id="readPlanUploadBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2 cursor-pointer">
+        <label for="readPlanFile" id="readPlanUploadBtn" tabindex="0" role="button" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2 cursor-pointer">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
           Choose plan file
         </label>
-        <div id="readPlanUploadStatus" class="hidden mt-3 flex items-center gap-2 text-[12px] font-semibold"></div>
+        <div id="readPlanUploadStatus" role="status" aria-live="polite" aria-atomic="true" class="hidden mt-3 flex items-center gap-2 text-[12px] font-semibold"></div>
         <div class="ai-reads-meter mt-2.5"></div>
       </div>
     </div>
@@ -7392,16 +7395,16 @@
       <button class="modal-close" data-close-buck aria-label="Close">×</button>
     </div>
     <div class="px-6 py-5 space-y-5 overflow-y-auto">
-      <!-- ⚡ AI auto-upload — primary path; the manual Grok steps below remain as a fallback -->
+      <!-- ⚡ AI auto-upload — one file, read automatically (no manual Grok paste). -->
       <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
         <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
         <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window/door schedule. One upload builds the cut list — and fills the window count, total LF, and manufacturer — automatically. No Grok tab, no copy/paste.</div>
         <input id="buckPlanFile" type="file" accept="application/pdf,image/png,image/jpeg" multiple class="hidden" />
-        <label for="buckPlanFile" id="buckPlanUploadBtn" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2 cursor-pointer">
+        <label for="buckPlanFile" id="buckPlanUploadBtn" tabindex="0" role="button" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2 cursor-pointer">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
           Choose plan file
         </label>
-        <div id="buckPlanUploadStatus" class="hidden mt-3 flex items-center gap-2 text-[12px] font-semibold"></div>
+        <div id="buckPlanUploadStatus" role="status" aria-live="polite" aria-atomic="true" class="hidden mt-3 flex items-center gap-2 text-[12px] font-semibold"></div>
         <div class="ai-reads-meter mt-2.5"></div>
       </div>
 
@@ -12514,6 +12517,11 @@ const DASH_CARDS = [
       ? `${ctx.jobCount} job${ctx.jobCount === 1 ? "" : "s"}${ctx.openCount ? ` · ${ctx.openCount} open` : ""}`
       : "No saved jobs yet",
     preview2: (ctx) => ctx.jobCount ? `Avg ${formatMoney(ctx.avgJobVal)} per quote` : "" },
+  { key: "aiplan", title: "AI plan read", goto: "aiplan",
+    blurb: "Photograph or upload the window schedule — AI fills the count, LF, brand, doors & FL approvals for you.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 12h6M12 9v6"/></svg>`,
+    preview: () => "Have plans? Skip the typing",
+    preview2: () => (currentUser && typeof getEntitlements === "function" && getEntitlements().plan === "trial" && typeof getAiReadsRemaining === "function") ? `${getAiReadsRemaining()} free reads left` : "" },
   { key: "shopping", title: "Shopping list",
     blurb: "Each job's materials as packs and cases to buy — check them off as you shop or print the list.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2 2 4-4"/><path d="M5 6h16l-1.5 9.5a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 4H3"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>`,
@@ -12736,6 +12744,12 @@ function dashCardBody(key, ctx, jobs) {
     if (rest > 0) parts.push({ value: rest, color: "#475569" });
     const legend = entries.slice(0, 3).map((e, i) => `<span class="dlb-leg"><span class="dlb-leg-dot" style="background:${MAT_COLORS[i % MAT_COLORS.length]}"></span><span class="dlb-leg-name">${escHtml(e[0])}</span><span class="dlb-leg-pct">${Math.round(e[1] / total * 100)}%</span></span>`).join("");
     return `<span class="dlb-donutwrap">${dashMiniDonut(parts, 96)}<span class="dlb-legend">${legend}</span></span>`;
+  }
+  if (key === "aiplan") {
+    // AIPLAN-13: the launchpad renders each card's body via dashCardBody (not the card's
+    // own preview fns), so give the AI card a body here — with a trial-only reads hint.
+    const trialLeft = (currentUser && typeof getEntitlements === "function" && getEntitlements().plan === "trial" && typeof getAiReadsRemaining === "function") ? getAiReadsRemaining() : null;
+    return dlbEmpty(trialLeft != null ? `Have plans? Skip the typing — ${trialLeft} free reads left` : "Have plans? Skip the typing.");
   }
   return "";
 }
@@ -15169,6 +15183,9 @@ function wireDashboard() {
         // The Manufacturers card opens Settings → Setup → Manufacturers (where the
         // brand list + per-brand params live), not an in-dashboard panel.
         if (target === "setup-manufacturers") { try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {} }
+        // AIPLAN-13: the AI card leaves the dashboard and opens the plan picker (same
+        // path the empty-state scan link uses).
+        else if (target === "aiplan") { try { closeDashboard(); document.getElementById("readFromPlanBtn").click(); } catch (_) {} }
         else dashGoTo(target);
       }
     });
@@ -22070,7 +22087,10 @@ function setPlanUploadStatus(elId, msg, kind) {
     ? '<svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="14" y2="14"/><line x1="14" y1="6" x2="6" y2="14"/></svg>'
     : "";
   el.innerHTML = icon + "<span>" + escHtml(msg) + "</span>";
-  el.classList.remove("hidden", "text-slate-300", "text-rose-300", "text-emerald-300", "text-[#c9a558]");
+  // AIPLAN-16: a prior showPlanError() swaps this div to "block" and strips the flex
+  // classes — restore them so a later busy/ok status isn't jammed into one line.
+  el.classList.remove("hidden", "block", "text-slate-300", "text-rose-300", "text-emerald-300", "text-[#c9a558]");
+  el.classList.add("flex", "items-center", "gap-2");
   el.classList.add(kind === "error" ? "text-rose-300" : kind === "ok" ? "text-emerald-300" : kind === "busy" ? "text-[#c9a558]" : "text-slate-300");
 }
 
@@ -22125,7 +22145,7 @@ function showPlanError(msg, debug) {
     status.classList.remove("hidden", "flex", "items-center", "gap-2", "text-[#c9a558]", "text-emerald-300", "text-slate-300");
     status.classList.add("block", "text-rose-300");
     let html = '<div class="font-semibold">' + escHtml(msg) + '</div>';
-    if (debug) {
+    if (debug && typeof isAdmin === "function" && isAdmin()) {   // AIPLAN-7 review fix: the "(admin)" diagnostics blob is admin-only
       const s = (typeof debug === "string") ? debug : JSON.stringify(debug, null, 2);
       const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
       html += '<div class="text-[10px] text-slate-500 mt-2 mb-1">Diagnostics (admin) — copy &amp; paste this to support:</div>' +
@@ -22134,7 +22154,14 @@ function showPlanError(msg, debug) {
     status.innerHTML = html;
   }
   const modal = document.getElementById("readPlanModal");
-  if (modal) { modal.classList.remove("hidden"); modal.classList.add("flex"); }
+  if (modal) {
+    // AIPLAN-15: this modal now only appears as an error surface, so title it like one
+    // (its static header still reads like a fresh upload pitch).
+    const h = modal.querySelector("h3"); const p = h && h.nextElementSibling;
+    if (h) h.textContent = "We couldn't read that plan";
+    if (p && p.tagName === "P") p.textContent = "Try a clearer scan, or just the schedule sheet, then upload again.";
+    modal.classList.remove("hidden"); modal.classList.add("flex");
+  }
 }
 
 const MAX_PLAN_PAGES = 100;  // total page-images sent to the AI across all files.
@@ -22226,8 +22253,8 @@ async function handlePlanUpload(files, source) {
     const truncated = detectedPages > MAX_PLAN_PAGES;
     if (truncated) {
       // Up-front alert: the upload is bigger than the cap. We read the first
-      // MAX_PLAN_PAGES and point the user to an admin to raise the limit.
-      toast(`This plan has ${detectedPages} pages — Anchor reads up to ${MAX_PLAN_PAGES}. Reading the first ${MAX_PLAN_PAGES}; contact your admin to raise the page limit.`);
+      // MAX_PLAN_PAGES; give a self-serve next step, not an "admin" that solo users lack.
+      toast(`This plan has ${detectedPages} pages — Anchor reads up to ${MAX_PLAN_PAGES}. Reading the first ${MAX_PLAN_PAGES}; upload just the schedule sheets, or contact support to raise the limit.`);
     }
     // ── Chunked extraction ────────────────────────────────────────────────
     // ≤ PLAN_CHUNK_SIZE pages = one call. Larger plans split into ~25-page chunks
@@ -22249,16 +22276,26 @@ async function handlePlanUpload(files, source) {
         return;
       }
     }
+    // AIPLAN-3: a multi-chunk plan silently spends multiple credits. Disclose the concrete
+    // cost and confirm before spending (admins / unlimited plans are never nagged).
+    if (!adminUser && creditsNeeded > 1) {
+      const rem = getAiReadsRemaining();
+      if (rem !== Infinity && !confirm(`This ${allImages.length}-page plan uses ${creditsNeeded} of your ${rem} AI reads (1 per ${PLAN_CHUNK_SIZE} pages). Read it now?`)) {
+        if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "");   // review fix: the finally only self-heals the rail — clear the buck spinner on decline
+        return;
+      }
+    }
     if (usingRail) toast("Reading your plan" + (files.length > 1 ? "s" : "") + " with AI — " + (chunks.length > 1 ? "large plans can take a few minutes…" : "up to a minute…"));
 
     const texts = new Array(chunks.length).fill(null);
     let okChunks = 0, failChunks = 0, hitCap = false, lastFail = null;
+    // AIPLAN-4: 3 workers run in parallel, so a per-chunk page-range label just clobbers.
+    // Show a cumulative "X of N sections read" count that's monotonic and lands on N of N
+    // (updated both when a chunk starts and when it completes).
+    const bumpReadProgress = () => { if (chunks.length > 1) setBusy(`Reading your plan — ${okChunks + failChunks} of ${chunks.length} sections read…`); };
     const runChunk = async (idx) => {
-      const startPage = idx * PLAN_CHUNK_SIZE + 1;
-      const endPage = startPage + chunks[idx].length - 1;
-      setBusy(chunks.length > 1
-        ? `Reading pages ${startPage}–${endPage} of ${allImages.length} with AI…`
-        : `Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
+      if (chunks.length === 1) setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
+      else bumpReadProgress();
       let res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
       // one retry on a transient failure (timeout / 5xx) — not on cap / auth / too-large
       if (!res.ok && res.status !== 429 && res.status !== 403 && res.status !== 413) {
@@ -22269,6 +22306,7 @@ async function handlePlanUpload(files, source) {
       // ("AI is busy") is refunded server-side, so treating it as hitCap would
       // wrongly pin the local meter to the cap and lock the user out for the cycle.
       else { failChunks++; lastFail = res; if (res.status === 429 && res.code === "cap_reached") hitCap = true; }
+      bumpReadProgress();   // refresh on completion so the count advances to "N of N"
     };
     // concurrency-limited parallel run (respects xAI rate limits)
     let nextIdx = 0;
@@ -22326,7 +22364,14 @@ async function handlePlanUpload(files, source) {
     if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — your plan was read.", "ok");
     try { window.track("plan_ai_extracted", { source, files: files.length, pages: allImages.length, chunks: chunks.length, okChunks }); } catch (_) {}
   } catch (err) {
-    setErr("Something went wrong — try again in a moment.");
+    // AIPLAN-7: name the real cause instead of a generic "try again" — all three of these
+    // are thrown BEFORE any edge-fn call, so a specific next step is actionable.
+    const m = (err && err.message) || "";
+    let msg = "Something went wrong — try again in a moment.";
+    if (err && err.name === "PasswordException") msg = "That PDF is password-protected — remove the password or export a flat copy, then re-upload.";
+    else if (/PDF renderer/i.test(m)) msg = "Couldn't load the PDF reader — check your connection and try again.";
+    else if (/read image/i.test(m)) msg = "That image format isn't supported — use a JPEG, PNG, or PDF.";
+    setErr(msg, m || (err && String(err)));
   } finally {
     _planUploadBusy = false;
     if (fileInput) fileInput.disabled = false;
@@ -22367,6 +22412,17 @@ function clearFieldAi(field) {
 }
 function clearAllAiFilled() {
   document.querySelectorAll(".rail-field.ai-filled").forEach(clearFieldAi);
+  const chip = document.getElementById("aiReviewChip");   // AIPLAN-5: no AI fields → no review chip
+  if (chip) chip.classList.add("hidden");
+}
+// AIPLAN-5: after an AI read, surface a persistent link to the per-opening editor (the
+// Buck modal) so the takeoff can be reviewed instead of trusted sight-unseen.
+function showAiReviewChip(n) {
+  const chip = document.getElementById("aiReviewChip");
+  if (!chip) return;
+  if (!n) { chip.classList.add("hidden"); return; }
+  chip.textContent = `↳ Review the ${n} opening${n === 1 ? "" : "s"} the AI read`;
+  chip.classList.remove("hidden");
 }
 // Clear the AI badge for a control that doesn't emit a native input/change the
 // capture listener can catch (the custom manufacturer dropdown, the door
@@ -22481,7 +22537,10 @@ function applyFullExtraction(text, source) {
   render();
   // Read Plan modal closes (the toast is the glance-check summary); the Buck
   // modal stays open so the user sees the generated cut list.
-  if (source !== "buck") { try { closeReadPlanModal(); } catch (_) {} }
+  if (source !== "buck") {
+    try { closeReadPlanModal(); } catch (_) {}
+    try { showAiReviewChip(openings.length); } catch (_) {}   // AIPLAN-5: gate on THIS read's openings, not a stale STATE.buckList from a prior read
+  }
   toast(`Applied: ${applied.join(" · ")}`);
   return true;
 }
@@ -23263,6 +23322,7 @@ function generateCutList() {
 
 function clearBuckList() {
   STATE.buckList = null;
+  try { showAiReviewChip(0); } catch (_) {}   // AIPLAN-5 review fix: the openings the chip points at are gone
   renderBuckResult();
   render();
   toast("Cut list cleared");
@@ -24465,7 +24525,7 @@ const PLANS = [
     quoteLimit: 25,
     features: [
       "25 quotes per month",
-      "2 AI plan reads per month",
+      "2 AI plan reads per month (up to 25 pages each)",
       "Full calculator + cost breakdown",
       "Customer-ready PDF quotes",
       "FL approval lookup",
@@ -24486,7 +24546,7 @@ const PLANS = [
     features: [
       "200 quotes per month",
       "Everything in Starter, plus:",
-      "100 AI plan reads per month",
+      "100 AI plan reads per month (up to 25 pages each)",
       "Buck cut list optimizer",
       "Customer e-signatures",
       "Customer-shareable quote URLs",
@@ -27584,6 +27644,25 @@ function init() {
   if (emptyScanLink) emptyScanLink.addEventListener("click", () => {
     document.getElementById("readFromPlanBtn").click();
   });
+
+  // AIPLAN-6: the three AI-upload triggers are <label>s (not tab-stops). Make them
+  // keyboard-operable — Enter/Space opens the picker via the linked file input.
+  ["readFromPlanBtn", "readPlanUploadBtn", "buckPlanUploadBtn"].forEach(bid => {
+    const el = document.getElementById(bid);
+    if (el) el.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        const inp = document.getElementById(el.getAttribute("for"));
+        if (inp) inp.click();
+      }
+    });
+  });
+  // AIPLAN-3/10: populate the rail AI-reads meter up front (auto-hidden when empty).
+  try { renderAiReadsMeter(); } catch (_) {}
+  // AIPLAN-4: warn before navigating away while a metered read is still debiting credits.
+  window.addEventListener("beforeunload", e => { if (_planUploadBusy) { e.preventDefault(); e.returnValue = ""; } });
+  // AIPLAN-5: the review chip opens the per-opening editor (Buck modal).
+  { const rc = document.getElementById("aiReviewChip"); if (rc) rc.addEventListener("click", () => { try { openBuckModal(); } catch (_) {} }); }
 
   // Read from Plan / Schedule
   // "Upload Window Schedule" is a <label for="readPlanFile"> — clicking it opens
