@@ -3555,7 +3555,16 @@
   .fan-card-img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0b1120; -webkit-user-drag: none; user-select: none; pointer-events: none; }
   .fan-card-zoom { position: absolute; right: 6px; bottom: 6px; width: 22px; height: 22px; border-radius: 999px; background: rgba(2,6,23,0.65); color: #e2cf9a; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .25s ease; pointer-events: none; }
   .fan-card:hover .fan-card-zoom { opacity: 1; }
-  .jd-fan-empty { text-align: center; color: #475569; font-size: 12px; padding: 26px 12px; border: 1px dashed #1e293b; border-radius: 14px; }
+  /* PHOTO-9: the empty state is now a tappable drop-zone button */
+  .jd-fan-empty { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; text-align: center; color: #64748b; font-size: 12px; font-weight: 600; padding: 22px 12px; border: 1px dashed #334155; border-radius: 14px; background: transparent; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease; }
+  .jd-fan-empty:hover { border-color: rgba(201,165,88,0.5); color: #c9a558; background: rgba(181,143,74,0.05); }
+  .jd-fan-empty svg { color: #94a3b8; margin-bottom: 3px; }
+  .jd-fan-empty:hover svg { color: #c9a558; }
+  .jd-fan-empty-sub { font-size: 10.5px; font-weight: 500; color: #64748b; }
+  .jd-gallery-hint { font-size: 10px; color: #64748b; margin: 0 0 8px; line-height: 1.4; }
+  [data-theme="light"] .jd-fan-empty { color: #64748b; border-color: #d6dae1; }
+  [data-theme="light"] .jd-fan-empty:hover { color: #8a6a2e; border-color: rgba(138,106,46,0.4); }
+  @media (pointer: coarse) { #jdAddPhotos { min-height: 44px; padding-left: 6px; padding-right: 6px; } }
   .jd-fan-controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px; }
   .jd-fan-arrow { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 999px; border: 1.5px solid rgba(181,143,74,0.35); background: rgba(181,143,74,0.08); color: #c9a558; cursor: pointer; transition: all .2s ease; }
   .jd-fan-arrow:hover { border-color: #c9a558; background: rgba(181,143,74,0.16); }
@@ -6494,8 +6503,8 @@
         <div id="dashShopping"></div>
       </div>
     </div>
-    <input id="dashPhotoInput" type="file" accept="image/png,image/jpeg" class="hidden" />
-    <input id="jdGalleryInput" type="file" accept="image/png,image/jpeg" multiple class="hidden" />
+    <input id="dashPhotoInput" type="file" accept="image/*" class="hidden" />
+    <input id="jdGalleryInput" type="file" accept="image/*" multiple class="hidden" />
 
     <footer class="mt-12 pt-6 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
       <div class="flex items-center gap-3 flex-wrap justify-center">
@@ -7488,6 +7497,15 @@
           <span class="block text-[11px] text-slate-500 font-normal">Adds them to your quick-pick list for next time. Uncheck for a one-time job (a remodel, etc.).</span>
         </span>
       </label>
+      <!-- PHOTO-10: attach install photos right when saving — no 5-step detour afterward. -->
+      <div class="pt-1">
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job photos <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+        <button type="button" id="saveJobAddPhotos" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-300 hover:text-[#c9a558] inline-flex items-center justify-center gap-2 min-h-[44px]">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+          <span id="saveJobPhotoLabel">Add job photos</span>
+        </button>
+        <input id="saveJobPhotoInput" type="file" accept="image/*" multiple class="hidden" />
+      </div>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
       <button data-close-save class="btn rounded-full text-sm text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Cancel</button>
@@ -14542,9 +14560,17 @@ async function resolveSignedPhotoURL(path) {
 function hydratePhotoThumbs(root) {
   const scope = root || document;
   scope.querySelectorAll("img[data-photo-path]:not([data-photo-done])").forEach((img) => {
-    img.setAttribute("data-photo-done", "1");
+    img.setAttribute("data-photo-done", "1");   // claim it so a concurrent pass can't double-fetch
     resolveSignedPhotoURL(img.dataset.photoPath).then((url) => {
-      if (url) img.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "v=" + (img.dataset.photoV || "0");
+      if (url) {
+        // PHOTO-7: on a dead/expired signed URL, un-claim + flag so the next render pass
+        // retries instead of the image staying blank forever.
+        img.onerror = () => { img.removeAttribute("data-photo-done"); img.dataset.photoErr = "1"; };
+        img.onload = () => { delete img.dataset.photoErr; };
+        img.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "v=" + (img.dataset.photoV || "0");
+      } else {
+        img.removeAttribute("data-photo-done"); img.dataset.photoErr = "1";   // resolve failed (offline) → retry next pass
+      }
     });
   });
 }
@@ -14639,16 +14665,28 @@ async function migrateBase64Photos() {
    ============================================================ */
 function jobGalleryList(j) { return Array.isArray(j && j.photos) ? j.photos.filter(Boolean) : []; }
 
+// PHOTO-13: count every photo a job carries (cover + gallery) so a delete confirm can
+// name the irreversible consequence instead of hiding it.
+function jobPhotoCount(j) {
+  if (!j) return 0;
+  return ((j.photoPath || j.photo) ? 1 : 0) + (Array.isArray(j.photos) ? j.photos.filter(Boolean).length : 0);
+}
+function confirmDeleteJob(j) {
+  const n = jobPhotoCount(j);
+  return confirm(n ? `Delete this job and its ${n} photo${n === 1 ? "" : "s"}? This can't be undone.` : "Delete this job? This can't be undone.");
+}
+
 let _jdGalleryTargetId = null;   // job id awaiting files from #jdGalleryInput
 
 async function addJobGalleryPhotos(id, dataUrls) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
-  if (!j) return;
+  if (!j) return { added: 0, capped: false, saved: false };
   if (!Array.isArray(j.photos)) j.photos = [];
   const MAX_GALLERY = 24;
+  let added = 0, capped = false;
   for (let i = 0; i < dataUrls.length; i++) {
-    if (j.photos.length >= MAX_GALLERY) { toast("Photo limit reached — up to 24 per job."); break; }
+    if (j.photos.length >= MAX_GALLERY) { capped = true; break; }   // PHOTO-3: report via return, not a clobbered toast
     const dataUrl = dataUrls[i];
     if (!dataUrl) continue;
     let stored = false;
@@ -14662,12 +14700,16 @@ async function addJobGalleryPhotos(id, dataUrls) {
       } catch (e) { console.warn("gallery upload failed, keeping local", e); }
     }
     if (!stored) j.photos.push(dataUrl);   // base64 fallback (offline / draft)
+    added++;
   }
   j.photosUpdatedAt = Date.now();
-  saveJobs(jobs);
-  if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
+  // FLD-7: propagate the real write result — saveJobs returns false when device
+  // storage is full, so the caller must not report a false success.
+  const saved = saveJobs(jobs);
+  if (saved && !j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   renderDashboard();
   if (_jdJobId === id) renderJobDetails(j);
+  return { added, capped, saved };
 }
 
 async function removeJobGalleryPhoto(id, idx) {
@@ -14702,12 +14744,13 @@ function jobGalleryHTML(job) {
            <button type="button" class="jd-fan-arrow" data-jdg-next aria-label="Next">${chev("right")}</button>
          </div>
        </div>`
-    : `<div class="jd-fan-empty">No installation photos yet — add a few to document the install and keep records.</div>`;
+    : `<button type="button" id="jdEmptyAddPhotos" class="jd-fan-empty"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg><span>Add installation photos</span><span class="jd-fan-empty-sub">Document the install and keep records.</span></button>`;
   return `<div class="jd-section jd-gallery">
     <div class="flex items-center justify-between mb-2">
       <div class="jd-section-title" style="margin-bottom:0;">Installation photos${photos.length ? ` <span style="color:#475569;font-weight:600;">· ${photos.length}</span>` : ""}</div>
       <button type="button" id="jdAddPhotos" class="text-[11px] font-bold text-[#c9a558] hover:text-[#d8b96a] inline-flex items-center gap-1">+ Add photos</button>
     </div>
+    <div class="jd-gallery-hint">Separate from the dashboard cover photo — add as many as you like (up to 24).</div>
     ${carousel}
   </div>`;
 }
@@ -14759,8 +14802,9 @@ function layoutJobFan(fan, center) {
 function wireJobGallery(job) {
   const root = document.getElementById("jobDetailsBody");
   if (!root) return;
-  const addBtn = root.querySelector("#jdAddPhotos");
-  if (addBtn) addBtn.addEventListener("click", () => { _jdGalleryTargetId = job.id; document.getElementById("jdGalleryInput")?.click(); });
+  // PHOTO-9: both the header "+ Add photos" and the empty-state drop-zone open the picker.
+  const openPicker = () => { _jdGalleryTargetId = job.id; document.getElementById("jdGalleryInput")?.click(); };
+  root.querySelectorAll("#jdAddPhotos, #jdEmptyAddPhotos").forEach(b => b.addEventListener("click", openPicker));
   const fan = root.querySelector(".jd-fan");
   if (!fan) return;
   let center = parseInt(fan.dataset.jdgCenter || "0", 10) || 0;
@@ -14888,7 +14932,23 @@ async function showLightboxPhoto() {
   if (!lb.classList.contains("open") || _lbJobId == null || now[_lbIdx] !== entry) return;
   const next = src || "";
   img.onload = () => { img.style.opacity = "1"; };
-  img.onerror = () => { img.style.opacity = "1"; };
+  img.onerror = () => {
+    // PHOTO-7: a dead/expired signed URL used to paint the broken-image glyph as success.
+    // The load can error long after a close/navigate, so guard on liveness (mirrors the
+    // resolve-race guard above) before blanking the stage or toasting.
+    const cur = lightboxPhotos();
+    if (!lb.classList.contains("open") || _lbJobId == null || cur[_lbIdx] !== entry) return;
+    img.removeAttribute("src"); img.style.opacity = "1";
+    if (!/^data:/.test(entry)) delete _photoUrlCache[entry];
+    toast("Couldn't load that photo — reopen to retry.");
+  };
+  if (!next && !/^data:/.test(entry)) {
+    // PHOTO-7: the signed-URL resolve failed (offline/expired) — don't leave a blank stage silently.
+    if (entry) delete _photoUrlCache[entry];
+    img.removeAttribute("src"); img.style.opacity = "1";
+    toast("Couldn't load that photo — check your connection, then reopen.");
+    return;
+  }
   if (img.getAttribute("src") === next) {
     img.style.opacity = "1";   // identical src: the browser won't refire load
   } else {
@@ -15046,6 +15106,10 @@ async function generateJobThumbnail(jobId, btn) {
   if (!sb || !currentUser) { toast("Sign in to generate a thumbnail"); return; }
   const job = loadJobs().find(x => x.id === jobId);
   if (!job) { toast("Job not found"); return; }
+  // PHOTO-12: this replaces the current cover AND spends an AI-image credit. Confirm only
+  // when a cover already exists AND a NEW generation will be billed — a cached retry (a
+  // paid image whose earlier local save failed) reuses that image and spends no credit.
+  if (!_aiThumbCache[jobId] && (job.photoPath || job.photo) && !confirm("Replace the current cover photo with an AI image? This uses 1 image credit and the current photo can't be recovered.")) return;
   const prev = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
   try {
@@ -15232,7 +15296,7 @@ function wireDashboard() {
       const loadBtn = e.target.closest("[data-dash-load]");
       if (loadBtn) { loadJob(loadBtn.dataset.dashLoad); closeDashboard(); return; }
       const delBtn = e.target.closest("[data-dash-del]");
-      if (delBtn) { if (confirm("Delete this job? This can't be undone.")) { deleteJob(delBtn.dataset.dashDel); renderDashboard(); } return; }
+      if (delBtn) { if (confirmDeleteJob(loadJobs().find(x => x.id === delBtn.dataset.dashDel))) { deleteJob(delBtn.dataset.dashDel); renderDashboard(); } return; }
     });
     grid.addEventListener("change", (e) => {
       const sel = e.target.closest("[data-dash-status]");
@@ -15334,20 +15398,13 @@ function wireDashboard() {
     if (!file || !id) return;
     if (file.size > 12 * 1024 * 1024) { toast("That image is too large (max ~12MB)."); return; }
     try {
+      // PHOTO-1: store the user's REAL photo (just compressed) — do not bake a blur +
+      // job title into it. Baking discarded the original and left a stale title after a
+      // rename; the job name already shows in the card text beside the thumbnail, so the
+      // overlay was redundant. (AI-generated thumbnails still composite — they're
+      // stylized art with no original to protect.)
       const dataUrl = await compressJobPhoto(file);
-      // Brand the uploaded photo like a Grok thumbnail — blurred background with
-      // the job title overlaid — so every dashboard tile looks consistent.
-      const job = loadJobs().find(x => x.id === id);
-      // Job name is the headline; customer name confirms it just below (matches
-      // the Grok-thumbnail + job-card hierarchy).
-      const title = (job && (job.name || job.customerName)) || "Window Job";
-      const cust = (job && job.customerName && job.customerName !== title) ? job.customerName : "";
-      const subtitle = cust || ((job && job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "");
-      let thumb = dataUrl;
-      // Half the blur of a Grok thumbnail (radius 3 vs 6) — a real uploaded job
-      // photo should stay recognizable behind the title.
-      try { thumb = await composeJobThumbnail(dataUrl, title, subtitle, 3); } catch (_) { /* fall back to the raw photo */ }
-      await saveJobPhoto(id, thumb);
+      await saveJobPhoto(id, dataUrl);
       toast("Photo added");
     }
     catch (_) { toast("Couldn't read that image"); }
@@ -15358,15 +15415,38 @@ function wireDashboard() {
     e.target.value = "";
     const id = _jdGalleryTargetId; _jdGalleryTargetId = null;
     if (!files.length || !id) return;
-    const okFiles = files.filter(f => f.size <= 15 * 1024 * 1024);
-    if (okFiles.length < files.length) toast("Some images were too large (max ~15MB) and were skipped.");
-    if (!okFiles.length) return;
-    toast(okFiles.length === 1 ? "Adding photo…" : ("Adding " + okFiles.length + " photos…"));
-    const dataUrls = [];
-    for (const f of okFiles) { try { dataUrls.push(await compressJobPhoto(f, 1400, 0.82)); } catch (_) {} }
-    if (!dataUrls.length) { toast("Couldn't read those images"); return; }
-    await addJobGalleryPhotos(id, dataUrls);
-    toast(dataUrls.length === 1 ? "Photo added" : (dataUrls.length + " photos added"));
+    const tooBig = files.filter(f => f.size > 15 * 1024 * 1024).length;
+    let okFiles = files.filter(f => f.size <= 15 * 1024 * 1024);
+    // PHOTO-3: enforce the 24-per-job cap at pick time so we don't compress throwaways.
+    const room = Math.max(0, 24 - jobGalleryList(loadJobs().find(x => x.id === id) || {}).length);
+    const overCap = Math.max(0, okFiles.length - room);
+    okFiles = okFiles.slice(0, room);
+    if (!okFiles.length) { toast(room === 0 ? "Photo limit reached — up to 24 per job." : "Couldn't add those images."); return; }
+    const addBtn = document.getElementById("jdAddPhotos");
+    const addLabel = addBtn ? addBtn.textContent : "";
+    if (addBtn) addBtn.disabled = true;
+    try {
+      // PHOTO-3: show real progress while compressing (the slow part); PHOTO-11: count
+      // per-file decode failures instead of dropping them silently.
+      const dataUrls = []; let unreadable = 0;
+      for (const f of okFiles) {
+        if (addBtn) addBtn.textContent = "Adding " + (dataUrls.length + unreadable + 1) + "/" + okFiles.length + "…";
+        try { dataUrls.push(await compressJobPhoto(f, 1400, 0.82)); } catch (_) { unreadable++; }
+      }
+      if (!dataUrls.length) { toast("Couldn't read those images."); return; }
+      const res = await addJobGalleryPhotos(id, dataUrls);   // { added, capped, saved }
+      // FLD-7: never claim success when the write actually failed.
+      if (!res.saved) { toast("Couldn't save — this device's storage is full. Sign in so photos sync to the cloud."); return; }
+      const skipped = [];
+      if (tooBig) skipped.push(tooBig + " too large");
+      if (unreadable) skipped.push(unreadable + " unreadable");
+      if (overCap || res.capped) skipped.push("over the 24-per-job limit");
+      const suffix = skipped.length ? " — skipped " + skipped.join(", ") : "";
+      const local = (currentUser && isUuid(id)) ? "" : " (saved on this device)";
+      toast((res.added === 1 ? "Photo added" : res.added + " photos added") + local + suffix);
+    } finally {
+      if (addBtn) { addBtn.disabled = false; addBtn.textContent = addLabel; }
+    }
   });
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
   on("dashHome", () => dashGoTo("home"));
@@ -15693,7 +15773,7 @@ function renderJobDetails(job) {
   // VER-7: hop between versions in the same family (save edits first so navigation doesn't lose them)
   body.querySelectorAll("[data-jd-version]").forEach(b => b.addEventListener("click", () => { saveJobDetailsEdits(job.id, true); openJobDetails(b.dataset.jdVersion); }));
   const del = body.querySelector("[data-jd-delete]");
-  if (del) del.addEventListener("click", () => { if (confirm("Delete this job? This can't be undone.")) { deleteJob(job.id); closeJobDetails(); renderDashboard(); } });
+  if (del) del.addEventListener("click", () => { if (confirmDeleteJob(job)) { deleteJob(job.id); closeJobDetails(); renderDashboard(); } });
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
   // (Logging actuals moved to the dashboard's Pricing calibration card.)
   const jdPhoto = document.getElementById("jdPhoto");
@@ -16836,9 +16916,18 @@ function closeManageCustomers() {
 // by the "save this job first" gate. Stash it here so doSaveJob resumes it once the
 // user actually saves; cleared on every open/abort so it can never fire stale.
 let _pendingAfterSave = null;
+// PHOTO-10: photos picked in the Save modal are staged here (a fresh save has no job id
+// yet) and attached in doSaveJob once the job is written and has an id.
+let _pendingSaveJobPhotos = [];
+function _resetSaveJobPhotoUI() {
+  _pendingSaveJobPhotos = [];
+  const l = document.getElementById("saveJobPhotoLabel");
+  if (l) l.textContent = "Add job photos";
+}
 
 function openSaveJobModal() {
   _pendingAfterSave = null;   // a fresh open clears any stale pending; the gate re-sets it
+  _resetSaveJobPhotoUI();     // PHOTO-10: drop any photos staged from a previous open
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return false; }
   // OUT-4: surface the plan wall BEFORE the user fills the whole form. A fresh save
@@ -16879,6 +16968,7 @@ function openSaveJobModal() {
 
 function closeSaveJobModal() {
   _pendingAfterSave = null;   // OUT-7: closing the save form abandons any interrupted action
+  _pendingSaveJobPhotos = []; // PHOTO-10: abandon any staged (unsaved) photos
   tvDismiss(document.getElementById("saveJobModal"));
 }
 
@@ -17024,6 +17114,9 @@ function doSaveJob(overrideId) {
   // OUT-7: capture any interrupted action BEFORE closeSaveJobModal() clears the
   // stash, then run it once the save fully settles (below).
   const _resumeAfterSave = _pendingAfterSave; _pendingAfterSave = null;
+  // PHOTO-10: capture photos staged in the Save modal (closeSaveJobModal clears the
+  // staging), then attach them to the now-saved job's gallery below.
+  const _stagedPhotos = _pendingSaveJobPhotos; _pendingSaveJobPhotos = [];
 
   // Cancel any pending draft autosync and retire the promoted draft's cloud row
   // so the just-saved job can't be reverted by a stale background draft push.
@@ -17036,6 +17129,12 @@ function doSaveJob(overrideId) {
   renderSavedJobs();
   updateSaveVersionVisibility();
   toast(overwrite ? "Job updated" : (draftIdx >= 0 ? "Draft saved as job" : "Job saved"));
+  // PHOTO-10: attach staged photos to the saved job — and (review fix) surface a
+  // photo-write failure or 24-cap drop instead of discarding the result.
+  if (_stagedPhotos && _stagedPhotos.length) addJobGalleryPhotos(id, _stagedPhotos).then(res => {
+    if (res && !res.saved) toast("Job saved, but photos couldn't be stored — this device's storage is full.");
+    else if (res && res.capped) toast("Some photos weren't added — 24-per-job limit reached.");
+  });
   if (_resumeAfterSave) setTimeout(_resumeAfterSave, 0);   // OUT-7: resume the interrupted export/action
 }
 
@@ -26832,6 +26931,34 @@ function init() {
   const saveModal = document.getElementById("saveJobModal");
   saveModal.addEventListener("click", e => { if (e.target.dataset.closeSave !== undefined) closeSaveJobModal(); });
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
+  // PHOTO-10: stage photos picked in the Save modal (compressed) until the job is saved.
+  { const b = document.getElementById("saveJobAddPhotos"); if (b) b.addEventListener("click", () => document.getElementById("saveJobPhotoInput")?.click()); }
+  { const inp = document.getElementById("saveJobPhotoInput"); if (inp) inp.addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files || []); e.target.value = "";
+      const label = document.getElementById("saveJobPhotoLabel");
+      // Count the target job's EXISTING gallery too (a re-save carries it forward), so we
+      // never stage photos that would just be cap-dropped at attach time.
+      const cur = STATE.currentJobId ? loadJobs().find(j => j.id === STATE.currentJobId) : null;
+      const existing = cur ? jobGalleryList(cur).length : 0;
+      const room = Math.max(0, 24 - existing - _pendingSaveJobPhotos.length);
+      const okFiles = files.filter(f => f.size <= 15 * 1024 * 1024).slice(0, room);
+      if (!okFiles.length) {
+        if (room === 0) toast("Photo limit reached — up to 24 per job.");
+        else if (label && !_pendingSaveJobPhotos.length) label.textContent = "Add job photos";
+        return;
+      }
+      // Block Save while compression is in flight so a fast Save can't orphan staged photos.
+      const saveBtn = document.getElementById("saveJobConfirm");
+      if (saveBtn) saveBtn.disabled = true;
+      if (label) label.textContent = "Adding…";
+      try {
+        for (const f of okFiles) { try { _pendingSaveJobPhotos.push(await compressJobPhoto(f, 1400, 0.82)); } catch (_) {} }
+      } finally {
+        if (saveBtn) saveBtn.disabled = false;
+        const n = _pendingSaveJobPhotos.length;
+        if (label) label.textContent = n ? (n + " photo" + (n === 1 ? "" : "s") + " ready — tap to add more") : "Add job photos";
+      }
+    }); }
   // Save-conflict prompt (overwrite existing vs save a new quote)
   const _conf = document.getElementById("saveConflictModal");
   if (_conf && !_conf._wired) {
