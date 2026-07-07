@@ -1185,7 +1185,12 @@
      (scoped to the modal — the global user-scalable=no is intentionally left intact). */
   .pdf-preview-canvas { cursor: zoom-in; }
   #pdfPreviewPages.zoomed { overflow: auto; align-items: flex-start; }
-  #pdfPreviewPages.zoomed .pdf-preview-canvas { max-width: none; cursor: zoom-out; }
+  /* OUT-2 fix: each page canvas is rendered at an inline width:760px, so the old
+     max-width:none alone couldn't enlarge it past 760px — on desktop that's ~the
+     modal width, so the tap did nothing. `zoom` is a real layout scale (unlike
+     transform it reflows multi-page stacks and pans correctly via the overflow:auto
+     above), giving a visible 1.6× zoom on every screen size. */
+  #pdfPreviewPages.zoomed .pdf-preview-canvas { max-width: none; zoom: 1.6; cursor: zoom-out; }
   @media (max-width: 520px) {
     .jf-card { flex-wrap: wrap; }
     .jf-actions { width: 100%; justify-content: flex-end; padding-top: 4px; }
@@ -7572,12 +7577,15 @@
 <!-- Save Job Modal -->
 <div id="saveJobModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50 sheet-on-mobile">
   <div class="absolute inset-0 modal-backdrop" data-close-save></div>
-  <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col">
+  <!-- Fix: cap the card height + scroll the fields internally (the only modal that
+       lacked the house pattern) so a tall Save form doesn't run off a short desktop
+       viewport and steal-scroll the background. Matches readPlanModal/buckModal. -->
+  <div class="relative card rounded-3xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
       <h3 class="text-base font-semibold text-slate-100">Save Job</h3>
       <button class="modal-close" data-close-save aria-label="Close">×</button>
     </div>
-    <div class="px-6 py-5 space-y-4">
+    <div class="px-6 py-5 space-y-4 overflow-y-auto">
       <!-- Auto-remembered customer book: pick a past customer to auto-fill the
            fields below. Derived from saved jobs (newest info wins); stays hidden
            until the user has at least one saved customer. -->
@@ -27450,8 +27458,12 @@ function init() {
     quickSaveOrPrompt();
   });
 
-  // Save Job modal
+  // Save Job modal — guard against double-attachment: init() runs more than once
+  // (post-login boot / offline fallback), and without this the "Add job photos"
+  // button ends up with two click listeners → one tap fires the file dialog twice,
+  // so it reopens after you pick. (Save button was double-bound the same way.)
   const saveModal = document.getElementById("saveJobModal");
+  if (saveModal && !saveModal._wired) {
   saveModal.addEventListener("click", e => { if (e.target.dataset.closeSave !== undefined) closeSaveJobModal(); });
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
   // PHOTO-10: stage photos picked in the Save modal (compressed) until the job is saved.
@@ -27482,6 +27494,8 @@ function init() {
         if (label) label.textContent = n ? (n + " photo" + (n === 1 ? "" : "s") + " ready — tap to add more") : "Add job photos";
       }
     }); }
+    saveModal._wired = true;
+  }
   // Save-conflict prompt (overwrite existing vs save a new quote)
   const _conf = document.getElementById("saveConflictModal");
   if (_conf && !_conf._wired) {
