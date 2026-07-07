@@ -13587,6 +13587,7 @@ function trapDialog(modalEl, closeFn) {
   modalEl._dlgPrevFocus = document.activeElement;
   modalEl._dlgClose = closeFn || null;   // the stack-aware Escape handler closes the top dialog via this
   _dlgStack.push(modalEl);
+  navPushOverlay(modalEl);   // Phase 4d: give Back an entry to pop (no-op unless HISTORY_NAV)
   const card = modalEl.querySelector(".modal-backdrop + div") || modalEl;
   setTimeout(() => {
     if (card.contains(document.activeElement)) return;   // opener already focused a field
@@ -13600,8 +13601,51 @@ function releaseDialog(modalEl) {
   if (i < 0) return;                       // wasn't a trapped dialog — nothing to do
   _dlgStack.splice(i, 1);
   modalEl._dlgClose = null;
+  navPopOverlay(modalEl);   // Phase 4d: pop our Back entry on an X/programmatic close (no-op unless HISTORY_NAV)
   const prev = modalEl._dlgPrevFocus; modalEl._dlgPrevFocus = null;
   try { prev && prev.focus && prev.focus(); } catch (_) {}
+}
+// ===== Phase 4d (MOB-1): browser/hardware Back closes the top open overlay instead
+// of exiting the app mid-quote. SHIPS DORMANT — HISTORY_NAV is false, so every history
+// call below early-returns and the app is behavior-identical to today (opening a modal
+// pushes NO history entry; nothing new runs at popstate). The calculator (#appBody) is
+// always mounted underneath, so "Back" is simply "close the top-most overlay".
+// Enable ONLY after a real-device + installed-PWA soak: hardware Back and PWA-standalone
+// Back semantics can't be verified in the desktop preview harness. Per-element flags
+// (_navPushed / _navBack) survive the async close animation; there is deliberately NO
+// second popstate listener (the existing one at the bottom of the file is extended).
+const HISTORY_NAV = false;
+function navPushOverlay(el) {
+  if (!HISTORY_NAV || !el || el._navPushed) return;
+  el._navPushed = true;
+  try { history.pushState({ _ov: el.id || 1 }, ""); } catch (_) {}
+}
+function navPopOverlay(el) {
+  if (!HISTORY_NAV || !el || !el._navPushed) return;
+  el._navPushed = false;
+  if (el._navBack) { el._navBack = false; return; }   // Back already popped our entry — don't double-pop
+  try { history.back(); } catch (_) {}
+}
+// Close exactly ONE open overlay, top-first (same order/close-fns Escape uses), so Back
+// and Escape stay consistent. Returns true if it closed something.
+function navResolveBack() {
+  let el = null, fn = null;
+  if (_dlgStack.length) { const top = _dlgStack[_dlgStack.length - 1]; if (top && top._dlgClose) { el = top; fn = top._dlgClose; } }
+  if (!fn) {
+    // Non-trapped modals, top-first. Screen-level surfaces (dashboard "home", landing)
+    // are intentionally excluded from the dormant core — their Back-as-home semantics
+    // are a product decision to settle during the device soak.
+    const overlays = [
+      ["saveConflictModal", typeof closeSaveConflict === "function" ? closeSaveConflict : null],
+      ["saveJobModal", typeof closeSaveJobModal === "function" ? closeSaveJobModal : null],
+      ["adminModal", typeof closeAdmin === "function" ? closeAdmin : null],
+    ];
+    for (const [id, f] of overlays) { const e = document.getElementById(id); if (e && f && !e.classList.contains("hidden")) { el = e; fn = f; break; } }
+  }
+  if (!el || !fn) return false;
+  el._navBack = true;   // tell navPopOverlay this close came from Back (the entry is already gone)
+  fn();
+  return true;
 }
 function tvDismiss(modalEl, onDone) {
   if (!modalEl) { if (onDone) onDone(); return; }
@@ -17276,6 +17320,7 @@ function openSaveJobModal() {
   const modal = document.getElementById("saveJobModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  navPushOverlay(modal);   // Phase 4d (no-op unless HISTORY_NAV)
   setTimeout(() => { try { document.getElementById("saveJobName").focus(); } catch {} }, 60);
   return true;
 }
@@ -17283,7 +17328,9 @@ function openSaveJobModal() {
 function closeSaveJobModal() {
   _pendingAfterSave = null;   // OUT-7: closing the save form abandons any interrupted action
   _pendingSaveJobPhotos = []; // PHOTO-10: abandon any staged (unsaved) photos
-  tvDismiss(document.getElementById("saveJobModal"));
+  const _m = document.getElementById("saveJobModal");
+  navPopOverlay(_m);   // Phase 4d (no-op unless HISTORY_NAV)
+  tvDismiss(_m);
 }
 
 // Save dispatcher: reads the form into STATE, then decides whether to update the
@@ -17459,9 +17506,9 @@ function showSaveConflict(twin) {
   const msg = document.getElementById("saveConflictMsg");
   if (msg) msg.textContent = `A saved job named “${twin.name || "Untitled"}”${twin.customerName ? ` for ${twin.customerName}` : ""} already exists. Overwrite it with this quote, or keep both by saving a new one?`;
   const m = document.getElementById("saveConflictModal");
-  if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
+  if (m) { m.classList.remove("hidden"); m.classList.add("flex"); navPushOverlay(m); }   // Phase 4d
 }
-function closeSaveConflict() { tvDismiss(document.getElementById("saveConflictModal")); }
+function closeSaveConflict() { const _m = document.getElementById("saveConflictModal"); navPopOverlay(_m); tvDismiss(_m); }
 
 // ONBD-1 / OUT-3: pre-export trust guard. Shows a real modal with two explicit
 // actions instead of the old inverted confirm() (where Cancel shipped a demo
@@ -19263,8 +19310,9 @@ function openAdmin() {
   renderSettingsSearch();
   applyStaticCollapseState();
   adminModal.classList.remove("hidden");
+  navPushOverlay(adminModal);   // Phase 4d (no-op unless HISTORY_NAV)
 }
-function closeAdmin() { tvDismiss(adminModal); }
+function closeAdmin() { navPopOverlay(adminModal); tvDismiss(adminModal); }
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
@@ -25682,6 +25730,10 @@ function handlePricingHashRoute() {
 }
 window.addEventListener("hashchange", handlePricingHashRoute);
 window.addEventListener("popstate", () => {
+  // Phase 4d (MOB-1): when enabled, Back closes the top open overlay first and stops.
+  // Dormant by default — with HISTORY_NAV false this whole block is skipped and the
+  // listener behaves exactly as before (just the pricing close).
+  if (HISTORY_NAV && navResolveBack()) return;
   if (window.location.hash !== "#/pricing") closePricing();
 });
 
