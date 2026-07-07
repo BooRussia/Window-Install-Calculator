@@ -125,6 +125,18 @@
   }
   .control:hover { border-color: rgba(100,116,139,0.7); }
   .control:focus, .control:focus-within { outline: none; border-color: var(--gold-hi); background: rgba(15,23,42,0.9); }
+  /* MOB-13: WebKit paints autofilled fields a light-yellow fill that would wipe out
+     the dark .control chrome (white-on-white text). Pin the fill + text to the
+     field's own colors so one-tap contact autofill stays legible. Light twin lives
+     in the LIGHT THEME block. */
+  .control:-webkit-autofill,
+  .control:-webkit-autofill:hover,
+  .control:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px rgba(15,23,42,0.9) inset;
+    -webkit-text-fill-color: #f1f5f9;
+    caret-color: #f1f5f9;
+    transition: background-color 9999s ease-out 0s;
+  }
 
   /* ------- Custom Dropdown ------- */
   .dd { position: relative; }
@@ -531,6 +543,9 @@
   @media (max-width: 1023px) {
     body.mtotal-on #jobRail > .overflow-y-auto { padding-bottom: 88px; }
     body.mtotal-on #jobSpecsFab { bottom: calc(88px + env(safe-area-inset-bottom)); }
+    /* MOB-3/FLD-4: now that toasts linger ≥4s, lift them above the sticky mobile
+       total bar so a failure message isn't hidden behind it. */
+    body.mtotal-on .toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
     /* VIS-1: reserve space below the results so the fixed FAB + sticky total bar
        never sit on top of the last content (e.g. the Customer Quote Download
        button). Without this the FAB overlapped tap targets in the Job Files card. */
@@ -1458,7 +1473,7 @@
 
   /* Toast */
   .toast {
-    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: rgba(15,23,42,0.95); border: 1px solid rgba(181,143,74,0.5);
     color: #fdf6e3; padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 600;
     opacity: 0; transition: opacity .2s ease, transform .2s ease;
@@ -2960,7 +2975,11 @@
   #setupNudge .nudge-dismiss:hover { color: #f0d49a; }
 
   /* Offline indicator pill — appears when cloud writes start failing */
-  #offlineIndicator {
+  /* FLD-5: keyed to a CLASS (not #offlineIndicator) so the same pill can appear on
+     both the app header and the full-screen dashboard overlay. FLD-10: tappable
+     (cursor:pointer) — a tap explains the offline state, since the title tooltip
+     never fires on touch. */
+  .offline-pill {
     display: none;
     align-items: center;
     gap: 6px;
@@ -2973,14 +2992,14 @@
     color: #f0c977;
     background: rgba(220, 150, 40, 0.15);
     border: 1px solid #d8a342;
-    cursor: help;
+    cursor: pointer;
     user-select: none;
     white-space: nowrap;
     animation: oi-fade-in 0.25s ease-out;
   }
-  body.is-offline #offlineIndicator { display: inline-flex; }
-  #offlineIndicator svg { color: #f0c977; flex-shrink: 0; }
-  #offlineIndicator .oi-dot { opacity: 0.55; margin: 0 1px; }
+  body.is-offline .offline-pill { display: inline-flex; }
+  .offline-pill svg { color: #f0c977; flex-shrink: 0; }
+  .offline-pill .oi-dot { opacity: 0.55; margin: 0 1px; }
   @keyframes oi-fade-in {
     from { opacity: 0; transform: translateY(-2px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -2988,8 +3007,12 @@
   /* On narrow screens, collapse to icon-only — connectivity is flakiest on
      mobile, so we keep it visible but compact it to save header space */
   @media (max-width: 480px) {
-    #offlineIndicator { padding: 5px 7px; }
-    #offlineIndicator .oi-label { display: none; }
+    .offline-pill { padding: 5px 7px; }
+    .offline-pill .oi-label { display: none; }
+  }
+  /* FLD-10: the compact icon-only pill is < 44px on touch — lift its hit area. */
+  @media (hover: none) and (pointer: coarse) {
+    .offline-pill { min-height: 44px; }
   }
 
   /* Usage badge — header pill that shows quote count or trial days left.
@@ -3064,6 +3087,14 @@
   [data-theme="light"] .control::placeholder,
   [data-theme="light"] textarea::placeholder,
   [data-theme="light"] input::placeholder { color: #94a3b8 !important; }
+  /* MOB-13: light-mode twin of the autofill fill guard. */
+  [data-theme="light"] .control:-webkit-autofill,
+  [data-theme="light"] .control:-webkit-autofill:hover,
+  [data-theme="light"] .control:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+    -webkit-text-fill-color: #0f172a;
+    caret-color: #0f172a;
+  }
   [data-theme="light"] .control:focus, [data-theme="light"] .control:focus-within { background: #ffffff !important; border-color: var(--gold-hi) !important; }
   [data-theme="light"] .dd-menu { background: #ffffff; border-color: #e2e8f0; box-shadow: 0 20px 44px -14px rgba(15,23,42,0.22); }
   [data-theme="light"] .dd-item { color: #334155; }
@@ -3883,8 +3914,8 @@
   [data-theme="light"] .county-combo-opt .ct-tax { color: #64748b; }
   [data-theme="light"] .county-combo-opt:hover .ct-tax,
   [data-theme="light"] .county-combo-opt.active .ct-tax { color: var(--gold-lo); }
-  [data-theme="light"] #offlineIndicator { color: #92400e; background: rgba(245,158,11,0.14); border-color: #d8a342; }
-  [data-theme="light"] #offlineIndicator svg { color: #b45309; }
+  [data-theme="light"] .offline-pill { color: #92400e; background: rgba(245,158,11,0.14); border-color: #d8a342; }
+  [data-theme="light"] .offline-pill svg { color: #b45309; }
   [data-theme="light"] #signOutBtn { color: #be123c; }
   [data-theme="light"] #signOutBtn:hover { color: #9f1239; }
   [data-theme="light"] .aim-ok,
@@ -6378,6 +6409,8 @@
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="10" cy="10" r="2.5"/></svg>
           </button>
           </div>
+          <!-- AUTH-10: password rule shown up front (signup only), not just on submit-error. -->
+          <p id="authPwHint" class="hidden text-[11px] text-slate-500 mt-1">Use at least 6 characters.</p>
         </div>
         <div id="authForgotRow" class="flex justify-end -mt-1">
           <button id="authForgotLink" type="button"
@@ -6390,6 +6423,9 @@
         </div>
         <button id="authSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Log In</button>
+        <!-- AUTH-9: signup-only consent line. Links use data-legal-link (auto-wired
+             globally); legalScreen is raised above the auth modal so it reads on top. -->
+        <div id="authLegalLine" class="hidden text-[11px] text-center text-slate-500 leading-snug px-2">By creating an account you agree to our <button type="button" data-legal-link="terms" class="btn underline underline-offset-2 decoration-slate-600 hover:text-[#c9a558]">Terms</button> and <button type="button" data-legal-link="privacy" class="btn underline underline-offset-2 decoration-slate-600 hover:text-[#c9a558]">Privacy Policy</button>.</div>
         <div id="authMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
         <!-- Social sign-in — needs the Google provider enabled in Supabase Auth -->
         <div class="flex items-center gap-3 py-0.5">
@@ -6430,8 +6466,16 @@
           <div class="text-base font-bold text-slate-100">Set New Password</div>
           <div class="text-xs text-slate-500 mt-0.5">Enter a new password for your account.</div>
         </div>
-        <input id="newPwInput" type="password" autocomplete="new-password" placeholder="New password"
-          class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        <div class="relative">
+          <input id="newPwInput" type="password" autocomplete="new-password" placeholder="New password"
+            class="control rounded-xl px-4 py-3 pr-11 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+          <!-- AUTH-10: the Set-New-Password form was missing the eye toggle the login form has. -->
+          <button id="newPwToggle" type="button" tabindex="-1" aria-label="Show or hide password"
+            class="btn absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#c9a558] p-1.5">
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="10" cy="10" r="2.5"/></svg>
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500 -mt-1.5">Use at least 6 characters.</p>
         <input id="newPwConfirm" type="password" autocomplete="new-password" placeholder="Confirm new password"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
         <button id="newPwSubmit" type="submit"
@@ -6456,6 +6500,14 @@
       </button>
       <div class="flex items-center gap-0.5 sm:gap-1">
         <!-- Settings / Plan / Sign out now live in the account (avatar) menu. -->
+        <!-- FLD-5: offline pill also on the dashboard overlay (the header pill is hidden under it). -->
+        <div id="dashOfflineIndicator" class="offline-pill" role="status" aria-live="polite" title="Your latest changes are stored on this device. They'll sync when the connection returns.">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17.5 19H9a5 5 0 0 1-1.4-9.8 7 7 0 0 1 13.4 3.3"/>
+            <line x1="3" y1="3" x2="21" y2="21"/>
+          </svg>
+          <span class="oi-label">Offline <span class="oi-dot">·</span> Saved locally</span>
+        </div>
         <button id="dashFL" type="button" class="dash-nav-btn hidden sm:inline-flex">FL Lookup</button>
         <button id="dashOpenCalc" type="button" class="lp-btn-gold btn rounded-full inline-flex items-center justify-center min-h-[44px] text-[12.5px] sm:text-[15px] font-black tracking-tight px-3 sm:px-5 py-2 sm:py-2.5 ml-0.5 sm:ml-1 whitespace-nowrap shrink-0"><span class="sm:hidden">Calculator →</span><span class="hidden sm:inline">Open Calculator →</span></button>
         <button id="dashPfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800 shrink-0 ml-1" aria-label="Account menu" aria-haspopup="true">
@@ -6601,7 +6653,7 @@
      reachable from footers, the PFP menu, and hash URLs
      (#/terms, #/privacy, #/disclaimer, #/cookies) for Stripe/Google.
      ============================================================ -->
-<div id="legalScreen" class="fixed inset-0 z-[80] hidden overflow-y-auto" style="background:#020617;">
+<div id="legalScreen" class="fixed inset-0 z-[95] hidden overflow-y-auto" style="background:#020617;">
   <nav class="lp-nav sticky top-0 z-30">
     <div class="max-w-5xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
       <button id="legalHome" type="button" class="flex items-center gap-2.5 group" aria-label="Back">
@@ -6685,7 +6737,7 @@
         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>
         Dashboard
       </button>
-      <div id="offlineIndicator" role="status" aria-live="polite" title="Your latest changes are stored on this device. They'll sync when the connection returns.">
+      <div id="offlineIndicator" class="offline-pill" role="status" aria-live="polite" title="Your latest changes are stored on this device. They'll sync when the connection returns.">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M17.5 19H9a5 5 0 0 1-1.4-9.8 7 7 0 0 1 13.4 3.3"/>
           <line x1="3" y1="3" x2="21" y2="21"/>
@@ -7536,33 +7588,33 @@
       </div>
       <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Customer</label>
-        <input id="saveJobName" type="text" placeholder="e.g. Acme Contracting" autocomplete="off"
+        <input id="saveJobName" type="text" placeholder="e.g. Acme Contracting" autocomplete="name" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
         <label for="saveJobCompany" class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Company <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
-        <input id="saveJobCompany" type="text" placeholder="e.g. Acme Contracting LLC" autocomplete="organization"
+        <input id="saveJobCompany" type="text" placeholder="e.g. Acme Contracting LLC" autocomplete="organization" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job name <span class="text-slate-600 normal-case tracking-normal">(this job)</span></label>
-        <input id="saveJobJobName" type="text" placeholder="e.g. Smith Residence · 123 Main St" autocomplete="off"
+        <input id="saveJobJobName" type="text" placeholder="e.g. Smith Residence · 123 Main St" autocomplete="off" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job Address</label>
-        <input id="saveJobAddress" type="text" placeholder="123 Main St, City, ST" autocomplete="off"
+        <input id="saveJobAddress" type="text" placeholder="123 Main St, City, ST" autocomplete="street-address" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Phone <span class="text-slate-600 normal-case tracking-normal">(opt)</span></label>
-          <input id="saveJobPhone" type="tel" placeholder="(555) 123-4567" autocomplete="off"
+          <input id="saveJobPhone" type="tel" placeholder="(555) 123-4567" autocomplete="tel" enterkeyhint="next"
             class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
         </div>
         <div>
           <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Email <span class="text-slate-600 normal-case tracking-normal">(opt)</span></label>
-          <input id="saveJobEmail" type="email" placeholder="name@email.com" autocomplete="off"
+          <input id="saveJobEmail" type="email" placeholder="name@email.com" autocomplete="email" enterkeyhint="done"
             class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
         </div>
       </div>
@@ -8696,7 +8748,7 @@
   </div>
 </div>
 
-<div id="toast" class="toast">Saved</div>
+<div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">Saved</div>
 
 <!-- Mobile-only thumb-reachable shortcut to open the job rail. Hidden on
      desktop (the pinned rail covers that case) and while the rail is open. -->
@@ -13742,8 +13794,10 @@ function custDonutSVG(stats, mode) {
         <span class="font-bold" style="color:currentColor">${Math.round(s.val / total * 100)}%</span>
       </div>`;
   }).join("");
+  // DASH-13: text alternative for screen readers (the legend beside it is visual only).
+  const custAria = `${centerLabel}: ${fmt(total)}. Share by customer: ${segs.map(s => escHtml(s.name) + " " + Math.round(s.val / total * 100) + "%").join(", ")}.`;
   return `<div class="flex flex-col sm:flex-row items-center gap-6 text-slate-400">
-      <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
+      <svg viewBox="0 0 240 240" role="img" aria-label="${custAria}" style="width:190px;height:190px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
         <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
         <text class="donut-center" data-countup="${total}" data-count-fmt="${mode === "jobs" ? "jobs" : "money"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${fmt(total)}</text>
       </svg>
@@ -13931,7 +13985,11 @@ async function renderDashEsign() {
     return;
   }
 
+  // FLD-8: instant skeleton so a slow fetch doesn't leave the drill-in blank.
+  wrap.innerHTML = `<div class="calib-empty"><div class="sg-spinner"></div><div class="text-xs text-slate-500">Loading your e-signatures…</div></div>`;
+
   let rows = [];
+  let loadError = false;
   try {
     const { data, error } = await sb.from("shared_quotes")
       .select("id, job_id, snapshot, detail_level, status, signer_name, signer_ip, signer_user_agent, viewed_at, signed_at, created_at")
@@ -13941,7 +13999,9 @@ async function renderDashEsign() {
     if (error) throw error;
     rows = Array.isArray(data) ? data : [];
   } catch (e) {
-    // Quiet failure — still show the sender so you can create a link.
+    // FLD-8: distinguish a load FAILURE from a genuine empty list — the old code
+    // swallowed the error into rows=[] and rendered "No quotes sent yet."
+    loadError = true;
     rows = [];
   }
 
@@ -14050,9 +14110,12 @@ async function renderDashEsign() {
       </div>`;
   }).join("");
 
+  // FLD-8: three distinct states — a load error is no longer disguised as "empty".
   const listHTML = rows.length
     ? `<div class="esign-list">${list}</div>`
-    : `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No quotes sent yet.</div><div class="text-xs mt-1.5">Send one above — sent, viewed, and signed quotes track here.</div></div>`;
+    : loadError
+      ? `<div class="calib-empty"><div class="text-rose-300 text-sm font-semibold">Couldn't load your e-signatures.</div><div class="text-xs mt-1.5">Check your connection — your sent quotes are safe.</div><button type="button" data-esign-retry class="esign-act mt-3">Retry</button></div>`
+      : `<div class="calib-empty"><div class="text-slate-300 text-sm font-semibold">No quotes sent yet.</div><div class="text-xs mt-1.5">Send one above — sent, viewed, and signed quotes track here.</div></div>`;
 
   wrap.innerHTML = head + sender + `<div class="jd-section-title mt-5 mb-2">Sent &amp; signed</div>` + listHTML;
 
@@ -14060,6 +14123,8 @@ async function renderDashEsign() {
     // Delegate all panel actions (survives re-renders since we bind once on the
     // stable container, checking dataset on the clicked target).
     wrap.addEventListener("click", (e) => {
+      // FLD-8: retry a failed load (re-invokes this render; _esignWired stays true).
+      if (e.target.closest("[data-esign-retry]")) { renderDashEsign(); return; }
       // Sender controls (send any job, detail toggle, copy the created link)
       if (e.target.closest("[data-esign-send]")) { dashEsignSend(); return; }
       const det = e.target.closest("[data-esign-detail]");
@@ -14335,8 +14400,10 @@ function renderJobsChart() {
   });
   const centerLabel = metric === "value" ? "Pipeline value" : "Total jobs";
   const centerVal = metric === "value" ? formatMoney(total) : String(total);
+  // DASH-13: text alternative (the clickable status legend below is visual only).
+  const jobsAria = `${centerLabel}: ${escHtml(centerVal)}. ` + JOB_STATUSES.filter(s => metricVal(s) > 0).map(s => `${s} ${Math.round(metricVal(s) / total * 100)}%`).join(", ") + ".";
   el.innerHTML = `<div class="flex justify-center text-slate-400">
-      <svg viewBox="0 0 240 240" style="width:180px;height:180px;"><g class="donut-rings">${rings}</g>
+      <svg viewBox="0 0 240 240" role="img" aria-label="${jobsAria}" style="width:180px;height:180px;"><g class="donut-rings">${rings}</g>
         <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">${centerLabel}</text>
         <text class="donut-center" data-countup="${total}" data-count-fmt="${metric === "value" ? "money" : "int"}" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:15px;font-weight:800;">${escHtml(centerVal)}</text>
       </svg>
@@ -14445,8 +14512,10 @@ function matChartPieSVG(items) {
       <span class="flex-1 truncate" style="color:currentColor">${escHtml(m.name)}</span>
       <span class="font-bold" style="color:currentColor">${Math.round(m.totalCost / total * 100)}%</span>
     </div>`).join("");
+  // DASH-13: text alternative for screen readers.
+  const matAria = `Total materials: ${formatMoney(total)}. Cost share: ${items.map(m => escHtml(m.name) + " " + Math.round(m.totalCost / total * 100) + "%").join(", ")}.`;
   return `<div class="flex flex-col sm:flex-row items-center gap-6 text-slate-400">
-    <svg viewBox="0 0 240 240" style="width:190px;height:190px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
+    <svg viewBox="0 0 240 240" role="img" aria-label="${matAria}" style="width:190px;height:190px;flex-shrink:0;"><g class="donut-rings">${rings}</g>
       <text class="donut-center" x="120" y="114" text-anchor="middle" fill="currentColor" style="font-size:10px;opacity:0.65;">Total materials</text>
       <text class="donut-center" data-countup="${total}" data-count-fmt="money" x="120" y="134" text-anchor="middle" fill="currentColor" style="font-size:16px;font-weight:800;">${formatMoney(total)}</text>
     </svg>
@@ -14543,12 +14612,14 @@ function dashTrendSVG(ts, opts) {
   const trendTxt = dir === "flat" ? "flat" : `${dir === "up" ? "▲" : "▼"} ${Math.abs(pct)}%`;
   const goodUp = !opts.riseIsBad;
   const trendColor = dir === "flat" ? "#94a3b8" : ((dir === "up") === goodUp ? "#34d399" : "#fb7185");
+  // DASH-13: text alternative (reads the direction word, not the ▲/▼ glyph).
+  const trendAria = `${escHtml(opts.title || "Trend")} ${ts.byMonth ? "per month" : "per job"}. ${dir === "flat" ? "Flat" : (dir === "up" ? "Up" : "Down") + " " + Math.abs(pct) + "% versus first"}. From ${escHtml(valFmt(first))} to ${escHtml(valFmt(last))}.`;
   return `<div class="text-slate-400">
     <div class="flex items-center justify-between mb-1.5">
       <span class="text-[11px] font-semibold" style="color:currentColor">${escHtml(opts.title || "")} ${ts.byMonth ? "/ month" : "/ job"}</span>
       <span class="text-[11px] font-bold" style="color:${trendColor}">${trendTxt} <span style="color:currentColor;opacity:0.6;font-weight:600;">vs first</span></span>
     </div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" preserveAspectRatio="none">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${trendAria}" style="width:100%;height:auto;" preserveAspectRatio="none">
       ${grid}
       <path class="dash-trend-area" d="${areaPath}" fill="#c9a558" fill-opacity="0.12"/>
       <polyline class="dash-trend-line" points="${linePts}" fill="none" stroke="#c9a558" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
@@ -15848,13 +15919,19 @@ function renderJobDetails(job) {
         <button type="button" id="jdGenThumb" class="btn w-full rounded-lg px-3 py-2 text-[11px] font-bold text-[#c9a558] border border-[#b58f4a]/40 bg-[#b58f4a]/[0.07] hover:bg-[#b58f4a]/[0.14] hover:border-[#b58f4a]/70 inline-flex items-center justify-center gap-1.5">✨ Generate AI thumbnail</button>
         <div class="jd-section">
           <div class="jd-section-title">Job &amp; customer</div>
-          <div class="space-y-2">
-            <input id="jdJobName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Job name (e.g. Smith Residence)" value="${escHtml(job.name || "")}">
-            <input id="jdName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Customer (e.g. Acme Contracting)" value="${escHtml(job.customerName || "")}">
-            <input id="jdCompany" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Company (optional)" autocomplete="organization" value="${escHtml(job.customerCompany || "")}">
-            <input id="jdPhone" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Phone" value="${escHtml(job.customerPhone || "")}">
-            <input id="jdEmail" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Email" value="${escHtml(job.customerEmail || "")}">
-            <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="Address" value="${escHtml(job.customerAddress || "")}">
+          <div class="space-y-2.5">
+            <div><label for="jdJobName" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Job name</label>
+              <input id="jdJobName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Smith Residence" value="${escHtml(job.name || "")}"></div>
+            <div><label for="jdName" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Customer</label>
+              <input id="jdName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Acme Contracting" autocomplete="name" value="${escHtml(job.customerName || "")}"></div>
+            <div><label for="jdCompany" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Company <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+              <input id="jdCompany" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Acme Contracting LLC" autocomplete="organization" value="${escHtml(job.customerCompany || "")}"></div>
+            <div><label for="jdPhone" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Phone</label>
+              <input id="jdPhone" type="tel" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="(555) 123-4567" autocomplete="tel" value="${escHtml(job.customerPhone || "")}"></div>
+            <div><label for="jdEmail" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Email</label>
+              <input id="jdEmail" type="email" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="name@email.com" autocomplete="email" value="${escHtml(job.customerEmail || "")}"></div>
+            <div><label for="jdAddress" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Address</label>
+              <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="123 Main St, City, ST" autocomplete="street-address" value="${escHtml(job.customerAddress || "")}"></div>
           </div>
         </div>
         <div class="jd-section">
@@ -16711,12 +16788,18 @@ function bindControls() {
   setTimeout(() => { try { lf.focus({ preventScroll: true }); } catch {} }, 60);
 }
 
-function toast(msg) {
+function toast(msg, opts) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove("show"), 1600);
+  // MOB-3 / FLD-4: scale the visible time to the message length so failure text
+  // (60–140 chars) is actually readable — the old fixed 1600ms was well below the
+  // ~4s legibility floor. Confirmations stay short; long messages linger, capped
+  // at 10s. Callers can override with toast(msg, {ms}). #toast carries
+  // role="status" aria-live="polite" so screen readers announce every update.
+  const ms = (opts && opts.ms) || Math.min(10000, Math.max(4000, 4000 + msg.length * 55));
+  toast._t = setTimeout(() => t.classList.remove("show"), ms);
 }
 
 // True when the calculator screen owns the user's focus — i.e. landing,
@@ -18488,6 +18571,13 @@ async function createSignLink(jobId, detailLevel, opts) {
   const job = loadJobs().find((x) => x.id === jobId);
   if (!job) { toast("Job not found"); return; }
 
+  // FLD-9: fail fast when offline instead of hanging on the insert with no timeout.
+  // Returns before the button is touched, so there's no stuck "Creating link…".
+  if (navigator.onLine === false || _cloudOffline) {
+    toast("You're offline — signing links need a connection. Your job is saved and ready to send when you reconnect.");
+    return;
+  }
+
   const btn = opts.btn || document.getElementById("jdSignBtn");
   const excludeSet = opts.exclude || _jdSignExclude;
   const onResult = opts.onResult || showSignLinkResult;
@@ -18504,7 +18594,7 @@ async function createSignLink(jobId, detailLevel, opts) {
   let token = null;
   try {
     const validDays = Number(snapshot.validDays) || 30;
-    const { data, error } = await sb.from("shared_quotes").insert({
+    const insertP = sb.from("shared_quotes").insert({
       user_id: currentUser.id,
       job_id: _SIGN_UUID_RE.test(String(job.id)) ? job.id : null,
       snapshot,
@@ -18513,11 +18603,19 @@ async function createSignLink(jobId, detailLevel, opts) {
       // link can't be signed at an old price (the sign-quote fn honors expires_at).
       expires_at: new Date(Date.now() + validDays * 86400000).toISOString(),
     }).select("id").single();
+    // FLD-9: bound the insert so a dropped connection can't hang the button forever.
+    const { data, error } = await Promise.race([
+      insertP,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Signing-link request timed out")), 15000)),
+    ]);
     if (error) throw error;
     token = data.id;
   } catch (e) {
     console.warn("create sign link failed", e);
-    toast("Couldn't create the signing link");
+    // FLD-9: designed failure — flip the offline pill + auto-retry ping and give a
+    // cause + recovery, instead of a bare 1.6s "Couldn't create the signing link".
+    try { markCloudError(e); } catch (_) {}
+    toast("Couldn't create the signing link — check your connection and try again.");
     if (btn) { btn.disabled = false; btn.textContent = prevLabel; }
     return;
   }
@@ -23964,12 +24062,49 @@ function trackCloud(promise) {
 if (typeof window !== "undefined") {
   window.addEventListener("offline", () => { if (sb) markCloudError(new Error("navigator offline")); });
   window.addEventListener("online", () => { if (sb) { _cloudRetryPing(); _drainCloud(); } });
+  // FLD-10: tapping either offline pill explains the state — the title tooltip
+  // never fires on touch, and the pill collapses to icon-only below 480px.
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".offline-pill")) return;
+    const n = (typeof loadPendingPush === "function" ? loadPendingPush() : []).length;
+    toast(n > 0
+      ? `You're offline. Your work is saved on this device — ${n} ${n === 1 ? "job" : "jobs"} will sync when you reconnect.`
+      : "You're offline. Your work is saved on this device and will sync when you reconnect.");
+  });
   // Coming back to the tab is a good moment to drain the offline-save retry queue.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && sb && currentUser) _drainCloud();
   });
 }
 
+// AUTH-11: turn raw Supabase auth errors into a cause + a recovery action. Match
+// on status/code first (stable across SDK message-string changes), then a
+// lowercased message-substring fallback, then the raw message. Returns
+// { text, pulseForgot }.
+function friendlyAuthError(err) {
+  const status = err && (err.status || err.code);
+  const m = ((err && err.message) || "").toLowerCase();
+  if (status === 400 || /invalid login credentials|invalid.*(password|email)/.test(m)) {
+    return { text: "Email or password doesn't match. Try again, or reset your password below.", pulseForgot: true };
+  }
+  if (/email not confirmed|not confirmed/.test(m)) {
+    return { text: "Confirm your email first — check your inbox for the confirmation link." };
+  }
+  if (status === 429 || /for security purposes|only request this after|rate limit|too many/.test(m)) {
+    return { text: "Too many attempts — wait a minute, then try again." };
+  }
+  if (/user already registered|already registered/.test(m)) {
+    return { text: "That email already has an account — try logging in instead." };
+  }
+  return { text: (err && err.message) || "Something went wrong. Please try again." };
+}
+// Draw the eye to the "Forgot password?" link after a bad login (reduced-motion safe).
+function pulseForgotLink() {
+  const el = document.getElementById("authForgotLink");
+  const row = document.getElementById("authForgotRow");
+  if (!el || (row && row.classList.contains("hidden"))) return;
+  el.classList.remove("pulse-once"); void el.offsetWidth; el.classList.add("pulse-once");
+}
 function setAuthMsg(text, kind) {
   const el = document.getElementById("authMsg");
   if (!text) { el.classList.add("hidden"); return; }
@@ -24009,6 +24144,9 @@ function setAuthMode(mode) {
   confirm.value = "";
   // Forgot-password link only makes sense in login mode
   document.getElementById("authForgotRow").classList.toggle("hidden", signup);
+  // AUTH-9 consent line + AUTH-10 password hint appear only while creating an account.
+  { const _ll = document.getElementById("authLegalLine"); if (_ll) _ll.classList.toggle("hidden", !signup); }
+  { const _ph = document.getElementById("authPwHint"); if (_ph) _ph.classList.toggle("hidden", !signup); }
   // Magic-link option works for either mode (signup gets a passwordless start)
   document.getElementById("authMagicLink").textContent = signup
     ? "Or sign up with a magic link instead"
@@ -24067,24 +24205,28 @@ async function handleRecoverySubmit(e) {
   const originalText = submitBtn.textContent;
   submitBtn.textContent = "Sending…";
   try {
-    if (recoveryKind === "magic") {
+    const magic = recoveryKind === "magic";
+    if (magic) {
       const { error } = await sb.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo }
       });
       if (error) throw error;
-      toast(`Magic link sent to ${email}`);
     } else {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) throw error;
       window.track("auth_password_reset_requested");
-      toast(`Reset link sent to ${email}`);
     }
-    // Back to the login form
+    // AUTH-6: back to the login form, but leave a PERSISTENT confirmation (the old
+    // toast vanished in 1.6s and the form snapped back bare). setAuthMsg must come
+    // after setAuthMode, which clears the message.
     setAuthMode("login");
     document.getElementById("authEmail").value = email;
+    setAuthMsg(magic
+      ? `Magic link sent to ${email} — check your inbox to sign in.`
+      : `Reset link sent to ${email} — check your inbox to reset your password.`, "ok");
   } catch (err) {
-    setRecMsg(err.message || "Couldn't send — try again.", "error");
+    setRecMsg(friendlyAuthError(err).text, "error");
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
@@ -24124,7 +24266,7 @@ async function handleNewPasswordSubmit(e) {
     try { await enterApp(); }
     catch (_) { showLanding(); }
   } catch (err) {
-    setNewPwMsg(err.message || "Couldn't update — try again.", "error");
+    setNewPwMsg(friendlyAuthError(err).text, "error");
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Save new password";
@@ -24171,7 +24313,9 @@ async function handleAuthSubmit(e) {
       return;
     }
   } catch (err) {
-    setAuthMsg(err.message || "Something went wrong.", "error");
+    const fe = friendlyAuthError(err);
+    setAuthMsg(fe.text, "error");
+    if (fe.pulseForgot && authMode === "login") pulseForgotLink();
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = authMode === "signup" ? "Sign Up" : "Log In";
@@ -24266,14 +24410,18 @@ async function flushPendingPush() {
   const ids = loadPendingPush();
   if (!ids.length) return;
   _flushingPending = true;
+  let pushed = 0;
   try {
     const jobs = loadJobs();
     for (const id of ids) {
       const job = jobs.find(j => j.id === id);
       if (!job) { removePendingPush(id); continue; }   // gone locally — nothing to retry
-      try { await pushJobToCloud(job, true); } catch (_) {}   // removes from queue on success
+      try { if (await pushJobToCloud(job, true)) pushed++; } catch (_) {}   // removes from queue on success
     }
   } finally { _flushingPending = false; }
+  // FLD-12: affirm the reconnect — the queued offline saves actually reached the
+  // cloud. Guarded on pushed>0 so silent background drains never toast spuriously.
+  if (pushed > 0) toast(`Back online — ${pushed} ${pushed === 1 ? "job" : "jobs"} synced`);
 }
 
 // Reconcile drafts after a cloud pull. Cloud is authoritative for SAVED jobs; the
@@ -26390,6 +26538,17 @@ async function boot() {
     authPwToggle.classList.toggle("text-[#c9a558]", show);
     authPwToggle.classList.toggle("text-slate-500", !show);
   });
+  // AUTH-10: same eye toggle for the Set-New-Password form (was missing).
+  const newPwToggle = document.getElementById("newPwToggle");
+  if (newPwToggle) newPwToggle.addEventListener("click", () => {
+    const pw = document.getElementById("newPwInput");
+    const cf = document.getElementById("newPwConfirm");
+    const show = pw.type === "password";
+    pw.type = show ? "text" : "password";
+    if (cf) cf.type = show ? "text" : "password";
+    newPwToggle.classList.toggle("text-[#c9a558]", show);
+    newPwToggle.classList.toggle("text-slate-500", !show);
+  });
   document.getElementById("authRecoveryForm").addEventListener("submit", handleRecoverySubmit);
   document.getElementById("recCancel").addEventListener("click", () => setAuthMode("login"));
   document.getElementById("authNewPwForm").addEventListener("submit", handleNewPasswordSubmit);
@@ -26651,38 +26810,46 @@ function renderOnboardingStatus() {
     const valid = rule.validate(raw);
 
     if (rule.required) {
-      // Required fields: only show chip once the user has touched the field
-      if (!obTouched[id]) {
-        chip.textContent = "";
-        chip.className = "ob-status normal-case tracking-normal";
-      } else if (valid) {
+      // ONBD-14: reward early, punish late — show ✓ the moment a field is valid
+      // (drives the counter + submit enable without needing a blur), but only show
+      // the ✗ error once the field has been touched (blurred/changed), so typing
+      // the first character never flashes "required" at the user.
+      if (valid) {
         chip.textContent = "✓";
         chip.className = "ob-status normal-case tracking-normal text-emerald-400 text-xs";
         requiredOk++;
-      } else {
+      } else if (obTouched[id]) {
         chip.textContent = "✗ " + rule.errorMsg;
         chip.className = "ob-status normal-case tracking-normal text-rose-300 text-[11px]";
         requiredBad++;
+      } else {
+        chip.textContent = "";
+        chip.className = "ob-status normal-case tracking-normal";
       }
     } else {
-      // Optional fields: silent when empty, show ✓ or ✗ when filled
+      // Optional fields: silent when empty; ✓ live when valid; ✗ only after blur
+      // (ONBD-14 — no premature format errors while the value is still being typed).
       if (!filled) {
         chip.textContent = "";
         chip.className = "ob-status normal-case tracking-normal";
-      } else if (valid) {
-        chip.textContent = "✓";
-        chip.className = "ob-status normal-case tracking-normal text-emerald-400 text-xs";
-        optionalFilled++;
       } else {
-        chip.textContent = "✗ " + rule.errorMsg;
-        chip.className = "ob-status normal-case tracking-normal text-rose-300 text-[11px]";
-        optionalFilled++; // counts as "filled" for the counter
-        optionalBad = true;
-        if (!firstOptionalErrorMsg) {
-          if (id === "obEmail") firstOptionalErrorMsg = "Email format isn't quite right — still want to save?";
-          else if (id === "obPhone") firstOptionalErrorMsg = "Phone format isn't quite right — still want to save?";
-          else if (id === "obWebsite") firstOptionalErrorMsg = "Website format isn't quite right — still want to save?";
-          else firstOptionalErrorMsg = "One of the optional fields looks off — still want to save?";
+        optionalFilled++; // filled counts for the counter regardless of validity
+        if (valid) {
+          chip.textContent = "✓";
+          chip.className = "ob-status normal-case tracking-normal text-emerald-400 text-xs";
+        } else if (obTouched[id]) {
+          chip.textContent = "✗ " + rule.errorMsg;
+          chip.className = "ob-status normal-case tracking-normal text-rose-300 text-[11px]";
+          optionalBad = true;
+          if (!firstOptionalErrorMsg) {
+            if (id === "obEmail") firstOptionalErrorMsg = "Email format isn't quite right — still want to save?";
+            else if (id === "obPhone") firstOptionalErrorMsg = "Phone format isn't quite right — still want to save?";
+            else if (id === "obWebsite") firstOptionalErrorMsg = "Website format isn't quite right — still want to save?";
+            else firstOptionalErrorMsg = "One of the optional fields looks off — still want to save?";
+          }
+        } else {
+          chip.textContent = "";
+          chip.className = "ob-status normal-case tracking-normal"; // filled but not yet blurred — stay quiet
         }
       }
     }
@@ -27203,7 +27370,23 @@ function init() {
     document.getElementById("saveConflictNew").addEventListener("click", () => { closeSaveConflict(); doSaveJob(null); });
     _conf._wired = true;
   }
-  document.getElementById("saveJobName").addEventListener("keydown", e => { if (e.key === "Enter") confirmSaveJob(); });
+  // MOB-6: on a phone keyboard Return means "next field", but Enter here used to
+  // fire confirmSaveJob() instantly — saving a half-filled job. Enter now advances
+  // to the next field; only the last text field commits (the Save button and
+  // Cmd/Ctrl+S remain the primary commit paths).
+  (function () {
+    const order = ["saveJobName", "saveJobCompany", "saveJobJobName", "saveJobAddress", "saveJobPhone", "saveJobEmail"];
+    order.forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("keydown", e => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        if (i < order.length - 1) { const next = document.getElementById(order[i + 1]); if (next) next.focus(); }
+        else confirmSaveJob();
+      });
+    });
+  })();
   { const _cp = document.getElementById("saveJobCustomerPick"); if (_cp) _cp.addEventListener("change", onCustomerPick); }
 
   // Manage Customers modal
@@ -27678,9 +27861,9 @@ function init() {
   // Onboarding — live validation (delegated input + blur + change)
   const onboardScreen = document.getElementById("onboardScreen");
   onboardScreen.addEventListener("input", e => {
-    if (e.target && e.target.id && OB_VALIDATORS[e.target.id]) {
-      obTouched[e.target.id] = true;
-    }
+    // ONBD-14: do NOT mark touched on input — only blur/change set touched, so the
+    // ✗ error waits until the user leaves the field. The live ✓ + counter still
+    // update on every keystroke via renderOnboardingStatus().
     renderOnboardingStatus();
   });
   // Capture blur so we hit the phone field's blur (blur doesn't bubble normally)
