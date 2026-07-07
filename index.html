@@ -199,6 +199,11 @@
   .dd-item.selected { color: var(--gold-hi); background: var(--gold-soft); font-weight: 600; }
   .dd-check { opacity: 0; transition: opacity .15s ease, transform .2s ease; transform: scale(0.8); }
   .dd-item.selected .dd-check { opacity: 1; transform: scale(1); }
+  /* DS-6 / CALC-7: keyboard focus rings for the custom dropdown (now arrow-key
+     operable). Light mode gets an explicit darker-gold override at the end of
+     this stylesheet. The item ring is inset so it stays within the rounded panel. */
+  .dd-trigger:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+  .dd-item:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: -2px; }
 
   /* ------- Margin Pill (matches dropdown look) ------- */
   .margin-pill {
@@ -666,8 +671,12 @@
   .job-status-sel {
     font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
     border-radius: 999px; border-width: 1px; border-style: solid;
-    padding: 2px 6px; cursor: pointer; outline: none;
+    padding: 2px 6px; cursor: pointer;
   }
+  /* DS-6: keyboard focus ring (was outline:none — invisible to keyboard users).
+     Light mode gets an explicit darker-gold override in the Phase-4a block at the
+     end of this stylesheet: var(--gold-hi) only remaps to #9a7636 inside #landingScreen. */
+  .job-status-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .job-status-sel option { color: #0f172a; font-weight: 700; }
   /* Job-extras pills stack full-width inside the rail */
   #jobRail .margin-pill, #jobRail .toggle-pill {
@@ -837,7 +846,11 @@
     transition: filter .15s ease, transform .12s ease;
     cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
-  .rail-save-btn:hover, .rail-save-btn:focus-visible { filter: brightness(1.06); outline: none; }
+  .rail-save-btn:hover { filter: brightness(1.06); }
+  /* DS-6: the primary Save action had outline:none folded into :hover — give
+     keyboard focus a visible ring. Light mode gets a darker-gold override at the
+     end of this stylesheet (the 2px offset floats the ring on the rail bg, not the gold fill). */
+  .rail-save-btn:focus-visible { filter: brightness(1.06); outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .rail-save-btn:active { transform: translateY(1px); }
   .rail-reset-btn {
     width: 100%;
@@ -3260,6 +3273,10 @@
     opacity: 0; transition: opacity .18s ease; pointer-events: none;
   }
   .dash-thumb:hover .dash-thumb-actions { opacity: 1; pointer-events: auto; }
+  /* DASH-11: reveal the overlay when either action button is keyboard-focused
+     (the buttons are tab-reachable, so without this a keyboard user could fire
+     the credit-spending Grok action with zero visual feedback). */
+  .dash-thumb:focus-within .dash-thumb-actions { opacity: 1; pointer-events: auto; }
   .dash-thumb-act {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     width: 78%; max-width: 210px; cursor: pointer;
@@ -3278,8 +3295,11 @@
      badge — which is exactly what looked blurry on mobile. The bottom gradient
      keeps the buttons legible without any blur. */
   @media (hover: none) {
-    .dash-thumb-actions { opacity: 1; pointer-events: auto; flex-direction: row; align-items: flex-end; justify-content: center; gap: 6px; padding: 8px; background: linear-gradient(transparent 45%, rgba(2,6,23,0.8)); -webkit-backdrop-filter: none; backdrop-filter: none; }
-    .dash-thumb-act { width: auto; font-size: 10px; padding: 6px 9px; }
+    /* DASH-11: stack the two actions as full-width 44px bars on touch so each
+       clears the tap-target floor (they were ~24px side-by-side). Still no
+       backdrop-blur (see note above). */
+    .dash-thumb-actions { opacity: 1; pointer-events: auto; flex-direction: column; align-items: stretch; justify-content: flex-end; gap: 6px; padding: 8px; background: linear-gradient(transparent 35%, rgba(2,6,23,0.82)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .dash-thumb-act { width: 100%; max-width: none; min-height: 44px; font-size: 12px; padding: 0 12px; }
   }
   .dash-card-load { font-size: 12px; font-weight: 700; border-radius: 9999px; padding: 6px 14px; cursor: pointer; background: rgba(181,143,74,0.12); color: #c9a558; border: 1px solid rgba(181,143,74,0.5); transition: all .15s ease; }
   .dash-card-load:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
@@ -3413,7 +3433,7 @@
   [data-theme="light"] .dash-tip-btn { color: #b58f4a; }
   @media (prefers-reduced-motion: reduce) { .dash-tip { transition: opacity .001s, visibility 0s; transform: none !important; } .dash-tip-btn:hover ~ .dash-tip { transition-delay: 0s; } }
   /* ---- Section back button ---- */
-  .dash-back { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; font-size: 13px; font-weight: 700; color: #94a3b8; padding: 9px 14px 9px 11px; border-radius: 9999px; background: rgba(15,23,42,0.6); border: 1px solid #1e293b; transition: all .15s ease; min-height: 42px; }
+  .dash-back { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; font-size: 13px; font-weight: 700; color: #94a3b8; padding: 9px 14px 9px 11px; border-radius: 9999px; background: rgba(15,23,42,0.6); border: 1px solid #1e293b; transition: all .15s ease; min-height: 44px; }
   .dash-back:hover { color: #c9a558; border-color: rgba(181,143,74,0.45); }
   .dash-back:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
   /* ---- Pricing calibration ---- */
@@ -3568,9 +3588,8 @@
   .jd-fan-controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px; }
   .jd-fan-arrow { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 999px; border: 1.5px solid rgba(181,143,74,0.35); background: rgba(181,143,74,0.08); color: #c9a558; cursor: pointer; transition: all .2s ease; }
   .jd-fan-arrow:hover { border-color: #c9a558; background: rgba(181,143,74,0.16); }
-  .jd-fan-dots { display: flex; align-items: center; gap: 6px; }
-  .jd-fan-dot { width: 7px; height: 7px; border-radius: 999px; background: rgba(148,163,184,0.3); transition: all .25s ease; cursor: pointer; }
-  .jd-fan-dot.active { background: #c9a558; transform: scale(1.35); }
+  /* DS-7: the .jd-fan-dots / .jd-fan-dot carousel-dot rules were dead CSS — the
+     gallery fan renders prev/next arrows + a counter, never dot nodes. Removed. */
   .jd-fan-counter { font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.04em; min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
 
   /* ---- Full-photo lightbox (click a card to expand; landscape shown whole) ---- */
@@ -4038,7 +4057,10 @@
 #landingScreen .nav-brand img { height: 34px; width: auto; }
 #landingScreen .nav-actions { display: flex; align-items: center; gap: 6px; }
 #landingScreen .nav-login { font-size: 14px; font-weight: 600; color: var(--ink-3); text-decoration: none;
-  padding: 10px 14px; border-radius: 999px; transition: color .2s ease; white-space: nowrap; }
+  padding: 10px 14px; border-radius: 999px; transition: color .2s ease; white-space: nowrap;
+  /* AUTH-13: the public nav links were ~34px tall (29px on mobile) — lift them to
+     the 44px tap floor. Size-only; color overrides at 3122/4042 are unaffected. */
+  display: inline-flex; align-items: center; min-height: 44px; }
 #landingScreen .nav-login:hover { color: var(--gold-hi); }
 #landingScreen .btn-gold { display: inline-flex; align-items: center; justify-content: center;
   background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 100%);
@@ -4719,6 +4741,62 @@
 [data-theme="light"] #landingScreen .fl-type .mask { background: #f7f8fa; }
 /* "Try me!" pill is a gold BACKGROUND (not text) — keep it bright on light so it still pops */
 [data-theme="light"] #landingScreen .try-pill { background: #dfc07a; color: #1b1206; }
+
+/* ============================================================
+   PHASE 4a — ACCESSIBILITY: touch-target sweep + aria-disabled
+   ============================================================ */
+/* ONBD-15: #obSubmit now toggles aria-disabled instead of the native disabled
+   attribute (so it stays focusable and its "Complete N more required fields"
+   label is announced). Re-create the greyed look off that attribute. */
+#obSubmit[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+#obSubmit[aria-disabled="true"]:hover { background: #b58f4a; }
+
+/* DS-6: the four new focus rings use var(--gold-hi), which stays #c9a558 on the
+   app shell in light mode (the [data-theme="light"] --gold-hi remap is scoped to
+   #landingScreen only). #c9a558 is ~2.3:1 on the near-white light surfaces — under
+   the 3:1 WCAG 1.4.11 floor. Give them the app's darker light-gold (#9a7636 ≈ 3.9:1)
+   in light mode. Do NOT remap --gold-hi globally — ~40 gold fills/gradients use it. */
+[data-theme="light"] .job-status-sel:focus-visible,
+[data-theme="light"] .dd-trigger:focus-visible,
+[data-theme="light"] .dd-item:focus-visible,
+[data-theme="light"] .rail-save-btn:focus-visible { outline-color: #9a7636; }
+
+/* Lift small controls to the ~44px tap floor on finger (coarse) pointers only.
+   Desktop-mouse sizing is untouched. These are geometry-only (no color) so no
+   light-mode overrides are needed. Grown in place — never via an overlay — so
+   no rule can hijack an adjacent control's tap. (MOB-7 / DASH-8 / DASH-12 /
+   SET-10 / ONBD-13 / DS-7) */
+@media (pointer: coarse) {
+  /* App-header chrome */
+  #railToggleHeader { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  #pfpBtn, #dashPfpBtn { width: 44px; height: 44px; }          /* avatars gate mobile nav */
+  .pfp-item { min-height: 44px; }
+
+  /* Settings navigation pills */
+  .set-tab { min-height: 44px; display: flex; align-items: center; }
+  .rleaf-btn, .rdoor-btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+
+  /* Dashboard / job-detail icon buttons (roomy rows — grow the box directly) */
+  .dash-card-del { width: 44px; height: 44px; }
+  .nudge-x { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .jd-fan-arrow { width: 44px; height: 44px; }
+
+  /* Rail + settings destructive glyphs */
+  .sgd-remove { width: 44px; height: 44px; }
+  .var-remove { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  /* .mfr-del sits inside a <summary>; its click handler already preventDefaults
+     the <details> toggle, so growing the hit box can't mis-toggle the card. */
+  .mfr-del { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  /* .fb-thumb-x lives in a fixed 64px thumbnail corner — a full 44px box would
+     overflow the thumb and steal taps from neighbours, so bound it to 32px. */
+  .fb-thumb-x { width: 32px; height: 32px; top: 0; right: 0; font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+
+  /* Top-of-app banners (coarse-scoped so the desktop banners stay thin) */
+  #setupNudge .nudge-cta { min-height: 44px; display: inline-flex; align-items: center; }
+  #setupNudge .nudge-dismiss { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  #demoBannerSettings { min-height: 44px; display: inline-flex; align-items: center; }
+  #demoBannerDismiss { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+}
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen rail-pinned rail-tidy">
@@ -5920,9 +5998,9 @@
 
       <!-- Monthly / Annual toggle -->
       <div class="lp-reveal mt-9 flex flex-col items-center gap-3">
-        <div class="lp-bill-toggle" role="tablist" aria-label="Billing period">
-          <button id="lpBillMonthly" class="lp-bill-opt active" role="tab" aria-selected="true" data-period="monthly">Monthly</button>
-          <button id="lpBillAnnual"  class="lp-bill-opt" role="tab" aria-selected="false" data-period="annual">Annual <span class="lp-bill-save">Save 16%</span></button>
+        <div class="lp-bill-toggle" role="group" aria-label="Billing period">
+          <button id="lpBillMonthly" class="lp-bill-opt active" aria-pressed="true" data-period="monthly">Monthly</button>
+          <button id="lpBillAnnual"  class="lp-bill-opt" aria-pressed="false" data-period="annual">Annual <span class="lp-bill-save">Save 16%</span></button>
         </div>
         <p id="lpBillSubcopy" class="text-[12px] text-slate-500">Billed monthly. Switch to annual to save ~16%.</p>
       </div>
@@ -6162,7 +6240,7 @@
       </div>
       <div id="obAdvisory" class="hidden text-[11px] text-amber-300/80 text-center"></div>
       <div id="obMsg" class="hidden text-[12px] text-rose-300 text-center font-medium"></div>
-      <button id="obSubmit" type="button" class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#b58f4a]">Submit &amp; Get Started</button>
+      <button id="obSubmit" type="button" class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Submit &amp; Get Started</button>
       <!-- ONBD-6: an opt-in profile screen must have an exit. Without this the only
            way out (before all 4 required fields are filled) was to reload. -->
       <button id="obLater" type="button" class="btn rounded-full w-full px-5 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-100 min-h-[44px]">Maybe later — take me to the calculator</button>
@@ -6262,8 +6340,8 @@
     <div class="flex items-center justify-between mt-4">
       <button id="setupSkip" class="btn rounded-full px-4 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-100 border border-slate-800 hover:border-slate-600 min-h-[44px]">Skip for now</button>
       <div class="flex gap-2">
-        <button id="setupBack" class="btn rounded-full px-4 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-slate-500">Back</button>
-        <button id="setupNext" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Next →</button>
+        <button id="setupBack" class="btn rounded-full px-4 py-2.5 text-sm font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-slate-500 min-h-[44px]">Back</button>
+        <button id="setupNext" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] min-h-[44px]">Next →</button>
       </div>
     </div>
   </div>
@@ -6379,7 +6457,7 @@
       <div class="flex items-center gap-0.5 sm:gap-1">
         <!-- Settings / Plan / Sign out now live in the account (avatar) menu. -->
         <button id="dashFL" type="button" class="dash-nav-btn hidden sm:inline-flex">FL Lookup</button>
-        <button id="dashOpenCalc" type="button" class="lp-btn-gold btn rounded-full text-[12.5px] sm:text-[15px] font-black tracking-tight px-3 sm:px-5 py-2 sm:py-2.5 ml-0.5 sm:ml-1 whitespace-nowrap shrink-0"><span class="sm:hidden">Calculator →</span><span class="hidden sm:inline">Open Calculator →</span></button>
+        <button id="dashOpenCalc" type="button" class="lp-btn-gold btn rounded-full inline-flex items-center justify-center min-h-[44px] text-[12.5px] sm:text-[15px] font-black tracking-tight px-3 sm:px-5 py-2 sm:py-2.5 ml-0.5 sm:ml-1 whitespace-nowrap shrink-0"><span class="sm:hidden">Calculator →</span><span class="hidden sm:inline">Open Calculator →</span></button>
         <button id="dashPfpBtn" type="button" class="block w-9 h-9 rounded-full overflow-hidden border border-slate-700 hover:border-[#b58f4a] transition bg-slate-800 shrink-0 ml-1" aria-label="Account menu" aria-haspopup="true">
           <span id="dashPfpInner" class="w-full h-full flex items-center justify-center"></span>
         </button>
@@ -6782,14 +6860,14 @@
         <div class="rail-acc-body space-y-3">
       <div class="rail-field"><label><span class="lbl-impact high">Construction</span><span class="info-tip" tabindex="0" role="button" aria-label="How construction type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Construction type swings labor the most — roughly 10 min/LF for stick-framed new work, ~25 for block-framed (adds buck-install time), and 40 min/LF on a remodel.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Is this a new build, or replacing windows in an existing home?</p>
-        <div id="segConstructionType" class="seg" role="tablist" aria-label="Construction type"></div></div>
+        <div id="segConstructionType" class="seg" role="radiogroup" aria-label="Construction type"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">House</span><span class="info-tip" tabindex="0" role="button" aria-label="How house type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Block Framed adds wood bucking, block sealer, and concrete anchors that Stick Framed jobs don't need — a big swing in materials and labor.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Concrete-block walls, or wood-frame walls?</p>
-        <div id="segHouseType" class="seg" role="tablist" aria-label="House type"></div></div>
+        <div id="segHouseType" class="seg" role="radiogroup" aria-label="House type"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">Stories</span><span class="info-tip" tabindex="0" role="button" aria-label="How stories affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Higher floors multiply labor — about &times;1.3 for 2-story and &times;1.65 for 3-story — and can trigger a lift charge. In high-rise mode with &ldquo;Repeat this floor on every story&rdquo; on, this instead sets how many identical floors to price.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How many floors — upper floors add labor (and sometimes a lift).</p>
         <!-- FLR-3: hybrid stories — one-tap 1-4 for the common house, "5+" reveals a number field for towers. -->
-        <div id="segStories" class="seg" role="tablist" aria-label="Number of stories"></div>
+        <div id="segStories" class="seg" role="radiogroup" aria-label="Number of stories"></div>
         <!-- id + .hidden live on the DIV wrapper (not the <label>): a `.rail-field
              label { display:block }` rule outranks `.hidden` on a bare label. -->
         <div id="storiesExactWrap" class="mt-2 hidden">
@@ -6867,10 +6945,10 @@
       </div>
       <div class="rail-field"><label><span class="lbl-impact med">Application</span><span class="info-tip" tabindex="0" role="button" aria-label="How application affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>The install detail (nail-fin vs. leg) can carry its own per-LF unit pricing for some brands. Match it to the actual opening.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How the window attaches to the wall — match what the job uses.</p>
-        <div id="segApplication" class="seg flex-wrap" role="tablist" aria-label="Application"></div></div>
+        <div id="segApplication" class="seg flex-wrap" role="radiogroup" aria-label="Application"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">Glass</span><span class="info-tip" tabindex="0" role="button" aria-label="How glass type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Impact glass uses a denser screw pattern and adds a labor multiplier. Getting this wrong over- or under-prices the whole job.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Hurricane-rated (impact) glass costs more than standard glass.</p>
-        <div id="segImpact" class="seg" role="tablist" aria-label="Impact glass"></div></div>
+        <div id="segImpact" class="seg" role="radiogroup" aria-label="Impact glass"></div></div>
       <div class="rail-field">
         <label><span class="lbl-impact med">Windows count</span><span class="info-tip" tabindex="0" role="button" aria-label="How window count affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Window count drives caulk tubes, screw boxes, and (on a remodel) disposal cost — useful for accurate take-offs.</span></span></label>
         <label class="margin-pill" style="cursor:text">
@@ -8467,8 +8545,11 @@
         <button type="button" class="seg-btn active" data-fbkind="feature" role="tab" aria-selected="true">Feature idea</button>
         <button type="button" class="seg-btn" data-fbkind="bug" role="tab" aria-selected="false">Bug report</button>
       </div>
-      <textarea id="feedbackMessage" rows="5" maxlength="4000" placeholder="What would make Anchor better for you?"
-        class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" style="resize:vertical;min-height:120px;"></textarea>
+      <div>
+        <label id="feedbackMessageLabel" for="feedbackMessage" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">What would make Anchor better?</label>
+        <textarea id="feedbackMessage" rows="5" maxlength="4000" placeholder="What would make Anchor better for you?"
+          class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" style="resize:vertical;min-height:120px;"></textarea>
+      </div>
       <div>
         <div id="feedbackPhotoStrip" class="fb-photo-strip" style="margin-bottom:8px"></div>
         <button id="feedbackAddPhoto" type="button" class="fb-addphoto">
@@ -11032,15 +11113,29 @@ function createSegmented(id, options, value, onChange, labelMap) {
   if (!root) return null;
   // labelMap (optional) shortens the VISIBLE button text only — data-value stays
   // the canonical option string, so STATE, saved jobs, AI-fill and PDFs are unchanged.
+  // MOB-12 / CALC-7: these are single-select value pickers, so they use the ARIA
+  // radiogroup contract (containers carry role="radiogroup") with roving tabindex
+  // + arrow keys — not the old tab/tablist model, which announced a nonexistent
+  // tabpanel and made every option its own Tab stop.
   root.innerHTML = options.map(o => `
-    <button class="seg-btn ${o === value ? "active" : ""}" data-value="${o}" type="button" role="tab" aria-selected="${o === value}">${(labelMap && labelMap[o]) || o}</button>
+    <button class="seg-btn ${o === value ? "active" : ""}" data-value="${o}" type="button" role="radio" aria-checked="${o === value}" tabindex="${o === value ? "0" : "-1"}">${(labelMap && labelMap[o]) || o}</button>
   `).join("");
+  // If the current value matches no option, the roving-tabindex template leaves
+  // every button at -1 (unreachable by Tab). Keep the first one Tab-reachable so
+  // the group can never fall out of the tab order.
+  if (!options.some(o => o === value)) { const _f = root.querySelector(".seg-btn"); if (_f) _f.tabIndex = 0; }
   function setValue(v, fire) {
+    let any = false;
     root.querySelectorAll(".seg-btn").forEach(b => {
       const isMatch = b.dataset.value === v;
+      if (isMatch) any = true;
       b.classList.toggle("active", isMatch);
-      b.setAttribute("aria-selected", String(isMatch));
+      b.setAttribute("aria-checked", String(isMatch));
+      b.tabIndex = isMatch ? 0 : -1;
     });
+    // If nothing matched (e.g. a value not in the current option set), keep one
+    // button Tab-reachable so the group can never fall out of the tab order.
+    if (!any) { const first = root.querySelector(".seg-btn"); if (first) first.tabIndex = 0; }
     if (fire) onChange(v);
   }
   if (!root._wired) {
@@ -11048,6 +11143,24 @@ function createSegmented(id, options, value, onChange, labelMap) {
       const btn = e.target.closest(".seg-btn");
       if (!btn) return;
       setValue(btn.dataset.value, true);
+    });
+    // Roving keyboard model: Arrow keys (and Home/End) move focus AND select.
+    root.addEventListener("keydown", e => {
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+      const btns = Array.from(root.querySelectorAll(".seg-btn"));
+      if (btns.length < 2) return;
+      e.preventDefault();
+      let idx = btns.indexOf(document.activeElement);
+      if (idx < 0) idx = btns.findIndex(b => b.getAttribute("aria-checked") === "true");
+      if (idx < 0) idx = 0;
+      let next = idx;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (idx + 1) % btns.length;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (idx - 1 + btns.length) % btns.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = btns.length - 1;
+      const btn = btns[next];
+      setValue(btn.dataset.value, true);
+      btn.focus();
     });
     root._wired = true;
   }
@@ -11061,16 +11174,33 @@ function createDropdown(id, options, value, onChange) {
   const label = root.querySelector(".dd-label");
   const panel = root.querySelector(".dd-panel");
 
+  // CALC-7 / DS-6: the panel is already role="listbox"; give each option
+  // aria-selected + a roving tabindex so the list is keyboard-operable.
   panel.innerHTML = options.map(o => `
-    <button class="dd-item" type="button" data-value="${o}" role="option">
+    <button class="dd-item" type="button" data-value="${o}" role="option" aria-selected="false" tabindex="-1">
       <span>${o}</span>
       <svg class="dd-check" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 11 8 15 16 6"/></svg>
     </button>
   `).join("");
 
+  const items = () => Array.from(panel.querySelectorAll(".dd-item"));
+  function focusItem(which) {
+    const arr = items(); if (!arr.length) return;
+    let target;
+    if (which === "selected") target = arr.find(b => b.getAttribute("aria-selected") === "true") || arr[0];
+    else if (which === "last") target = arr[arr.length - 1];
+    else if (typeof which === "number") target = arr[Math.max(0, Math.min(arr.length - 1, which))];
+    else target = arr[0];
+    if (target) target.focus();
+  }
+
   function setValue(v, fire) {
     label.textContent = v;
-    panel.querySelectorAll(".dd-item").forEach(b => b.classList.toggle("selected", b.dataset.value === v));
+    panel.querySelectorAll(".dd-item").forEach(b => {
+      const sel = b.dataset.value === v;
+      b.classList.toggle("selected", sel);
+      b.setAttribute("aria-selected", String(sel));
+    });
     if (fire) onChange(v);
   }
   function open() {
@@ -11081,11 +11211,23 @@ function createDropdown(id, options, value, onChange) {
   function close() {
     root.classList.remove("open");
     trigger.setAttribute("aria-expanded", "false");
+    // The panel is not display:none when closed, so a focused option would be
+    // stranded (invisible but focused) — pull focus back to the trigger.
+    if (panel.contains(document.activeElement)) trigger.focus();
   }
 
   trigger.addEventListener("click", e => {
     e.stopPropagation();
     root.classList.contains("open") ? close() : open();
+  });
+  // ArrowUp/Down open the list and move focus into it. Enter/Space keep the
+  // native button toggle (so they can't double-fire with a manual handler).
+  trigger.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!root.classList.contains("open")) open();
+      focusItem(e.key === "ArrowUp" ? "last" : "selected");
+    }
   });
   panel.addEventListener("click", e => {
     const btn = e.target.closest(".dd-item");
@@ -11093,6 +11235,16 @@ function createDropdown(id, options, value, onChange) {
     e.stopPropagation();
     setValue(btn.dataset.value, true);
     close();
+  });
+  // Roving focus among options. Enter/Space fall through to the native button
+  // click (handled above), which selects + closes + restores focus to the trigger.
+  panel.addEventListener("keydown", e => {
+    const arr = items(); if (!arr.length) return;
+    const idx = arr.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); focusItem(idx < 0 ? 0 : (idx + 1) % arr.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); focusItem(idx < 0 ? arr.length - 1 : (idx - 1 + arr.length) % arr.length); }
+    else if (e.key === "Home") { e.preventDefault(); focusItem(0); }
+    else if (e.key === "End") { e.preventDefault(); focusItem("last"); }
   });
 
   setValue(value, false);
@@ -19884,6 +20036,10 @@ function setFeedbackKind(k) {
   if (t) t.placeholder = _feedbackKind === "bug"
     ? "What went wrong? What were you doing when it happened?"
     : "What would make Anchor better for you?";
+  // SET-17: mirror the kind in the field's accessible name (label survives typing,
+  // unlike the placeholder which disappears the moment the user types).
+  const lbl = document.getElementById("feedbackMessageLabel");
+  if (lbl) lbl.textContent = _feedbackKind === "bug" ? "What went wrong?" : "What would make Anchor better?";
 }
 async function submitFeedback() {
   const ta = document.getElementById("feedbackMessage");
@@ -26137,9 +26293,9 @@ function wirePricing(ls) {
     if (p === billingPeriod) return;
     billingPeriod = p;
     monthlyBtn.classList.toggle("active", p === "monthly");
-    monthlyBtn.setAttribute("aria-selected", String(p === "monthly"));
+    monthlyBtn.setAttribute("aria-pressed", String(p === "monthly"));
     annualBtn.classList.toggle("active", p === "annual");
-    annualBtn.setAttribute("aria-selected", String(p === "annual"));
+    annualBtn.setAttribute("aria-pressed", String(p === "annual"));
     if (subcopy) {
       subcopy.textContent = p === "monthly"
         ? "Billed monthly. Switch to annual to save ~16%."
@@ -26560,16 +26716,36 @@ function renderOnboardingStatus() {
   if (btn) {
     const missingRequired = OB_REQUIRED_IDS.length - requiredOk;
     if (missingRequired > 0) {
-      btn.disabled = true;
+      // ONBD-15: aria-disabled (not native disabled) keeps the button focusable so
+      // a screen reader can announce the blocker label; submitOnboarding guards the click.
+      btn.setAttribute("aria-disabled", "true");
       btn.textContent = `Complete ${missingRequired} more required field${missingRequired === 1 ? "" : "s"}`;
     } else {
-      btn.disabled = false;
+      btn.removeAttribute("aria-disabled");
       btn.textContent = "Save & Continue";
     }
   }
 }
 
 function submitOnboarding() {
+  // ONBD-15: the submit button is now aria-disabled (not natively disabled) while
+  // required fields are blank, so it still fires click — guard it here and send
+  // focus to the first incomplete required field so the reason is discoverable.
+  const _sb = document.getElementById("obSubmit");
+  if (_sb && _sb.getAttribute("aria-disabled") === "true") {
+    for (const id of OB_REQUIRED_IDS) {
+      const el = document.getElementById(id);
+      if (el && !(el.value || "").trim()) {
+        // #obCounty is a hidden input backed by the visible #obCountySearch combobox
+        // (a bare hidden input can't take focus) — focus the visible proxy so the
+        // blocker is actually discoverable.
+        const proxy = id === "obCounty" ? document.getElementById("obCountySearch") : el;
+        (proxy || el).focus();
+        break;
+      }
+    }
+    return;
+  }
   const name = document.getElementById("obCompanyName").value.trim();
   if (!name) {
     const m = document.getElementById("obMsg");
