@@ -181,6 +181,10 @@
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     padding: 6px;
+    /* DS-14: cap the height so a long manufacturer list scrolls inside the panel
+       instead of running off the bottom of the viewport. */
+    max-height: min(320px, 60vh);
+    overflow-y: auto;
     opacity: 0;
     transform: translateY(-6px) scale(0.97);
     transform-origin: top center;
@@ -3636,7 +3640,8 @@
   .jdg-del { top: 16px; left: 16px; width: auto; height: 36px; padding: 0 14px; gap: 6px; font-size: 12px; font-weight: 700; color: #fda4af; border-color: rgba(244,63,94,0.4); }
   .jdg-del:hover { background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.7); color: #fecdd3; }
   .jdg-count { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.75); background: rgba(2,6,23,0.55); border-radius: 999px; padding: 4px 12px; }
-  @media (max-width: 640px) { .jdg-nav { width: 38px; height: 38px; } .jdg-prev { left: 6px; } .jdg-next { right: 6px; } }
+  /* PHOTO-8: keep the lightbox arrows at the 44px tap floor on phones (was 38px). */
+  @media (max-width: 640px) { .jdg-nav { width: 44px; height: 44px; } .jdg-prev { left: 6px; } .jdg-next { right: 6px; } }
   .jd-doc-btn { font-size: 12px; font-weight: 700; border-radius: 10px; padding: 9px 8px; cursor: pointer; background: rgba(181,143,74,0.1); color: #c9a558; border: 1px solid rgba(181,143,74,0.4); transition: all .15s ease; }
   .jd-doc-btn:hover { background: rgba(181,143,74,0.18); border-color: #c9a558; }
   .jd-doc-btn:disabled { opacity: 0.4; cursor: not-allowed; color: #64748b; border-color: #334155; background: transparent; }
@@ -6385,7 +6390,7 @@
     <div class="text-center mb-6">
       <img class="brand-logo brand-logo-hero mx-auto" src="anchor-wordmark.png" alt="Anchor" width="376" height="160" decoding="async" />
     </div>
-    <div class="relative card rounded-3xl p-6">
+    <div class="relative card rounded-3xl p-6" role="dialog" aria-modal="true" aria-labelledby="authTitle">
       <!-- Close X — anchored inside the card frame at the top-right with a
            44×44 tap target. Click handler is delegated via [data-auth-close]. -->
       <button class="modal-close absolute top-2 right-2 z-10" data-auth-close aria-label="Close">×</button>
@@ -6404,7 +6409,7 @@
           <div class="relative">
           <input id="authPassword" type="password" autocomplete="current-password" placeholder="Your password"
             class="control rounded-xl px-4 py-3 pr-11 w-full text-base sm:text-sm text-slate-100 placeholder:text-slate-600" />
-          <button id="authPwToggle" type="button" tabindex="-1" aria-label="Show or hide password"
+          <button id="authPwToggle" type="button" aria-label="Show or hide password"
             class="btn absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#c9a558] p-1.5">
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="10" cy="10" r="2.5"/></svg>
           </button>
@@ -6426,7 +6431,7 @@
         <!-- AUTH-9: signup-only consent line. Links use data-legal-link (auto-wired
              globally); legalScreen is raised above the auth modal so it reads on top. -->
         <div id="authLegalLine" class="hidden text-[11px] text-center text-slate-500 leading-snug px-2">By creating an account you agree to our <button type="button" data-legal-link="terms" class="btn underline underline-offset-2 decoration-slate-600 hover:text-[#c9a558]">Terms</button> and <button type="button" data-legal-link="privacy" class="btn underline underline-offset-2 decoration-slate-600 hover:text-[#c9a558]">Privacy Policy</button>.</div>
-        <div id="authMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
+        <div id="authMsg" role="status" aria-live="polite" class="hidden text-[12px] text-center font-medium px-2"></div>
         <!-- Social sign-in — needs the Google provider enabled in Supabase Auth -->
         <div class="flex items-center gap-3 py-0.5">
           <div class="flex-1 h-px bg-slate-800"></div>
@@ -6456,7 +6461,7 @@
         </div>
         <button id="recSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Send reset link</button>
-        <div id="recMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
+        <div id="recMsg" role="status" aria-live="polite" class="hidden text-[12px] text-center font-medium px-2"></div>
         <button id="recCancel" type="button"
           class="btn w-full text-xs text-slate-400 hover:text-[#c9a558] font-semibold pt-1">Back to log in</button>
       </form>
@@ -6470,7 +6475,7 @@
           <input id="newPwInput" type="password" autocomplete="new-password" placeholder="New password"
             class="control rounded-xl px-4 py-3 pr-11 w-full text-sm text-slate-100 placeholder:text-slate-600" />
           <!-- AUTH-10: the Set-New-Password form was missing the eye toggle the login form has. -->
-          <button id="newPwToggle" type="button" tabindex="-1" aria-label="Show or hide password"
+          <button id="newPwToggle" type="button" aria-label="Show or hide password"
             class="btn absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#c9a558] p-1.5">
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="10" cy="10" r="2.5"/></svg>
           </button>
@@ -6480,7 +6485,7 @@
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
         <button id="newPwSubmit" type="submit"
           class="btn rounded-full w-full px-5 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] tracking-tight">Save new password</button>
-        <div id="newPwMsg" class="hidden text-[12px] text-center font-medium px-2"></div>
+        <div id="newPwMsg" role="status" aria-live="polite" class="hidden text-[12px] text-center font-medium px-2"></div>
       </form>
     </div>
   </div>
@@ -7684,9 +7689,9 @@
      its contact details are never touched. Layers above the Save Job modal. -->
 <div id="manageCustomersModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[60]">
   <div class="absolute inset-0 modal-backdrop" data-close-manage></div>
-  <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+  <div class="relative card rounded-3xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]" role="dialog" aria-modal="true" aria-labelledby="manageCustomersTitle">
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
-      <h3 class="text-base font-semibold text-slate-100">Saved Customers</h3>
+      <h3 id="manageCustomersTitle" class="text-base font-semibold text-slate-100">Saved Customers</h3>
       <button class="modal-close" data-close-manage aria-label="Close">×</button>
     </div>
     <p class="px-6 pt-4 text-[12px] text-slate-400 leading-relaxed">Customers in your quick-pick list are checked. Uncheck a one-time client to hide them from the dropdown — their job and details stay exactly as they are.</p>
@@ -7702,7 +7707,7 @@
      section. z-[80] so it layers above the dashboard screen (z-[74]). -->
 <div id="customerStatsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[80]">
   <div class="absolute inset-0 modal-backdrop" data-close-custstats></div>
-  <div class="relative card rounded-3xl w-full max-w-lg overflow-hidden flex flex-col max-h-[88vh]">
+  <div class="relative card rounded-3xl w-full max-w-lg overflow-hidden flex flex-col max-h-[88vh]" role="dialog" aria-modal="true" aria-labelledby="custStatsName">
     <div class="px-6 py-5 border-b border-slate-800 flex items-start justify-between gap-3">
       <div class="min-w-0">
         <h3 id="custStatsName" class="text-base font-semibold text-slate-100 truncate">Customer</h3>
@@ -7718,7 +7723,7 @@
      specs, pricing, documents, and actions. Body is rendered dynamically. -->
 <div id="jobDetailsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[78]">
   <div class="absolute inset-0 modal-backdrop" data-close-jd></div>
-  <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
+  <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-label="Job details">
     <div id="jobDetailsBody" class="overflow-y-auto"></div>
   </div>
 </div>
@@ -7728,7 +7733,7 @@
      through (preview mode). Phase 4 will make this a hard block. -->
 <div id="upsellModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[55]">
   <div class="absolute inset-0 modal-backdrop" data-close-upsell></div>
-  <div class="relative card rounded-3xl w-full max-w-lg overflow-hidden flex flex-col">
+  <div class="relative card rounded-3xl w-full max-w-lg overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-labelledby="upsellHeadline">
     <div class="px-6 py-5 border-b border-slate-800 flex items-start justify-between gap-3">
       <div>
         <div class="text-[10px] uppercase tracking-[0.18em] text-[#c9a558] font-bold mb-1.5" id="upsellEyebrow">Plan</div>
@@ -8728,7 +8733,7 @@
      and feedback (80) so it can preview over any of them. -->
 <div id="pdfPreviewModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[81]">
   <div class="absolute inset-0 modal-backdrop" data-close-pdf></div>
-  <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
+  <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-labelledby="pdfPreviewTitle">
     <div class="px-5 sm:px-6 py-4 border-b border-slate-800 flex items-center justify-between gap-3 flex-shrink-0">
       <h2 id="pdfPreviewTitle" class="text-sm sm:text-base font-bold text-slate-100 tracking-tight truncate">Preview</h2>
       <div class="flex items-center gap-2">
@@ -13552,6 +13557,52 @@ function dashReduceMotion() {
 // to an instant hide when there's no card or under prefers-reduced-motion. onDone
 // runs after the panel is hidden (use it for content cleanup so nothing flickers
 // away mid-animation). Open is handled globally by the .modal-backdrop + div CSS.
+// Phase 4c (MOB-4): shared dialog a11y — a Tab focus-trap + focus save/restore,
+// factored from the CMP-3 compareModal pattern. A modal opts in by calling
+// trapDialog(el) in its open fn; the restore + stack-pop happens centrally in
+// tvDismiss's finish() below (so it fires AFTER the close animation). Stack-aware:
+// one global keydown traps Tab only within the TOP-most trapped dialog, so stacked
+// modals (e.g. the gallery lightbox over Job Details) don't fight. Esc-to-close is
+// left to the existing global keydown handler to avoid double-close on stacks.
+const _dlgStack = [];
+function _dlgFocusables(card) {
+  return Array.from(card.querySelectorAll('button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter(el => !el.disabled && el.offsetParent !== null);
+}
+function _dlgTabKey(e) {
+  if (e.key !== "Tab") return;
+  const modalEl = _dlgStack[_dlgStack.length - 1];
+  if (!modalEl) return;
+  const card = modalEl.querySelector(".modal-backdrop + div") || modalEl.querySelector('[role="dialog"]') || modalEl;
+  const list = _dlgFocusables(card);
+  if (!list.length) return;
+  const first = list[0], last = list[list.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  else if (!card.contains(document.activeElement)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+}
+document.addEventListener("keydown", _dlgTabKey);
+function trapDialog(modalEl, closeFn) {
+  if (!modalEl || _dlgStack.includes(modalEl)) return;
+  modalEl._dlgPrevFocus = document.activeElement;
+  modalEl._dlgClose = closeFn || null;   // the stack-aware Escape handler closes the top dialog via this
+  _dlgStack.push(modalEl);
+  const card = modalEl.querySelector(".modal-backdrop + div") || modalEl;
+  setTimeout(() => {
+    if (card.contains(document.activeElement)) return;   // opener already focused a field
+    const t = card.querySelector('input:not([type="hidden"]), select, textarea, button, [tabindex]:not([tabindex="-1"])');
+    try { (t || card).focus(); } catch (_) {}
+  }, 40);
+}
+function releaseDialog(modalEl) {
+  if (!modalEl) return;
+  const i = _dlgStack.indexOf(modalEl);
+  if (i < 0) return;                       // wasn't a trapped dialog — nothing to do
+  _dlgStack.splice(i, 1);
+  modalEl._dlgClose = null;
+  const prev = modalEl._dlgPrevFocus; modalEl._dlgPrevFocus = null;
+  try { prev && prev.focus && prev.focus(); } catch (_) {}
+}
 function tvDismiss(modalEl, onDone) {
   if (!modalEl) { if (onDone) onDone(); return; }
   const card = modalEl.querySelector(".modal-backdrop + div");
@@ -13563,6 +13614,7 @@ function tvDismiss(modalEl, onDone) {
     if (card) { card.classList.remove("tv-off"); if (card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; } }
     modalEl.classList.add("hidden");
     modalEl.classList.remove("flex", "modal-closing");
+    releaseDialog(modalEl);   // Phase 4c: restore focus + pop the dialog stack (no-op if not trapped)
     if (onDone) onDone();
   };
   if (!card || dashReduceMotion()) { finish(); return; }
@@ -13883,6 +13935,7 @@ function openCustomerStats(key) {
   const m = document.getElementById("customerStatsModal");
   if (!m) return;
   m.classList.remove("hidden"); m.classList.add("flex");
+  trapDialog(m, closeCustomerStats);   // Phase 4c
 }
 function closeCustomerStats() {
   tvDismiss(document.getElementById("customerStatsModal"));
@@ -15107,6 +15160,9 @@ function ensureGalleryLightbox() {
   if (lb) return lb;
   lb = document.createElement("div");
   lb.id = "jdgLightbox";
+  lb.setAttribute("role", "dialog");        // PHOTO-8: announce the lightbox as a dialog
+  lb.setAttribute("aria-modal", "true");
+  lb.setAttribute("aria-label", "Installation photo viewer");
   lb.innerHTML =
     `<button class="jdg-btn jdg-del" data-jdg-del aria-label="Delete photo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Delete</button>
      <button class="jdg-btn jdg-close" data-jdg-close aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -15125,19 +15181,24 @@ function ensureGalleryLightbox() {
 function lightboxPhotos() { const j = loadJobs().find(x => x.id === _lbJobId); return j ? jobGalleryList(j) : []; }
 function openGalleryLightbox(jobId, idx) {
   _lbJobId = jobId; _lbIdx = idx || 0;
-  ensureGalleryLightbox().classList.add("open");
+  const lb = ensureGalleryLightbox();
+  lb.classList.add("open");
+  // Phase 4c: the lightbox stacks OVER the trapped Job Details modal — trap it too
+  // so Tab/Esc act on the top-most dialog, not the one behind it.
+  trapDialog(lb, closeGalleryLightbox);
   document.addEventListener("keydown", lightboxKey);
   showLightboxPhoto();
 }
 function closeGalleryLightbox() {
   const lb = document.getElementById("jdgLightbox");
-  if (lb) lb.classList.remove("open");
+  if (lb) { lb.classList.remove("open"); releaseDialog(lb); }
   document.removeEventListener("keydown", lightboxKey);
   _lbJobId = null;
 }
 function lightboxKey(e) {
-  if (e.key === "Escape") closeGalleryLightbox();
-  else if (e.key === "ArrowLeft") stepLightbox(-1);
+  // Esc is owned by the stack-aware global handler (the lightbox is a trapped dialog);
+  // only the arrow navigation is handled here.
+  if (e.key === "ArrowLeft") stepLightbox(-1);
   else if (e.key === "ArrowRight") stepLightbox(1);
 }
 function stepLightbox(dir) {
@@ -15736,6 +15797,7 @@ function openJobDetails(id) {
   renderJobDetails(job);
   const m = document.getElementById("jobDetailsModal");
   m.classList.remove("hidden"); m.classList.add("flex");
+  trapDialog(m, closeJobDetails);   // Phase 4c: focus trap + Esc + restore-on-close
 }
 function closeJobDetails() {
   _jdJobId = null;
@@ -17897,6 +17959,7 @@ async function showPdfPreview(doc, filename, meta) {
     shareBtn.classList.toggle("hidden", !canShareFiles);
   }
   modal.classList.remove("hidden"); modal.classList.add("flex");
+  trapDialog(modal, closePdfPreview);   // Phase 4c
   pages.innerHTML = '<div class="text-slate-500 text-sm py-10 text-center">Rendering preview…</div>';
   const pdfjs = await loadPdfJs();
   // PDF.js may detach the buffer it's given — hand it a fresh copy so the
@@ -23773,6 +23836,9 @@ function clearCompare() { compareSet.clear(); updateCompareBar(); try { renderDa
 // CMP-3: dialog focus management — remember what opened it, trap Tab inside, Esc closes.
 let _cmpLastFocus = null;
 function _cmpKeyHandler(e) {
+  // Phase 4c: if a stack-aware trapped dialog is open on top (e.g. the PDF preview
+  // opened from Compare), defer Esc/Tab to it so one Esc doesn't also close Compare.
+  if (_dlgStack.length) return;
   if (e.key === "Escape") { e.preventDefault(); closeComparison(); return; }
   if (e.key !== "Tab") return;
   const card = document.querySelector('#compareModal [role="dialog"]');
@@ -24793,6 +24859,7 @@ function openAuth(mode) {
   const a = document.getElementById("authScreen");
   a.classList.remove("hidden");
   a.classList.add("flex");
+  trapDialog(a, closeAuth);   // Phase 4c: focus trap + Esc + restore-on-close (initial focus below)
   setTimeout(() => document.getElementById("authEmail").focus(), 60);
 }
 function closeAuth() {
@@ -25301,6 +25368,7 @@ function showUpsellModal(reason) {
 
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  trapDialog(modal, closeUpsellModal);   // Phase 4c
 
   try { window.track("upsell_modal_shown", { reason: r, plan: e.plan }); } catch (_) {}
 }
@@ -28052,7 +28120,14 @@ function init() {
   }
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closePfpMenu(); closeAuth(); closeAdmin(); closeFL(); closeJobRail(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal(); }
+    if (e.key === "Escape") {
+      // Phase 4c: if a trapped dialog is on top of the stack, close ONLY it, so a
+      // single Esc never dismisses a stacked dialog AND the one behind it. This also
+      // covers MOB-10's newly-Esc-able modals (jobDetails/customerStats/upsell/
+      // pdfPreview/lightbox), which are all trapped.
+      if (_dlgStack.length) { const top = _dlgStack[_dlgStack.length - 1]; if (top && top._dlgClose) top._dlgClose(); return; }
+      closePfpMenu(); closeAuth(); closeAdmin(); closeFL(); closeJobRail(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal();
+    }
   });
 
   purgeStaleSW();
