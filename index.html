@@ -27414,6 +27414,31 @@ function init() {
   render();
   renderSavedJobs();
   renderSetupNudge();
+
+  // ---- Idempotent post-sync refreshers: MUST run on EVERY init() call ----
+  // init() re-runs on post-login boot / offline fallback / magic-link SIGNED_IN
+  // (two enterApp() entry points race — the SIGNED_IN handler fires before
+  // currentUser is assigned, so its !currentUser guard passes). These repaint
+  // freshly cloud-synced data and are safe to run repeatedly; hoisted above the
+  // wire-once guard so the 2nd-run repaint isn't starved when wiring is skipped.
+  try { renderSlidingDoors(); } catch (_) {}
+  try { renderBifoldDoors(); } catch (_) {}
+  try { updateUsageBadge(); } catch (_) {}
+  try { startUsageBadgeTicker(); } catch (_) {}   // self-guarded against a double interval
+  try { trackEntitlementsInit(); } catch (_) {}   // self-guarded
+  try { renderAiReadsMeter(); } catch (_) {}
+  try { if (sessionStorage.getItem("presentMode") === "1") applyPresentMode(true); } catch (_) {}
+
+  // ---- One-time event wiring below. init() re-runs (auth race), but every element
+  // wired below is STATIC chrome that's never recreated between calls, and every
+  // delegated handler sits on a persistent container — so binding exactly once is
+  // correct and kills the whole double-bind bug class at the source (photo picker
+  // reopening Finder, PDF zoom staying dead, doubled PDF pages, and — critically —
+  // double-charged AI plan-read credits). bindControls() already uses this same
+  // wire-once discipline; this extends it to the rest of init(). ----
+  if (init._wired) return;
+  init._wired = true;
+
   // Enable AI-button collapse transitions only after the initial paint,
   // so a Stick-Framed saved job doesn't animate the button away on load.
   requestAnimationFrame(() => {
