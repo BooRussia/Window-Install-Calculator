@@ -17994,8 +17994,12 @@ function outputPDF(doc, filename, mode, meta) {
 // Renders a finished jsPDF doc into #pdfPreviewModal using the existing PDF.js
 // loader. The doc + filename are stashed so the modal's Download/Share buttons
 // act on the already-built doc (no rebuild, no re-running the save gate).
-let _pdfPreviewDoc = null, _pdfPreviewName = "document.pdf", _pdfPreviewMeta = null;
+let _pdfPreviewDoc = null, _pdfPreviewName = "document.pdf", _pdfPreviewMeta = null, _pdfRenderGen = 0;
 async function showPdfPreview(doc, filename, meta) {
+  // Render-generation guard: if this preview is fired twice (e.g. a double-bound
+  // trigger from init()'s post-login re-run), a superseded call bails at its next
+  // await instead of appending a SECOND copy of every page into #pdfPreviewPages.
+  const _myGen = ++_pdfRenderGen;
   _pdfPreviewDoc = doc; _pdfPreviewName = filename || "document.pdf"; _pdfPreviewMeta = meta || null;
   const modal = document.getElementById("pdfPreviewModal");
   const pages = document.getElementById("pdfPreviewPages");
@@ -18021,6 +18025,7 @@ async function showPdfPreview(doc, filename, meta) {
   // stashed doc stays intact for Download/Share.
   const buf = doc.output("arraybuffer");
   const pdf = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
+  if (_myGen !== _pdfRenderGen) return;   // superseded by a newer preview — don't wipe/append
   pages.innerHTML = "";
   pages.classList.remove("zoomed");   // OUT-2: always start un-zoomed
   // Rasterize each page at a fixed CSS width (independent of the modal's
@@ -18039,6 +18044,7 @@ async function showPdfPreview(doc, filename, meta) {
     canvas.style.width = (base.width * cssScale) + "px";
     canvas.style.height = (base.height * cssScale) + "px";
     canvas.className = "pdf-preview-canvas";
+    if (_myGen !== _pdfRenderGen) return;   // superseded mid-render — stop appending pages
     pages.appendChild(canvas);
     await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
   }
@@ -27430,13 +27436,20 @@ function init() {
   document.getElementById("fileBuckCutList").addEventListener("click", () => fileBuckAction("download"));
   document.getElementById("viewBuckCutList").addEventListener("click", () => fileBuckAction("view"));
   { const b = document.getElementById("shareBuckCutList"); if (b) b.addEventListener("click", () => fileBuckAction("share")); }
-  // PDF preview modal action buttons (act on the already-built doc — no rebuild)
-  { const b = document.getElementById("pdfPreviewDownload"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) { _pdfPreviewDoc.save(_pdfPreviewName); toast("PDF downloaded"); } }); }
-  { const b = document.getElementById("pdfPreviewShare"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) sharePDF(_pdfPreviewDoc, _pdfPreviewName, _pdfPreviewMeta); }); }
-  { const b = document.getElementById("pdfPreviewClose"); if (b) b.addEventListener("click", closePdfPreview); }
-  // OUT-2: tap a rendered page to toggle full-width zoom (pan via the scroll container)
-  { const pv = document.getElementById("pdfPreviewPages"); if (pv) pv.addEventListener("click", e => { if (e.target.closest(".pdf-preview-canvas")) pv.classList.toggle("zoomed"); }); }
-  { const m = document.getElementById("pdfPreviewModal"); if (m) m.addEventListener("click", e => { if (e.target.hasAttribute("data-close-pdf")) closePdfPreview(); }); }
+  // PDF preview modal action buttons (act on the already-built doc — no rebuild).
+  // Guard: init() re-runs (post-login/offline boot); without this the tap-to-zoom
+  // toggle double-binds and one tap flips .zoomed on+off = no visible zoom.
+  { const _pdfM = document.getElementById("pdfPreviewModal");
+    if (_pdfM && !_pdfM._wired) {
+      { const b = document.getElementById("pdfPreviewDownload"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) { _pdfPreviewDoc.save(_pdfPreviewName); toast("PDF downloaded"); } }); }
+      { const b = document.getElementById("pdfPreviewShare"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) sharePDF(_pdfPreviewDoc, _pdfPreviewName, _pdfPreviewMeta); }); }
+      { const b = document.getElementById("pdfPreviewClose"); if (b) b.addEventListener("click", closePdfPreview); }
+      // OUT-2: tap a rendered page to toggle full-width zoom (pan via the scroll container)
+      { const pv = document.getElementById("pdfPreviewPages"); if (pv) pv.addEventListener("click", e => { if (e.target.closest(".pdf-preview-canvas")) pv.classList.toggle("zoomed"); }); }
+      _pdfM.addEventListener("click", e => { if (e.target.hasAttribute("data-close-pdf")) closePdfPreview(); });
+      _pdfM._wired = true;
+    }
+  }
   document.getElementById("saveJob").addEventListener("click", saveCurrentJob);
   { const _rs = document.getElementById("railSaveJobBtn"); if (_rs) _rs.addEventListener("click", saveCurrentJob); }
   // OUT-14: present-mode toggle + restore the session's choice
