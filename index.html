@@ -5458,13 +5458,15 @@
 <!-- ============================================================
      BOOT SPLASH — shown until the session check resolves
      ============================================================ -->
-<div id="bootSplash" class="fixed inset-0 z-[95] flex items-center justify-center" style="background:#020617;">
+<div id="bootSplash" class="fixed inset-0 z-[95] flex flex-col items-center justify-center gap-4" style="background:#020617;">
   <span class="text-[#c9a558]" style="animation: pulseOnce 1.1s ease-in-out infinite alternate;">
     <svg viewBox="0 0 100 100" width="54" height="54" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-label="Anchor">
       <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
       <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
     </svg>
   </span>
+  <!-- MOB-11: revealed after ~1s of a slow sync so a stall isn't a silent spinner. -->
+  <p id="bootCaption" class="hidden text-[13px] text-slate-400" role="status" aria-live="polite">Syncing your jobs…</p>
 </div>
 
 <!-- ============================================================
@@ -6761,7 +6763,7 @@
       <!-- Account menu. position:fixed so the SAME menu can be opened from the
            app-header avatar OR the dashboard avatar — togglePfpMenu() positions
            it under whichever trigger was clicked. -->
-      <div id="pfpMenu" class="hidden fixed w-60 card rounded-xl py-1.5 z-[85]" style="box-shadow:0 24px 48px -12px rgba(0,0,0,0.7); max-height: calc(100vh - 84px); overflow-y: auto;">
+      <div id="pfpMenu" class="hidden fixed w-60 card rounded-xl py-1.5 z-[85]" style="box-shadow:0 24px 48px -12px rgba(0,0,0,0.7); max-height: calc(100vh - 84px); max-height: calc(100dvh - 84px); overflow-y: auto;">
         <div class="px-3 py-2 border-b border-slate-800">
           <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Signed in as</div>
           <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
@@ -14705,11 +14707,11 @@ function dashTrendSVG(ts, opts) {
     + ` L ${xFor(pts.length - 1).toFixed(1)} ${(H - padB).toFixed(1)} Z`;
   const grid = [0, 0.5, 1].map(f => {
     const y = padT + (1 - f) * (H - padT - padB);
-    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity="0.12"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="currentColor" style="font-size:9px;opacity:0.6;">${valFmt(maxV * f)}</text>`;
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity="0.12"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="currentColor" style="font-size:12px;opacity:0.85;">${valFmt(maxV * f)}</text>`;
   }).join("");
   const step = Math.max(1, Math.ceil(pts.length / 6));
   const xlabels = pts.map((p, i) => (i % step === 0 || i === pts.length - 1)
-    ? `<text x="${xFor(i).toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" fill="currentColor" style="font-size:9px;opacity:0.6;">${escHtml(p.label)}</text>` : "").join("");
+    ? `<text x="${xFor(i).toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" fill="currentColor" style="font-size:12px;opacity:0.85;">${escHtml(p.label)}</text>` : "").join("");
   const dots = pts.map((p, i) => `<circle class="dash-trend-dot" cx="${xFor(i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="2.6" fill="#c9a558"/>`).join("");
   const first = pts[0].value, last = pts[pts.length - 1].value;
   const dir = last > first ? "up" : (last < first ? "down" : "flat");
@@ -14800,7 +14802,16 @@ function renderDashJobs(jobs) {
   if (_dashStatusFilter) list = list.filter(j => !j.isDraft && jobStatus(j) === _dashStatusFilter);
   if (q) list = list.filter(j => `${j.customerName || ""} ${j.name || ""} ${j.customerAddress || ""} ${j.manufacturer || ""}`.toLowerCase().includes(q));
   const countEl = document.getElementById("dashJobsCount");
-  if (countEl) countEl.textContent = list.length ? `${list.length} job${list.length === 1 ? "" : "s"}` : "";
+  if (countEl) {
+    // DASH-10: count REAL jobs (matching the launchpad card, KPIs, and the guide's
+    // "drafts are left out of all pipeline math" contract) and note the working
+    // draft separately, instead of silently including it and disagreeing by one.
+    const real = list.filter(j => !j.isDraft).length;
+    const hasDraft = list.some(j => j.isDraft);
+    countEl.textContent = real
+      ? `${real} job${real === 1 ? "" : "s"}${hasDraft ? " + draft" : ""}`
+      : (hasDraft ? "draft only" : "");
+  }
   if (!list.length) {
     grid.innerHTML = `<div class="col-span-full card rounded-2xl px-6 py-12 text-center">
       <div class="text-slate-400 text-sm font-semibold">${(q || _dashStatusFilter) ? "No jobs match." : "No saved jobs yet."}</div>
@@ -15804,7 +15815,15 @@ function wireDashboard() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
   on("dashHome", () => dashGoTo("home"));
   on("dashOpenCalc", () => closeDashboard());
-  on("dashNewQuote", () => { try { resetAll(); } catch (_) {} closeDashboard(); });
+  on("dashNewQuote", () => {
+    // DASH-2: "New quote" wipes the working quote via resetAll(). Confirm first when
+    // there's actual work on the calculator (footage/doors or a customer/job name),
+    // so a mis-tap can't silently clear it.
+    let hasWork = false;
+    try { hasWork = hasQuoteInput(calculate()) || !!(STATE && (STATE.customerName || STATE.jobName)); } catch (_) {}
+    if (hasWork && !confirm("Start a new quote? This clears the quote you're working on.")) return;
+    try { resetAll(); } catch (_) {} closeDashboard();
+  });
   on("dashFL", () => { try { openFL(); } catch (_) {} });
   // Settings / Plan / Sign out moved to the account (avatar) menu (#pfpMenu).
   on("dashExportCsv", exportPipelineCSV);
@@ -15851,7 +15870,25 @@ function openJobDetails(id) {
   m.classList.remove("hidden"); m.classList.add("flex");
   trapDialog(m, closeJobDetails);   // Phase 4c: focus trap + Esc + restore-on-close
 }
+// DASH-6: true when the Job Details text fields differ from what's stored, so a
+// backdrop mis-tap / × / Esc can't silently discard typed edits (Save is the only
+// text-commit path; status + photo commit instantly and aren't part of this).
+function jdDetailsDirty() {
+  const j = loadJobs().find(x => x.id === _jdJobId);
+  if (!j) return false;
+  const g = (x) => (document.getElementById(x)?.value || "").trim();
+  const s = (v) => (v || "").trim();
+  const nameNow = g("jdJobName") || g("jdName") || j.name || "Untitled job";
+  return g("jdName")    !== s(j.customerName)
+      || g("jdCompany") !== s(j.customerCompany)
+      || g("jdPhone")   !== s(j.customerPhone)
+      || g("jdEmail")   !== s(j.customerEmail)
+      || g("jdAddress") !== s(j.customerAddress)
+      || g("jdNotes")   !== s(j.customerNotes)
+      || nameNow        !== s(j.name);
+}
 function closeJobDetails() {
+  if (jdDetailsDirty() && !confirm("Discard your unsaved changes to this job's details?")) return;
   _jdJobId = null;
   tvDismiss(document.getElementById("jobDetailsModal"));
 }
@@ -16365,7 +16402,9 @@ function closeLegal() {
   const s = document.getElementById("legalScreen");
   if (s) s.classList.add("hidden");
   if (/^#\/(terms|privacy|disclaimer|cookies)/.test(window.location.hash || "")) {
-    try { history.pushState({}, "", window.location.pathname + window.location.search); } catch (_) {}
+    // MOB-2: replaceState (not pushState) so closing doesn't leave a phantom
+    // forward entry that a Back press would re-open.
+    try { history.replaceState({}, "", window.location.pathname + window.location.search); } catch (_) {}
   }
 }
 function renderLegal() {
@@ -16385,6 +16424,9 @@ function legalDocFromHash() {
 function handleLegalHashRoute() {
   const d = legalDocFromHash();
   if (d) openLegal(d);
+  // MOB-2: hash left the legal docs (Back) → close the open screen instead of
+  // leaving it stranded over a bare URL (which needed a 2nd Back to escape).
+  else if (!document.getElementById("legalScreen")?.classList.contains("hidden")) closeLegal();
 }
 window.addEventListener("hashchange", handleLegalHashRoute);
 
@@ -16507,12 +16549,15 @@ function closeLearn() {
   const s = document.getElementById("learnScreen");
   if (s) s.classList.add("hidden");
   if (/^#\/learn/.test(window.location.hash || "")) {
-    try { history.pushState({}, "", window.location.pathname + window.location.search); } catch (_) {}
+    // MOB-2: replaceState (not pushState) — no phantom entry to re-open on Back.
+    try { history.replaceState({}, "", window.location.pathname + window.location.search); } catch (_) {}
   }
 }
 function handleLearnHashRoute() {
   const m = (window.location.hash || "").match(/^#\/learn(?:\/([a-z0-9-]+))?$/);
   if (m) openLearn(m[1] || null);
+  // MOB-2: hash left #/learn (Back) → close the open screen rather than strand it.
+  else if (!document.getElementById("learnScreen")?.classList.contains("hidden")) closeLearn();
 }
 window.addEventListener("hashchange", handleLearnHashRoute);
 document.addEventListener("click", (e) => {
@@ -17038,6 +17083,46 @@ function getCustomerEntries() {
     }
   }
   return Array.from(map.values()).sort((a, b) => b._ts - a._ts);
+}
+
+// SET-8: commit an open customer-detail card's edits when the user LEAVES it
+// (‹ All customers / Settings Done / Esc / backdrop) — the per-card Save button was
+// the ONLY commit path, so navigating away silently discarded typed changes.
+// Commit-on-LEAVE, never per-blur: setCustomerContact renames across every job for
+// that customer, so we only write once the (complete) name is in hand. Short-circuits
+// cheaply so ordinary Settings closes don't trigger job re-saves / cloud writes.
+function commitCustDetailIfDirty() {
+  if (!_custDetailKey) return;
+  const body = document.getElementById("customersBody");
+  const card = body && body.querySelector("[data-cust-key]");
+  if (!card) return;
+  // Only commit when the Customers tab is actually the visible panel. _custDetailKey
+  // and the card DOM persist across Settings sessions, so without this a hidden STALE
+  // card (from an earlier session, after the customer's rollup changed elsewhere)
+  // would get committed on an unrelated Settings close — reverting live data to old
+  // values across every job + overwriting the cloud.
+  const panel = document.querySelector('#adminModal .set-panel[data-panel="customers"]');
+  if (!panel || !panel.classList.contains("active")) return;
+  const val = f => { const el = card.querySelector(`[data-cust-field="${f}"]`); return el ? el.value : ""; };
+  const fields = {
+    company: val("company"), name: val("name"), phone: val("phone"), email: val("email"), address: val("address"),
+    recurring: card.querySelector('[data-cust-field="recurring"]')?.checked
+  };
+  if (!fields.name.trim()) return;                       // never commit an emptied name (would split records)
+  const cur = getCustomerEntries().find(x => x.key === _custDetailKey);
+  if (!cur) return;
+  const same = (a, b) => (a || "").trim() === (b || "").trim();
+  const clean = same(fields.company, cur.company) && same(fields.name, cur.name)
+    && same(fields.phone, cur.phone) && same(fields.email, cur.email) && same(fields.address, cur.address)
+    && (fields.recurring !== false) === (cur.recurring !== false);
+  if (clean) return;                                     // nothing changed → no cloud write / re-render
+  const n = setCustomerContact(card.dataset.custKey, fields);
+  if (n) {
+    _custDetailKey = (fields.name || "").trim().toLowerCase() || _custDetailKey;
+    try { renderSavedJobs(); } catch (_) {}
+    try { if (typeof renderDashboard === "function" && !document.getElementById("dashboardScreen")?.classList.contains("hidden")) renderDashboard(); } catch (_) {}
+    try { populateCustomerPicker(); } catch (_) {}
+  }
 }
 
 function getCustomerBook() {
@@ -19326,7 +19411,7 @@ function openAdmin() {
   adminModal.classList.remove("hidden");
   navPushOverlay(adminModal);   // Phase 4d (no-op unless HISTORY_NAV)
 }
-function closeAdmin() { navPopOverlay(adminModal); tvDismiss(adminModal); }
+function closeAdmin() { try { commitCustDetailIfDirty(); } catch (_) {} navPopOverlay(adminModal); tvDismiss(adminModal); }
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
@@ -26750,11 +26835,22 @@ async function boot() {
 }
 
 async function enterApp() {
+  // MOB-11: reveal the "Syncing your jobs…" caption if the sync runs long, and hard-
+  // cap the wait so a hung connection can't leave the boot splash spinning forever.
+  const _capT = setTimeout(() => {
+    const cap = document.getElementById("bootCaption"), sp = document.getElementById("bootSplash");
+    if (cap && sp && !sp.classList.contains("hidden")) cap.classList.remove("hidden");
+  }, 1000);
   try {
-    await syncFromCloud();
+    await Promise.race([
+      syncFromCloud(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("sync timeout")), 10000)),
+    ]);
   } catch (e) {
-    console.warn("Cloud sync failed — using local cache", e);
+    console.warn("Cloud sync failed/timed out — using local cache", e);
     toast("Offline — using local data");
+  } finally {
+    clearTimeout(_capT);
   }
   // Re-read now that localStorage reflects the cloud
   DATA = loadData();
@@ -27668,7 +27764,7 @@ function init() {
     _custBody.addEventListener("click", e => {
       const openBtn = e.target.closest("[data-cust-open]");
       if (openBtn) { _custDetailKey = openBtn.dataset.custOpen; renderCustomersSettings(); return; }
-      if (e.target.closest("[data-cust-back]")) { _custDetailKey = null; renderCustomersSettings(); return; }
+      if (e.target.closest("[data-cust-back]")) { try { commitCustDetailIfDirty(); } catch (_) {} _custDetailKey = null; renderCustomersSettings(); return; }
       const jobBtn = e.target.closest("[data-cust-job]");
       if (jobBtn) { try { openJobDetails(jobBtn.dataset.custJob); } catch (_) {} return; }
       if (e.target.closest("[data-cust-logo-upload]")) {
