@@ -3187,6 +3187,40 @@
   .dash-launch-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
   .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
   .dash-launch-card:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
+  /* ---- Dashboard customize / edit mode ---- */
+  .dash-customize-btn { background: rgba(148,163,184,0.1); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.3); transition: all .15s ease; }
+  .dash-customize-btn:hover { border-color: rgba(181,143,74,0.5); color: #e2e8f0; }
+  .dash-customize-btn.active { background: rgba(181,143,74,0.18); color: #c9a558; border-color: #c9a558; }
+  [data-theme="light"] .dash-customize-btn { background: #eef1f5; color: #475569; border-color: #d6dae1; }
+  [data-theme="light"] .dash-customize-btn.active { background: #faf3e2; color: #9a7636; border-color: #b58f4a; }
+  .dash-editbar { border: 1px dashed rgba(181,143,74,0.5); border-radius: 16px; background: rgba(181,143,74,0.05); padding: 12px 14px; margin-bottom: 16px; }
+  .dash-editbar-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .dash-editbar-title { font-size: 12px; font-weight: 700; color: #c9a558; }
+  .dash-editbar-actions { display: inline-flex; gap: 8px; }
+  .dash-eb-btn { font-size: 12px; font-weight: 700; border-radius: 9999px; padding: 6px 14px; cursor: pointer; border: 1px solid rgba(148,163,184,0.35); background: transparent; color: #94a3b8; }
+  .dash-eb-btn:hover { color: #e2e8f0; border-color: rgba(148,163,184,0.6); }
+  .dash-eb-done { background: #b58f4a; color: #0b1220; border-color: #b58f4a; }
+  .dash-eb-done:hover { background: #c9a558; color: #0b1220; }
+  .dash-add-tray { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(181,143,74,0.2); }
+  .dat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; }
+  .dat-empty { margin-top: 10px; font-size: 12px; color: #64748b; }
+  .dash-add-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #cbd5e1; background: rgba(15,23,42,0.5); border: 1px solid rgba(51,65,85,0.7); border-radius: 9999px; padding: 6px 12px; cursor: pointer; }
+  .dash-add-chip:hover { border-color: #c9a558; color: #fff; }
+  .dash-add-chip .dac-ico svg { width: 15px; height: 15px; display: block; }
+  .dash-add-chip .dac-plus { font-weight: 800; color: #c9a558; }
+  [data-theme="light"] .dash-editbar { background: #fbf6ea; border-color: #e4cd95; }
+  [data-theme="light"] .dash-add-chip { background: #fff; border-color: #d6dae1; color: #475569; }
+  .dash-launch-cell.editing { position: relative; }
+  #dashLaunchpad.editing .dash-launch-card { pointer-events: none; border-style: dashed; opacity: 0.96; }
+  .dash-launch-cell.editing[draggable] { cursor: grab; }
+  .dash-launch-cell.editing.dragging { opacity: 0.4; }
+  .dash-edit-controls { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 8; display: flex; align-items: center; gap: 4px; }
+  .dec-handle { cursor: grab; color: #64748b; display: inline-flex; padding: 4px; }
+  .dec-spacer { flex: 1; }
+  .dec-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid rgba(148,163,184,0.35); background: rgba(15,23,42,0.85); color: #cbd5e1; cursor: pointer; font-size: 15px; line-height: 1; }
+  .dec-btn:hover { border-color: #c9a558; color: #fff; }
+  .dec-remove:hover { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.12); }
+  [data-theme="light"] .dec-btn { background: #fff; color: #475569; border-color: #d6dae1; }
   .dash-launch-head { display: flex; align-items: center; gap: 11px; padding-right: 30px; flex-shrink: 0; }
   .dash-launch-icon { flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: #c9a558; background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.28); }
   .dash-launch-title { font-size: 15.5px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.01em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -5328,17 +5362,27 @@
         <h1 id="dashGreeting" class="text-2xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-3">Welcome back</h1>
         <p class="text-slate-400 mt-2 text-sm sm:text-base">Your pipeline, your jobs, and where your money's going.</p>
       </div>
-      <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-sm font-bold px-6 py-3.5 shrink-0 inline-flex items-center gap-2">
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
-        New quote
-      </button>
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="dashCustomizeBtn" type="button" class="dash-customize-btn btn rounded-full text-sm font-bold px-4 py-3.5 inline-flex items-center gap-2" aria-pressed="false" title="Reorder, add, or remove dashboard cards">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="14" r="1.6" fill="currentColor" stroke="none"/></svg>
+          <span class="dcb-label">Customize</span>
+        </button>
+        <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-sm font-bold px-6 py-3.5 inline-flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
+          New quote
+        </button>
+      </div>
     </div>
 
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
     <div id="dashStats" class="mb-7 hidden"></div>
 
+    <!-- Customize toolbar + "add back" tray — only shown in edit mode. -->
+    <div id="dashEditBar" class="dash-editbar hidden"></div>
+
     <!-- Launchpad: modular cards you click into. Extensible — add a DASH_CARDS entry
-         + a render fn and a new tile appears here with no layout surgery. -->
+         + a render fn and a new tile appears here with no layout surgery. Card
+         order / visibility is per-user (DATA.config.dashLayout), edited in place. -->
     <div id="dashLaunchpad" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-9"></div>
 
     <!-- Drilled-in section: one card opened full-width with a back arrow. Only the
@@ -11107,6 +11151,8 @@ let _dashWired = false;
 let _dashChartType = { materials: "pie", customers: "pie", jobs: "pie" };   // chart type per insight tab
 let _dashView = "home";              // home | insights | jobs | esign | calibration — the launchpad drill-in
 let _dashCalibDismissed = new Set(); // itemId|rateKey suggestions the owner waved off this session
+let _dashEditMode = false;           // launchpad "customize" mode (reorder / add / remove)
+let _dashDragKey = null;             // card key being dragged in edit mode
 // Distinct, theme-friendly palette for the material charts.
 const MAT_COLORS = ["#c9a558", "#60a5fa", "#34d399", "#f472b6", "#f59e0b", "#a78bfa", "#22d3ee", "#fb7185", "#94a3b8", "#facc15"];
 
@@ -11122,6 +11168,7 @@ function openDashboard() {
   d.classList.remove("hidden");
   d.scrollTop = 0;
   _dashView = "home";   // always land on the launchpad
+  _dashEditMode = false; // never carry customize mode across opens
   _dashEsignLastUrl = "";   // don't resurface a stale "last created" link on a fresh open
   renderDashboard();
   try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}   // premium count-up + chart entrance
@@ -11394,14 +11441,116 @@ function dashCardBody(key, ctx, jobs) {
   return "";
 }
 
+// Per-user launchpad layout: which cards show and in what order. Resolved from
+// DATA.config.dashLayout against the live DASH_CARDS list so new cards added in
+// code auto-appear (at the end) and cards removed from code just drop out.
+function resolveDashLayout() {
+  const all = DASH_CARDS.map(c => c.key);
+  const cfg = (DATA.config && DATA.config.dashLayout) || {};
+  const hidden = new Set(Array.isArray(cfg.hidden) ? cfg.hidden.filter(k => all.includes(k)) : []);
+  const order = (Array.isArray(cfg.order) ? cfg.order.filter(k => all.includes(k)) : []).slice();
+  all.forEach(k => { if (!order.includes(k)) order.push(k); });   // new cards → end
+  return { order, visible: order.filter(k => !hidden.has(k)), hiddenList: order.filter(k => hidden.has(k)) };
+}
+function persistDashLayout(visibleOrder, hiddenList) {
+  DATA.config = DATA.config || {};
+  DATA.config.dashLayout = { order: visibleOrder.concat(hiddenList), hidden: hiddenList.slice() };
+  saveData(DATA);
+}
+function refreshDashLaunchpad() { renderDashLaunchpad(loadJobs()); renderDashEditBar(); }
+function dashMove(key, dir) {
+  const { visible, hiddenList } = resolveDashLayout();
+  const i = visible.indexOf(key); if (i < 0) return;
+  const j = dir === "up" ? i - 1 : i + 1; if (j < 0 || j >= visible.length) return;
+  const v = visible.slice(); const t = v[i]; v[i] = v[j]; v[j] = t;
+  persistDashLayout(v, hiddenList); refreshDashLaunchpad();
+}
+function dashRemove(key) {
+  const { visible, hiddenList } = resolveDashLayout();
+  if (!visible.includes(key)) return;
+  if (visible.length <= 1) { try { toast("Keep at least one card on the dashboard."); } catch (_) {} return; }
+  persistDashLayout(visible.filter(k => k !== key), hiddenList.concat([key])); refreshDashLaunchpad();
+}
+function dashAdd(key) {
+  const { visible, hiddenList } = resolveDashLayout();
+  if (!hiddenList.includes(key)) return;
+  persistDashLayout(visible.concat([key]), hiddenList.filter(k => k !== key)); refreshDashLaunchpad();
+}
+function dashResetLayout() {
+  if (DATA.config) delete DATA.config.dashLayout;
+  saveData(DATA); refreshDashLaunchpad();
+}
+// Read the live DOM order after a drag and persist it (visible cards only; the
+// hidden set is unchanged).
+function persistDashOrderFromDOM() {
+  const wrap = document.getElementById("dashLaunchpad"); if (!wrap) return;
+  const visibleOrder = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(Boolean);
+  persistDashLayout(visibleOrder, resolveDashLayout().hiddenList);
+}
+function renderDashEditBar() {
+  const bar = document.getElementById("dashEditBar"); if (!bar) return;
+  if (!_dashEditMode) { bar.classList.add("hidden"); bar.innerHTML = ""; return; }
+  const { hiddenList } = resolveDashLayout();
+  const chips = hiddenList.map(k => {
+    const c = DASH_CARDS.find(x => x.key === k); if (!c) return "";
+    return `<button type="button" class="dash-add-chip" data-dashadd="${k}"><span class="dac-ico">${c.icon}</span>${escHtml(c.title)}<span class="dac-plus">+</span></button>`;
+  }).join("");
+  bar.innerHTML = `
+    <div class="dash-editbar-row">
+      <span class="dash-editbar-title">Customize — drag cards to reorder (or use ↑ ↓), remove with ×.</span>
+      <span class="dash-editbar-actions">
+        <button type="button" class="dash-eb-btn" data-dashreset>Reset</button>
+        <button type="button" class="dash-eb-btn dash-eb-done" data-dashdone>Done</button>
+      </span>
+    </div>
+    ${hiddenList.length
+      ? `<div class="dash-add-tray"><span class="dat-label">Add back</span>${chips}</div>`
+      : `<div class="dat-empty">Every card is on your dashboard.</div>`}`;
+  bar.classList.remove("hidden");
+}
+function toggleDashEdit(on) {
+  _dashEditMode = !!on;
+  const btn = document.getElementById("dashCustomizeBtn");
+  if (btn) {
+    btn.classList.toggle("active", _dashEditMode);
+    btn.setAttribute("aria-pressed", _dashEditMode ? "true" : "false");
+    const l = btn.querySelector(".dcb-label"); if (l) l.textContent = _dashEditMode ? "Done" : "Customize";
+  }
+  try { closeAllDashTips(); } catch (_) {}
+  refreshDashLaunchpad();
+}
+
 function renderDashLaunchpad(jobs) {
   const wrap = document.getElementById("dashLaunchpad");
   if (!wrap) return;
   const ctx = dashLaunchContext(jobs);
-  wrap.innerHTML = DASH_CARDS.map(c => {
+  const editing = _dashEditMode;
+  wrap.classList.toggle("editing", editing);
+  wrap.innerHTML = resolveDashLayout().visible.map(key => {
+    const c = DASH_CARDS.find(x => x.key === key);
+    if (!c) return "";
     const body = dashCardBody(c.key, ctx, jobs) || "";
+    if (editing) {
+      return `
+      <div class="dash-launch-cell editing" data-card-key="${c.key}" draggable="true">
+        <div class="dash-edit-controls">
+          <span class="dec-handle" aria-hidden="true" title="Drag to reorder"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
+          <span class="dec-spacer"></span>
+          <button type="button" class="dec-btn" data-dashmove="up" data-key="${c.key}" aria-label="Move ${escHtml(c.title)} earlier">&uarr;</button>
+          <button type="button" class="dec-btn" data-dashmove="down" data-key="${c.key}" aria-label="Move ${escHtml(c.title)} later">&darr;</button>
+          <button type="button" class="dec-btn dec-remove" data-dashremove="${c.key}" aria-label="Remove ${escHtml(c.title)}">&times;</button>
+        </div>
+        <span class="dash-launch-card" aria-hidden="true">
+          <span class="dash-launch-head">
+            <span class="dash-launch-icon">${c.icon}</span>
+            <span class="dash-launch-title">${escHtml(c.title)}</span>
+          </span>
+          <span class="dash-launch-body">${body}</span>
+        </span>
+      </div>`;
+    }
     return `
-    <div class="dash-launch-cell">
+    <div class="dash-launch-cell" data-card-key="${c.key}">
       <button type="button" data-dashcard="${c.goto || c.key}" class="dash-launch-card" aria-describedby="tip-${c.key}">
         <span class="dash-launch-head">
           <span class="dash-launch-icon">${c.icon}</span>
@@ -13675,10 +13824,26 @@ async function generateJobThumbnail(jobId, btn) {
 function wireDashboard() {
   if (_dashWired) return;
   _dashWired = true;
+  // Dashboard customize (edit mode) — reorder / add / remove launchpad cards.
+  const _custBtn = document.getElementById("dashCustomizeBtn");
+  if (_custBtn) _custBtn.addEventListener("click", () => toggleDashEdit(!_dashEditMode));
+  const _editBar = document.getElementById("dashEditBar");
+  if (_editBar) _editBar.addEventListener("click", (e) => {
+    if (e.target.closest("[data-dashdone]")) { toggleDashEdit(false); return; }
+    if (e.target.closest("[data-dashreset]")) { dashResetLayout(); return; }
+    const add = e.target.closest("[data-dashadd]");
+    if (add) { dashAdd(add.dataset.dashadd); return; }
+  });
   // Launchpad: tap a card to drill in; back arrow returns home.
   const launchpad = document.getElementById("dashLaunchpad");
   if (launchpad) {
     launchpad.addEventListener("click", (e) => {
+      // Edit mode: card move / remove controls, and no drill-in navigation.
+      const mv = e.target.closest("[data-dashmove]");
+      if (mv) { e.preventDefault(); e.stopPropagation(); dashMove(mv.dataset.key, mv.dataset.dashmove); return; }
+      const rm = e.target.closest("[data-dashremove]");
+      if (rm) { e.preventDefault(); e.stopPropagation(); dashRemove(rm.dataset.dashremove); return; }
+      if (_dashEditMode) { e.preventDefault(); return; }
       // The ⓘ hint toggles a description popover and must NOT navigate.
       const tip = e.target.closest(".dash-tip-btn");
       if (tip) {
@@ -13707,6 +13872,31 @@ function wireDashboard() {
     launchpad.addEventListener("pointerover", (e) => {
       const cell = e.target.closest(".dash-launch-cell");
       if (cell) positionDashTip(cell);
+    });
+    // Edit mode: drag-to-reorder (pointer). Touch users use the ↑ ↓ buttons.
+    launchpad.addEventListener("dragstart", (e) => {
+      if (!_dashEditMode) return;
+      const cell = e.target.closest(".dash-launch-cell"); if (!cell) return;
+      _dashDragKey = cell.dataset.cardKey;
+      cell.classList.add("dragging");
+      if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", _dashDragKey); } catch (_) {} }
+    });
+    launchpad.addEventListener("dragover", (e) => {
+      if (!_dashEditMode || !_dashDragKey) return;
+      e.preventDefault();
+      const dragging = launchpad.querySelector(".dash-launch-cell.dragging");
+      const cell = e.target.closest(".dash-launch-cell");
+      if (!dragging || !cell || cell === dragging) return;
+      const r = cell.getBoundingClientRect();
+      const after = (e.clientY - r.top) > r.height / 2 || (e.clientX - r.left) > r.width / 2;
+      if (after) cell.after(dragging); else cell.before(dragging);
+    });
+    launchpad.addEventListener("drop", (e) => { if (_dashEditMode) e.preventDefault(); });
+    launchpad.addEventListener("dragend", () => {
+      const dragging = launchpad.querySelector(".dash-launch-cell.dragging");
+      if (dragging) dragging.classList.remove("dragging");
+      if (_dashEditMode && _dashDragKey) persistDashOrderFromDOM();
+      _dashDragKey = null;
     });
     // Global dismiss for an open (mobile-tapped) tip.
     document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".dash-launch-cell.tip-open")) closeAllDashTips(); });
