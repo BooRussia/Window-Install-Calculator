@@ -854,6 +854,14 @@
   [data-theme="light"] .rail-feedback-link { color: #94a3b8; }
   [data-theme="light"] .rail-feedback-link:hover { color: #97772e; }
   /* Admin feedback list */
+  .fb-resolved { margin-top: 12px; border-top: 1px solid rgba(51,65,85,0.55); padding-top: 6px; }
+  .fb-resolved-sum { cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; list-style: none; padding: 6px 0; -webkit-tap-highlight-color: transparent; }
+  .fb-resolved-sum::-webkit-details-marker { display: none; }
+  .fb-resolved-sum::before { content: "\25B8 "; color: #475569; }
+  .fb-resolved[open] .fb-resolved-sum::before { content: "\25BE "; }
+  .fb-resolved-sum:hover { color: #94a3b8; }
+  .fb-resolved-list { margin-top: 8px; display: flex; flex-direction: column; gap: 10px; }
+  [data-theme="light"] .fb-resolved { border-color: #e2e8f0; }
   .fb-item { border: 1px solid rgba(51,65,85,0.6); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; background: rgba(15,23,42,0.4); }
   .fb-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; }
   .fb-kind { font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
@@ -20979,7 +20987,7 @@ async function renderAdminFeedback() {
   const openCount = rows.filter(r => r.status === "new" || r.status === "reviewing").length;
   if (cnt) cnt.textContent = openCount ? `· ${openCount} open` : "";
   if (!rows.length) { body.innerHTML = '<p class="text-xs text-slate-500">No feedback yet.</p>'; return; }
-  body.innerHTML = rows.map(r => {
+  const renderItem = (r) => {
     const when = new Date(r.created_at).toLocaleString();
     const kind = r.kind === "bug" ? "bug" : "feature";
     const done = r.status === "done" || r.status === "dismissed";
@@ -20998,7 +21006,15 @@ async function renderAdminFeedback() {
         <button class="fb-act" data-fbact="delete" data-fbid="${r.id}">Delete</button>
       </div>
     </div>`;
-  }).join("");
+  };
+  // Keep the panel to OPEN bugs/requests; resolved (done/dismissed) items — incl.
+  // ones the daily triage marks 'done' once their fix has shipped — tuck into a
+  // collapsed "Resolved" section so the active queue stays clean.
+  const active = rows.filter(r => r.status !== "done" && r.status !== "dismissed");
+  const resolved = rows.filter(r => r.status === "done" || r.status === "dismissed");
+  body.innerHTML =
+    (active.length ? active.map(renderItem).join("") : '<p class="text-xs text-slate-500">No open feedback &mdash; you&rsquo;re all caught up.</p>')
+    + (resolved.length ? `<details class="fb-resolved"><summary class="fb-resolved-sum">Resolved (${resolved.length})</summary><div class="fb-resolved-list">${resolved.map(renderItem).join("")}</div></details>` : "");
   hydrateFeedbackThumbs(body);
   if (!_fbRealtimeWired) {
     try {
