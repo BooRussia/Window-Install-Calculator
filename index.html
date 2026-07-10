@@ -24725,18 +24725,19 @@ function exportComparisonPDF(mode) {
 /* ============================================================
    PWA: purge any stale service workers + caches so updates always reach the user
    ============================================================ */
-function purgeStaleSW() {
+// FLD-1: register the offline service worker (see sw.js — network-first page so you
+// never get stuck on an old version, cache-fallback when there's no signal). Replaces
+// the old purge-everything behavior; the new SW self-cleans stale caches on activate.
+function registerAnchorSW() {
   try {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations()
-        .then(regs => Promise.all(regs.map(r => r.unregister().catch(() => {}))))
-        .catch(() => {});
-    }
-    if ("caches" in window) {
-      caches.keys()
-        .then(keys => Promise.all(keys.map(k => caches.delete(k).catch(() => {}))))
-        .catch(() => {});
-    }
+    if (!("serviceWorker" in navigator)) return;
+    // Service workers need a secure context; skip file:// and any non-localhost http
+    // preview (registration would just fail there anyway).
+    const okHost = location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    if (!okHost) return;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
+    });
   } catch (_) {}
 }
 
@@ -28910,7 +28911,7 @@ function init() {
     }
   });
 
-  purgeStaleSW();
+  registerAnchorSW();
 }
 
 
