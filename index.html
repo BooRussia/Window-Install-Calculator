@@ -12641,9 +12641,48 @@ function initRailAccordion() {
       head.addEventListener("click", () => {
         if (!document.body.classList.contains("rail-tidy")) return;  // flat mode: no toggle
         const wasOpen = acc.classList.contains("open");
+        // Capture (BEFORE any reflow) where this header sits and how much of the
+        // section above it — if open — is about to collapse. The collapse pulls
+        // this header upward; without compensation it lands off the top of the
+        // rail, which reads as "scrolled past the section."
+        const headTopBefore = head.getBoundingClientRect().top;
+        let collapseAbove = 0;
+        if (!wasOpen) {
+          const openAcc = [...accs].find(a => a !== acc && a.classList.contains("open"));
+          if (openAcc && openAcc.getBoundingClientRect().top < headTopBefore) {
+            const b = openAcc.querySelector(".rail-acc-body");
+            if (b) collapseAbove = b.getBoundingClientRect().height;
+          }
+        }
         accs.forEach(a => a.classList.remove("open"));
         if (!wasOpen) acc.classList.add("open");
         updateExpandAllBtn();
+        // On open, land the section's header near the top of the rail so its
+        // beginning is always visible — scroll to its PROJECTED resting position
+        // (its pre-reflow top minus the collapse above it), independent of the
+        // expand/collapse animation timing.
+        if (!wasOpen) {
+          const findScroller = () => {
+            let sc = head.parentElement;
+            while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+            return sc;
+          };
+          const sc = findScroller();
+          if (sc) {
+            // Immediate: scroll to the header's projected resting position so the
+            // section's beginning stays in view as it expands (no off-top flash).
+            const projTop = headTopBefore - collapseAbove;
+            sc.scrollBy({ top: (projTop - sc.getBoundingClientRect().top) - 8, behavior: "smooth" });
+            // Safety net: once the expand/collapse animation (and any scrollTop
+            // clamp from the height change) settles, if the header still isn't
+            // comfortably in view, bring it to the top.
+            setTimeout(() => {
+              const sc2 = findScroller(); if (!sc2) return;
+              const rel = head.getBoundingClientRect().top - sc2.getBoundingClientRect().top;
+              if (rel < 0 || rel > sc2.clientHeight * 0.6) sc2.scrollBy({ top: rel - 8, behavior: "smooth" });
+            }, 380);
+          }
+        }
       });
       head._accWired = true;
     }
