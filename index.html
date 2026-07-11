@@ -663,7 +663,13 @@
      Scoped to body.tabbar-on so behavior with the bar off stays byte-identical. */
   @media (max-width: 1023px) {
     body.tabbar-on { --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
-    body.tabbar-on #dashboardScreen { bottom: var(--chrome-b); }
+    /* The dashboard (z-74) gets its OWN bar instance inside its stacking
+       context — the body-level bar (z-45) painted UNDER the dashboard's edge
+       and clipped the FAB's raised top. Content clears the bar via padding. */
+    body.tabbar-on #dashboardScreen { padding-bottom: var(--chrome-b); }
+    body.tabbar-on:has(#dashboardScreen:not(.hidden)) #appTabBar { display: none !important; }
+    #dashboardScreen .app-tabbar { z-index: 45; }
+    body.tabbar-on #compareBar { bottom: calc(var(--chrome-b) + 14px); }
     body.tabbar-on #appBody { padding-bottom: var(--chrome-b); }
     body.tabbar-on #mtotalBar { bottom: var(--chrome-b); }
     body.tabbar-on #mtotalBtn { padding-bottom: 9px; }   /* safe-area now spent by the bar below */
@@ -13404,8 +13410,8 @@ function startNewQuote() {
 // the dashboard view; the calculator itself has no active tab (the FAB is its
 // entry). Desktop hiding is pure CSS (min-width media query).
 function updateTabBar() {
-  const bar = document.getElementById("appTabBar");
-  if (!bar) return;
+  const bars = document.querySelectorAll(".app-tabbar");
+  if (!bars.length) return;
   const hiddenEl = id => { const el = document.getElementById(id); return !el || el.classList.contains("hidden"); };
   const signedIn = (typeof currentUser !== "undefined") && !!currentUser;
   const show = signedIn
@@ -13417,35 +13423,51 @@ function updateTabBar() {
   const dashOpen = !hiddenEl("dashboardScreen");
   const view = (typeof _dashView !== "undefined") ? _dashView : "home";
   const active = dashOpen ? (view === "home" || view === "jobs" || view === "shopping" ? view : "") : "";
-  bar.querySelectorAll(".app-tab[data-tab]").forEach(b => {
+  bars.forEach(bar => bar.querySelectorAll(".app-tab[data-tab]").forEach(b => {
     const on = b.dataset.tab === active;
     b.classList.toggle("active", on);
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
-  });
+  }));
 }
 function wireTabBar() {
-  const bar = document.getElementById("appTabBar");
-  if (!bar || bar._wired) return;
-  bar._wired = true;
-  bar.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-tab],[data-tabact]");
-    if (!btn) return;
-    try { closeJobRail(); } catch (_) {}
-    const t = btn.dataset.tab || btn.dataset.tabact;
-    if (t === "home") { openDashboard(); }
-    else if (t === "jobs") { openDashboard(); dashGoTo("jobs"); }
-    else if (t === "shopping") { openDashboard(); dashGoTo("shopping"); }
-    else if (t === "new") { startNewQuote(); }
-    else if (t === "more") { togglePfpMenu(e, btn); }
-    updateTabBar();
+  const src = document.getElementById("appTabBar");
+  if (!src) return;
+  // The dashboard screen (fixed, z-74) needs its OWN bar instance inside its
+  // stacking context: the body-level bar sits at z-45 (under modals/sheets),
+  // so on the dashboard it painted underneath the screen's edge and the FAB's
+  // raised circle lost its top. One source of markup — cloned once here.
+  const dash = document.getElementById("dashboardScreen");
+  if (dash && !document.getElementById("dashTabBar")) {
+    const clone = src.cloneNode(true);
+    clone.id = "dashTabBar";
+    dash.appendChild(clone);
+  }
+  document.querySelectorAll(".app-tabbar").forEach(bar => {
+    if (bar._wired) return;
+    bar._wired = true;
+    bar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-tab],[data-tabact]");
+      if (!btn) return;
+      try { closeJobRail(); } catch (_) {}
+      const t = btn.dataset.tab || btn.dataset.tabact;
+      if (t === "home") { openDashboard(); }
+      else if (t === "jobs") { openDashboard(); dashGoTo("jobs"); }
+      else if (t === "shopping") { openDashboard(); dashGoTo("shopping"); }
+      else if (t === "new") { startNewQuote(); }
+      else if (t === "more") { togglePfpMenu(e, btn); }
+      updateTabBar();
+    });
   });
-  // Screens toggle .hidden from a dozen code paths (auth, pricing, onboarding…)
-  // — observe their class attribute instead of patching every site.
-  ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen", "dashboardScreen"].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    new MutationObserver(() => { try { updateTabBar(); } catch (_) {} }).observe(el, { attributes: true, attributeFilter: ["class"] });
-  });
+  if (!wireTabBar._observed) {
+    wireTabBar._observed = true;
+    // Screens toggle .hidden from a dozen code paths (auth, pricing, onboarding…)
+    // — observe their class attribute instead of patching every site.
+    ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen", "dashboardScreen"].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      new MutationObserver(() => { try { updateTabBar(); } catch (_) {} }).observe(el, { attributes: true, attributeFilter: ["class"] });
+    });
+  }
   updateTabBar();
 }
 
