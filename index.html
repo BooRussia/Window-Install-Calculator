@@ -744,6 +744,52 @@
   [data-theme="light"] .dash-chip:hover { color: #334155; }
   [data-theme="light"] .dash-chip.active { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
 
+  /* ── Expandable live-total sheet (UI refresh P5) ── tap the selling-price bar
+     for an itemized peek (mobile-patterns §7: the collapsed bar expands into an
+     honest, itemized total). Internal numbers carry .internal-only so Present
+     mode strips them; ≥1024px never shows it (the bar itself is mobile-only). */
+  #mtotalSheet { position: fixed; inset: 0; z-index: 49; display: none; }
+  #mtotalSheet.open { display: block; }
+  .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  .msheet-panel {
+    position: absolute; left: 0; right: 0; bottom: 0; max-height: 78svh;
+    overflow-y: auto; overscroll-behavior: contain;
+    background: linear-gradient(180deg, #0d1426 0%, #060a16 100%);
+    border-top: 1px solid rgba(181,143,74,0.35); border-radius: 20px 20px 0 0;
+    padding: 8px 18px calc(18px + env(safe-area-inset-bottom));
+    animation: sheetUp .34s cubic-bezier(0.16,1,0.3,1);
+  }
+  @media (prefers-reduced-motion: reduce) { .msheet-panel { animation: none; } }
+  .msheet-grab { width: 40px; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.45); margin: 6px auto 14px; }
+  .msheet-cap { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: #94a3b8; }
+  .msheet-num { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; color: #f8fafc; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .msheet-margin { font-size: 12px; font-weight: 700; color: var(--gold-hi); }
+  .msheet-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .msheet-tile { border: 1px solid rgba(51,65,85,0.6); background: rgba(15,23,42,0.5); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+  .msheet-tile span { font-size: 9.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b; }
+  .msheet-tile b { font-size: 16px; font-weight: 800; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+  .msheet-tile b.msheet-gold { color: var(--gold-hi); }
+  .msheet-rows { margin-top: 14px; border: 1px solid rgba(51,65,85,0.55); border-radius: 14px; overflow: hidden; }
+  .msheet-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; }
+  .msheet-row + .msheet-row { border-top: 1px solid rgba(51,65,85,0.35); }
+  .msheet-row-name { font-size: 12.5px; font-weight: 600; color: #cbd5e1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msheet-row-val { font-size: 12.5px; font-weight: 800; color: #f1f5f9; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .msheet-more { padding: 9px 12px; font-size: 11px; font-weight: 600; color: #64748b; border-top: 1px solid rgba(51,65,85,0.35); }
+  .msheet-full { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 14px; min-height: 48px; border-radius: 9999px; border: 0; background: #b58f4a; color: #0b1120; font-size: 14px; font-weight: 800; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .msheet-full:active { transform: scale(0.99); }
+  @media (min-width: 1024px) { #mtotalSheet { display: none !important; } }
+  [data-theme="light"] .msheet-panel { background: #ffffff; border-top-color: rgba(154,118,54,0.45); }
+  [data-theme="light"] .msheet-num { color: #0f172a; }
+  [data-theme="light"] .msheet-margin { color: #9a7636; }
+  [data-theme="light"] .msheet-tile { background: #f8fafc; border-color: #e2e8f0; }
+  [data-theme="light"] .msheet-tile b { color: #0f172a; }
+  [data-theme="light"] .msheet-tile b.msheet-gold { color: #9a7636; }
+  [data-theme="light"] .msheet-rows { border-color: #e2e8f0; }
+  [data-theme="light"] .msheet-row + .msheet-row, [data-theme="light"] .msheet-more { border-top-color: #eef1f5; }
+  [data-theme="light"] .msheet-row-name { color: #475569; }
+  [data-theme="light"] .msheet-row-val { color: #0f172a; }
+  [data-theme="light"] .msheet-full { color: #ffffff; }
+
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
      keeps the centered dialog. CSS-only — no change to open/close logic. */
@@ -7388,7 +7434,7 @@
 
 <!-- Mobile-only sticky live total — persistent price in the thumb zone; tap to view the full breakdown. -->
 <div id="mtotalBar">
-  <button id="mtotalBtn" type="button" aria-controls="results" aria-label="View the full price breakdown">
+  <button id="mtotalBtn" type="button" aria-controls="mtotalSheet" aria-label="Open the price breakdown">
     <span class="mtotal-meta">
       <span class="mtotal-cap">Selling price</span>
       <span class="mtotal-sub internal-only">@ <span id="mtotalMargin">35</span>% markup</span>
@@ -7396,6 +7442,16 @@
     <output id="mtotalOut" class="mtotal-amount" aria-live="polite" aria-atomic="true"><span class="mtotal-sr">Selling price </span><span id="mtotalAmount">$0.00</span></output>
     <svg class="mtotal-chev" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 8 14 12"/></svg>
   </button>
+</div>
+
+<!-- Expandable live-total sheet (UI refresh P5) — tap the sticky selling-price
+     bar to peek the itemized breakdown without losing your place in the form. -->
+<div id="mtotalSheet" aria-hidden="true">
+  <div class="msheet-backdrop" data-msheet-close></div>
+  <div class="msheet-panel" role="dialog" aria-modal="true" aria-label="Price breakdown">
+    <div class="msheet-grab" aria-hidden="true"></div>
+    <div id="mtotalSheetBody"></div>
+  </div>
 </div>
 
 <div id="appBody">
@@ -29176,11 +29232,48 @@ function init() {
   document.getElementById("railToggleHeader").addEventListener("click", toggleRail);
   document.getElementById("jobRailBackdrop").addEventListener("click", closeJobRail);
   // Mobile sticky total bar → close the drawer (if open) and reveal the full breakdown.
-  document.getElementById("mtotalBtn")?.addEventListener("click", () => {
-    closeJobRail();
-    const res = document.getElementById("results");
-    if (res && !res.classList.contains("hidden")) res.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  // Expandable live-total sheet (UI refresh P5): the bar opens an itemized
+  // peek; "See full breakdown" inside it does the old scroll-to-results jump.
+  const _msheet = document.getElementById("mtotalSheet");
+  function closeMtotalSheet() {
+    if (_msheet) { _msheet.classList.remove("open"); _msheet.setAttribute("aria-hidden", "true"); }
+  }
+  function openMtotalSheet() {
+    if (!_msheet) return;
+    let r = null;
+    try { r = calculate(); } catch (_) { return; }
+    if (!r || !hasQuoteInput(r)) return;
+    const rows = (r.rows || []).filter(x => (Number(x.totalCost) || 0) > 0)
+      .sort((a, b) => (b.totalCost || 0) - (a.totalCost || 0));
+    const top = rows.slice(0, 6), rest = rows.length - top.length;
+    document.getElementById("mtotalSheetBody").innerHTML = `
+      <div class="msheet-cap">Selling price</div>
+      <div class="msheet-num">${formatMoney(r.sellingPrice)}<span class="msheet-margin internal-only">@ ${r.margin}% markup</span></div>
+      <div class="msheet-tiles internal-only">
+        <div class="msheet-tile"><span>Total job cost</span><b>${formatMoney(r.totalCost)}</b></div>
+        <div class="msheet-tile"><span>Projected profit</span><b class="msheet-gold">${formatMoney(r.profit)}</b></div>
+      </div>
+      <div class="msheet-rows internal-only">
+        ${top.map(x => `<div class="msheet-row"><span class="msheet-row-name">${escHtml(x.name || "")}</span><span class="msheet-row-val">${formatMoney(x.totalCost)}</span></div>`).join("")}
+        ${rest > 0 ? `<div class="msheet-more">+ ${rest} more line${rest === 1 ? "" : "s"} in the full breakdown</div>` : ""}
+      </div>
+      <button type="button" class="msheet-full" data-msheet-full>See full breakdown</button>`;
+    _msheet.classList.add("open");
+    _msheet.setAttribute("aria-hidden", "false");
+  }
+  document.getElementById("mtotalBtn")?.addEventListener("click", () => { closeJobRail(); openMtotalSheet(); });
+  if (_msheet && !_msheet._wired) {
+    _msheet._wired = true;
+    _msheet.addEventListener("click", (e) => {
+      if (e.target.closest("[data-msheet-close]")) { closeMtotalSheet(); return; }
+      if (e.target.closest("[data-msheet-full]")) {
+        closeMtotalSheet();
+        const res = document.getElementById("results");
+        if (res && !res.classList.contains("hidden")) res.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMtotalSheet(); });
+  }
   // Empty-state "Enter job details" → open the input drawer (mobile path made obvious).
   document.getElementById("emptyStateEnterBtn")?.addEventListener("click", openJobRail);
   const _hotzone = document.getElementById("railHotzone");
