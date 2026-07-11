@@ -25740,7 +25740,18 @@ function getAiReadCap() {
   return (AI_READ_CAPS[p] != null) ? AI_READ_CAPS[p] : AI_READ_CAPS.trial;
 }
 function getAiReadsUsed() { return getEntitlements().aiExtractionsUsedThisCycle || 0; }
+// True when the account has a LIVE AI-read entitlement: an unexpired trial, or a
+// paid plan whose subscription is active/trialing. A canceled/past-due paid plan
+// keeps its old tier in AI_READ_CAPS, so the raw cap is NOT proof of a live quota
+// — gate on this. Mirrors canGenerate()'s trial-expiry + subscription-status checks.
+function hasAiReadEntitlement() {
+  if (typeof isAdmin === "function" && isAdmin()) return true;
+  const e = getEntitlements();
+  if (e.plan === "trial") return !isTrialExpired();
+  return !(e.subscriptionStatus && e.subscriptionStatus !== "active" && e.subscriptionStatus !== "trialing");
+}
 function getAiReadsRemaining() {
+  if (!hasAiReadEntitlement()) return 0;   // lapsed sub / expired trial: no live reads
   const cap = getAiReadCap();
   return cap === Infinity ? Infinity : Math.max(0, cap - getAiReadsUsed());
 }
@@ -25752,6 +25763,15 @@ function bumpAiReadUsed() {
 // "✨ N of CAP AI plan reads left this month" — for the upload modals' meter.
 function aiReadsMeterHtml() {
   if (!currentUser) return "";
+  // No live entitlement (canceled/past-due paid sub, or expired trial): there is no
+  // monthly allotment to show — say "0 available" plainly instead of "N of CAP left"
+  // (or, for a lapsed Shop plan, a bogus "Unlimited").
+  if (!hasAiReadEntitlement()) {
+    const lapsedTrial = getEntitlements().plan === "trial";
+    const label = lapsedTrial ? "Trial ended" : "Subscription inactive";
+    const cta = lapsedTrial ? "Upgrade" : "Resubscribe";
+    return `<span class="aim aim-limit">✨ 0 AI plan reads available &middot; ${label} &middot; <span class="aim-cta" data-aim-upgrade role="button" tabindex="0">${cta}</span></span>`;
+  }
   const cap = getAiReadCap();
   if (cap === Infinity) return `<span class="aim aim-unlimited">✨ Unlimited AI plan reads</span>`;
   const remaining = getAiReadsRemaining();
