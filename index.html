@@ -106,6 +106,14 @@
     --gold-lo: #8a6a2e;
     --gold-glow: rgba(181, 143, 74, 0.28);
     --gold-soft: rgba(181, 143, 74, 0.10);
+    /* Surface + motion tokens, promoted from the landing page's scoped set so
+       app components can stop hardcoding rgba slate values (UI refresh P1). */
+    --navy-0: #020617;
+    --navy-1: #0d1426;
+    --hairline: rgba(148, 163, 184, 0.16);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --tabbar-h: 60px;
   }
   html, body { background: #020617; }
   body {
@@ -609,6 +617,65 @@
     #results { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
   }
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
+
+  /* ── Mobile bottom tab bar (UI refresh P1) ──────────────────────────────────
+     Fintech-style app nav: Home · Jobs · [⊕ New quote] · Shopping · More.
+     z-45 keeps it UNDER every modal/sheet (z-50+); the dashboard screen (z-74)
+     is inset above it (bottom: --chrome-b) instead of fighting it. Mobile-only,
+     shown via body.tabbar-on (set by updateTabBar for signed-in app screens). */
+  .app-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: none; }
+  body.tabbar-on .app-tabbar {
+    display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+    background: rgba(7,12,24,0.94);
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    border-top: 1px solid var(--hairline);
+  }
+  @media (min-width: 1024px) { .app-tabbar { display: none !important; } }
+  .app-tab {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    background: none; border: 0; padding: 3px 0; min-width: 0; border-radius: 12px;
+    color: #7a8699; font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: color .18s ease, transform .12s ease;
+  }
+  .app-tab svg { display: block; }
+  .app-tab:active { transform: scale(0.94); }
+  .app-tab.active { color: var(--gold-hi); }
+  .app-tab:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: -2px; }
+  /* Center action: raised gold circle floating out of the bar (their swap FAB) */
+  .app-fab-circle {
+    width: 48px; height: 48px; margin-top: -26px; border-radius: 9999px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #c9a558, #b58f4a); color: #0b1120;
+    box-shadow: 0 10px 26px -8px var(--gold-glow), 0 0 0 6px rgba(7,12,24,0.94);
+    transition: transform .15s var(--ease-out);
+  }
+  .app-tab:active .app-fab-circle { transform: scale(0.94); }
+  [data-theme="light"] body.tabbar-on .app-tabbar { background: rgba(255,255,255,0.96); border-top-color: #e2e6ec; }
+  [data-theme="light"] .app-tab { color: #64748b; }
+  [data-theme="light"] .app-tab.active { color: #9a7636; }
+  [data-theme="light"] .app-fab-circle { color: #ffffff; box-shadow: 0 10px 26px -8px rgba(154,118,54,0.5), 0 0 0 6px rgba(255,255,255,0.96); }
+
+  /* Bottom-chrome offsets: one var feeds every element that must clear the bar.
+     Scoped to body.tabbar-on so behavior with the bar off stays byte-identical. */
+  @media (max-width: 1023px) {
+    body.tabbar-on { --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+    body.tabbar-on #dashboardScreen { bottom: var(--chrome-b); }
+    body.tabbar-on #appBody { padding-bottom: var(--chrome-b); }
+    body.tabbar-on #mtotalBar { bottom: var(--chrome-b); }
+    body.tabbar-on #mtotalBtn { padding-bottom: 9px; }   /* safe-area now spent by the bar below */
+    body.tabbar-on #jobSpecsFab { bottom: calc(var(--chrome-b) + 18px); }
+    body.tabbar-on.mtotal-on #jobSpecsFab { bottom: calc(var(--chrome-b) + 86px); }
+    body.tabbar-on .toast { bottom: calc(var(--chrome-b) + 20px); }
+    body.tabbar-on.mtotal-on .toast { bottom: calc(var(--chrome-b) + 86px); }
+    body.tabbar-on.mtotal-on #results { padding-bottom: calc(var(--chrome-b) + 150px); }
+    body.tabbar-on.mtotal-on #jobRail > .overflow-y-auto { padding-bottom: calc(var(--chrome-b) + 88px); }
+    body.tabbar-on #jobRail > .overflow-y-auto { padding-bottom: calc(var(--chrome-b) + 16px); }
+    /* Present mode = customer is looking: drop the app chrome entirely. */
+    body.present-mode .app-tabbar { display: none !important; }
+    body.present-mode.tabbar-on { --chrome-b: env(safe-area-inset-bottom); }
+  }
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
@@ -8871,6 +8938,30 @@
   </div>
 </div>
 
+<!-- Mobile bottom tab bar (UI refresh P1) — signed-in app chrome; hidden on
+     desktop, landing/pricing/onboarding, public quotes, and in Present mode. -->
+<nav id="appTabBar" class="app-tabbar" aria-label="App sections">
+  <button type="button" class="app-tab" data-tab="home" aria-label="Home">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg>
+    <span>Home</span>
+  </button>
+  <button type="button" class="app-tab" data-tab="jobs" aria-label="Jobs">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/></svg>
+    <span>Jobs</span>
+  </button>
+  <button type="button" class="app-tab" data-tabact="new" aria-label="New quote" title="New quote">
+    <span class="app-fab-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+  </button>
+  <button type="button" class="app-tab" data-tab="shopping" aria-label="Shopping list">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 4-4"/><path d="M5 6h16l-1.5 9.5a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 4H3"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>
+    <span>Shopping</span>
+  </button>
+  <button type="button" class="app-tab" data-tabact="more" aria-label="More options">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">Saved</div>
 
 <!-- Mobile-only thumb-reachable shortcut to open the job rail. Hidden on
@@ -11708,9 +11799,21 @@ function positionPfpMenu(trigger) {
   const m = document.getElementById("pfpMenu");
   if (!m || !trigger || !trigger.getBoundingClientRect) return;
   const r = trigger.getBoundingClientRect();
-  m.style.top = (r.bottom + 8) + "px";
   m.style.right = Math.max(8, window.innerWidth - r.right) + "px";
   m.style.left = "auto";
+  // Below the trigger by default; flip ABOVE when opening downward would run
+  // off-screen (e.g. from the bottom tab bar's More button). ~380px estimate —
+  // the menu is display:none here so it can't be measured yet.
+  const vh = window.innerHeight;
+  if (r.bottom + 8 + 380 > vh && r.top > vh - r.bottom) {
+    m.style.top = "auto";
+    m.style.bottom = (vh - r.top + 8) + "px";
+    m.style.maxHeight = Math.max(200, r.top - 16) + "px";
+  } else {
+    m.style.bottom = "auto";
+    m.style.top = (r.bottom + 8) + "px";
+    m.style.maxHeight = "";
+  }
 }
 function togglePfpMenu(e, trigger) {
   if (e) e.stopPropagation();
@@ -13087,6 +13190,66 @@ function closeDashboard() {
   if (d) d.classList.add("hidden");
 }
 
+// ── Mobile bottom tab bar (UI refresh P1) ────────────────────────────────────
+// DASH-2 lives here now: "New quote" wipes the working quote via resetAll(), so
+// confirm first when there's actual work on the calculator. Shared by the
+// dashboard hero button and the tab bar's center FAB.
+function startNewQuote() {
+  let hasWork = false;
+  try { hasWork = hasQuoteInput(calculate()) || !!(STATE && (STATE.customerName || STATE.jobName)); } catch (_) {}
+  if (hasWork && !confirm("Start a new quote? This clears the quote you're working on.")) return;
+  try { resetAll(); } catch (_) {} closeDashboard();
+}
+// Visibility: signed-in app surfaces only (calculator or dashboard) — never on
+// landing/pricing/onboarding/setup or the public-quote route. Active tab mirrors
+// the dashboard view; the calculator itself has no active tab (the FAB is its
+// entry). Desktop hiding is pure CSS (min-width media query).
+function updateTabBar() {
+  const bar = document.getElementById("appTabBar");
+  if (!bar) return;
+  const hiddenEl = id => { const el = document.getElementById(id); return !el || el.classList.contains("hidden"); };
+  const signedIn = (typeof currentUser !== "undefined") && !!currentUser;
+  const show = signedIn
+    && hiddenEl("landingScreen") && hiddenEl("pricingScreen")
+    && hiddenEl("onboardScreen") && hiddenEl("setupScreen")
+    && !document.body.hasAttribute("data-public-quote");
+  document.body.classList.toggle("tabbar-on", show);
+  if (!show) return;
+  const dashOpen = !hiddenEl("dashboardScreen");
+  const view = (typeof _dashView !== "undefined") ? _dashView : "home";
+  const active = dashOpen ? (view === "home" || view === "jobs" || view === "shopping" ? view : "") : "";
+  bar.querySelectorAll(".app-tab[data-tab]").forEach(b => {
+    const on = b.dataset.tab === active;
+    b.classList.toggle("active", on);
+    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
+}
+function wireTabBar() {
+  const bar = document.getElementById("appTabBar");
+  if (!bar || bar._wired) return;
+  bar._wired = true;
+  bar.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-tab],[data-tabact]");
+    if (!btn) return;
+    try { closeJobRail(); } catch (_) {}
+    const t = btn.dataset.tab || btn.dataset.tabact;
+    if (t === "home") { openDashboard(); }
+    else if (t === "jobs") { openDashboard(); dashGoTo("jobs"); }
+    else if (t === "shopping") { openDashboard(); dashGoTo("shopping"); }
+    else if (t === "new") { startNewQuote(); }
+    else if (t === "more") { togglePfpMenu(e, btn); }
+    updateTabBar();
+  });
+  // Screens toggle .hidden from a dozen code paths (auth, pricing, onboarding…)
+  // — observe their class attribute instead of patching every site.
+  ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen", "dashboardScreen"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    new MutationObserver(() => { try { updateTabBar(); } catch (_) {} }).observe(el, { attributes: true, attributeFilter: ["class"] });
+  });
+  updateTabBar();
+}
+
 function renderDashboard() {
   const jobs = loadJobs();
   const brand = (DATA.config && DATA.config.brand) || {};
@@ -13123,6 +13286,7 @@ function renderDashboard() {
   // E-sign hits the network, so only refresh it when its card is actually open.
   if (_dashView === "esign") renderDashEsign();
   applyDashView();
+  try { updateTabBar(); } catch (_) {}   // active tab mirrors _dashView (UI refresh P1)
 }
 
 /* ============================================================
@@ -16362,15 +16526,7 @@ function wireDashboard() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
   on("dashHome", () => dashGoTo("home"));
   on("dashOpenCalc", () => closeDashboard());
-  on("dashNewQuote", () => {
-    // DASH-2: "New quote" wipes the working quote via resetAll(). Confirm first when
-    // there's actual work on the calculator (footage/doors or a customer/job name),
-    // so a mis-tap can't silently clear it.
-    let hasWork = false;
-    try { hasWork = hasQuoteInput(calculate()) || !!(STATE && (STATE.customerName || STATE.jobName)); } catch (_) {}
-    if (hasWork && !confirm("Start a new quote? This clears the quote you're working on.")) return;
-    try { resetAll(); } catch (_) {} closeDashboard();
-  });
+  on("dashNewQuote", startNewQuote);
   on("dashFL", () => { try { openFL(); } catch (_) {} });
   // Settings / Plan / Sign out moved to the account (avatar) menu (#pfpMenu).
   on("dashExportCsv", exportPipelineCSV);
@@ -28374,6 +28530,7 @@ function init() {
   // fallback / post-login boot), and an unguarded flip handler would toggle an
   // even number of times = no-op. Set from the switch's shown state so it's
   // idempotent even if the listener ever does fire twice.
+  try { wireTabBar(); } catch (_) {}   // mobile bottom tab bar (UI refresh P1)
   const _matRow = document.getElementById("materialsRow");
   if (_matRow && !_matRow._wired) {
     _matRow.addEventListener("click", e => {
