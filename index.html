@@ -677,6 +677,38 @@
     body.present-mode.tabbar-on { --chrome-b: env(safe-area-inset-bottom); }
   }
 
+  /* ── Dashboard hero balance card (UI refresh P2) ────────────────────────────
+     Fintech "balance" hero: greeting up top, open-pipeline as the headline
+     count-up number with a MoM delta chip, then the action pair. */
+  .dash-balance {
+    background: linear-gradient(180deg, rgba(15,23,42,0.72) 0%, rgba(2,6,23,0.72) 100%);
+    border: 1px solid rgba(30,41,59,0.9); border-radius: 20px; padding: 20px;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  }
+  .dbal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .dbal-greet { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: #f1f5f9; margin-top: 10px; }
+  @media (min-width: 640px) { .dbal-greet { font-size: 26px; } }
+  .dbal-msg { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+  .dbal-stat { margin-top: 18px; }
+  .dbal-label { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #64748b; }
+  .dbal-num { font-size: clamp(34px, 9vw, 46px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; color: #f8fafc; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .dbal-delta { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.02em; padding: 3px 9px; border-radius: 9999px; text-transform: none; }
+  .dbal-delta.up { color: #34d399; background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.25); }
+  .dbal-delta.down { color: #fb7185; background: rgba(251,113,133,0.12); border: 1px solid rgba(251,113,133,0.25); }
+  .dbal-sub { font-size: 12px; font-weight: 600; color: #64748b; margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .dbal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .dbal-actions > .btn { flex: 1; }
+  @media (min-width: 640px) { .dbal-actions > .btn { flex: 0 0 auto; } }
+  .dbal-jobs-btn { color: #cbd5e1; border: 1px solid rgba(148,163,184,0.3); background: rgba(148,163,184,0.08); }
+  .dbal-jobs-btn:hover { border-color: rgba(201,165,88,0.5); color: #f1f5f9; }
+  [data-theme="light"] .dash-balance { background: #ffffff; border-color: #e6e8ec; box-shadow: 0 1px 2px rgba(15,23,42,0.05), 0 12px 30px -20px rgba(15,23,42,0.20); }
+  [data-theme="light"] .dbal-greet { color: #0f172a; }
+  [data-theme="light"] .dbal-msg { color: #64748b; }
+  [data-theme="light"] .dbal-num { color: #0f172a; }
+  [data-theme="light"] .dbal-delta.up { color: #047857; background: rgba(16,185,129,0.10); border-color: rgba(16,185,129,0.30); }
+  [data-theme="light"] .dbal-delta.down { color: #be123c; background: rgba(244,63,94,0.08); border-color: rgba(244,63,94,0.25); }
+  [data-theme="light"] .dbal-jobs-btn { color: #334155; border-color: #d6dae1; background: #f5f7fa; }
+
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
      keeps the centered dialog. CSS-only — no change to open/close logic. */
@@ -6699,21 +6731,35 @@
 
   <div class="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
     <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
-    <div id="dashHero" class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
-      <div>
-        <span class="lp-eyebrow">Dashboard</span>
-        <h1 id="dashGreeting" class="text-2xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-3">Welcome back</h1>
-        <p class="text-slate-400 mt-2 text-sm sm:text-base">Your pipeline, your jobs, and where your money's going.</p>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <button id="dashCustomizeBtn" type="button" class="dash-customize-btn btn rounded-full text-sm font-bold px-4 py-3.5 inline-flex items-center gap-2" aria-pressed="false" title="Reorder, add, or remove dashboard cards">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="14" r="1.6" fill="currentColor" stroke="none"/></svg>
-          <span class="dcb-label">Customize</span>
-        </button>
-        <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-sm font-bold px-6 py-3.5 inline-flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
-          New quote
-        </button>
+    <div id="dashHero" class="mb-8">
+      <div class="dash-balance">
+        <div class="dbal-head">
+          <div class="min-w-0">
+            <span class="lp-eyebrow">Dashboard</span>
+            <h1 id="dashGreeting" class="dbal-greet">Welcome back</h1>
+            <p class="dbal-msg">Your pipeline, your jobs, and where your money's going.</p>
+          </div>
+          <button id="dashCustomizeBtn" type="button" class="dash-customize-btn btn rounded-full text-sm font-bold px-4 py-3.5 inline-flex items-center gap-2 shrink-0" aria-pressed="false" title="Reorder, add, or remove dashboard cards">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="14" r="1.6" fill="currentColor" stroke="none"/></svg>
+            <span class="dcb-label">Customize</span>
+          </button>
+        </div>
+        <!-- Headline stat — hidden until the account has a saved job (renderDashHero) -->
+        <div id="dashHeroStat" class="dbal-stat hidden">
+          <div class="dbal-label">Open pipeline<span id="dashHeroDelta"></span></div>
+          <div id="dashHeroNum" class="dbal-num">$0</div>
+          <div id="dashHeroSubStat" class="dbal-sub"></div>
+        </div>
+        <div class="dbal-actions">
+          <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-sm font-bold px-6 py-3.5 inline-flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
+            New quote
+          </button>
+          <button id="dashHeroJobs" type="button" class="dbal-jobs-btn btn rounded-full text-sm font-bold px-6 py-3.5 inline-flex items-center justify-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/></svg>
+            View jobs
+          </button>
+        </div>
       </div>
     </div>
 
@@ -13274,6 +13320,7 @@ function renderDashboard() {
   if (nq) { const lbl = nq.childNodes[nq.childNodes.length - 1]; if (lbl && lbl.nodeType === 3) lbl.textContent = savedCount === 0 ? " Price your first job" : " New quote"; }
   // Build every section's content (cheap — string templating over local jobs) so
   // both the launchpad previews and the active drill-in are always fresh.
+  renderDashHero(jobs);
   renderDashStats(jobs);
   renderDashInsights(jobs);
   renderDashJobs(jobs);
@@ -14463,6 +14510,7 @@ function dashPlayPanel(panelEl) {
 // tiles + animate the currently-active insight panel.
 function dashPlayEntrance() {
   if (dashReduceMotion()) return;
+  dashRunCountUps(document.getElementById("dashHeroStat"));
   dashRunCountUps(document.getElementById("dashStats"));
   const el = document.getElementById(INSIGHT_PANELS[_dashInsightTab]);
   if (el && !el.classList.contains("hidden")) dashPlayPanel(el);
@@ -15071,6 +15119,32 @@ function dashStatTrends(jobs) {
 // Quick-glance pipeline tiles at the top of the dashboard (outside the charts
 // card) so Open pipeline / Won / Win rate / Avg markup are visible at a glance.
 // Each tile carries a gold icon badge + a month-over-month trend delta.
+// ── Dashboard hero balance card (UI refresh P2) ─────────────────────────────
+// Open pipeline as the headline "balance": count-up number, MoM delta chip and
+// a one-line sub. Hidden until there's at least one saved job (the first-run
+// greeting + checklist carry the empty state instead).
+function renderDashHero(jobs) {
+  const stat = document.getElementById("dashHeroStat");
+  if (!stat) return;
+  const p = pipelineStats(jobs);
+  if (!p.real.length) { stat.classList.add("hidden"); return; }
+  stat.classList.remove("hidden");
+  const num = document.getElementById("dashHeroNum");
+  if (num) {
+    num.textContent = formatMoney(p.openVal);
+    num.setAttribute("data-countup", p.openVal);
+    num.setAttribute("data-count-fmt", "money");
+  }
+  const d = (dashStatTrends(jobs) || {}).open;
+  const delta = document.getElementById("dashHeroDelta");
+  if (delta) delta.innerHTML = d
+    ? `<span class="dbal-delta ${d.dir}">${d.dir === "up" ? "&#9650;" : "&#9660;"} ${escHtml(d.label)} vs last mo</span>`
+    : "";
+  const sub = document.getElementById("dashHeroSubStat");
+  if (sub) sub.textContent = `${p.openCount} open deal${p.openCount === 1 ? "" : "s"}`
+    + (p.wonVal > 0 ? ` · ${formatMoney(p.wonVal)} won` : "");
+}
+
 function renderDashStats(jobs) {
   const wrap = document.getElementById("dashStats");
   if (!wrap) return;
@@ -16527,6 +16601,7 @@ function wireDashboard() {
   on("dashHome", () => dashGoTo("home"));
   on("dashOpenCalc", () => closeDashboard());
   on("dashNewQuote", startNewQuote);
+  on("dashHeroJobs", () => dashGoTo("jobs"));
   on("dashFL", () => { try { openFL(); } catch (_) {} });
   // Settings / Plan / Sign out moved to the account (avatar) menu (#pfpMenu).
   on("dashExportCsv", exportPipelineCSV);
