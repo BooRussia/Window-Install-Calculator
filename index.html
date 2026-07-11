@@ -22052,17 +22052,28 @@ function mfrCardHTML(name, rate, opts) {
             <span class="info-pop">Some manufacturers build their non-impact windows to impact screw spec — so the glass can be swapped to impact later and stay certified. Check this and the calculator always uses that brand's denser impact screw pattern, no matter the job's glass type.</span>
           </span>
         </div>
+        <div class="flex items-center gap-1.5 mt-1 mb-1">
+          <span class="text-[10px] uppercase tracking-[0.1em] text-slate-500 font-bold">Install screws per linear foot</span>
+          <span class="info-tip" tabindex="0" role="button" aria-label="What these numbers mean">
+            <svg viewBox="0 0 20 20" width="13" height="13">
+              <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+              <text x="10" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">?</text>
+            </svg>
+            <span class="info-pop">How many install screws this brand's spec calls for per foot of window frame, for each attachment style (nail-fin vs. through-frame). Impact glass usually takes a denser pattern. These counts drive the screw quantities on your materials list &amp; pricing.</span>
+          </span>
+        </div>
         <div class="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1.5 items-center">
           <span></span>
           <span class="text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Impact</span>
           <span class="mfr-ni-head text-[9px] uppercase tracking-wide text-slate-600 text-center w-16">Non-Impact</span>
-          <span class="text-[11px] text-slate-500">Nail-fin / LF</span>
+          <span class="text-[11px] text-slate-500">Nail-fin &mdash; screws / LF</span>
           <input class="mfr-nf-i ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.impact}" />
           <input class="mfr-nf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.nailfin.nonImpact}" />
-          <span class="text-[11px] text-slate-500">Thru-frame / LF</span>
+          <span class="text-[11px] text-slate-500">Through-frame &mdash; screws / LF</span>
           <input class="mfr-tf-i ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.impact}" />
           <input class="mfr-tf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.nonImpact}" />
         </div>
+        <p class="text-[10.5px] text-slate-600 mt-2">Not sure yet? Keep the defaults &mdash; you can fine-tune anytime in Settings &rarr; Window Rates.</p>
       </div>
     </details>`;
 }
@@ -28475,7 +28486,11 @@ function showSetupStep(n) {
     const body = document.getElementById("setupMfrBody");
     if (!body.dataset.filled) {
       const mr = DATA.manufacturerRates || {};
-      body.innerHTML = (DATA.manufacturers || []).map(name =>
+      // "Other" is the calculator's generic fallback (AI plan reads map unknown
+      // brands to it), not a brand the installer chose — hide it here so the
+      // wizard only shows THEIR brands. It's re-added on save (see below) and
+      // stays editable in Settings → Window Rates.
+      body.innerHTML = (DATA.manufacturers || []).filter(n => n !== "Other").map(name =>
         mfrCardHTML(name, mr[name])).join("");
       body.dataset.filled = "1";
     }
@@ -28525,7 +28540,16 @@ function completeSetup(viaSkip) {
   const body = document.getElementById("setupMfrBody");
   if (body.dataset.filled) {
     const { names, rates } = readMfrCards("setupMfrBody");
-    if (names.length) { DATA.manufacturers = names; DATA.manufacturerRates = rates; }
+    if (names.length) {
+      // The wizard list hides the generic "Other" fallback — re-attach it so
+      // AI plan reads of unknown brands keep a manufacturer to land on.
+      if ((DATA.manufacturers || []).includes("Other") && !names.includes("Other")) {
+        names.push("Other");
+        rates["Other"] = (DATA.manufacturerRates || {})["Other"]
+          || { nailfin: { impact: 1.5, nonImpact: 1.5 }, throughFrame: { impact: 1.0, nonImpact: 1.0 }, alwaysImpactSpec: false };
+      }
+      DATA.manufacturers = names; DATA.manufacturerRates = rates;
+    }
     if (!DATA.manufacturers.includes(STATE.manufacturer)) STATE.manufacturer = DATA.manufacturers[0];
   }
   DATA.config.setupComplete = true;
