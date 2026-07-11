@@ -708,6 +708,21 @@
   [data-theme="light"] .dbal-delta.up { color: #047857; background: rgba(16,185,129,0.10); border-color: rgba(16,185,129,0.30); }
   [data-theme="light"] .dbal-delta.down { color: #be123c; background: rgba(244,63,94,0.08); border-color: rgba(244,63,94,0.25); }
   [data-theme="light"] .dbal-jobs-btn { color: #334155; border-color: #d6dae1; background: #f5f7fa; }
+  /* ── "Top movers" stat cards (UI refresh P3) ── desktop: 3-up grid; mobile:
+     horizontally snap-scrolling cards bleeding to the container edge. */
+  .dash-movers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .dash-stat-spark { margin-top: 8px; height: 36px; }
+  .dash-stat-spark svg { width: 100%; height: 100%; display: block; }
+  @media (max-width: 1023px) {
+    .dash-movers {
+      display: flex; overflow-x: auto; gap: 10px;
+      scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      margin-left: -20px; margin-right: -20px; padding: 0 20px 4px;
+    }
+    .dash-movers::-webkit-scrollbar { display: none; }
+    .dash-movers > .dash-stat { flex: 0 0 46%; min-width: 158px; scroll-snap-align: start; }
+  }
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
@@ -13465,6 +13480,33 @@ function dashRecentJobs(jobs, n) {
     .slice().sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0))
     .slice(0, n);
 }
+// Tiny line+area sparkline (UI refresh P3) — factored out of the revenue
+// launchpad card so mover tiles can reuse it. lines = [{values, color, width?,
+// fill?}]; y scales to the global max; nulls carry the previous value forward
+// (a month with no data reads flat, not as a crash to zero).
+function dashSparkSVG(lines, opts) {
+  const o = opts || {};
+  const W = o.w || 240, H = o.h || 64, pad = o.pad != null ? o.pad : 3;
+  const all = [];
+  (lines || []).forEach(l => (l.values || []).forEach(v => { if (v != null && !isNaN(v)) all.push(Number(v)); }));
+  if (!all.length) return "";
+  const maxV = Math.max(Math.max.apply(null, all), 1e-9);
+  const paths = lines.map(l => {
+    const vs = (l.values || []).map(v => (v == null || isNaN(v)) ? null : Number(v));
+    const n = vs.length; if (n < 2) return "";
+    let carry = null;
+    const pts = vs.map(v => { if (v != null) carry = v; return carry; });
+    const first = pts.findIndex(v => v != null); if (first < 0) return "";
+    for (let i = 0; i < first; i++) pts[i] = pts[first];
+    const xx = i => (i / (n - 1)) * W;
+    const yy = v => (H - pad) - (v / maxV) * (H - pad * 2);
+    const line = "M " + pts.map((v, i) => `${xx(i).toFixed(1)},${yy(v).toFixed(1)}`).join(" L ");
+    const fill = l.fill ? `<path d="${line} L ${W},${H} L 0,${H} Z" fill="${l.fill}" stroke="none"/>` : "";
+    return `${fill}<path d="${line}" fill="none" stroke="${l.color}" stroke-width="${l.width || 2}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+  }).join("");
+  return `<svg class="${o.cls || "dlb-trend"}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${paths}</svg>`;
+}
+
 function dashMiniDonut(parts, size) {
   const live = (parts || []).filter(p => p.value > 0);
   const total = live.reduce((s, p) => s + p.value, 0);
@@ -13546,15 +13588,11 @@ function dashCardBody(key, ctx, jobs) {
     const keys = Object.keys(byMonth).sort().slice(-6);
     if (keys.length < 2) return dlbEmpty("Win jobs across a couple of months to see your revenue trend.");
     const rev = keys.map(k => byMonth[k].rev), prof = keys.map(k => byMonth[k].prof);
-    const maxV = Math.max.apply(null, rev.concat([1]));
-    const W = 240, H = 64, n = keys.length, pad = 3;
-    const xx = i => n === 1 ? W / 2 : (i / (n - 1)) * W;
-    const yy = v => (H - pad) - (v / maxV) * (H - pad * 2);
-    const revLine = "M " + rev.map((v, i) => `${xx(i).toFixed(1)},${yy(v).toFixed(1)}`).join(" L ");
-    const area = revLine + ` L ${xx(n - 1).toFixed(1)},${H} L ${xx(0).toFixed(1)},${H} Z`;
-    const profLine = "M " + prof.map((v, i) => `${xx(i).toFixed(1)},${yy(v).toFixed(1)}`).join(" L ");
     const lastRev = rev[rev.length - 1], margin = lastRev > 0 ? Math.round(prof[prof.length - 1] / lastRev * 100) : 0;
-    const svg = `<svg class="dlb-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${area}" fill="rgba(201,165,88,0.16)" stroke="none"/><path d="${revLine}" fill="none" stroke="#c9a558" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${profLine}" fill="none" stroke="#34d399" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+    const svg = dashSparkSVG([
+      { values: rev, color: "#c9a558", width: 2, fill: "rgba(201,165,88,0.16)" },
+      { values: prof, color: "#34d399", width: 1.6 },
+    ]);
     return `<span class="dlb-tag">Booked · last ${keys.length} months</span>${svg}<span class="dlb-trend-legend"><span class="dlb-tl"><span class="dlb-tl-dot" style="background:#c9a558"></span>Revenue</span><span class="dlb-tl"><span class="dlb-tl-dot" style="background:#34d399"></span>Profit · ${margin}% margin</span></span>`;
   }
   if (key === "pipeline") {
@@ -15123,6 +15161,38 @@ function dashStatTrends(jobs) {
 // Open pipeline as the headline "balance": count-up number, MoM delta chip and
 // a one-line sub. Hidden until there's at least one saved job (the first-run
 // greeting + checklist carry the empty state instead).
+// Six fixed calendar months of per-metric history for the mover sparklines.
+// A month with no relevant data yields null (dashSparkSVG carries the previous
+// value forward so gaps read flat rather than as crashes to zero).
+function dashMoverSeries(jobs) {
+  const real = (jobs || []).filter(j => j && !j.isDraft);
+  const now = new Date();
+  const months = [];
+  const idx = {};
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    idx[d.getFullYear() + "-" + d.getMonth()] = months.length;
+    months.push({ won: 0, wonAny: false, wonN: 0, dec: 0, mgSum: 0, mgN: 0 });
+  }
+  real.forEach(j => {
+    const d = j.createdAt ? new Date(j.createdAt) : null;
+    if (!d || isNaN(d)) return;
+    const b = months[idx[d.getFullYear() + "-" + d.getMonth()]];
+    if (!b) return;
+    const st = jobStatus(j);
+    const won = st === "Approved" || st === "Finished";
+    if (won) { b.won += Number(j.sellingPrice) || 0; b.wonN++; b.wonAny = true; }
+    if (won || st === "Lost") b.dec++;
+    const mg = Number(j.margin);
+    if (!isNaN(mg)) { b.mgSum += mg; b.mgN++; }
+  });
+  return {
+    won: months.map(b => b.wonAny ? b.won : null),
+    winRate: months.map(b => b.dec ? (b.wonN / b.dec) * 100 : null),
+    markup: months.map(b => b.mgN ? b.mgSum / b.mgN : null),
+  };
+}
+
 function renderDashHero(jobs) {
   const stat = document.getElementById("dashHeroStat");
   if (!stat) return;
@@ -15154,19 +15224,33 @@ function renderDashStats(jobs) {
   const tr = dashStatTrends(jobs);
   const upSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6 4 4 6-7"/><path d="M16 8h4v4"/></svg>';
   const downSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l6 6 4-4 6 7"/><path d="M16 16h4v-4"/></svg>';
+  // "Top movers" (UI refresh P3): the Open-pipeline tile moved into the hero
+  // balance card (P2); the rest each get a 6-month sparkline of their metric.
+  const sp = dashMoverSeries(jobs);
+  const SPARKS = {
+    won:     { color: "#34d399", fill: "rgba(52,211,153,0.10)" },
+    winRate: { color: "#c9a558", fill: "rgba(201,165,88,0.12)" },
+    markup:  { color: "#a78bfa", fill: "rgba(167,139,250,0.10)" },
+  };
+  const sparkFor = key => {
+    const vals = sp[key];
+    if (!vals || vals.filter(v => v != null).length < 2) return "";
+    const c = SPARKS[key];
+    return `<div class="dash-stat-spark">${dashSparkSVG([{ values: vals, color: c.color, width: 2, fill: c.fill }], { h: 40 })}</div>`;
+  };
   const tiles = [
-    { key: "open", label: "Open pipeline", val: formatMoney(p.openVal), raw: p.openVal, fmt: "money", sub: `${p.openCount} open deal${p.openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]", delta: tr.open },
     { key: "won", label: "Won", val: formatMoney(p.wonVal), raw: p.wonVal, fmt: "money", sub: `${p.wonCount} job${p.wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300", delta: tr.won },
     { key: "winRate", label: "Win rate", val: p.winRate == null ? "—" : p.winRate + "%", raw: p.winRate, fmt: "pct", sub: p.decided ? `${p.wonCount}W · ${p.lostCount}L` : "no decisions yet", accent: "text-slate-100", delta: tr.winRate },
     { key: "markup", label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", raw: p.avgMargin, fmt: "pct", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100", delta: tr.markup },
   ];
-  wrap.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">` + tiles.map(t => {
+  wrap.innerHTML = `<div class="dash-movers">` + tiles.map(t => {
     const d = t.delta;
     const deltaHTML = d ? `<div class="dash-stat-delta ${d.dir}">${d.dir === "up" ? upSvg : downSvg}${d.label}<span class="dash-stat-vs">vs last mo</span></div>` : "";
     return `<div class="dash-stat card rounded-2xl p-4 text-center">
         <span class="dash-stat-label">${escHtml(t.label)}</span>
         <div class="dash-stat-num ${t.accent}"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
         ${deltaHTML}
+        ${sparkFor(t.key)}
         <div class="dash-stat-sub">${escHtml(t.sub)}</div>
       </div>`;
   }).join("") + `</div>`;
