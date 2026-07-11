@@ -409,14 +409,21 @@
   [data-theme="light"] .trim-split-total span { color: #64748b; }
   [data-theme="light"] .trim-split-total b { color: #9a7636; }
   /* Settings 3×3 trim price grid ($/LF by material × width). */
-  .trim-grid { display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 5px 7px; align-items: center; margin-top: 6px; }
-  .trim-grid .tg-h { font-size: 10px; font-weight: 700; color: #94a3b8; text-align: center; }
-  .trim-grid .tg-rowlab { font-size: 11px; font-weight: 700; color: #cbd5e1; padding-right: 4px; }
-  .trim-grid input { width: 100%; padding: 5px 7px; font-size: 12px; border-radius: 7px; text-align: right;
+  /* Trim price matrix: material rows × board-width columns. grid-template-columns
+     is set in JS from widths.length (the old hardcoded 4-col template scrambled
+     5 widths into the label cells). Wrapped in .trim-grid-scroll so it scrolls
+     horizontally on narrow screens instead of crushing the cells. */
+  .trim-grid-scroll { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .trim-grid { display: grid; gap: 6px 8px; align-items: center; }
+  .trim-grid .tg-corner { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+  .trim-grid .tg-h { font-size: 11px; font-weight: 700; color: #cbd5e1; text-align: center; }
+  .trim-grid .tg-rowlab { font-size: 12px; font-weight: 700; color: #e2e8f0; padding-right: 6px; white-space: nowrap; }
+  .trim-grid input { width: 100%; min-height: 38px; padding: 7px 9px; font-size: 13px; border-radius: 8px; text-align: right; font-variant-numeric: tabular-nums;
     background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7); color: #e2e8f0; }
   .trim-grid input:focus-visible { outline: 2px solid #c9a558; outline-offset: 1px; border-color: #b58f4a; }
+  [data-theme="light"] .trim-grid .tg-corner { color: #64748b; }
   [data-theme="light"] .trim-grid .tg-rowlab { color: #1e293b; }
-  [data-theme="light"] .trim-grid .tg-h { color: #64748b; }
+  [data-theme="light"] .trim-grid .tg-h { color: #475569; }
   [data-theme="light"] .trim-grid input { background: #fff; border-color: #cbd5e1; color: #1e293b; }
   /* AI price-fetch button + review modal */
   .ai-price-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:9px; font-size:12px; font-weight:700;
@@ -8458,28 +8465,9 @@
                 <input id="adminSwingStageSetup" type="text" inputmode="decimal" autocomplete="off" placeholder="1200" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
                 <span class="set-hint">One-time rig / engineering fee.</span>
               </div>
-              <div class="set-field" style="grid-column:1/-1;margin-top:2px;">
-                <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
-                  <label class="set-label" style="margin:0;">Interior trim board — $/LF by material &amp; width</label>
-                  <button id="adminTrimFetchBtn" type="button" class="ai-price-btn" title="Search Lowe's, Home Depot & local suppliers near your ZIP and average current prices">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 4.6L18 9l-4.4 1.4L12 15l-1.6-4.6L6 9l4.4-1.4z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/></svg>
-                    <span class="apb-label">Update with AI</span>
-                  </button>
-                </div>
-                <div id="adminTrimGrid" class="trim-grid"></div>
-                <span class="set-hint">Price per linear foot of opening trim. Length (the dropdown in the quote) is the stick you buy/cut &mdash; procurement only, it doesn't change $/LF.<span id="adminTrimFetchedAt" class="ai-price-stamp"></span></span>
-                <p class="ai-price-note">✨ <b>Pro &amp; Shop:</b> searches Lowe's, Home Depot &amp; local suppliers near your ZIP and averages the current price. You review every number before it's applied.</p>
-              </div>
-              <div class="set-field">
-                <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
-                <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">18-ga finish-nail box price.</span>
-              </div>
-              <div class="set-field">
-                <label class="set-label" for="adminBradSpacing">Nail spacing (in)</label>
-                <input id="adminBradSpacing" type="text" inputmode="numeric" autocomplete="off" placeholder="16" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">One finish nail every this many inches of trim.</span>
-              </div>
+              <!-- Interior-trim material controls (board $/LF grid, finish-nail box,
+                   nail spacing) MOVED to Window Rates → "Interior Trim" — they're
+                   material pricing, not labor. -->
               <div class="set-field">
                 <label class="set-label" for="adminSwingMinStories">Swing stage from (stories)</label>
                 <input id="adminSwingMinStories" type="text" inputmode="numeric" autocomplete="off" placeholder="4" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
@@ -8514,6 +8502,36 @@
                 </div>
               </div>
               <div id="adminRatesBody" class="space-y-3"></div>
+              <!-- Interior Trim — its price is a material × board-width matrix (not a
+                   single rate), so it lives here in Window Rates as its own card
+                   (moved out of Labor, where it was mis-filed and the grid rendered
+                   scrambled). Same input ids, so buildAdminUI/commitAdmin are unchanged. -->
+              <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-4 mt-3" id="rates-item-trim_board" data-rates-item>
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                  <span class="flex items-baseline gap-1.5 min-w-0"><h5 class="text-sm font-semibold text-slate-100">Interior Trim</h5><span class="text-[11px] font-normal text-slate-500 flex-shrink-0">· board $/LF</span></span>
+                  <button id="adminTrimFetchBtn" type="button" class="ai-price-btn" title="Search Lowe's, Home Depot & local suppliers near your ZIP and average current prices">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 4.6L18 9l-4.4 1.4L12 15l-1.6-4.6L6 9l4.4-1.4z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/></svg>
+                    <span class="apb-label">Update with AI</span>
+                  </button>
+                </div>
+                <p class="text-[11px] leading-snug text-slate-400 mb-1">Price per linear foot of opening trim, by material (rows) and board width (columns). The length dropdown in the quote is just the stick you buy/cut — it doesn't change $/LF.<span id="adminTrimFetchedAt" class="ai-price-stamp"></span></p>
+                <div class="trim-grid-scroll">
+                  <div id="adminTrimGrid" class="trim-grid"></div>
+                </div>
+                <p class="ai-price-note">✨ <b>Pro &amp; Shop:</b> searches Lowe's, Home Depot &amp; local suppliers near your ZIP and averages the current price. You review every number before it's applied.</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:14px;">
+                  <div class="set-field">
+                    <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
+                    <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                    <span class="set-hint">18-ga finish-nail box price.</span>
+                  </div>
+                  <div class="set-field">
+                    <label class="set-label" for="adminBradSpacing">Nail spacing (in)</label>
+                    <input id="adminBradSpacing" type="text" inputmode="numeric" autocomplete="off" placeholder="16" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+                    <span class="set-hint">One finish nail every this many inches of trim.</span>
+                  </div>
+                </div>
+              </div>
             </section>
 
             <!-- ═══ Section: Swing Doors ═══ -->
@@ -20452,6 +20470,12 @@ function openSettingsToItem(itemId) {
       highlight = document.getElementById(map[itemId]);
       // Scroll to the section card, not the tiny input
       target = highlight ? highlight.closest("[data-swing-leaf]") || highlight : null;
+    } else if (itemId === "trim_board") {
+      // Interior Trim lives in its own Window Rates card (the material×width
+      // grid), NOT the dynamic #adminRatesBody list — land on the grid.
+      const c = document.getElementById("rates-item-trim_board");
+      target = c;
+      highlight = c ? (c.querySelector("#adminTrimGrid input") || c) : null;
     } else {
       const card = wrap.querySelector(`[data-cat="${itemId}"]`);
       if (card) {
@@ -22183,11 +22207,16 @@ function buildAdminUI() {
       const widths = Array.isArray(tgc.widths) ? tgc.widths : [];
       const pp = tgc.pricePerLF || {};
       const wLabel = w => String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
-      let h = `<div class="tg-h"></div>` + widths.map(w => `<div class="tg-h">${escHtml(wLabel(w))}</div>`).join("");
+      // Columns = 1 material-label column + one per width, set from the DATA so it
+      // can never drift from the cell count again. min-width lets .trim-grid-scroll
+      // scroll it on narrow screens instead of squishing the inputs.
+      grid.style.gridTemplateColumns = `minmax(68px,auto) repeat(${widths.length}, minmax(56px,1fr))`;
+      grid.style.minWidth = (72 + widths.length * 62) + "px";
+      let h = `<div class="tg-corner">$/LF</div>` + widths.map(w => `<div class="tg-h">${escHtml(wLabel(w))}</div>`).join("");
       types.forEach(t => {
         h += `<div class="tg-rowlab">${escHtml(t.name)}</div>` + widths.map(w => {
           const v = (pp[t.id] || {})[w];
-          return `<input type="text" inputmode="decimal" autocomplete="off" data-trim-price data-type="${escHtml(t.id)}" data-width="${escHtml(w)}" value="${v != null ? v : ""}" placeholder="0.00" />`;
+          return `<input type="text" inputmode="decimal" autocomplete="off" aria-label="${escHtml(t.name)} ${escHtml(wLabel(w))} — price per linear foot" data-trim-price data-type="${escHtml(t.id)}" data-width="${escHtml(w)}" value="${v != null ? v : ""}" placeholder="0.00" />`;
         }).join("");
       });
       grid.innerHTML = h;
@@ -22264,7 +22293,9 @@ function buildAdminUI() {
 
   // Labor is rendered in its own "Labor" section (see #adminLaborRateBody),
   // not in the Materials list — so exclude it here.
-  wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor").map(item => {
+  // Exclude labor (own section) AND trim_board (its own "Interior Trim" card below,
+  // with the material×width grid — a plain $0 rate row here was misleading).
+  wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor" && item.id !== "trim_board").map(item => {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
         <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${k}</span>
@@ -22648,7 +22679,7 @@ function buildRatesNav() {
 
   // Pull the rendered sections + items. Each section has data-nav-label.
   const sections = [...document.querySelectorAll("#ratesShell [data-rates-section]")];
-  const items = [...document.querySelectorAll("#adminRatesBody [data-rates-item]")];
+  const items = [...document.querySelectorAll("#rates-section-materials [data-rates-item]")];
 
   // Build flat link list — section heading, then nested items for the
   // Materials section, then the rest of the top-level sections.
@@ -22756,7 +22787,7 @@ function setRatesFilter(id) {
 function applyRatesFilter() {
   const filter = _ratesFilter || "all";
   const sections = document.querySelectorAll("#ratesShell [data-rates-section]");
-  const items    = document.querySelectorAll("#adminRatesBody [data-rates-item]");
+  const items    = document.querySelectorAll("#rates-section-materials [data-rates-item]");
 
   if (filter === "all") {
     sections.forEach(s => s.classList.remove("hidden"));
@@ -22821,7 +22852,7 @@ function attachRatesNavObserver() {
   // Watch BOTH top-level sections and the per-item cards inside Materials
   const targets = [
     ...document.querySelectorAll("#ratesShell [data-rates-section]"),
-    ...document.querySelectorAll("#adminRatesBody [data-rates-item]"),
+    ...document.querySelectorAll("#rates-section-materials [data-rates-item]"),
   ];
   if (!targets.length) return;
 
