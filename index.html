@@ -8402,7 +8402,7 @@
                  billing rate (rendered into #adminLaborRateBody by the
                  renderer) PLUS the crew-pay / hours model. ═══ -->
             <section id="rates-section-labor" data-rleaf="labor" style="display:none" data-rates-section data-nav-label="Labor">
-            <details class="set-collapse group" id="sc-rates-labor" data-collapse-key="rates-labor">
+            <details class="set-collapse group" id="sc-rates-labor" data-collapse-key="rates-labor" data-collapse-open>
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Labor</span>
@@ -8455,24 +8455,10 @@
                 <input id="adminHeightPremium" type="text" inputmode="decimal" autocomplete="off" placeholder="5" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
                 <span class="set-hint">Extra labor per story above 3 (getting crew &amp; materials up high).</span>
               </div>
-              <div class="set-field">
-                <label class="set-label" for="adminSwingStageRate">Swing stage $/day</label>
-                <input id="adminSwingStageRate" type="text" inputmode="decimal" autocomplete="off" placeholder="850" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">Suspended-scaffold rental per day (buildings &gt;3 stories).</span>
-              </div>
-              <div class="set-field">
-                <label class="set-label" for="adminSwingStageSetup">Swing stage setup $</label>
-                <input id="adminSwingStageSetup" type="text" inputmode="decimal" autocomplete="off" placeholder="1200" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">One-time rig / engineering fee.</span>
-              </div>
-              <!-- Interior-trim material controls (board $/LF grid, finish-nail box,
-                   nail spacing) MOVED to Window Rates → "Interior Trim" — they're
-                   material pricing, not labor. -->
-              <div class="set-field">
-                <label class="set-label" for="adminSwingMinStories">Swing stage from (stories)</label>
-                <input id="adminSwingMinStories" type="text" inputmode="numeric" autocomplete="off" placeholder="4" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">Offer the swing stage at this building height and up.</span>
-              </div>
+              <!-- Swing-stage pricing ($/day, setup, from-stories) and interior-trim
+                   material controls MOVED to Window Rates (their own collapsible
+                   cards) — they're material/access pricing, not the labor model.
+                   The height-premium cap stays here (it caps the labor multiplier). -->
               <div class="set-field">
                 <label class="set-label" for="adminHeightCap">Height premium cap (&times;)</label>
                 <input id="adminHeightCap" type="text" inputmode="decimal" autocomplete="off" placeholder="2.0" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
@@ -8502,36 +8488,6 @@
                 </div>
               </div>
               <div id="adminRatesBody" class="space-y-3"></div>
-              <!-- Interior Trim — its price is a material × board-width matrix (not a
-                   single rate), so it lives here in Window Rates as its own card
-                   (moved out of Labor, where it was mis-filed and the grid rendered
-                   scrambled). Same input ids, so buildAdminUI/commitAdmin are unchanged. -->
-              <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-4 mt-3" id="rates-item-trim_board" data-rates-item>
-                <div class="flex items-center justify-between gap-2 flex-wrap mb-1.5">
-                  <span class="flex items-baseline gap-1.5 min-w-0"><h5 class="text-sm font-semibold text-slate-100">Interior Trim</h5><span class="text-[11px] font-normal text-slate-500 flex-shrink-0">· board $/LF</span></span>
-                  <button id="adminTrimFetchBtn" type="button" class="ai-price-btn" title="Search Lowe's, Home Depot & local suppliers near your ZIP and average current prices">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 4.6L18 9l-4.4 1.4L12 15l-1.6-4.6L6 9l4.4-1.4z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/></svg>
-                    <span class="apb-label">Update with AI</span>
-                  </button>
-                </div>
-                <p class="text-[11px] leading-snug text-slate-400 mb-1">Price per linear foot of opening trim, by material (rows) and board width (columns). The length dropdown in the quote is just the stick you buy/cut — it doesn't change $/LF.<span id="adminTrimFetchedAt" class="ai-price-stamp"></span></p>
-                <div class="trim-grid-scroll">
-                  <div id="adminTrimGrid" class="trim-grid"></div>
-                </div>
-                <p class="ai-price-note">✨ <b>Pro &amp; Shop:</b> searches Lowe's, Home Depot &amp; local suppliers near your ZIP and averages the current price. You review every number before it's applied.</p>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:14px;">
-                  <div class="set-field">
-                    <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
-                    <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                    <span class="set-hint">18-ga finish-nail box price.</span>
-                  </div>
-                  <div class="set-field">
-                    <label class="set-label" for="adminBradSpacing">Nail spacing (in)</label>
-                    <input id="adminBradSpacing" type="text" inputmode="numeric" autocomplete="off" placeholder="16" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                    <span class="set-hint">One finish nail every this many inches of trim.</span>
-                  </div>
-                </div>
-              </div>
             </section>
 
             <!-- ═══ Section: Swing Doors ═══ -->
@@ -8541,7 +8497,7 @@
               <button type="button" class="rdoor-btn" data-rdoor-btn="bifold" onclick="showDoorType('bifold')">Bifold</button>
             </div>
             <section id="rates-section-doors" data-rleaf="doors" data-dtype="swing" style="display:none" data-rates-section data-nav-label="Swing Doors">
-            <details class="set-collapse group" id="sc-rates-doors-swing" data-collapse-key="rates-doors-swing">
+            <details class="set-collapse group" id="sc-rates-doors-swing" data-collapse-key="rates-doors-swing" data-collapse-open>
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Swing Doors</span>
@@ -8630,7 +8586,7 @@
 
             <!-- ═══ Section: Sliding Glass Doors ═══ -->
             <section id="rates-section-sliders" data-rleaf="doors" data-dtype="sliding" style="display:none" data-rates-section data-nav-label="Sliding Glass Doors">
-            <details class="set-collapse group" id="sc-rates-doors-sliding" data-collapse-key="rates-doors-sliding">
+            <details class="set-collapse group" id="sc-rates-doors-sliding" data-collapse-key="rates-doors-sliding" data-collapse-open>
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Sliding Glass Doors</span>
@@ -8713,7 +8669,7 @@
 
             <!-- ═══ Section: Bifold Doors ═══ -->
             <section id="rates-section-bifold" data-rleaf="doors" data-dtype="bifold" style="display:none" data-rates-section data-nav-label="Bifold Doors">
-            <details class="set-collapse group" id="sc-rates-doors-bifold" data-collapse-key="rates-doors-bifold">
+            <details class="set-collapse group" id="sc-rates-doors-bifold" data-collapse-key="rates-doors-bifold" data-collapse-open>
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Bifold Doors</span>
@@ -22147,6 +22103,104 @@ function wireTrimFetchBtn() {
   btn.classList.toggle("locked", !planAllows("pro"));   // show the PRO tag to lower tiers
 }
 
+// Interior-trim price grid as an HTML string (material rows × board-width columns),
+// values baked in from DATA.config.trim. Columns are generated from widths.length so
+// they can never drift from the cell count (the old CSS hardcoded 4 cols for 5 widths).
+function trimGridDivHTML() {
+  const tgc = DATA.config.trim || {};
+  const types = Array.isArray(tgc.types) ? tgc.types : [];
+  const widths = Array.isArray(tgc.widths) ? tgc.widths : [];
+  const pp = tgc.pricePerLF || {};
+  const wLabel = w => String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
+  const cols = `minmax(68px,auto) repeat(${widths.length}, minmax(56px,1fr))`;
+  const minW = 72 + widths.length * 62;
+  let cells = `<div class="tg-corner">$/LF</div>` + widths.map(w => `<div class="tg-h">${escHtml(wLabel(w))}</div>`).join("");
+  types.forEach(t => {
+    cells += `<div class="tg-rowlab">${escHtml(t.name)}</div>` + widths.map(w => {
+      const v = (pp[t.id] || {})[w];
+      return `<input type="text" inputmode="decimal" autocomplete="off" aria-label="${escHtml(t.name)} ${escHtml(wLabel(w))} — price per linear foot" data-trim-price data-type="${escHtml(t.id)}" data-width="${escHtml(w)}" value="${v != null ? v : ""}" placeholder="0.00" />`;
+    }).join("");
+  });
+  return `<div id="adminTrimGrid" class="trim-grid" style="grid-template-columns:${cols};min-width:${minW}px;">${cells}</div>`;
+}
+
+// The Interior Trim + Swing Stage Window-Rates cards (collapsible, collapsed by
+// default like the fee cards). Rendered inside the materials list so they sit in
+// place (trim after Wood Bucking; swing after Lift Rental) and share the collapse
+// store. Values are baked in, so no separate populate step is needed.
+function trimRatesCardHTML(collapsePrefs) {
+  const c = collapsePrefs["sc:trim_board"]; const open = (c != null ? c : true) ? "" : "open";
+  const tr = DATA.config.trim || {};
+  const nailBox = tr.bradNailBoxPrice != null ? tr.bradNailBoxPrice : 24;
+  const nailSp = tr.bradNailSpacingIn != null ? tr.bradNailSpacingIn : 16;
+  return `
+    <details class="set-collapse group" id="rates-item-trim_board" data-collapse-key="trim_board" data-rates-item ${open}>
+      <summary class="set-collapse-summary">
+        <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+        <span class="set-collapse-title">Interior Trim</span>
+        <span class="group-open:hidden set-collapse-sub" data-collapse-summary>board $/LF</span>
+      </summary>
+      <div class="set-collapse-body">
+        <div class="flex items-start justify-between gap-2 flex-wrap mb-1.5">
+          <span class="text-[11px] leading-snug text-slate-400 flex-1 min-w-0" style="min-width:200px;">Price per linear foot of opening trim, by material (rows) and board width (columns). The length dropdown in the quote is just the stick you buy/cut — it doesn't change $/LF.<span id="adminTrimFetchedAt" class="ai-price-stamp"></span></span>
+          <button id="adminTrimFetchBtn" type="button" class="ai-price-btn" title="Search Lowe's, Home Depot & local suppliers near your ZIP and average current prices">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 4.6L18 9l-4.4 1.4L12 15l-1.6-4.6L6 9l4.4-1.4z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/></svg>
+            <span class="apb-label">Update with AI</span>
+          </button>
+        </div>
+        <div class="trim-grid-scroll">${trimGridDivHTML()}</div>
+        <p class="ai-price-note">✨ <b>Pro &amp; Shop:</b> searches Lowe's, Home Depot &amp; local suppliers near your ZIP and averages the current price. You review every number before it's applied.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:14px;">
+          <div class="set-field">
+            <label class="set-label" for="adminBradBoxPrice">Finish-nail box $</label>
+            <input id="adminBradBoxPrice" type="text" inputmode="decimal" autocomplete="off" value="${escHtml(String(nailBox))}" placeholder="24" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+            <span class="set-hint">18-ga finish-nail box price.</span>
+          </div>
+          <div class="set-field">
+            <label class="set-label" for="adminBradSpacing">Nail spacing (in)</label>
+            <input id="adminBradSpacing" type="text" inputmode="numeric" autocomplete="off" value="${escHtml(String(nailSp))}" placeholder="16" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+            <span class="set-hint">One finish nail every this many inches of trim.</span>
+          </div>
+        </div>
+      </div>
+    </details>`;
+}
+function swingStageCardHTML(collapsePrefs) {
+  const c = collapsePrefs["sc:swing_stage"]; const open = (c != null ? c : true) ? "" : "open";
+  const ss = DATA.config.swingStage || {};
+  const rate = ss.ratePerDay != null ? ss.ratePerDay : 850;
+  const setup = ss.setupFee != null ? ss.setupFee : 1200;
+  const minS = ss.minStories != null ? ss.minStories : 4;
+  return `
+    <details class="set-collapse group" id="rates-item-swing_stage" data-collapse-key="swing_stage" data-rates-item ${open}>
+      <summary class="set-collapse-summary">
+        <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+        <span class="set-collapse-title">Swing Stage</span>
+        <span class="group-open:hidden set-collapse-sub" data-collapse-summary>$${escHtml(String(rate))}/day</span>
+      </summary>
+      <div class="set-collapse-body">
+        <p class="text-[11px] leading-snug text-slate-400 mb-2">Suspended-scaffold pricing for high-rise work — offered from the story below and up.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;">
+          <div class="set-field">
+            <label class="set-label" for="adminSwingStageRate">Swing stage $/day</label>
+            <input id="adminSwingStageRate" type="text" inputmode="decimal" autocomplete="off" value="${escHtml(String(rate))}" placeholder="850" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+            <span class="set-hint">Suspended-scaffold rental per day (buildings &gt;3 stories).</span>
+          </div>
+          <div class="set-field">
+            <label class="set-label" for="adminSwingStageSetup">Swing stage setup $</label>
+            <input id="adminSwingStageSetup" type="text" inputmode="decimal" autocomplete="off" value="${escHtml(String(setup))}" placeholder="1200" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+            <span class="set-hint">One-time rig / engineering fee.</span>
+          </div>
+          <div class="set-field">
+            <label class="set-label" for="adminSwingMinStories">Swing stage from (stories)</label>
+            <input id="adminSwingMinStories" type="text" inputmode="numeric" autocomplete="off" value="${escHtml(String(minS))}" placeholder="4" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
+            <span class="set-hint">Offer the swing stage at this building height and up.</span>
+          </div>
+        </div>
+      </div>
+    </details>`;
+}
+
 function buildAdminUI() {
   const b = DATA.config.brand || {};
   document.getElementById("brandCompanyName").value = b.companyName || "";
@@ -22195,35 +22249,10 @@ function buildAdminUI() {
   // Repeating-floors / high-rise placeholder rates
   { const el = document.getElementById("adminRepeatFloorEff"); if (el) el.value = Math.round((LM.repeatFloorEfficiency ?? 0.85) * 100); }
   { const el = document.getElementById("adminHeightPremium"); if (el) el.value = Math.round((LM.heightPremiumPerStoryAbove3 ?? 0.05) * 100); }
-  { const ss = DATA.config.swingStage || {}; const a = document.getElementById("adminSwingStageRate"); if (a) a.value = ss.ratePerDay ?? 850; const b = document.getElementById("adminSwingStageSetup"); if (b) b.value = ss.setupFee ?? 1200; }
-  { const tr = DATA.config.trim || {}; const b = document.getElementById("adminBradBoxPrice"); if (b) b.value = tr.bradNailBoxPrice ?? 24;
-    const sp = document.getElementById("adminBradSpacing"); if (sp) sp.value = tr.bradNailSpacingIn ?? 16;
-    const ss2 = DATA.config.swingStage || {}; const ms = document.getElementById("adminSwingMinStories"); if (ms) ms.value = ss2.minStories ?? 4;
-    const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
-  // Interior trim 3×3 price grid ($/LF per material × width)
-  { const tgc = DATA.config.trim || {}; const grid = document.getElementById("adminTrimGrid");
-    if (grid) {
-      const types = Array.isArray(tgc.types) ? tgc.types : [];
-      const widths = Array.isArray(tgc.widths) ? tgc.widths : [];
-      const pp = tgc.pricePerLF || {};
-      const wLabel = w => String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
-      // Columns = 1 material-label column + one per width, set from the DATA so it
-      // can never drift from the cell count again. min-width lets .trim-grid-scroll
-      // scroll it on narrow screens instead of squishing the inputs.
-      grid.style.gridTemplateColumns = `minmax(68px,auto) repeat(${widths.length}, minmax(56px,1fr))`;
-      grid.style.minWidth = (72 + widths.length * 62) + "px";
-      let h = `<div class="tg-corner">$/LF</div>` + widths.map(w => `<div class="tg-h">${escHtml(wLabel(w))}</div>`).join("");
-      types.forEach(t => {
-        h += `<div class="tg-rowlab">${escHtml(t.name)}</div>` + widths.map(w => {
-          const v = (pp[t.id] || {})[w];
-          return `<input type="text" inputmode="decimal" autocomplete="off" aria-label="${escHtml(t.name)} ${escHtml(wLabel(w))} — price per linear foot" data-trim-price data-type="${escHtml(t.id)}" data-width="${escHtml(w)}" value="${v != null ? v : ""}" placeholder="0.00" />`;
-        }).join("");
-      });
-      grid.innerHTML = h;
-    }
-    updateTrimFetchedStamp();
-    wireTrimFetchBtn();
-  }
+  // Swing-stage + interior-trim fields now render (with values baked in) as their
+  // own Window Rates cards (trimRatesCardHTML / swingStageCardHTML). Only height-cap
+  // (a labor multiplier) still populates a static Labor input here.
+  { const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
   updateEffReadout();
   { const effIn = document.getElementById("adminRepeatFloorEff"); if (effIn && !effIn._effWired) { effIn.addEventListener("input", updateEffReadout); effIn._effWired = true; } }
   updateCrewCostReadout();
@@ -22291,11 +22320,11 @@ function buildAdminUI() {
   let collapsePrefs = {};
   try { collapsePrefs = JSON.parse(localStorage.getItem("rates_collapse") || "{}"); } catch (_) {}
 
-  // Labor is rendered in its own "Labor" section (see #adminLaborRateBody),
-  // not in the Materials list — so exclude it here.
-  // Exclude labor (own section) AND trim_board (its own "Interior Trim" card below,
-  // with the material×width grid — a plain $0 rate row here was misleading).
-  wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor" && item.id !== "trim_board").map(item => {
+  // Labor is rendered in its own "Labor" section (see #adminLaborRateBody), so
+  // exclude it here. Interior Trim (trim_board) IS included and special-cased into
+  // its own material×width-grid card, in place right after Wood Bucking.
+  wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor").map(item => {
+    if (item.id === "trim_board") return trimRatesCardHTML(collapsePrefs);
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
         <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${k}</span>
@@ -22361,7 +22390,7 @@ function buildAdminUI() {
     const _np = collapsePrefs["sc:" + item.id];
     const _npCollapsed = _np != null ? _np : true;
     const _npSummary = `$${(+item.unitPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })}/${escHtml(item.unit)}`;
-    return `
+    const _npCard = `
       <details class="set-collapse group" id="rates-item-${item.id}" data-collapse-key="${item.id}" data-rates-item ${_npCollapsed ? "" : "open"}>
         <summary class="set-collapse-summary">
           <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
@@ -22380,7 +22409,13 @@ function buildAdminUI() {
         </div>
       </details>
     `;
+    // Swing Stage pricing card sits right after Lift Rental in Window Rates.
+    return item.id === "lift_rental" ? _npCard + swingStageCardHTML(collapsePrefs) : _npCard;
   }).join("");
+  // The Interior Trim card (with #adminTrimGrid + #adminTrimFetchBtn) is now part of
+  // the list above, so wire its AI button + fetched stamp AFTER the list renders.
+  updateTrimFetchedStamp();
+  wireTrimFetchBtn();
 
   // Render the install-speed presets into the Labor section, in plain
   // minutes/LF (stored as hr/LF — converted on display, ÷60 back on save via
