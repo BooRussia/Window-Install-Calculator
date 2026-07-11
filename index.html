@@ -606,7 +606,9 @@
   /* When the bar is up (mobile only), clear the drawer's bottom controls and
      lift the FAB above it so nothing is covered. */
   @media (max-width: 1023px) {
-    body.mtotal-on #jobRail > .overflow-y-auto { padding-bottom: 88px; }
+    /* Rail audit: Save moved OUT of the scroller into the pinned .rail-save-row
+       (which carries its own mtotal clearance), so the scroller no longer needs
+       bottom padding — the old 88px left a dead band at the drawer's scroll end. */
     body.mtotal-on #jobSpecsFab { bottom: calc(88px + env(safe-area-inset-bottom)); }
     /* MOB-3/FLD-4: now that toasts linger ≥4s, lift them above the sticky mobile
        total bar so a failure message isn't hidden behind it. */
@@ -1035,7 +1037,7 @@
     transition: color .15s ease; -webkit-tap-highlight-color: transparent;
   }
   .rail-feedback-link:hover { color: #c9a558; }
-  [data-theme="light"] .rail-feedback-link { color: #94a3b8; }
+  [data-theme="light"] .rail-feedback-link { color: #5b6a7d; }  /* was #94a3b8 = 2.3:1; #5b6a7d = 5.0:1, clears AA on the light page */
   [data-theme="light"] .rail-feedback-link:hover { color: #97772e; }
   /* Admin feedback list */
   .fb-resolved { margin-top: 12px; border-top: 1px solid rgba(51,65,85,0.55); padding-top: 6px; }
@@ -1100,6 +1102,7 @@
   .rail-save-btn {
     width: 100%;
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    min-height: 44px;   /* rail audit: was ~41px, under the touch floor */
     padding: 11px 12px;
     border-radius: 999px;
     font-size: 12.5px; font-weight: 800; letter-spacing: 0.01em;
@@ -1116,27 +1119,42 @@
      end of this stylesheet (the 2px offset floats the ring on the rail bg, not the gold fill). */
   .rail-save-btn:focus-visible { filter: brightness(1.06); outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .rail-save-btn:active { transform: translateY(1px); }
-  .rail-reset-btn {
-    width: 100%;
+  /* Rail audit: Reset demoted from a full-width pill under Save to a quiet footer
+     link — separation is the mis-tap prevention; the two-tap confirm stays. */
+  .rail-foot-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+  /* Rail audit: the feedback link was a standalone full-width block (width:100%;
+     margin-top) — inside the foot row those declarations starved the Reset link and
+     dropped Feedback 12px low. Reset them to sit as an inline, centered sibling. */
+  .rail-foot-row .rail-feedback-link { width: auto; margin-top: 0; }
+  .rail-foot-dot { color: #475569; font-size: 11px; }
+  .rail-reset-link {
     display: inline-flex; align-items: center; justify-content: center;
-    padding: 9px 12px;
-    border-radius: 999px;
-    font-size: 11px; font-weight: 700;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    background: transparent;
-    color: #94a3b8;
-    border: 1px solid rgba(71,85,105,0.7);
-    transition: color .15s ease, background .15s ease, border-color .15s ease, transform .15s ease;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+    min-height: 44px; padding: 4px 8px;
+    background: transparent; border: 0; border-radius: 8px;
+    color: #64748b; font-size: 11px; font-weight: 600;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: color .15s ease, background .15s ease;
   }
-  .rail-reset-btn:hover, .rail-reset-btn:focus-visible {
-    color: #f1f5f9; border-color: #64748b; outline: none;
+  .rail-reset-link:hover, .rail-reset-link:focus-visible { color: #cbd5e1; outline: none; }
+  .rail-reset-link.confirm { color: #fca5a5; background: rgba(244,63,94,0.1); }
+  [data-theme="light"] .rail-reset-link { color: #5b6a7d; }  /* legible-but-quiet demoted destructive link (5.0:1, AA on light) */
+  [data-theme="light"] .rail-reset-link:hover, [data-theme="light"] .rail-reset-link:focus-visible { color: #475569; }
+  [data-theme="light"] .rail-reset-link.confirm { color: #be123c; background: rgba(244,63,94,0.1); }
+  /* Rail audit: Save pinned at the rail's bottom (flex sibling of the scroller) —
+     always one thumb-reach away. Sits above the mobile total bar (z-35 > rail z-30),
+     so mtotal-on adds clearance below. */
+  /* The inner scroller must own the overflow (flex:1 + min-height:0) so the save
+     row actually pins — otherwise the aside scrolls as one piece. */
+  #jobRail > .overflow-y-auto { flex: 1 1 auto; min-height: 0; }
+  .rail-save-row {
+    flex-shrink: 0;
+    padding: 10px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(30,41,59,0.8);
   }
-  .rail-reset-btn.confirm {
-    color: #fca5a5; border-color: rgba(244,63,94,0.55); background: rgba(244,63,94,0.08);
+  [data-theme="light"] .rail-save-row { border-top-color: #e6e8ec; }
+  @media (max-width: 1023px) {
+    body.mtotal-on .rail-save-row { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
   }
-  .rail-reset-btn:active { transform: translateY(1px) scale(0.99); }
   /* Compact rail LF input — replaces the old hero-size one for the rail */
   .rail-lf-input-wrap {
     display: flex; align-items: baseline; gap: 6px;
@@ -4288,17 +4306,21 @@
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: #97772e; }
   /* CALC-10 / FLR-13 — actionable nudges: readable gold (was 55% opacity, sub-AA),
      tappable (opens + focuses the field they point at), announced via aria-live. */
-  .rail-nudge { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  /* Rail audit: cautions wear TRUE AMBER (#fbbf24), not the brand gold — gold means
+     "primary action / active" everywhere else, so a warning in gold reads as decor
+     (aerospace HMI: alert colors must be reserved or they stop alerting). Sentence
+     case, not uppercase — these are messages, not headers. ⚠ icon = second channel. */
+  .rail-nudge { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
     min-height: 44px; padding: 8px 10px; margin-top: 6px; border-radius: 10px;
-    background: rgba(201,165,88,0.08); border: 1px solid rgba(201,165,88,0.28);
-    color: #dfc07a; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; line-height: 1.35;
+    background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.35);
+    color: #fbbf24; font-size: 12px; font-weight: 600; line-height: 1.4;
     cursor: pointer; transition: background .14s, border-color .14s; }
-  .rail-nudge:hover { background: rgba(201,165,88,0.14); border-color: rgba(201,165,88,0.45); }
-  .rail-nudge:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
-  [data-theme="light"] .rail-nudge { color: #8a6a2e; background: rgba(201,165,88,0.12); border-color: rgba(138,106,46,0.32); }
-  [data-theme="light"] .rail-nudge:hover { background: rgba(201,165,88,0.2); }
-  [data-theme="light"] #remodelNudge { color: #8a6a2e !important; }
-  [data-theme="light"] #accessNudge { color: #8a6a2e !important; }
+  .rail-nudge::before { content: "⚠"; flex-shrink: 0; font-size: 13px; line-height: 1; }
+  .rail-nudge:hover { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.55); }
+  .rail-nudge:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+  [data-theme="light"] .rail-nudge { color: #92400e; background: rgba(245,158,11,0.12); border-color: rgba(180,83,9,0.35); }
+  [data-theme="light"] .rail-nudge:hover { background: rgba(245,158,11,0.2); }
+  [data-theme="light"] .rail-nudge:focus-visible { outline-color: #b45309; }
   [data-theme="light"] #lfFloorTotalHint { color: #8a6a2e !important; }
   [data-theme="light"] .text-\[\#dfc07a\] { color: #8a6a2e !important; }
   [data-theme="light"] .modal-close { color: #64748b; }
@@ -7312,19 +7334,25 @@
         <!-- AIPLAN-5: persistent link to review each opening the AI read (survives the toast). -->
         <button type="button" id="aiReviewChip" class="hidden mt-2 text-[10px] font-bold tracking-[0.12em] uppercase text-[#c9a558] hover:text-[#d8b96a] inline-flex items-center gap-1"></button>
       </div>
+      <!-- Rail audit: window count lives directly under LF — they're the two numbers
+           that drive the price, and adjacency prevents the blank-count mistake the
+           nudge below exists to catch. -->
+      <div class="rail-field">
+        <label><span class="lbl-impact med">Windows count</span><span class="info-tip" tabindex="0" role="button" aria-label="How window count affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Window count drives caulk tubes, screw boxes, and (on a remodel) disposal cost &mdash; useful for accurate take-offs.</span></span></label>
+        <label class="margin-pill" style="cursor:text">
+          <span class="lbl">Windows</span>
+          <input id="windowCountInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+        </label>
+        <button type="button" id="remodelNudge" class="rail-nudge hidden mt-2" aria-live="polite" data-nudge-jump="windowCountInput">
+          Enter window count for accurate setup labor &amp; materials
+        </button>
+      </div>
       <div class="rail-field"><label><span class="lbl-impact med">Application</span><span class="info-tip" tabindex="0" role="button" aria-label="How application affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>The install detail (nail-fin vs. leg) can carry its own per-LF unit pricing for some brands. Match it to the actual opening.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">How the window attaches to the wall — match what the job uses.</p>
         <div id="segApplication" class="seg flex-wrap" role="radiogroup" aria-label="Application"></div></div>
       <div class="rail-field"><label><span class="lbl-impact high">Glass</span><span class="info-tip" tabindex="0" role="button" aria-label="How glass type affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag high">High impact</span><br>Impact glass uses a denser screw pattern and adds a labor multiplier. Getting this wrong over- or under-prices the whole job.</span></span></label>
         <p class="mb-2 text-[11px] leading-snug text-slate-500">Hurricane-rated (impact) glass costs more than standard glass.</p>
         <div id="segImpact" class="seg" role="radiogroup" aria-label="Impact glass"></div></div>
-      <div class="rail-field">
-        <label><span class="lbl-impact med">Windows count</span><span class="info-tip" tabindex="0" role="button" aria-label="How window count affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Window count drives caulk tubes, screw boxes, and (on a remodel) disposal cost — useful for accurate take-offs.</span></span></label>
-        <label class="margin-pill" style="cursor:text">
-          <span class="lbl">Windows</span>
-          <input id="windowCountInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-        </label>
-      </div>
       <div id="swingDoorsRailField" class="rail-field hidden">
         <label><span class="lbl-impact med">Swing doors</span><span class="info-tip" tabindex="0" role="button" aria-label="How swing doors affect the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Swing doors price per door, not per LF. Threshold hardware is included. Toggle sill flashing on/off &mdash; usually on for new construction over concrete. Tune rates in Settings.</span></span></label>
         <div class="space-y-2">
@@ -7402,31 +7430,37 @@
           <button type="button" id="suggestMonths" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
         </div>
       </div>
+      <!-- Rail audit: the access caution lives WITH the access-equipment fields it
+           points at (was stranded below all sections, aiming "↑" at a closed card).
+           When Extras is closed, the card's sum carries the deficit ("needs access"). -->
+      <button type="button" id="accessNudge" class="rail-nudge hidden" aria-live="polite" data-nudge-jump="access">
+        4+ stories with no lift or swing stage &mdash; add access equipment above
+      </button>
 
         </div>
       </div>
       <!-- /accordion -->
-      <button type="button" id="remodelNudge" class="rail-nudge hidden" aria-live="polite" data-nudge-jump="windowCountInput">
-        ↑ Enter window count for accurate setup labor &amp; materials
-      </button>
-      <button type="button" id="accessNudge" class="rail-nudge hidden" aria-live="polite" data-nudge-jump="access">
-        ↑ 4+ stories with no lift or swing stage &mdash; tap to add access equipment in Extras
-      </button>
       <div id="materialsRow" class="hidden"></div>
 
-      <!-- Save + Reset — bottom of rail, so you don't have to scroll the page -->
-      <div class="rail-field" style="margin-top: 18px;">
-        <button id="railSaveJobBtn" type="button" class="rail-save-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
-          Save job
+      <!-- Rail audit: Reset demoted to a quiet footer link, physically separated from
+           Save (destructive-adjacent-to-primary invites mis-taps). Its two-tap
+           confirm (id-based) is unchanged. -->
+      <div class="rail-foot-row" style="margin-top: 14px;">
+        <button id="railResetJobBtn" type="button" class="rail-reset-link">Reset job</button>
+        <span class="rail-foot-dot" aria-hidden="true">&middot;</span>
+        <button id="railFeedbackBtn" type="button" class="rail-feedback-link">
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-4 3z"/></svg>
+          Feedback
         </button>
       </div>
-      <div class="rail-field" style="margin-top: 8px;">
-        <button id="railResetJobBtn" type="button" class="rail-reset-btn">Reset job</button>
-      </div>
-      <button id="railFeedbackBtn" type="button" class="rail-feedback-link">
-        <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-4 3z"/></svg>
-        Suggest a feature &middot; Report a bug
+    </div>
+    <!-- Rail audit: Save pinned at the rail's bottom — the commit action is always one
+         thumb-reach away instead of a scroll-hunt at the end of ~850px of inputs. The
+         label carries the consequence ("Save job — $12,480") once a price exists. -->
+    <div class="rail-save-row">
+      <button id="railSaveJobBtn" type="button" class="rail-save-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+        <span id="railSaveLabel">Save job</span>
       </button>
     </div>
 </aside>
@@ -12401,6 +12435,10 @@ function render() {
   // Mobile sticky total bar mirrors results visibility (thumb-zone live price).
   { const _mbar = document.getElementById("mtotalBar");
     if (_mbar) { _mbar.classList.toggle("show", hasInput); document.body.classList.toggle("mtotal-on", hasInput); } }
+  // Rail audit: the pinned Save states its consequence once a price exists
+  // ("Save job — $12,480"), so committing is never a leap of faith.
+  { const _sl = document.getElementById("railSaveLabel");
+    if (_sl) _sl.textContent = hasInput && r.sellingPrice > 0 ? `Save job — ${formatMoney(r.sellingPrice)}` : "Save job"; }
   // The recap band sits above results/empty and should always reflect STATE.
   renderLiveRecap();
   renderJobSpecSummary();     // CALC-5: also update the mobile spec bar here, BEFORE the
@@ -12862,11 +12900,18 @@ function renderRailAccSummaries() {
     site: [STATE.constructionType, STATE.houseType, STATE.stories, STATE.manufacturer].some(Boolean)
       ? [abbr[STATE.constructionType] || STATE.constructionType, abbr[STATE.houseType] || STATE.houseType, storyTxt, STATE.manufacturer].filter(Boolean).join(" · ")
       : "Tap to set",
+    // Rail audit: a closed card's sum must faithfully represent what's inside —
+    // including deficits its nudge warns about ("no count") and every charged
+    // extra (Stage/Storage were pricing invisibly while the sum said "Permit off").
     openings: lf > 0
-      ? [floors > 1 ? "×" + floors + " floors" : "", lf + " LF", wc ? wc + " win" : "", STATE.impact, doors ? doors + " door" + (doors === 1 ? "" : "s") : ""].filter(Boolean).join(" · ")
+      ? [floors > 1 ? "×" + floors + " floors" : "", lf + " LF", wc ? wc + " win" : "no count", STATE.impact, doors ? doors + " door" + (doors === 1 ? "" : "s") : ""].filter(Boolean).join(" · ")
       : "Set linear footage",
     extras: [STATE.permitEnabled ? "Permit on" : "Permit off"]
-      .concat(STATE.liftEnabled ? ["Lift " + (STATE.liftDays || "1") + "d"] : []).join(" · "),
+      .concat(STATE.liftEnabled ? ["Lift " + (STATE.liftDays || "1") + "d"] : [])
+      .concat(STATE.swingStageEnabled ? ["Stage " + (STATE.swingStageDays || "3") + "d"] : [])
+      .concat((parseFloat(STATE.storageMonthlyCost) || 0) > 0 ? ["Storage " + (STATE.projectedMonths || 1) + "mo"] : [])
+      .concat(storyNum(STATE.stories) > 3 && !STATE.liftEnabled && !STATE.swingStageEnabled && (lf > 0 || wc > 0) ? ["needs access"] : [])
+      .join(" · "),
   };
   accs.forEach(acc => {
     const s = acc.querySelector(".rail-acc-sum");
@@ -12951,7 +12996,15 @@ function initRailAccordion() {
     exp._wired = true;
   }
   if (!initRailAccordion._didDefault) {
-    if (![...accs].some(a => a.classList.contains("open"))) accs[0].classList.add("open");
+    if (![...accs].some(a => a.classList.contains("open"))) {
+      // Rail audit F1: default-open the section the job actually NEEDS. On an empty
+      // job the one un-defaultable input is linear footage (Openings) — everything
+      // in Site & build ships pre-set ("change only what's different"). Once LF
+      // exists (loaded job / AI fill), fall back to the first section as before.
+      const _lf = (typeof cleanLF === "function") ? cleanLF(STATE.totalLF) : (parseFloat(STATE.totalLF) || 0);
+      const target = (_lf === 0 && [...accs].find(a => a.dataset.acc === "openings")) || accs[0];
+      target.classList.add("open");
+    }
     initRailAccordion._didDefault = true;
   }
   renderRailAccSummaries();
@@ -13117,10 +13170,16 @@ function renderMaterialsToggle() {
       <div class="seg seg-rail" style="max-width:none">${btns}</div>
     </div>`;
   }).join("");
+  // Rail audit: the badge must count what's actually IN THE QUOTE, not how many
+  // configurable rows are listed — "2" with one item off read as "2 in quote".
+  // Toggleable rows count only when on; always-on variant rows count as-is.
+  const inQuote = multi.filter(c =>
+    c.id === "trim_board" ? !!STATE.trimEnabled :
+    c.id === "wood_bucking" ? buckingIncluded() : true).length;
   wrap.innerHTML = `<details class="mat-card"${_matToggleOpen ? " open" : ""}>
     <summary class="mat-head">
       <span class="mat-title">Materials — this job</span>
-      <span class="mat-count">${multi.length}</span>
+      <span class="mat-count"${inQuote ? "" : ' style="display:none"'}>${inQuote}</span>
       <svg class="mat-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
     </summary>
     <div class="mat-body space-y-3">${rows}</div>
