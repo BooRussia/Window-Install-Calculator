@@ -8732,7 +8732,7 @@
           Add photos
         </button>
         <input id="feedbackPhotoInput" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" />
-        <p class="text-[11px] text-slate-600 mt-1.5">Optional — attach up to 6 screenshots to show what you mean.</p>
+        <p class="text-[11px] text-slate-600 mt-1.5">Optional — attach up to 6 screenshots, or paste one straight into the box above.</p>
       </div>
       <div class="flex items-center justify-between gap-3">
         <span id="feedbackError" class="text-xs text-rose-400"></span>
@@ -20846,6 +20846,25 @@ async function onFeedbackPhotosPicked(files) {
   renderFeedbackPhotoStrip();
   const inp = document.getElementById("feedbackPhotoInput"); if (inp) inp.value = "";
 }
+// Clipboard paste → attach as a photo, same path as the file picker. Only
+// swallows the paste when it actually carries image data, so pasting plain
+// text into the message box still works normally.
+function onFeedbackPaste(e) {
+  const dt = e.clipboardData;
+  if (!dt) return;
+  const items = dt.items || [];
+  const imgs = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it && it.kind === "file" && /^image\//.test(it.type)) {
+      const f = it.getAsFile();
+      if (f) imgs.push(f);
+    }
+  }
+  if (!imgs.length) return;   // text/other clipboard content — let the paste land normally
+  e.preventDefault();
+  onFeedbackPhotosPicked(imgs);
+}
 // Upload the staged photos into the user's own feedback-photos folder; returns
 // paths. On a mid-batch failure, remove whatever already landed so a failed send
 // can't orphan objects in the bucket.
@@ -21082,6 +21101,9 @@ async function markFeedbackSeen() {
   const photoInp = document.getElementById("feedbackPhotoInput");
   if (addPhoto && photoInp) addPhoto.addEventListener("click", () => photoInp.click());
   if (photoInp) photoInp.addEventListener("change", () => onFeedbackPhotosPicked(photoInp.files));
+  // Paste an image straight into the message box (screenshot → ⌘/Ctrl+V).
+  const msgTa = document.getElementById("feedbackMessage");
+  if (msgTa) msgTa.addEventListener("paste", onFeedbackPaste);
   const strip = document.getElementById("feedbackPhotoStrip");
   if (strip) strip.addEventListener("click", e => {
     const x = e.target.closest("[data-fbphoto-remove]"); if (!x) return;
