@@ -13694,10 +13694,28 @@ function dashCardBody(key, ctx, jobs) {
     return `<span class="dlb-donutwrap">${dashMiniDonut(parts, 96)}<span class="dlb-legend">${legend}</span></span>`;
   }
   if (key === "aiplan") {
-    // AIPLAN-13: the launchpad renders each card's body via dashCardBody (not the card's
-    // own preview fns), so give the AI card a body here — with a trial-only reads hint.
-    const trialLeft = (currentUser && typeof getEntitlements === "function" && getEntitlements().plan === "trial" && typeof getAiReadsRemaining === "function") ? getAiReadsRemaining() : null;
-    return dlbEmpty(trialLeft != null ? `Have plans? Skip the typing — ${trialLeft} free reads left` : "Have plans? Skip the typing.");
+    // AIPLAN-13 + usage stats: the card shows the same entitlement numbers as
+    // the upload-modal meter (reads left / used, cycle progress bar, reset
+    // date) instead of sitting as an empty box. Same dlb-stat markup as the
+    // e-sign card, so no new CSS.
+    if (currentUser && typeof getAiReadCap === "function") {
+      const cap = getAiReadCap();
+      const used = getAiReadsUsed();
+      const trial = getEntitlements().plan === "trial";
+      if (cap === Infinity) {
+        return `<span class="dlb-stats"><span class="dlb-stat"><span class="dlb-stat-n">${used}</span><span class="dlb-stat-l">Read${used === 1 ? "" : "s"} this month</span></span><span class="dlb-stat"><span class="dlb-stat-n">&#8734;</span><span class="dlb-stat-l">Left on Shop</span></span></span><span class="dlb-tag">Have plans? Skip the typing</span>`;
+      }
+      const left = Math.max(0, cap - used);
+      const pct = cap ? Math.round(Math.min(used, cap) / cap * 100) : 0;
+      const fill = left <= 0 ? "#fb7185" : (left <= 1 ? "#f59e0b" : "#c9a558");
+      const bar = `<span class="dlb-ratiowrap"><span class="dlb-ratio-l">${used} of ${cap} used ${trial ? "in your trial" : "this month"}</span><span class="dlb-track" style="margin:0;"><span class="dlb-fill" style="width:${used ? Math.max(6, pct) : 0}%;background:${fill}"></span></span></span>`;
+      const resetsAt = (!trial && typeof _formatCycleDate === "function") ? _formatCycleDate() : null;
+      const tag = left <= 0
+        ? `<span class="dlb-tag">Out of reads &mdash; upgrade for more</span>`
+        : (resetsAt ? `<span class="dlb-tag">Resets ${escHtml(resetsAt)}</span>` : `<span class="dlb-tag">Have plans? Skip the typing</span>`);
+      return `<span class="dlb-stats"><span class="dlb-stat"><span class="dlb-stat-n">${left}</span><span class="dlb-stat-l">Left</span></span><span class="dlb-stat"><span class="dlb-stat-n">${used}</span><span class="dlb-stat-l">Used</span></span></span>${bar}${tag}`;
+    }
+    return dlbEmpty("Have plans? Skip the typing.");
   }
   return "";
 }
