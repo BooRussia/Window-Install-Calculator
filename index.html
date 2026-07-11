@@ -8919,7 +8919,7 @@
           Add photos
         </button>
         <input id="feedbackPhotoInput" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" />
-        <p class="text-[11px] text-slate-600 mt-1.5">Optional — attach up to 6 screenshots to show what you mean.</p>
+        <p class="text-[11px] text-slate-600 mt-1.5">Optional — attach up to 6 screenshots, or paste one straight into the box above.</p>
       </div>
       <div class="flex items-center justify-between gap-3">
         <span id="feedbackError" class="text-xs text-rose-400"></span>
@@ -21225,6 +21225,25 @@ async function onFeedbackPhotosPicked(files) {
   renderFeedbackPhotoStrip();
   const inp = document.getElementById("feedbackPhotoInput"); if (inp) inp.value = "";
 }
+// Clipboard paste → attach as a photo, same path as the file picker. Only
+// swallows the paste when it actually carries image data, so pasting plain
+// text into the message box still works normally.
+function onFeedbackPaste(e) {
+  const dt = e.clipboardData;
+  if (!dt) return;
+  const items = dt.items || [];
+  const imgs = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it && it.kind === "file" && /^image\//.test(it.type)) {
+      const f = it.getAsFile();
+      if (f) imgs.push(f);
+    }
+  }
+  if (!imgs.length) return;   // text/other clipboard content — let the paste land normally
+  e.preventDefault();
+  onFeedbackPhotosPicked(imgs);
+}
 // Upload the staged photos into the user's own feedback-photos folder; returns
 // paths. On a mid-batch failure, remove whatever already landed so a failed send
 // can't orphan objects in the bucket.
@@ -21461,6 +21480,9 @@ async function markFeedbackSeen() {
   const photoInp = document.getElementById("feedbackPhotoInput");
   if (addPhoto && photoInp) addPhoto.addEventListener("click", () => photoInp.click());
   if (photoInp) photoInp.addEventListener("change", () => onFeedbackPhotosPicked(photoInp.files));
+  // Paste an image straight into the message box (screenshot → ⌘/Ctrl+V).
+  const msgTa = document.getElementById("feedbackMessage");
+  if (msgTa) msgTa.addEventListener("paste", onFeedbackPaste);
   const strip = document.getElementById("feedbackPhotoStrip");
   if (strip) strip.addEventListener("click", e => {
     const x = e.target.closest("[data-fbphoto-remove]"); if (!x) return;
@@ -26119,7 +26141,18 @@ function getAiReadCap() {
   return (AI_READ_CAPS[p] != null) ? AI_READ_CAPS[p] : AI_READ_CAPS.trial;
 }
 function getAiReadsUsed() { return getEntitlements().aiExtractionsUsedThisCycle || 0; }
+// True when the account has a LIVE AI-read entitlement: an unexpired trial, or a
+// paid plan whose subscription is active/trialing. A canceled/past-due paid plan
+// keeps its old tier in AI_READ_CAPS, so the raw cap is NOT proof of a live quota
+// — gate on this. Mirrors canGenerate()'s trial-expiry + subscription-status checks.
+function hasAiReadEntitlement() {
+  if (typeof isAdmin === "function" && isAdmin()) return true;
+  const e = getEntitlements();
+  if (e.plan === "trial") return !isTrialExpired();
+  return !(e.subscriptionStatus && e.subscriptionStatus !== "active" && e.subscriptionStatus !== "trialing");
+}
 function getAiReadsRemaining() {
+  if (!hasAiReadEntitlement()) return 0;   // lapsed sub / expired trial: no live reads
   const cap = getAiReadCap();
   return cap === Infinity ? Infinity : Math.max(0, cap - getAiReadsUsed());
 }
@@ -26131,6 +26164,15 @@ function bumpAiReadUsed() {
 // "✨ N of CAP AI plan reads left this month" — for the upload modals' meter.
 function aiReadsMeterHtml() {
   if (!currentUser) return "";
+  // No live entitlement (canceled/past-due paid sub, or expired trial): there is no
+  // monthly allotment to show — say "0 available" plainly instead of "N of CAP left"
+  // (or, for a lapsed Shop plan, a bogus "Unlimited").
+  if (!hasAiReadEntitlement()) {
+    const lapsedTrial = getEntitlements().plan === "trial";
+    const label = lapsedTrial ? "Trial ended" : "Subscription inactive";
+    const cta = lapsedTrial ? "Upgrade" : "Resubscribe";
+    return `<span class="aim aim-limit">✨ 0 AI plan reads available &middot; ${label} &middot; <span class="aim-cta" data-aim-upgrade role="button" tabindex="0">${cta}</span></span>`;
+  }
   const cap = getAiReadCap();
   if (cap === Infinity) return `<span class="aim aim-unlimited">✨ Unlimited AI plan reads</span>`;
   const remaining = getAiReadsRemaining();
