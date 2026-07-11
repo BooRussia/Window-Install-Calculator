@@ -752,6 +752,31 @@
   [data-theme="light"] .msheet-row-name { color: #475569; }
   [data-theme="light"] .msheet-row-val { color: #0f172a; }
   [data-theme="light"] .msheet-full { color: #ffffff; }
+  /* ── Lapsed-account paywall (2026-07) ── z-39: above the rail (30) + total
+     bar (35); below the sticky header (40) so the avatar menu / Manage
+     subscription stays reachable, below the tab bar (45) and modals (50+).
+     The dashboard (74) covers it — saved jobs stay viewable. */
+  #calcPaywall { position: fixed; inset: 0; z-index: 39; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(2,6,16,0.78); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  #calcPaywall.hidden { display: none; }
+  .cpw-card { width: 100%; max-width: 400px; background: linear-gradient(180deg, #0d1426, #060a16); border: 1px solid rgba(181,143,74,0.4); border-radius: 20px; padding: 26px 22px; text-align: center; }
+  .cpw-icon { width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(181,143,74,0.14); color: #c9a558; }
+  .cpw-title { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; color: #f1f5f9; }
+  .cpw-body { font-size: 13px; line-height: 1.55; color: #94a3b8; margin-top: 8px; }
+  .cpw-urgency { margin-top: 14px; border: 1px solid rgba(244,63,94,0.35); background: rgba(244,63,94,0.10); border-radius: 12px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: #fda4af; }
+  .cpw-urgency b { color: #fecdd3; }
+  .cpw-urgency:empty { display: none; }
+  .cpw-cta { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 16px; min-height: 48px; border-radius: 9999px; border: 0; background: #b58f4a; color: #0b1120; font-size: 14px; font-weight: 800; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .cpw-cta:hover { background: #c9a558; }
+  .cpw-ghost { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 10px; min-height: 44px; border-radius: 9999px; background: transparent; border: 1px solid rgba(148,163,184,0.3); color: #cbd5e1; font-size: 13px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .cpw-ghost:hover { border-color: rgba(201,165,88,0.5); color: #f1f5f9; }
+  [data-theme="light"] #calcPaywall { background: rgba(243,244,247,0.85); }
+  [data-theme="light"] .cpw-card { background: #ffffff; border-color: rgba(154,118,54,0.45); box-shadow: 0 20px 50px -20px rgba(15,23,42,0.3); }
+  [data-theme="light"] .cpw-title { color: #0f172a; }
+  [data-theme="light"] .cpw-body { color: #64748b; }
+  [data-theme="light"] .cpw-urgency { color: #9f1239; background: rgba(244,63,94,0.07); border-color: rgba(190,18,60,0.3); }
+  [data-theme="light"] .cpw-urgency b { color: #881337; }
+  [data-theme="light"] .cpw-ghost { color: #334155; border-color: #d6dae1; }
+  [data-theme="light"] #upsellUrgency { color: #9f1239; background: rgba(244,63,94,0.07); border-color: rgba(190,18,60,0.3); }
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
@@ -7435,6 +7460,21 @@
   </div>
 </div>
 
+<!-- Lapsed-account paywall (2026-07): once the trial ends or the subscription
+     lapses, BUILDING quotes is walled off (not just saving). The calculator
+     sits dimmed underneath; header, tab bar and dashboard stay reachable so
+     saved jobs remain viewable and billing is one tap away. -->
+<div id="calcPaywall" class="hidden" aria-label="Subscription required">
+  <div class="cpw-card" role="alertdialog" aria-labelledby="calcPaywallTitle" aria-describedby="calcPaywallBody">
+    <div class="cpw-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+    <h3 class="cpw-title" id="calcPaywallTitle">Your subscription is inactive</h3>
+    <p class="cpw-body" id="calcPaywallBody">New quotes are paused.</p>
+    <p class="cpw-urgency" id="calcPaywallUrgency"></p>
+    <button type="button" class="cpw-cta" id="calcPaywallCta">Reactivate — see plans &rarr;</button>
+    <button type="button" class="cpw-ghost" id="calcPaywallJobs">View my saved jobs</button>
+  </div>
+</div>
+
 <div id="appBody">
 
 <!-- Demo-data reminder banner -->
@@ -8063,6 +8103,8 @@
         </div>
         <ul class="text-xs text-slate-300 space-y-1.5 mt-3" id="upsellRecPlanFeatures"></ul>
       </div>
+      <!-- Lapsed-only urgency: a REAL retention countdown (filled by showUpsellModal) -->
+      <p id="upsellUrgency" class="hidden rounded-xl border border-rose-500/35 bg-rose-500/10 px-3.5 py-3 text-[12px] leading-relaxed text-rose-200"></p>
       <p id="upsellPhase2Note" class="text-[11px] italic text-slate-500 leading-relaxed">Saving new quotes is paused until you upgrade or your billing cycle resets — your saved jobs and settings stay put.</p>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 flex flex-col-reverse sm:flex-row justify-end gap-2">
@@ -12381,6 +12423,7 @@ function render() {
   // Mobile sticky total bar mirrors results visibility (thumb-zone live price).
   { const _mbar = document.getElementById("mtotalBar");
     if (_mbar) { _mbar.classList.toggle("show", hasInput); document.body.classList.toggle("mtotal-on", hasInput); } }
+  try { updateCalcPaywall(); } catch (_) {}   // lapsed-account wall tracks entitlements
   // Rail audit: the pinned Save states its consequence once a price exists
   // ("Save job — $12,480"), so committing is never a leap of faith.
   { const _sl = document.getElementById("railSaveLabel");
@@ -13350,6 +13393,7 @@ function startNewQuote() {
 // the dashboard view; the calculator itself has no active tab (the FAB is its
 // entry). Desktop hiding is pure CSS (min-width media query).
 function updateTabBar() {
+  try { updateCalcPaywall(); } catch (_) {}   // screen/auth transitions re-check the wall
   const bars = document.querySelectorAll(".app-tabbar");
   if (!bars.length) return;
   const hiddenEl = id => { const el = document.getElementById(id); return !el || el.classList.contains("hidden"); };
@@ -26222,6 +26266,52 @@ function cycleNeedsReset() {
 // next quote should consume entitlement OR trigger an upsell. Order of
 // checks is intentional: trial expiry beats subscription status, which
 // beats the per-cycle limit. Reasons feed `showUpsellModal(reason)`.
+// ── Lapsed-account wall + data-retention urgency (2026-07) ───────────────────
+// Loss-aversion framing (uxpeak "UX Psychology" playbook): the stake shown is
+// REAL — retention is anchored to the billing-cycle end, not an invented
+// deadline. If this window ever changes, update the Terms and the server-side
+// purge job together so the promise stays true.
+const DATA_RETENTION_DAYS = 60;
+function retentionInfo() {
+  const e = getEntitlements();
+  const lapseAt = Number(e.cycleResetAt) || Date.now();
+  const deleteAt = lapseAt + DATA_RETENTION_DAYS * DAY_MS;
+  const daysLeft = Math.max(0, Math.ceil((deleteAt - Date.now()) / DAY_MS));
+  let dateLabel;
+  try { dateLabel = new Date(deleteAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+  catch (_) { dateLabel = new Date(deleteAt).toDateString(); }
+  return { deleteAt, daysLeft, dateLabel };
+}
+// Fully lapsed (trial over / subscription inactive) = the calculator is walled
+// off entirely — BUILDING quotes, not just saving them. Monthly caps
+// (limit_reached) do NOT wall the calculator. Admin is always exempt.
+function isAccountLapsed() {
+  if (typeof isAdmin === "function" && isAdmin()) return false;
+  if (typeof currentUser === "undefined" || !currentUser) return false;
+  const chk = canGenerate();
+  return !chk.allowed && (chk.reason === "trial_expired" || chk.reason === "subscription_inactive");
+}
+function updateCalcPaywall() {
+  const wall = document.getElementById("calcPaywall");
+  if (!wall) return;
+  const lapsed = isAccountLapsed();
+  if (lapsed) {
+    const trial = getEntitlements().plan === "trial";
+    const t = document.getElementById("calcPaywallTitle");
+    if (t) t.textContent = trial ? "Your free trial has ended" : "Your subscription is inactive";
+    const b = document.getElementById("calcPaywallBody");
+    if (b) b.textContent = trial
+      ? "New quotes are paused until you pick a plan. Everything you set up is one tap from coming back."
+      : "New quotes are paused. Reactivate your plan or update your payment method to pick up where you left off.";
+    const ri = retentionInfo();
+    let jobs = 0; try { jobs = loadJobs().filter(j => !j.isDraft).length; } catch (_) {}
+    const what = jobs > 0 ? `Your ${jobs} saved job${jobs === 1 ? "" : "s"}, rates & branding` : "Your rates, branding & settings";
+    const u = document.getElementById("calcPaywallUrgency");
+    if (u) u.innerHTML = `&#9203; ${what} are only kept for <b>${ri.daysLeft} more day${ri.daysLeft === 1 ? "" : "s"}</b> (until ${escHtml(ri.dateLabel)}) &mdash; after that they may be permanently deleted.`;
+  }
+  wall.classList.toggle("hidden", !lapsed);
+}
+
 function canGenerate() {
   cycleNeedsReset();   // refresh paid cycles before checking
   const e = getEntitlements();
@@ -26403,7 +26493,7 @@ const UPSELL_COPY = {
   trial_expired: {
     eyebrow: "Free trial ended",
     headline: "Your free trial ended",
-    body: "Pick a plan to keep quoting. Your saved jobs and settings stay put."
+    body: "Pick a plan to keep quoting — and to keep the jobs, rates & branding you've already set up."
   },
   limit_reached: {
     eyebrow: "Monthly cap reached",
@@ -26419,7 +26509,7 @@ const UPSELL_COPY = {
   subscription_inactive: {
     eyebrow: "Action needed",
     headline: "Your subscription is inactive",
-    body: "Reactivate your plan or update your payment method to keep quoting. Your saved jobs and settings stay put."
+    body: "Reactivate your plan or update your payment method to keep quoting and keep everything you've built."
   },
   ai_pricing_locked: {
     eyebrow: "Pro & Shop feature",
@@ -26477,6 +26567,28 @@ function showUpsellModal(reason) {
       .replace("{date}", _formatCycleDate());
   }
   document.getElementById("upsellBody").textContent = body;
+
+  // Lapsed accounts (loss-aversion / status-quo framing): no easy escape —
+  // hide "Maybe later" + the reassuring note, and show the REAL data-retention
+  // countdown so the stake is what they've already built. Caps keep the soft
+  // dismiss. (Retention window is real: see DATA_RETENTION_DAYS.)
+  const lapsed = r === "trial_expired" || r === "subscription_inactive";
+  const urg = document.getElementById("upsellUrgency");
+  if (urg) {
+    if (lapsed) {
+      const ri = retentionInfo();
+      let jobs = 0; try { jobs = loadJobs().filter(j => !j.isDraft).length; } catch (_) {}
+      const what = jobs > 0 ? `your ${jobs} saved job${jobs === 1 ? "" : "s"}, rates & branding` : "your rates, branding & settings";
+      urg.innerHTML = `&#9203; Data retention: ${what} are only kept for <b>${ri.daysLeft} more day${ri.daysLeft === 1 ? "" : "s"}</b> (until ${escHtml(ri.dateLabel)}) &mdash; after that they may be permanently deleted.`;
+      urg.classList.remove("hidden");
+    } else {
+      urg.classList.add("hidden");
+    }
+  }
+  const later = document.getElementById("upsellLaterBtn");
+  if (later) later.classList.toggle("hidden", lapsed);
+  const p2n = document.getElementById("upsellPhase2Note");
+  if (p2n) p2n.classList.toggle("hidden", lapsed);
 
   // Recommended next plan card
   const rec = _recommendedPlan();
@@ -28796,6 +28908,11 @@ function init() {
   // even number of times = no-op. Set from the switch's shown state so it's
   // idempotent even if the listener ever does fire twice.
   try { wireTabBar(); } catch (_) {}   // mobile bottom tab bar (UI refresh P1)
+  // Lapsed-account paywall actions (2026-07)
+  { const _cta = document.getElementById("calcPaywallCta");
+    if (_cta && !_cta._wired) { _cta._wired = true; _cta.addEventListener("click", () => { try { showUpsellModal(canGenerate().reason || "subscription_inactive"); } catch (_) {} }); }
+    const _pj = document.getElementById("calcPaywallJobs");
+    if (_pj && !_pj._wired) { _pj._wired = true; _pj.addEventListener("click", () => { try { openDashboard(); dashGoTo("jobs"); } catch (_) {} }); } }
   const _matRow = document.getElementById("materialsRow");
   if (_matRow && !_matRow._wired) {
     _matRow.addEventListener("click", e => {
