@@ -723,6 +723,26 @@
     .dash-movers::-webkit-scrollbar { display: none; }
     .dash-movers > .dash-stat { flex: 0 0 46%; min-width: 158px; scroll-snap-align: start; }
   }
+  /* ── Jobs status filter chips (UI refresh P4) ── the All/Buys/Sells pattern:
+     one pill per status with a live count; horizontal scroll on narrow rails. */
+  .dash-status-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 14px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .dash-status-chips::-webkit-scrollbar { display: none; }
+  .dash-chip {
+    display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+    padding: 7px 13px; border-radius: 9999px; font-size: 12px; font-weight: 700;
+    color: #94a3b8; background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.6);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .dash-chip:hover { color: #e2e8f0; border-color: rgba(100,116,139,0.8); }
+  .dash-chip.active { color: var(--gold-hi); background: rgba(181,143,74,0.14); border-color: rgba(181,143,74,0.55); }
+  .dash-chip:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+  .dash-chip-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+  .dash-chip-n { font-variant-numeric: tabular-nums; font-weight: 800; color: #64748b; }
+  .dash-chip.active .dash-chip-n { color: inherit; }
+  [data-theme="light"] .dash-chip { background: #ffffff; border-color: #d6dae1; color: #64748b; }
+  [data-theme="light"] .dash-chip:hover { color: #334155; }
+  [data-theme="light"] .dash-chip.active { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
@@ -6851,6 +6871,8 @@
             </div>
           </div>
         </div>
+        <!-- Status filter chips (UI refresh P4) — rendered by renderDashJobsChips -->
+        <div id="dashJobsChips" class="dash-status-chips hidden" role="group" aria-label="Filter jobs by status"></div>
         <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         <!-- CMP-1: floating comparison bar — appears when 2+ jobs are selected via
              the per-card "Compare" toggle, and opens the (intact) compareModal. -->
@@ -15622,9 +15644,33 @@ function dashJobCard(j) {
   </div>`;
 }
 
+// Status filter chips above the jobs grid (UI refresh P4). Counts are REAL
+// jobs only (drafts excluded — same contract as the count label and KPIs).
+// Clicks route through the existing data-dash-filter delegated handler, so
+// the pipeline legend, filter note, and chips share one source of truth.
+function renderDashJobsChips(jobs) {
+  const wrap = document.getElementById("dashJobsChips");
+  if (!wrap) return;
+  const real = (jobs || []).filter(j => j && !j.isDraft);
+  if (!real.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  const counts = {};
+  JOB_STATUSES.forEach(st => counts[st] = 0);
+  real.forEach(j => { const st = jobStatus(j); if (counts[st] != null) counts[st]++; });
+  const chip = (label, key, count, dot) => {
+    const active = key ? _dashStatusFilter === key : !_dashStatusFilter;
+    return `<button type="button" ${key ? `data-dash-filter="${key}"` : "data-dash-filter-all"} class="dash-chip${active ? " active" : ""}" aria-pressed="${active}">` +
+      (dot ? `<span class="dash-chip-dot" style="background:${dot}"></span>` : "") +
+      `${label}<span class="dash-chip-n">${count}</span></button>`;
+  };
+  wrap.innerHTML = chip("All", null, real.length, null)
+    + JOB_STATUSES.map(st => chip(st, st, counts[st], STATUS_COLORS[st])).join("");
+}
+
 function renderDashJobs(jobs) {
   const grid = document.getElementById("dashJobsGrid");
   if (!grid) return;
+  renderDashJobsChips(jobs || loadJobs());
   const q = (document.getElementById("dashJobSearch")?.value || "").trim().toLowerCase();
   let list = (jobs || loadJobs()).slice().reverse();
   if (_dashStatusFilter) list = list.filter(j => !j.isDraft && jobStatus(j) === _dashStatusFilter);
@@ -16549,6 +16595,13 @@ function wireDashboard() {
       }
       return;
     }
+    const fa = e.target.closest("[data-dash-filter-all]");
+    if (fa) {   // "All" chip (UI refresh P4): clear the status filter in place
+      _dashStatusFilter = null;
+      renderDashJobsPanel(loadJobs());
+      renderDashJobs(loadJobs());
+      return;
+    }
     const f = e.target.closest("[data-dash-filter]");
     if (!f) return;
     _dashStatusFilter = (_dashStatusFilter === f.dataset.dashFilter) ? null : f.dataset.dashFilter;
@@ -16558,6 +16611,19 @@ function wireDashboard() {
   });
   const search = document.getElementById("dashJobSearch");
   if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
+  // Status chips above the jobs grid (UI refresh P4). The pipeline panel's
+  // data-dash-filter listener only covers that panel, so the chip row gets its
+  // own — same _dashStatusFilter + legend re-render, so both stay in lockstep.
+  const chipsWrap = document.getElementById("dashJobsChips");
+  if (chipsWrap) chipsWrap.addEventListener("click", (e) => {
+    const all = e.target.closest("[data-dash-filter-all]");
+    const f = e.target.closest("[data-dash-filter]");
+    if (!all && !f) return;
+    _dashStatusFilter = all ? null
+      : (_dashStatusFilter === f.dataset.dashFilter ? null : f.dataset.dashFilter);
+    renderDashJobsPanel(loadJobs());
+    renderDashJobs(loadJobs());
+  });
   { const _so = document.getElementById("dashJobSort"); if (_so) _so.addEventListener("change", () => renderDashJobs(loadJobs())); }
   // Insights card: swap between the Materials and Customers panels.
   const insightsTabs = document.getElementById("dashInsightsTabs");
