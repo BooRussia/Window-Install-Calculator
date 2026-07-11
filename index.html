@@ -777,6 +777,10 @@
   [data-theme="light"] .cpw-urgency b { color: #881337; }
   [data-theme="light"] .cpw-ghost { color: #334155; border-color: #d6dae1; }
   [data-theme="light"] #upsellUrgency { color: #9f1239; background: rgba(244,63,94,0.07); border-color: rgba(190,18,60,0.3); }
+  /* ── ONBD-16: onboarding example pre-fills — styled as a worked example, not
+     real data: muted italic + dashed border, solid the moment the user types. */
+  .ex-fill { color: #8fa0b8 !important; font-style: italic; border-style: dashed !important; }
+  [data-theme="light"] .ex-fill { color: #94a3b8 !important; }
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
@@ -6511,6 +6515,7 @@
     <div class="text-center mb-6">
       <h1 class="gold-glow text-2xl font-black tracking-tightest">Set Up Your Profile</h1>
       <p id="obProgressCopy" class="text-slate-300 text-xs mt-2 px-4 font-semibold">0 of 4 required fields complete · 0 optional fields filled</p>
+      <p class="text-[11px] text-slate-500 mt-1.5 px-4">We&rsquo;ve pre-filled examples &mdash; tap any field and type to make it yours.</p>
       <p class="text-slate-600 text-[11px] mt-1 px-4">You can change any of it later in Settings.</p>
     </div>
     <div class="card rounded-3xl p-6 space-y-4">
@@ -28044,11 +28049,15 @@ function showOnboarding() {
   onboardLogoData = b.logo || "";
   renderLogoPreview("obLogoPreview", "obLogoRemove", onboardLogoData);
   document.getElementById("obMsg").classList.add("hidden");
+  // ONBD-16: pre-fill any EMPTY fields with worked examples (they clear on
+  // focus and read as empty to the validator/progress/submit below).
+  applyOnboardExamples();
   // Reset "touched" state so prefilled required fields show ✓ but blanks stay quiet
   obTouched = {};
   ["obCompanyName", "obCity", "obState", "obCounty"].forEach(id => {
-    const v = (document.getElementById(id).value || "").trim();
-    if (v) obTouched[id] = true;
+    const el = document.getElementById(id);
+    const v = (el.value || "").trim();
+    if (v && !el._exfill) obTouched[id] = true;
   });
   renderOnboardingStatus();
   const ob = document.getElementById("onboardScreen");
@@ -28063,6 +28072,37 @@ function showOnboarding() {
 let obTouched = {};
 
 // Per-field rules. Each entry: { required, optional, validate(v) → bool, errorMsg }
+// ── ONBD-16: worked-example pre-fills ────────────────────────────────────────
+// A filled-looking form is scannable ("ah, THAT kind of answer goes here") and
+// far less intimidating than a wall of blanks (uxpeak onboarding pattern). The
+// examples are visually distinct (italic, dashed border), CLEAR on first
+// focus, read as EMPTY to validation/progress/submit, and are never saved.
+const OB_EXAMPLES = {
+  obCompanyName: "Suncoast Windows & Doors",
+  obTagline: "Impact windows, done right",
+  obCity: "Ocala",
+  obState: "FL",
+  obPhone: "(352) 555-0147",
+  obEmail: "quotes@suncoastwd.com",
+  obWebsite: "suncoastwd.com",
+};
+function applyOnboardExamples() {
+  Object.entries(OB_EXAMPLES).forEach(([id, ex]) => {
+    const el = document.getElementById(id);
+    if (!el || (el.value || "").trim()) return;   // never cover real data
+    el.value = ex;
+    el._exfill = true;
+    el.classList.add("ex-fill");
+    if (!el.getAttribute("placeholder")) el.setAttribute("placeholder", ex);
+  });
+}
+function clearOnboardExamples() {
+  Object.keys(OB_EXAMPLES).forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el._exfill) { el.value = ""; el._exfill = false; el.classList.remove("ex-fill"); }
+  });
+}
+
 const OB_VALIDATORS = {
   obCompanyName: {
     required: true,
@@ -28123,7 +28163,7 @@ function renderOnboardingStatus() {
     const el = document.getElementById(id);
     const chip = document.querySelector(`[data-status-for="${id}"]`);
     if (!el || !chip) continue;
-    const raw = el.value || "";
+    const raw = el._exfill ? "" : (el.value || "");   // ONBD-16: examples read as empty
     const v = raw.trim();
     const rule = OB_VALIDATORS[id];
     const filled = v.length > 0;
@@ -28178,7 +28218,7 @@ function renderOnboardingStatus() {
   // Logo + Tagline are optional but have no validators — count them as "filled" when present
   if (onboardLogoData) optionalFilled++;
   const tag = document.getElementById("obTagline");
-  if (tag && tag.value.trim()) optionalFilled++;
+  if (tag && !tag._exfill && tag.value.trim()) optionalFilled++;   // ONBD-16: examples don't count
 
   // Progress copy
   const copy = document.getElementById("obProgressCopy");
@@ -28215,6 +28255,10 @@ function renderOnboardingStatus() {
 }
 
 function submitOnboarding() {
+  // ONBD-16: any example still sitting in a field was never the user's input —
+  // clear before reading, so examples can never be saved as real data.
+  clearOnboardExamples();
+  renderOnboardingStatus();
   // ONBD-15: the submit button is now aria-disabled (not natively disabled) while
   // required fields are blank, so it still fires click — guard it here and send
   // focus to the first incomplete required field so the reason is discoverable.
@@ -29266,6 +29310,17 @@ function init() {
 
   // Onboarding — live validation (delegated input + blur + change)
   const onboardScreen = document.getElementById("onboardScreen");
+  // ONBD-16: tapping an example-filled field clears it so the user types their
+  // own (the example lives on as the field's placeholder hint).
+  onboardScreen.addEventListener("focusin", e => {
+    const el = e.target;
+    if (el && el._exfill) {
+      el.value = "";
+      el._exfill = false;
+      el.classList.remove("ex-fill");
+      renderOnboardingStatus();
+    }
+  });
   onboardScreen.addEventListener("input", e => {
     // ONBD-14: do NOT mark touched on input — only blur/change set touched, so the
     // ✗ error waits until the user leaves the field. The live ✓ + counter still
