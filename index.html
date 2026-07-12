@@ -19957,24 +19957,32 @@ async function renderPdfJsPages(pdf, pagesEl, zoomFactor) {
   // Fit width from the scrollport (not the growing stack) so zoom is a true multiplier of fit.
   const fitW = Math.min(760, Math.max(280, (pagesEl.clientWidth || 360) - 16));
   const cssW = fitW * z;
-  // Cap bitmap size so 3.2× zoom on HiDPI doesn't explode memory.
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const maxBitmapW = 4096;
+  // Cap bitmap size so deep zoom on HiDPI doesn't explode memory.
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  // Fit / zoomed-out: supersample so CAD hairlines stay thin instead of chunky.
+  // Zoomed-in already has a large cssW — plain dpr is enough.
+  const pixelRatio = z < 1.5 ? Math.min(3.5, Math.max(3, dpr * 1.5)) : dpr;
+  const maxBitmapW = 5120;
   for (let i = 1; i <= pdf.numPages; i++) {
     if (_myGenGuard && _myGenGuard() === false) return;
     const page = await pdf.getPage(i);
     const base = page.getViewport({ scale: 1 });
-    let bitmapScale = (cssW / base.width) * dpr;
+    let bitmapScale = (cssW / base.width) * pixelRatio;
     if (base.width * bitmapScale > maxBitmapW) bitmapScale = maxBitmapW / base.width;
     const viewport = page.getViewport({ scale: bitmapScale });
     const canvas = document.createElement("canvas");
-    canvas.width = viewport.width; canvas.height = viewport.height;
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
     canvas.style.width = cssW + "px";
     canvas.style.height = (base.height * (cssW / base.width)) + "px";
     canvas.dataset.fitW = String(fitW);
     canvas.className = "pdf-preview-canvas";
     stack.appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    // Smooth downscale of the supersampled raster (crisper than 1:1 low-res pixels).
+    ctx.imageSmoothingEnabled = true;
+    if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = "high";
+    await page.render({ canvasContext: ctx, viewport }).promise;
   }
   updatePdfZoomButtons();
 }
