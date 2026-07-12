@@ -10735,6 +10735,43 @@ function clearLaborOverrideField(field) {
   STATE.laborOverride = normalizeLaborOverride(o);
 }
 
+// Mobile-friendly: tapping an input selects its whole value so the next keystroke
+// replaces it — no fiddly double-tap / drag to highlight. Skips textareas,
+// passwords, and anything marked data-no-autoselect.
+function wireAutoselectInputs() {
+  if (wireAutoselectInputs._wired) return;
+  wireAutoselectInputs._wired = true;
+  const selectable = el => {
+    if (!el || el.tagName !== "INPUT") return false;
+    if (el.disabled || el.readOnly) return false;
+    if (el.dataset.noAutoselect != null) return false;
+    const t = (el.type || "text").toLowerCase();
+    return ["text", "number", "search", "tel", "email", "url", "date", "time", "month", "week"].includes(t)
+      || t === "";
+  };
+  const selectAll = el => {
+    try {
+      if (typeof el.select === "function") el.select();
+      if (typeof el.setSelectionRange === "function" && el.type !== "number") {
+        el.setSelectionRange(0, (el.value || "").length);
+      }
+    } catch (_) {}
+  };
+  document.addEventListener("focusin", e => {
+    const el = e.target;
+    if (!selectable(el)) return;
+    // Defer so iOS/Safari apply selection after the caret lands.
+    requestAnimationFrame(() => selectAll(el));
+  });
+  // A second tap/click into an already-focused field should also select-all
+  // (common when correcting a value you just entered).
+  document.addEventListener("click", e => {
+    const el = e.target;
+    if (!selectable(el)) return;
+    if (document.activeElement === el) requestAnimationFrame(() => selectAll(el));
+  }, true);
+}
+
 // Pull in-progress crew edits out of the DOM before we re-render / add rows,
 // so typing a name then tapping "+ Add person" doesn't lose what wasn't blurred yet.
 function flushJobCrewFromDom(card) {
@@ -30989,6 +31026,7 @@ function init() {
   // wire-once discipline; this extends it to the rest of init(). ----
   if (init._wired) return;
   init._wired = true;
+  try { wireAutoselectInputs(); } catch (_) {}
 
   // Enable AI-button collapse transitions only after the initial paint,
   // so a Stick-Framed saved job doesn't animate the button away on load.
