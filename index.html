@@ -2251,6 +2251,68 @@
     min-height: 32px; padding: 2px 6px;
   }
   .margin-reset:hover { color: #c9a558; }
+  /* Labor Detail — per-job editable rates */
+  .labor-edit-row {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    padding: 10px 20px; flex-wrap: wrap;
+  }
+  @media (min-width: 640px) { .labor-edit-row { padding-left: 24px; padding-right: 24px; } }
+  .labor-edit-main { flex: 1 1 140px; min-width: 0; }
+  .labor-edit-label { font-size: 12px; color: #cbd5e1; font-weight: 600; line-height: 1.3; }
+  .labor-edit-meta { font-size: 10px; color: #64748b; margin-top: 2px; font-weight: 600; }
+  .labor-edit-meta.is-override { color: #c9a558; }
+  .labor-edit-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .labor-edit-hrs { font-size: 12px; color: #94a3b8; font-variant-numeric: tabular-nums; min-width: 3.5rem; text-align: right; }
+  .labor-edit-input {
+    width: 64px; padding: 6px 8px; border-radius: 8px; text-align: right;
+    font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+    background: rgba(15,23,42,0.65); border: 1px solid rgba(51,65,85,0.75); color: #e2e8f0;
+    -moz-appearance: textfield;
+  }
+  .labor-edit-input:focus { outline: 2px solid #c9a558; outline-offset: 1px; border-color: #b58f4a; }
+  .labor-edit-input.is-override { border-color: rgba(201,165,88,0.55); color: #c9a558; }
+  .labor-edit-unit { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; min-width: 2.4rem; }
+  .labor-reset-btn {
+    font-size: 10px; font-weight: 700; color: #94a3b8; background: none; border: none;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 4px 2px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .labor-reset-btn:hover { color: #c9a558; }
+  .labor-crew-block { padding: 10px 20px 12px; background: rgba(2,6,23,0.3); }
+  @media (min-width: 640px) { .labor-crew-block { padding-left: 24px; padding-right: 24px; } }
+  .labor-crew-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .labor-crew-title { font-size: 9px; letter-spacing: 0.14em; color: #64748b; font-weight: 700; text-transform: uppercase; }
+  .labor-crew-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .labor-crew-btn {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.03em; color: #c9a558;
+    background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.35);
+    border-radius: 999px; padding: 5px 10px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .labor-crew-btn:hover { background: rgba(181,143,74,0.22); }
+  .labor-crew-btn.muted { color: #94a3b8; background: transparent; border-color: rgba(71,85,105,0.5); }
+  .labor-crew-row {
+    display: grid; grid-template-columns: 18px minmax(0,1fr) 58px 48px; gap: 6px; align-items: center;
+    margin-top: 6px;
+  }
+  .labor-crew-row input[type="checkbox"] { accent-color: #b58f4a; width: 14px; height: 14px; }
+  .labor-crew-row .labor-edit-input { width: 100%; }
+  .labor-crew-name {
+    width: 100%; padding: 5px 7px; border-radius: 7px; font-size: 11px; font-weight: 600;
+    background: rgba(15,23,42,0.55); border: 1px solid rgba(51,65,85,0.65); color: #e2e8f0;
+  }
+  .labor-crew-name:focus { outline: 2px solid #c9a558; outline-offset: 1px; }
+  .labor-crew-remove {
+    grid-column: 1 / -1; justify-self: end; font-size: 10px; font-weight: 700; color: #fb7185;
+    background: none; border: none; cursor: pointer; padding: 2px 4px;
+  }
+  [data-theme="light"] .labor-edit-label { color: #334155; }
+  [data-theme="light"] .labor-edit-input, [data-theme="light"] .labor-crew-name {
+    background: #fff; border-color: #cbd5e1; color: #0f172a;
+  }
+  [data-theme="light"] .labor-edit-input.is-override { color: #8a6a2e; border-color: rgba(138,106,46,0.5); }
+  [data-theme="light"] .labor-crew-block { background: rgba(241,245,249,0.7); }
+
   [data-theme="light"] .margin-lever { border-color: rgba(100,116,139,0.35); background: rgba(241,245,249,0.7); }
   [data-theme="light"] .margin-lever.is-override { border-color: rgba(138,106,46,0.5); background: rgba(201,165,88,0.12); }
   [data-theme="light"] .margin-step { color: #475569; }
@@ -10540,6 +10602,293 @@ function resolveCrewCost() {
   };
 }
 
+// ── Per-job labor overrides (Settings = defaults; Labor Detail edits this job) ──
+function emptyLaborOverride() {
+  return { mobilizationHours: null, setupMinPerOpening: null, installMinPerLF: null, crew: null };
+}
+function normalizeLaborOverride(v) {
+  if (!v || typeof v !== "object") return null;
+  const numOrNull = (x) => {
+    if (x == null || x === "") return null;
+    const n = Number(x);
+    return isFinite(n) ? n : null;
+  };
+  const o = {
+    mobilizationHours: numOrNull(v.mobilizationHours),
+    setupMinPerOpening: numOrNull(v.setupMinPerOpening),
+    installMinPerLF: numOrNull(v.installMinPerLF),
+    crew: null,
+  };
+  if (v.crew && typeof v.crew === "object") {
+    if (v.crew.mode === "flat") {
+      o.crew = {
+        mode: "flat",
+        crewSize: Math.max(1, Number(v.crew.crewSize) || 1),
+        crewPayRatePerHr: Math.max(0, Number(v.crew.crewPayRatePerHr) || 0),
+      };
+    } else if (Array.isArray(v.crew.members)) {
+      const members = v.crew.members.map(normalizeCrewMember).filter(Boolean);
+      if (members.length) o.crew = { mode: "roster", members };
+    }
+  }
+  if (o.mobilizationHours == null && o.setupMinPerOpening == null
+      && o.installMinPerLF == null && !o.crew) return null;
+  return o;
+}
+function ensureLaborOverride() {
+  STATE.laborOverride = normalizeLaborOverride(STATE.laborOverride) || emptyLaborOverride();
+  return STATE.laborOverride;
+}
+function laborHasOverrides() {
+  return !!normalizeLaborOverride(STATE.laborOverride);
+}
+function defaultSetupMinPerOpening() {
+  return ((DATA.config && DATA.config.laborModel) || {}).setupMinPerOpening ?? 45;
+}
+function defaultMobilizationHours() {
+  return ((DATA.config && DATA.config.laborModel) || {}).mobilizationHours ?? 2;
+}
+function resolveSetupMinPerOpening() {
+  const o = STATE.laborOverride;
+  if (o && o.setupMinPerOpening != null && isFinite(Number(o.setupMinPerOpening))) {
+    return Math.max(0, Number(o.setupMinPerOpening));
+  }
+  return defaultSetupMinPerOpening();
+}
+function resolveMobilizationHours() {
+  const o = STATE.laborOverride;
+  if (o && o.mobilizationHours != null && isFinite(Number(o.mobilizationHours))) {
+    return Math.max(0, Number(o.mobilizationHours));
+  }
+  return defaultMobilizationHours();
+}
+// Effective window-install hr/LF for this job (override is entered as min/LF).
+function resolveLaborPerLF() {
+  const o = STATE.laborOverride;
+  if (o && o.installMinPerLF != null && isFinite(Number(o.installMinPerLF))) {
+    return Math.max(0, Number(o.installMinPerLF)) / 60;
+  }
+  return getLaborPerLF();
+}
+function resolveJobCrewCost() {
+  const o = STATE.laborOverride;
+  if (o && o.crew) {
+    if (o.crew.mode === "flat") {
+      const crewSize = Math.max(1, Number(o.crew.crewSize) || 1);
+      const crewPayPerHrEach = Math.max(0, Number(o.crew.crewPayRatePerHr) || 0);
+      const crewCostPerHr = crewSize * crewPayPerHrEach;
+      return {
+        mode: "flat", crewSize, crewPayPerHrEach, crewCostPerHr,
+        wageCostPerHr: crewCostPerHr, wcCostPerHr: 0, members: [],
+      };
+    }
+    if (o.crew.mode === "roster") {
+      const members = (o.crew.members || []).map(normalizeCrewMember).filter(Boolean);
+      const active = members.filter(m => m.active);
+      if (active.length) {
+        let wageCostPerHr = 0, wcCostPerHr = 0;
+        const rows = active.map(m => {
+          const wage = m.hourlyRate;
+          const loaded = crewMemberLoadedRate(m);
+          wageCostPerHr += wage;
+          wcCostPerHr += (loaded - wage);
+          return { ...m, loadedRate: loaded, wcCostPerHr: loaded - wage };
+        });
+        const crewCostPerHr = wageCostPerHr + wcCostPerHr;
+        const crewSize = active.length;
+        return {
+          mode: "roster", crewSize,
+          crewPayPerHrEach: crewSize ? wageCostPerHr / crewSize : 0,
+          crewCostPerHr, wageCostPerHr, wcCostPerHr, members: rows,
+        };
+      }
+    }
+  }
+  return resolveCrewCost();
+}
+// Copy Settings crew into a job-local snapshot so helpers can be added without
+// changing other jobs. Call before editing crew on Labor Detail.
+function seedJobCrewFromSettings() {
+  const base = resolveCrewCost();
+  const o = ensureLaborOverride();
+  if (base.mode === "roster" && base.members && base.members.length) {
+    o.crew = {
+      mode: "roster",
+      members: base.members.map(m => ({
+        id: m.id, name: m.name, role: m.role, avatar: m.avatar || "",
+        hourlyRate: m.hourlyRate, workersCompPct: m.workersCompPct, active: true,
+      })),
+    };
+  } else {
+    o.crew = {
+      mode: "flat",
+      crewSize: base.crewSize,
+      crewPayRatePerHr: base.crewPayPerHrEach,
+    };
+  }
+  STATE.laborOverride = normalizeLaborOverride(o) || o;
+}
+function clearLaborOverrideField(field) {
+  const o = normalizeLaborOverride(STATE.laborOverride) || emptyLaborOverride();
+  if (field === "crew") o.crew = null;
+  else o[field] = null;
+  STATE.laborOverride = normalizeLaborOverride(o);
+}
+
+function wireLaborDetailCard(card) {
+  if (!card || card._laborWired) return;
+  card._laborWired = true;
+  const editBtn = document.getElementById("laborEditBtn");
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      try { closeFL?.(); } catch (_) {}
+      openAdmin();
+      showSettingsTab("rates");
+      try { showRatesLeaf("labor"); } catch (_) { try { showRatesLeaf("crew"); } catch (_e) {} }
+      setTimeout(() => {
+        const target = document.getElementById("rates-section-labor")
+          || document.getElementById("adminSetupMinPerOpening")
+          || document.getElementById("rates-section-crew");
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    });
+  }
+  card.addEventListener("click", e => {
+    const resetAll = e.target.closest("[data-labor-reset-all]");
+    if (resetAll) { STATE.laborOverride = null; render(); return; }
+    const reset = e.target.closest("[data-labor-reset]");
+    if (reset) { clearLaborOverrideField(reset.getAttribute("data-labor-reset")); render(); return; }
+    if (e.target.closest("[data-labor-crew-customize]") || e.target.closest("[data-labor-crew-to-roster]")) {
+      seedJobCrewFromSettings();
+      // If settings were flat, seedJobCrewFromSettings makes flat — promote to roster so they can add people
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.mode === "flat") {
+        const n = Math.max(1, Number(o.crew.crewSize) || 1);
+        const rate = Math.max(0, Number(o.crew.crewPayRatePerHr) || 0);
+        const wc = (getCrewRoster().defaultWorkersCompPct ?? 10);
+        o.crew = {
+          mode: "roster",
+          members: Array.from({ length: n }, (_, i) => ({
+            id: newCrewMemberId(), name: i === 0 ? "Lead" : ("Helper " + i),
+            role: i === 0 ? "Lead" : "Helper", hourlyRate: rate, workersCompPct: wc, active: true, avatar: "",
+          })),
+        };
+        STATE.laborOverride = normalizeLaborOverride(o) || o;
+      }
+      render(); return;
+    }
+    if (e.target.closest("[data-labor-crew-reset]")) {
+      clearLaborOverrideField("crew"); render(); return;
+    }
+    if (e.target.closest("[data-labor-crew-add]")) {
+      seedJobCrewFromSettings();
+      const o = ensureLaborOverride();
+      if (!o.crew || o.crew.mode !== "roster") {
+        o.crew = { mode: "roster", members: [] };
+      }
+      const wc = (getCrewRoster().defaultWorkersCompPct ?? 10);
+      o.crew.members.push({
+        id: newCrewMemberId(), name: "Helper", role: "Helper",
+        hourlyRate: 25, workersCompPct: wc, active: true, avatar: "",
+      });
+      STATE.laborOverride = normalizeLaborOverride(o) || o;
+      render(); return;
+    }
+    const rm = e.target.closest("[data-labor-crew-remove]");
+    if (rm) {
+      const idx = parseInt(rm.getAttribute("data-labor-crew-remove"), 10);
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.mode === "roster" && Array.isArray(o.crew.members)) {
+        o.crew.members.splice(idx, 1);
+        if (!o.crew.members.length) o.crew = null;
+        STATE.laborOverride = normalizeLaborOverride(o);
+        render();
+      }
+      return;
+    }
+  });
+  const commitField = (el) => {
+    const field = el.getAttribute("data-labor-field");
+    if (!field) return;
+    const o = ensureLaborOverride();
+    const raw = el.value;
+    if (raw === "" || !isFinite(Number(raw))) o[field] = null;
+    else o[field] = Number(raw);
+    STATE.laborOverride = normalizeLaborOverride(o);
+    render();
+  };
+  card.addEventListener("change", e => {
+    const fieldEl = e.target.closest("[data-labor-field]");
+    if (fieldEl) { commitField(fieldEl); return; }
+    const active = e.target.closest("[data-labor-crew-active]");
+    if (active) {
+      const row = active.closest("[data-labor-crew-idx]");
+      const idx = row ? parseInt(row.getAttribute("data-labor-crew-idx"), 10) : -1;
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.members && o.crew.members[idx]) {
+        o.crew.members[idx].active = !!active.checked;
+        STATE.laborOverride = normalizeLaborOverride(o) || o;
+        render();
+      }
+      return;
+    }
+    const nameEl = e.target.closest("[data-labor-crew-name]");
+    if (nameEl) {
+      const row = nameEl.closest("[data-labor-crew-idx]");
+      const idx = row ? parseInt(row.getAttribute("data-labor-crew-idx"), 10) : -1;
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.members && o.crew.members[idx]) {
+        o.crew.members[idx].name = nameEl.value;
+        STATE.laborOverride = normalizeLaborOverride(o) || o;
+        render();
+      }
+      return;
+    }
+    const rateEl = e.target.closest("[data-labor-crew-rate]");
+    if (rateEl) {
+      const row = rateEl.closest("[data-labor-crew-idx]");
+      const idx = row ? parseInt(row.getAttribute("data-labor-crew-idx"), 10) : -1;
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.members && o.crew.members[idx]) {
+        o.crew.members[idx].hourlyRate = Math.max(0, Number(rateEl.value) || 0);
+        STATE.laborOverride = normalizeLaborOverride(o) || o;
+        render();
+      }
+      return;
+    }
+    const wcEl = e.target.closest("[data-labor-crew-wc]");
+    if (wcEl) {
+      const row = wcEl.closest("[data-labor-crew-idx]");
+      const idx = row ? parseInt(row.getAttribute("data-labor-crew-idx"), 10) : -1;
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.members && o.crew.members[idx]) {
+        o.crew.members[idx].workersCompPct = Math.max(0, Math.min(100, Number(wcEl.value) || 0));
+        STATE.laborOverride = normalizeLaborOverride(o) || o;
+        render();
+      }
+      return;
+    }
+    const flatSize = e.target.closest("[data-labor-flat-size]");
+    if (flatSize) {
+      const o = ensureLaborOverride();
+      if (!o.crew) o.crew = { mode: "flat", crewSize: 1, crewPayRatePerHr: 30 };
+      o.crew.mode = "flat";
+      o.crew.crewSize = Math.max(1, parseInt(flatSize.value, 10) || 1);
+      STATE.laborOverride = normalizeLaborOverride(o) || o;
+      render(); return;
+    }
+    const flatRate = e.target.closest("[data-labor-flat-rate]");
+    if (flatRate) {
+      const o = ensureLaborOverride();
+      if (!o.crew) o.crew = { mode: "flat", crewSize: 2, crewPayRatePerHr: 30 };
+      o.crew.mode = "flat";
+      o.crew.crewPayRatePerHr = Math.max(0, Number(flatRate.value) || 0);
+      STATE.laborOverride = normalizeLaborOverride(o) || o;
+      render(); return;
+    }
+  });
+}
+
 function crewInitials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
@@ -10968,12 +11317,14 @@ function buildState() {
     // CALC-8: per-job markup override. null = use the account default
     // (DATA.config.defaultMargin); a number overrides it for THIS job only.
     marginOverride: null,
+    laborOverride: null,   // per-job mob/setup/install/crew; null = Settings defaults
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
     swingDoors,
     // Head/jamb/sill trim split — always a well-formed object (older blobs lack it).
     trimSplitCfg: normalizeTrimSplitCfg(persisted && persisted.trimSplitCfg),
+    laborOverride: normalizeLaborOverride(persisted && persisted.laborOverride),
   };
 }
 let STATE = buildState();
@@ -11203,10 +11554,9 @@ function getLaborPerLF() {
 //              totalHrs, crewSize, crewPayPerHrEach, crewCostPerHr,
 //              laborCost, breakdown }
 function estimateLaborBreakdown(ctx) {
-  const LM = (DATA.config && DATA.config.laborModel) || {};
-  const setupMin = LM.setupMinPerOpening ?? 45;
-  const mobHrs = LM.mobilizationHours ?? 2;
-  const crew = resolveCrewCost();
+  const setupMin = resolveSetupMinPerOpening();
+  const mobHrs = resolveMobilizationHours();
+  const crew = resolveJobCrewCost();
   const crewSize = crew.crewSize;
   const crewPayPerHrEach = crew.crewPayPerHrEach;
   const crewCostPerHr = crew.crewCostPerHr;
@@ -11229,8 +11579,9 @@ function estimateLaborBreakdown(ctx) {
   // anchor, cleanup).
   const openingCount = wc + dc + sgdc + bfc;
   const setupHrs = openingCount * setupMin / 60;
-  // Window install — LF × hr/LF (rate already folds in stories + impact).
-  const windowInstallHrs = lf * getLaborPerLF();
+  // Window install — LF × hr/LF (settings rate or per-job min/LF override).
+  const laborPerLF = resolveLaborPerLF();
+  const windowInstallHrs = lf * laborPerLF;
   // Swing-door install — minutes per door from the swing-door config, with the
   // same impact-glass labor premium that windows/sliders/bifolds already get.
   const doorInstallHrs = ((sd.laborMinutes || 0) / 60) * getImpactLaborMultiplier();
@@ -11255,13 +11606,35 @@ function estimateLaborBreakdown(ctx) {
 
   // Breakdown rows for the UI — order matches a typical jobsite day.
   const breakdown = [];
-  if (mobilizationHrs > 0) breakdown.push({ label: "Mobilization (load · drive · stage)", hrs: mobilizationHrs });
-  if (setupHrs > 0)         breakdown.push({ label: `Per-opening setup (${openingCount} opening${openingCount === 1 ? "" : "s"} × ${setupMin} min)`, hrs: setupHrs });
-  if (windowInstallHrs > 0) breakdown.push({ label: `Window install (${lf} LF × ${(getLaborPerLF() * 60).toFixed(0)} min/LF)`, hrs: windowInstallHrs });
-  if (doorInstallHrs > 0)   breakdown.push({ label: `Swing door install (${dc} door${dc === 1 ? "" : "s"})`, hrs: doorInstallHrs });
-  if (sgdInstallHrs > 0)    breakdown.push({ label: `Sliding glass door install (${sgd.panelTotal} panel${sgd.panelTotal === 1 ? "" : "s"} × ${sgdHrsPerPanel}h)`, hrs: sgdInstallHrs });
-  if (bifoldInstallHrs > 0) breakdown.push({ label: `Bifold door install (${bifold.panelTotal} panel${bifold.panelTotal === 1 ? "" : "s"} × ${bfHrsPerPanel}h)`, hrs: bifoldInstallHrs });
-  if (inspectionHrs > 0)    breakdown.push({ label: "Inspection return trip (screw inspection)", hrs: inspectionHrs });
+  if (mobilizationHrs > 0 || openingCount + lf > 0) {
+    breakdown.push({
+      key: "mobilization",
+      label: "Mobilization (load · drive · stage)",
+      hrs: mobilizationHrs,
+      edit: { field: "mobilizationHours", value: mobHrs, unit: "hr", defaultVal: defaultMobilizationHours() },
+    });
+  }
+  if (setupHrs > 0 || openingCount > 0) {
+    breakdown.push({
+      key: "setup",
+      label: `Per-opening setup (${openingCount} opening${openingCount === 1 ? "" : "s"})`,
+      hrs: setupHrs,
+      edit: { field: "setupMinPerOpening", value: setupMin, unit: "min", defaultVal: defaultSetupMinPerOpening(), suffix: " / opening" },
+    });
+  }
+  if (windowInstallHrs > 0 || lf > 0) {
+    const minPerLF = laborPerLF * 60;
+    breakdown.push({
+      key: "install",
+      label: `Window install (${lf} LF)`,
+      hrs: windowInstallHrs,
+      edit: { field: "installMinPerLF", value: Math.round(minPerLF * 10) / 10, unit: "min/LF", defaultVal: Math.round(getLaborPerLF() * 60 * 10) / 10 },
+    });
+  }
+  if (doorInstallHrs > 0)   breakdown.push({ key: "swing", label: `Swing door install (${dc} door${dc === 1 ? "" : "s"})`, hrs: doorInstallHrs });
+  if (sgdInstallHrs > 0)    breakdown.push({ key: "sgd", label: `Sliding glass door install (${sgd.panelTotal} panel${sgd.panelTotal === 1 ? "" : "s"} × ${sgdHrsPerPanel}h)`, hrs: sgdInstallHrs });
+  if (bifoldInstallHrs > 0) breakdown.push({ key: "bifold", label: `Bifold door install (${bifold.panelTotal} panel${bifold.panelTotal === 1 ? "" : "s"} × ${bfHrsPerPanel}h)`, hrs: bifoldInstallHrs });
+  if (inspectionHrs > 0)    breakdown.push({ key: "inspection", label: "Inspection return trip (screw inspection)", hrs: inspectionHrs });
 
   return {
     mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
@@ -11269,6 +11642,7 @@ function estimateLaborBreakdown(ctx) {
     crewSize, crewPayPerHrEach, crewCostPerHr, laborCost, breakdown,
     crewMode: crew.mode, wageCostPerHr: crew.wageCostPerHr, wcCostPerHr: crew.wcCostPerHr,
     crewMembers: crew.members,
+    openingCount, lf,
   };
 }
 
@@ -11863,6 +12237,7 @@ function floorPersistFields() {
     // CALC-8: not a floor field, but this fn is the single point every job-build
     // site spreads, so the per-job markup override rides along to all of them.
     marginOverride: STATE.marginOverride ?? null,
+    laborOverride: normalizeLaborOverride(STATE.laborOverride),
   };
 }
 
@@ -13223,45 +13598,102 @@ function render() {
 
   // Labor Detail card — the hour breakdown behind the single Labor line in
   // the table above (cost-plus: crew-hours × crew cost). Hidden when there's
-  // nothing to estimate (no LF, no doors).
+  // nothing to estimate (no LF, no doors). Per-job overrides editable inline.
   const laborCard = document.getElementById("laborDetailCard");
   if (laborCard) {
     const lb = buildingLaborBreakdown();
     if (lb.totalHrs > 0.01) {
       laborCard.classList.remove("hidden");
-      // First render — wire the Adjust button once
-      const editBtn = document.getElementById("laborEditBtn");
-      if (editBtn && !editBtn._wired) {
-        editBtn._wired = true;
-        editBtn.addEventListener("click", () => {
-          closeFL?.();
-          openAdmin();
-          showSettingsTab("rates");
-          // Crew $/hr (simple or roster) lives on the Crew leaf; Labor is time/speed.
-          try { showRatesLeaf("crew"); } catch (_) {}
-          setTimeout(() => {
-            const target = document.getElementById("rates-section-crew")
-              || document.getElementById("adminCrewSize");
-            if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-          }, 150);
-        });
-      }
+      try { wireLaborDetailCard(laborCard); } catch (_) {}
       document.getElementById("laborTotalHrs").textContent =
         lb.totalHrs.toFixed(1) + " hr" + (lb.totalHrs >= 2 ? "s" : "");
-      document.getElementById("laborBreakdownRows").innerHTML = lb.breakdown.map(b =>
-        `<div class="px-5 sm:px-6 py-2 flex items-center justify-between text-[12px]">
-           <div class="text-slate-300">${escHtml(b.label)}</div>
-           <div class="text-slate-400 tabular-nums">${b.hrs.toFixed(1)} hr</div>
-         </div>`).join("") + ((lb.crewMode === "roster" && lb.crewMembers && lb.crewMembers.length)
-        ? `<div class="px-5 sm:px-6 py-2.5 bg-slate-950/30 space-y-1.5">
-             <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500 mb-1">Crew cost / hr</div>
-             ${lb.crewMembers.map(m =>
-               `<div class="flex items-center justify-between text-[11px] gap-2">
-                  <div class="text-slate-400 truncate">${escHtml(m.name || m.role || "Installer")}${m.workersCompPct > 0 ? ` <span class="text-slate-600">· WC ${m.workersCompPct}%</span>` : ""}</div>
-                  <div class="text-slate-300 tabular-nums shrink-0">${formatMoney(m.loadedRate)}/hr</div>
-                </div>`).join("")}
-           </div>`
-        : "");
+
+      const ov = normalizeLaborOverride(STATE.laborOverride) || emptyLaborOverride();
+      const rowsHtml = lb.breakdown.map(b => {
+        if (!b.edit) {
+          return `<div class="labor-edit-row">
+            <div class="labor-edit-main"><div class="labor-edit-label">${escHtml(b.label)}</div></div>
+            <div class="labor-edit-hrs">${b.hrs.toFixed(1)} hr</div>
+          </div>`;
+        }
+        const overridden = ov[b.edit.field] != null;
+        const def = b.edit.defaultVal;
+        return `<div class="labor-edit-row" data-labor-row="${escHtml(b.edit.field)}">
+          <div class="labor-edit-main">
+            <div class="labor-edit-label">${escHtml(b.label)}</div>
+            <div class="labor-edit-meta ${overridden ? "is-override" : ""}">${overridden ? `Job override · settings default ${def}${b.edit.unit === "min" ? " min" : b.edit.unit === "hr" ? " hr" : ""}` : `Settings default`}</div>
+          </div>
+          <div class="labor-edit-controls">
+            <input type="number" min="0" step="any" inputmode="decimal" class="labor-edit-input ${overridden ? "is-override" : ""}"
+              data-labor-field="${escHtml(b.edit.field)}" value="${escHtml(String(b.edit.value))}" aria-label="${escHtml(b.label)}" />
+            <span class="labor-edit-unit">${escHtml(b.edit.unit)}${b.edit.suffix ? escHtml(b.edit.suffix) : ""}</span>
+            <span class="labor-edit-hrs">${b.hrs.toFixed(1)} hr</span>
+            ${overridden ? `<button type="button" class="labor-reset-btn" data-labor-reset="${escHtml(b.edit.field)}">Use default</button>` : ""}
+          </div>
+        </div>`;
+      }).join("");
+
+      // Crew section — settings crew by default; customize for this job only.
+      const crewCustom = !!(ov && ov.crew);
+      let crewHtml = "";
+      if (crewCustom && ov.crew.mode === "roster") {
+        const allMembers = ov.crew.members || [];
+        crewHtml = `<div class="labor-crew-block">
+          <div class="labor-crew-head">
+            <div class="labor-crew-title">Crew for this job</div>
+            <div class="labor-crew-actions">
+              <button type="button" class="labor-crew-btn" data-labor-crew-add>+ Add person</button>
+              <button type="button" class="labor-crew-btn muted" data-labor-crew-reset>Use Settings crew</button>
+            </div>
+          </div>
+          ${allMembers.map((m, i) => `
+            <div class="labor-crew-row" data-labor-crew-idx="${i}">
+              <input type="checkbox" data-labor-crew-active ${m.active !== false ? "checked" : ""} title="Include on this job" aria-label="Include ${escHtml(m.name || "person")}" />
+              <input type="text" class="labor-crew-name" data-labor-crew-name value="${escHtml(m.name || "")}" placeholder="Name" />
+              <input type="number" min="0" step="0.5" inputmode="decimal" class="labor-edit-input" data-labor-crew-rate value="${escHtml(String(m.hourlyRate || 0))}" title="Wage $/hr" aria-label="Wage" />
+              <input type="number" min="0" max="100" step="1" inputmode="decimal" class="labor-edit-input" data-labor-crew-wc value="${escHtml(String(m.workersCompPct || 0))}" title="WC %" aria-label="Workers comp %" />
+              <button type="button" class="labor-crew-remove" data-labor-crew-remove="${i}">Remove</button>
+            </div>`).join("")}
+          <div class="labor-edit-meta" style="margin-top:8px">$/hr wage · WC % — loaded rate includes workers' comp</div>
+        </div>`;
+      } else if (crewCustom && ov.crew.mode === "flat") {
+        crewHtml = `<div class="labor-crew-block">
+          <div class="labor-crew-head">
+            <div class="labor-crew-title">Crew for this job (simple)</div>
+            <div class="labor-crew-actions">
+              <button type="button" class="labor-crew-btn" data-labor-crew-to-roster>Switch to people list</button>
+              <button type="button" class="labor-crew-btn muted" data-labor-crew-reset>Use Settings crew</button>
+            </div>
+          </div>
+          <div class="labor-edit-controls" style="justify-content:flex-start;margin-top:6px">
+            <label class="labor-edit-meta" style="display:flex;align-items:center;gap:6px">People
+              <input type="number" min="1" step="1" class="labor-edit-input is-override" data-labor-flat-size value="${escHtml(String(ov.crew.crewSize || 1))}" />
+            </label>
+            <label class="labor-edit-meta" style="display:flex;align-items:center;gap:6px">$/hr each
+              <input type="number" min="0" step="0.5" class="labor-edit-input is-override" data-labor-flat-rate value="${escHtml(String(ov.crew.crewPayRatePerHr || 0))}" />
+            </label>
+          </div>
+        </div>`;
+      } else {
+        const memberLines = (lb.crewMode === "roster" && lb.crewMembers && lb.crewMembers.length)
+          ? lb.crewMembers.map(m =>
+              `<div class="flex items-center justify-between text-[11px] gap-2 py-0.5">
+                 <div class="text-slate-400 truncate">${escHtml(m.name || m.role || "Installer")}${m.workersCompPct > 0 ? ` <span class="text-slate-600">· WC ${m.workersCompPct}%</span>` : ""}</div>
+                 <div class="text-slate-300 tabular-nums shrink-0">${formatMoney(m.loadedRate)}/hr</div>
+               </div>`).join("")
+          : `<div class="text-[11px] text-slate-500">${lb.crewSize} people · ${formatMoney(lb.crewPayPerHrEach)}/hr each</div>`;
+        crewHtml = `<div class="labor-crew-block">
+          <div class="labor-crew-head">
+            <div class="labor-crew-title">Crew cost / hr · from Settings</div>
+            <div class="labor-crew-actions">
+              <button type="button" class="labor-crew-btn" data-labor-crew-customize>Customize for this job</button>
+            </div>
+          </div>
+          ${memberLines}
+        </div>`;
+      }
+
+      document.getElementById("laborBreakdownRows").innerHTML = rowsHtml + crewHtml;
       document.getElementById("laborCostTotal").textContent = formatMoney(lb.laborCost);
       { const _ls = document.getElementById("laborSummary"); if (_ls) _ls.innerHTML = `<span>Crew Hours: ${lb.totalHrs.toFixed(1)}</span><span class="rcard-sum-sub">Total Crew Cost: ${formatMoney(lb.laborCost)}</span>`; }
       const rateEl = document.getElementById("laborCostRate");
@@ -13275,6 +13707,30 @@ function render() {
           rateEl.textContent =
             lb.crewSize + " × " + formatMoney(lb.crewPayPerHrEach) + " = " + formatMoney(lb.crewCostPerHr) + "/hr";
         }
+      }
+      const editBtn = document.getElementById("laborEditBtn");
+      if (editBtn) {
+        editBtn.textContent = laborHasOverrides() ? "Defaults in Settings" : "Edit defaults in Settings";
+      }
+      // Show reset-all when any override is active
+      let resetAllEl = document.getElementById("laborResetAllBtn");
+      if (laborHasOverrides()) {
+        if (!resetAllEl) {
+          const foot = editBtn && editBtn.parentElement;
+          if (foot) {
+            resetAllEl = document.createElement("button");
+            resetAllEl.id = "laborResetAllBtn";
+            resetAllEl.type = "button";
+            resetAllEl.className = "labor-reset-btn";
+            resetAllEl.setAttribute("data-labor-reset-all", "1");
+            resetAllEl.textContent = "Reset job labor";
+            foot.insertBefore(resetAllEl, editBtn);
+          }
+        } else {
+          resetAllEl.classList.remove("hidden");
+        }
+      } else if (resetAllEl) {
+        resetAllEl.classList.add("hidden");
       }
     } else {
       laborCard.classList.add("hidden");
@@ -13511,6 +13967,7 @@ function render() {
     trimLength: STATE.trimLength,
     trimSplitCfg: STATE.trimSplitCfg || defaultTrimSplitCfg(),
     marginOverride: STATE.marginOverride ?? null,   // CALC-8: per-job markup override
+    laborOverride: normalizeLaborOverride(STATE.laborOverride),
   });
 
   // Toggle "Save as new version" button visibility and keep a local-only
@@ -18926,6 +19383,7 @@ function resetAll() {
     trimWidth: "1x4",
     trimLength: 16,
     trimSplitCfg: defaultTrimSplitCfg(),
+    laborOverride: null,
   };
   saveState(STATE);
   clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
@@ -19917,6 +20375,7 @@ function applyJobToState(j) {
   // CALC-8: restore the per-job markup override. Legacy jobs (no field) load as
   // null → they reprice at the current account default, exactly as before.
   STATE.marginOverride = (j.marginOverride != null && j.marginOverride !== "") ? Number(j.marginOverride) : null;
+  STATE.laborOverride = normalizeLaborOverride(j.laborOverride);
   STATE.currentJobId = j.id;
   // Swing doors — migrate legacy {single,double,withFlashing} → per-door array.
   STATE.swingDoors = normalizeSwingDoors(j.swingDoors);
