@@ -600,7 +600,7 @@
   }
   #mtotalBar.show { transform: translateY(0); }
   #mtotalBar.show.tucked { transform: translateY(calc(100% + 12px)); }
-  #mtotalBar.dragging { transition: none; }
+  #mtotalBar.dragging { transition: none !important; }
   #mtotalBtn {
     width: 100%; min-height: 56px;
     display: flex; align-items: center; gap: 12px;
@@ -682,7 +682,13 @@
     box-shadow: 0 10px 26px -8px var(--gold-glow), 0 0 0 6px rgba(7,12,24,0.94);
     transition: transform .15s var(--ease-out);
   }
+  .app-fab-circle .fab-ico.hidden { display: none; }
   .app-tab:active .app-fab-circle { transform: scale(0.94); }
+  /* Calculator mode: center tab opens the job-specs rail (no floating FAB). */
+  body.tabbar-calc .app-fab-circle .fab-ico-plus { display: none; }
+  body.tabbar-calc .app-fab-circle .fab-ico-calc { display: block; }
+  body.tabbar-calc .app-tab-center { /* keep raised circle */ }
+  #jobSpecsFab { display: none !important; }
   [data-theme="light"] body.tabbar-on .app-tabbar { background: rgba(255,255,255,0.96); border-top-color: #e2e6ec; }
   [data-theme="light"] .app-tab { color: #64748b; }
   [data-theme="light"] .app-tab.active { color: #9a7636; }
@@ -760,7 +766,7 @@
     animation: sheetUp .34s cubic-bezier(0.16,1,0.3,1);
     will-change: transform;
   }
-  .msheet-panel.dragging { animation: none; transition: none; }
+  .msheet-panel.dragging { animation: none !important; transition: none !important; }
   @media (prefers-reduced-motion: reduce) { .msheet-panel { animation: none; } }
   .msheet-grab {
     width: 40px; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.45);
@@ -9308,8 +9314,11 @@
     <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/></svg>
     <span>Jobs</span>
   </button>
-  <button type="button" class="app-tab" data-tabact="new" aria-label="New quote" title="New quote">
-    <span class="app-fab-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+  <button type="button" class="app-tab app-tab-center" data-tabact="center" aria-label="New quote" title="New quote">
+    <span class="app-fab-circle" data-fab-slot>
+      <svg class="fab-ico fab-ico-plus" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg class="fab-ico fab-ico-calc hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="10" y2="11"/><line x1="14" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/><line x1="8" y1="19" x2="10" y2="19"/><line x1="14" y1="19" x2="16" y2="19"/></svg>
+    </span>
   </button>
   <button type="button" class="app-tab" data-tab="shopping" aria-label="Shopping list">
     <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 4-4"/><path d="M5 6h16l-1.5 9.5a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 4H3"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>
@@ -9323,14 +9332,8 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">Saved</div>
 
-<!-- Mobile-only thumb-reachable shortcut to open the job rail. Hidden on
-     desktop (the pinned rail covers that case) and while the rail is open. -->
-<button id="jobSpecsFab" type="button" aria-label="Open job specs">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/>
-  </svg>
-  Job specs
-</button>
+<!-- Job-specs FAB retired — on the calculator the center tab opens the rail. -->
+<button id="jobSpecsFab" type="button" class="hidden" aria-hidden="true" tabindex="-1" hidden></button>
 
 <script>
 /* ============================================================
@@ -13709,7 +13712,9 @@ let _dashDragKey = null;             // card key being dragged in edit mode
 // Distinct, theme-friendly palette for the material charts.
 const MAT_COLORS = ["#c9a558", "#60a5fa", "#34d399", "#f472b6", "#f59e0b", "#a78bfa", "#22d3ee", "#fb7185", "#94a3b8", "#facc15"];
 
-function openDashboard() {
+let _dashHistPushed = false;         // browser Back from dashboard → calculator (quote intact)
+
+function openDashboard(opts) {
   try { closePfpMenu(); } catch (_) {}
   ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen"].forEach(id => {
     const el = document.getElementById(id); if (el) el.classList.add("hidden");
@@ -13717,21 +13722,46 @@ function openDashboard() {
   const splash = document.getElementById("bootSplash"); if (splash) splash.classList.add("hidden");
   const d = document.getElementById("dashboardScreen");
   if (!d) return;
+  const wasHidden = d.classList.contains("hidden");
   wireDashboard();
   d.classList.remove("hidden");
-  d.scrollTop = 0;
-  _dashView = "home";   // always land on the launchpad
-  _dashEditMode = false; // never carry customize mode across opens
-  _dashEsignLastUrl = "";   // don't resurface a stale "last created" link on a fresh open
+  // Keep drill-in if caller is just switching tabs while already on the dashboard;
+  // only reset to home when freshly opening from the calculator / elsewhere.
+  if (wasHidden || !(opts && opts.keepView)) {
+    d.scrollTop = 0;
+    const ds = document.getElementById("dashScroll"); if (ds) ds.scrollTop = 0;
+    _dashView = (opts && opts.view) || "home";
+    _dashEditMode = false;
+    _dashEsignLastUrl = "";
+  }
+  if (opts && opts.view) _dashView = opts.view;
   renderDashboard();
-  try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}   // premium count-up + chart entrance
-  try { renderPfp(); } catch (_) {}   // paint the dashboard avatar + admin gate
+  try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}
+  try { renderPfp(); } catch (_) {}
   try { updateThemeToggleIcon(); } catch (_) {}
   try { window.track("dashboard_opened"); } catch (_) {}
+  // Push a history entry when leaving the calculator so hardware/browser Back
+  // returns to the quote in progress instead of exiting the app / losing place.
+  if (wasHidden && !(opts && opts.skipHist)) {
+    try {
+      history.pushState({ _dashFromCalc: true }, "");
+      _dashHistPushed = true;
+    } catch (_) { _dashHistPushed = false; }
+  }
+  try { updateTabBar(); } catch (_) {}
 }
-function closeDashboard() {
+function closeDashboard(opts) {
   const d = document.getElementById("dashboardScreen");
   if (d) d.classList.add("hidden");
+  // If we opened via a pushed history entry and this close is programmatic
+  // (Calculator →, Load job, etc.), pop that entry so Back doesn't re-open dash.
+  if (_dashHistPushed && !(opts && opts.fromPopstate)) {
+    _dashHistPushed = false;
+    try { history.back(); } catch (_) {}
+  } else {
+    _dashHistPushed = false;
+  }
+  try { updateTabBar(); } catch (_) {}
 }
 
 // ── Mobile bottom tab bar (UI refresh P1) ────────────────────────────────────
@@ -13745,11 +13775,11 @@ function startNewQuote() {
   try { resetAll(); } catch (_) {} closeDashboard();
 }
 // Visibility: signed-in app surfaces only (calculator or dashboard) — never on
-// landing/pricing/onboarding/setup or the public-quote route. Active tab mirrors
-// the dashboard view; the calculator itself has no active tab (the FAB is its
-// entry). Desktop hiding is pure CSS (min-width media query).
+// landing/pricing/onboarding/setup or the public-quote route.
+// Dashboard: Home · Jobs · [⊕ New quote] · Shopping · More
+// Calculator: Home · Jobs · [Calculator → job-specs rail] · Shopping · More
 function updateTabBar() {
-  try { updateCalcPaywall(); } catch (_) {}   // screen/auth transitions re-check the wall
+  try { updateCalcPaywall(); } catch (_) {}
   const bars = document.querySelectorAll(".app-tabbar");
   if (!bars.length) return;
   const hiddenEl = id => { const el = document.getElementById(id); return !el || el.classList.contains("hidden"); };
@@ -13759,15 +13789,30 @@ function updateTabBar() {
     && hiddenEl("onboardScreen") && hiddenEl("setupScreen")
     && !document.body.hasAttribute("data-public-quote");
   document.body.classList.toggle("tabbar-on", show);
-  if (!show) return;
+  if (!show) { document.body.classList.remove("tabbar-calc"); return; }
   const dashOpen = !hiddenEl("dashboardScreen");
+  document.body.classList.toggle("tabbar-calc", !dashOpen);
   const view = (typeof _dashView !== "undefined") ? _dashView : "home";
   const active = dashOpen ? (view === "home" || view === "jobs" || view === "shopping" ? view : "") : "";
-  bars.forEach(bar => bar.querySelectorAll(".app-tab[data-tab]").forEach(b => {
-    const on = b.dataset.tab === active;
-    b.classList.toggle("active", on);
-    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
-  }));
+  bars.forEach(bar => {
+    bar.querySelectorAll(".app-tab[data-tab]").forEach(b => {
+      const on = b.dataset.tab === active;
+      b.classList.toggle("active", on);
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    const center = bar.querySelector(".app-tab-center, [data-tabact='center'], [data-tabact='new'], [data-tabact='rail']");
+    if (center) {
+      if (dashOpen) {
+        center.setAttribute("aria-label", "New quote");
+        center.title = "New quote";
+        center.dataset.tabact = "center";
+      } else {
+        center.setAttribute("aria-label", "Job specs");
+        center.title = "Open job specs";
+        center.dataset.tabact = "center";
+      }
+    }
+  });
 }
 function wireTabBar() {
   const src = document.getElementById("appTabBar");
@@ -13790,20 +13835,37 @@ function wireTabBar() {
     bar.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-tab],[data-tabact]");
       if (!btn) return;
-      try { closeJobRail(); } catch (_) {}
       const t = btn.dataset.tab || btn.dataset.tabact;
-      if (t === "home") { openDashboard(); }
-      else if (t === "jobs") { openDashboard(); dashGoTo("jobs"); }
-      else if (t === "shopping") { openDashboard(); dashGoTo("shopping"); }
-      else if (t === "new") { startNewQuote(); }
-      else if (t === "more") { togglePfpMenu(e, btn); }
+      const dashOpen = !document.getElementById("dashboardScreen")?.classList.contains("hidden");
+      if (t === "home") {
+        try { closeJobRail(); } catch (_) {}
+        openDashboard({ view: "home" });
+        dashGoTo("home");
+      } else if (t === "jobs") {
+        try { closeJobRail(); } catch (_) {}
+        openDashboard({ view: "jobs" });
+        dashGoTo("jobs");
+      } else if (t === "shopping") {
+        try { closeJobRail(); } catch (_) {}
+        openDashboard({ view: "shopping" });
+        dashGoTo("shopping");
+      } else if (t === "center") {
+        if (dashOpen) {
+          startNewQuote();
+        } else {
+          // Calculator mode: center tab opens the job-specs sidebar (replaces FAB).
+          try { openJobRail(); } catch (_) {}
+        }
+      } else if (t === "new") {
+        startNewQuote();
+      } else if (t === "more") {
+        togglePfpMenu(e, btn);
+      }
       updateTabBar();
     });
   });
   if (!wireTabBar._observed) {
     wireTabBar._observed = true;
-    // Screens toggle .hidden from a dozen code paths (auth, pricing, onboarding…)
-    // — observe their class attribute instead of patching every site.
     ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen", "dashboardScreen"].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -27724,6 +27786,13 @@ window.addEventListener("popstate", () => {
   // Dormant by default — with HISTORY_NAV false this whole block is skipped and the
   // listener behaves exactly as before (just the pricing close).
   if (HISTORY_NAV && navResolveBack()) return;
+  // Fat-finger safety: Back from dashboard (opened via tab bar) returns to the
+  // calculator with the in-progress quote intact — no work lost.
+  const dash = document.getElementById("dashboardScreen");
+  if (dash && !dash.classList.contains("hidden") && _dashHistPushed) {
+    closeDashboard({ fromPopstate: true });
+    return;
+  }
   if (window.location.hash !== "#/pricing") closePricing();
 });
 
@@ -30245,18 +30314,33 @@ function init() {
   const _msheet = document.getElementById("mtotalSheet");
   const _mbar = document.getElementById("mtotalBar");
   const _mpeek = document.getElementById("mtotalPeek");
-  function setMtotalTucked(on) {
-    if (_mbar) _mbar.classList.toggle("tucked", !!on);
-    document.body.classList.toggle("mtotal-tucked", !!on);
-    if (_mbar) _mbar.style.transform = "";
+  function setMtotalTucked(on, fromDrag) {
+    if (!_mbar) return;
+    if (on) {
+      document.body.classList.add("mtotal-tucked");
+      _mbar.classList.add("tucked");
+      if (!fromDrag) {
+        _mbar.style.transition = "";
+        _mbar.style.transform = "";
+      }
+    } else {
+      document.body.classList.remove("mtotal-tucked");
+      _mbar.classList.remove("tucked");
+      _mbar.style.transition = "";
+      _mbar.style.transform = "";
+    }
   }
-  function closeMtotalSheet() {
+  function closeMtotalSheet(instant) {
     if (!_msheet) return;
     _msheet.classList.remove("open");
     _msheet.setAttribute("aria-hidden", "true");
     document.body.classList.remove("msheet-open");
     const panel = _msheet.querySelector(".msheet-panel");
-    if (panel) { panel.classList.remove("dragging"); panel.style.transform = ""; }
+    if (panel) {
+      panel.classList.remove("dragging");
+      if (!instant) { panel.style.transition = ""; panel.style.transform = ""; }
+      else { panel.style.transition = ""; panel.style.transform = ""; }
+    }
   }
   function openMtotalSheet() {
     if (!_msheet) return;
@@ -30317,16 +30401,27 @@ function init() {
     function onEnd() {
       if (!tracking) return;
       tracking = false;
-      _mbar.classList.remove("dragging");
       if (isDrag) {
         _mbar._didDrag = true;
-        if (dy > 56) {
+        if (dy > 48) {
+          // Continue from the finger position into the tucked rest — never
+          // snap back to "shown" first (that was the hitch).
+          _mbar.classList.add("tucked");
+          document.body.classList.add("mtotal-tucked");
+          _mbar.style.transition = "transform .28s cubic-bezier(0.22, 1, 0.36, 1)";
+          _mbar.classList.remove("dragging");
+          void _mbar.offsetWidth;
           _mbar.style.transform = "";
-          setMtotalTucked(true);
+          setTimeout(() => { _mbar.style.transition = ""; }, 300);
         } else {
+          _mbar.style.transition = "transform .28s cubic-bezier(0.16, 1, 0.3, 1)";
+          _mbar.classList.remove("dragging");
+          void _mbar.offsetWidth;
           _mbar.style.transform = "";
+          setTimeout(() => { _mbar.style.transition = ""; }, 300);
         }
       } else {
+        _mbar.classList.remove("dragging");
         _mbar.style.transform = "";
       }
       isDrag = false; dy = 0;
@@ -30404,16 +30499,24 @@ function init() {
       function end() {
         if (!dragging) return;
         dragging = false;
-        panel.classList.remove("dragging");
-        const dismiss = dy > 110 || (dy > 64 && dy > panel.getBoundingClientRect().height * 0.22);
+        const dismiss = dy > 90 || (dy > 56 && dy > panel.getBoundingClientRect().height * 0.18);
+        // Set the settle target WHILE still transition:none (dragging), then
+        // release — transforms from the finger offset, never a pop to rest.
+        panel.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
         if (dismiss) {
-          panel.style.transition = "transform .28s cubic-bezier(0.4,0,0.2,1)";
           panel.style.transform = "translateY(110%)";
-          setTimeout(() => { closeMtotalSheet(); panel.style.transition = ""; }, 280);
+          const bd = _msheet.querySelector(".msheet-backdrop");
+          if (bd) { bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
+          panel.classList.remove("dragging");
+          setTimeout(() => {
+            closeMtotalSheet(true);
+            panel.style.transition = ""; panel.style.transform = "";
+            if (bd) { bd.style.transition = ""; bd.style.opacity = ""; }
+          }, 300);
         } else {
-          panel.style.transition = "transform .28s cubic-bezier(0.16,1,0.3,1)";
-          panel.style.transform = "";
-          setTimeout(() => { panel.style.transition = ""; }, 280);
+          panel.style.transform = "translateY(0)";
+          panel.classList.remove("dragging");
+          setTimeout(() => { panel.style.transition = ""; panel.style.transform = ""; }, 300);
         }
         dy = 0;
       }
