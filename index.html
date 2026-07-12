@@ -767,6 +767,9 @@
     will-change: transform;
   }
   .msheet-panel.dragging { animation: none !important; transition: none !important; }
+  /* Keep sheetUp from replaying while we settle a drag dismiss/snap-back —
+     that replay was the bounce after finger-up. */
+  .msheet-panel.settling { animation: none !important; }
   @media (prefers-reduced-motion: reduce) { .msheet-panel { animation: none; } }
   .msheet-grab {
     width: 40px; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.45);
@@ -13807,8 +13810,10 @@ function updateTabBar() {
         center.title = "New quote";
         center.dataset.tabact = "center";
       } else {
-        center.setAttribute("aria-label", "Job specs");
-        center.title = "Open job specs";
+        const railOpen = !!document.getElementById("jobRail")?.classList.contains("show")
+          || (isDesktopRail() && document.body.classList.contains("rail-pinned"));
+        center.setAttribute("aria-label", railOpen ? "Close job specs" : "Job specs");
+        center.title = railOpen ? "Close job specs" : "Open job specs";
         center.dataset.tabact = "center";
       }
     }
@@ -13853,8 +13858,8 @@ function wireTabBar() {
         if (dashOpen) {
           startNewQuote();
         } else {
-          // Calculator mode: center tab opens the job-specs sidebar (replaces FAB).
-          try { openJobRail(); } catch (_) {}
+          // Calculator mode: center tab toggles the job-specs sidebar.
+          try { toggleRail(); } catch (_) {}
         }
       } else if (t === "new") {
         startNewQuote();
@@ -16942,7 +16947,16 @@ function wireDashboard() {
     window.addEventListener("scroll", () => closeAllDashTips(), { passive: true });
   }
   const backBtn = document.getElementById("dashBack");
-  if (backBtn) backBtn.addEventListener("click", () => dashGoTo("home"));
+  if (backBtn) backBtn.addEventListener("click", () => {
+    // Tab destinations (Jobs / Shopping) opened from the calculator should
+    // return to the quote — same as browser Back. Drill-ins from the
+    // launchpad (Insights, Calibration, …) still return to dashboard home.
+    if (_dashHistPushed && (_dashView === "shopping" || _dashView === "jobs")) {
+      try { closeDashboard(); } catch (_) {}
+      return;
+    }
+    dashGoTo("home");
+  });
   // Pricing calibration: apply a suggested rate or dismiss it.
   const calib = document.getElementById("dashCalibration");
   if (calib) {
@@ -21991,11 +22005,13 @@ function openJobRail() {
   document.getElementById("jobRail").classList.add("show");
   document.getElementById("jobRailBackdrop").classList.add("open");
   document.body.classList.add("rail-open");
+  try { updateTabBar(); } catch (_) {}
 }
 function closeJobRail() {
   document.getElementById("jobRail").classList.remove("show");
   document.getElementById("jobRailBackdrop").classList.remove("open");
   document.body.classList.remove("rail-open");
+  try { updateTabBar(); } catch (_) {}
 }
 
 // Desktop: pin the rail open <-> collapse it
@@ -30337,9 +30353,9 @@ function init() {
     document.body.classList.remove("msheet-open");
     const panel = _msheet.querySelector(".msheet-panel");
     if (panel) {
-      panel.classList.remove("dragging");
-      if (!instant) { panel.style.transition = ""; panel.style.transform = ""; }
-      else { panel.style.transition = ""; panel.style.transform = ""; }
+      panel.classList.remove("dragging", "settling");
+      panel.style.transition = "";
+      panel.style.transform = "";
     }
   }
   function openMtotalSheet() {
@@ -30500,23 +30516,29 @@ function init() {
         if (!dragging) return;
         dragging = false;
         const dismiss = dy > 90 || (dy > 56 && dy > panel.getBoundingClientRect().height * 0.18);
-        // Set the settle target WHILE still transition:none (dragging), then
-        // release — transforms from the finger offset, never a pop to rest.
+        // Same pattern as bar tuck: keep current finger offset, enable transition,
+        // THEN set the settle target — never jump under transition:none, and
+        // never let sheetUp replay (settling keeps animation:none).
+        panel.classList.add("settling");
         panel.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
+        panel.classList.remove("dragging");
+        void panel.offsetWidth;
         if (dismiss) {
           panel.style.transform = "translateY(110%)";
           const bd = _msheet.querySelector(".msheet-backdrop");
           if (bd) { bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
-          panel.classList.remove("dragging");
           setTimeout(() => {
             closeMtotalSheet(true);
+            panel.classList.remove("settling");
             panel.style.transition = ""; panel.style.transform = "";
             if (bd) { bd.style.transition = ""; bd.style.opacity = ""; }
           }, 300);
         } else {
           panel.style.transform = "translateY(0)";
-          panel.classList.remove("dragging");
-          setTimeout(() => { panel.style.transition = ""; panel.style.transform = ""; }, 300);
+          setTimeout(() => {
+            panel.classList.remove("settling");
+            panel.style.transition = ""; panel.style.transform = "";
+          }, 300);
         }
         dy = 0;
       }
