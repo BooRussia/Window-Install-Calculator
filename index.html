@@ -846,7 +846,7 @@
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
-     keeps the centered dialog. CSS-only — no change to open/close logic. */
+     keeps the centered dialog. Real `.sheet-grab` handle dismisses via drag. */
   @media (max-width: 639px) {
     .sheet-on-mobile { align-items: flex-end !important; padding: 0 !important; }
     .sheet-on-mobile > .card {
@@ -856,14 +856,23 @@
       padding-bottom: max(env(safe-area-inset-bottom), 8px);
       animation: sheetUp .34s cubic-bezier(0.16,1,0.3,1);
       overscroll-behavior: contain;
+      will-change: transform;
     }
-    /* grab handle — pinned at the top of the scrolling sheet */
-    .sheet-on-mobile > .card::before {
-      content: ""; position: sticky; top: 0; z-index: 5;
-      display: block; width: 40px; height: 4px; margin: 8px auto -2px;
+    .sheet-on-mobile > .card.sheet-dragging { animation: none !important; transition: none !important; }
+    .sheet-on-mobile > .card.sheet-settling { animation: none !important; }
+    .sheet-on-mobile .sheet-grab {
+      display: block; position: sticky; top: 0; z-index: 6;
+      width: 40px; height: 4px; margin: 8px auto 6px;
       border-radius: 999px; background: rgba(148,163,184,0.45);
+      touch-action: none; cursor: grab; flex-shrink: 0;
     }
+    /* Expanded hit target around the sticky pill */
+    .sheet-on-mobile .sheet-grab::before {
+      content: ""; position: absolute; left: -48px; right: -48px; top: -16px; bottom: -16px;
+    }
+    .sheet-on-mobile > .card > .sheet-grab { position: sticky; }
   }
+  .sheet-grab { display: none; }
   @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) { .sheet-on-mobile > .card { animation: none; } }
 
@@ -1485,26 +1494,58 @@
     .jf-btn { min-height: 44px; }
   }
   /* In-site PDF preview modal — renders generated docs (PDF.js canvases) so
-     "View" works inline on mobile instead of downloading. */
-  #pdfPreviewPages { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+     "View" works inline on mobile instead of downloading. Also hosts FBC
+     install drawings (fit-to-width, zoom, multi-doc cycle, open-in-tab). */
+  #pdfPreviewPages {
+    /* Always flex-start on the scrollport — centering a wider child traps L/R pan. */
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+    overflow: auto;
+    /* Native one-finger pan; we own two-finger pinch so the page doesn't scale. */
+    touch-action: pan-x pan-y;
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: contain;
+  }
+  #pdfPreviewModal { touch-action: manipulation; }
+  .pdf-preview-stack {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    width: max-content; min-width: 100%;
+    box-sizing: border-box;
+    padding: 4px 0 12px;
+  }
   .pdf-preview-canvas {
-    max-width: 100%;
+    display: block;
     border: 1px solid rgba(30,41,59,0.9);
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(0,0,0,0.35);
-    background: #fff;            /* PDF pages are white regardless of app theme */
+    background: #fff;
+    max-width: none; /* width comes from the raster — zoomed pages must overflow to pan */
+    cursor: zoom-in;
   }
   [data-theme="light"] .pdf-preview-canvas { border-color: rgba(203,213,225,0.9); box-shadow: 0 6px 24px rgba(15,23,42,0.12); }
-  /* OUT-2: tap a preview page to zoom it to full width for legibility on phones
-     (scoped to the modal — the global user-scalable=no is intentionally left intact). */
-  .pdf-preview-canvas { cursor: zoom-in; }
-  #pdfPreviewPages.zoomed { overflow: auto; align-items: flex-start; }
-  /* OUT-2 fix: each page canvas is rendered at an inline width:760px, so the old
-     max-width:none alone couldn't enlarge it past 760px — on desktop that's ~the
-     modal width, so the tap did nothing. `zoom` is a real layout scale (unlike
-     transform it reflows multi-page stacks and pans correctly via the overflow:auto
-     above), giving a visible 1.6× zoom on every screen size. */
-  #pdfPreviewPages.zoomed .pdf-preview-canvas { max-width: none; zoom: 1.6; cursor: zoom-out; }
+  #pdfPreviewPages.zoomed .pdf-preview-canvas { cursor: zoom-out; }
+  .pdf-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+    padding: 8px 16px 10px; border-bottom: 1px solid rgba(30,41,59,0.85);
+    flex-shrink: 0; background: rgba(2,6,23,0.35);
+  }
+  .pdf-tb-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    min-height: 36px; min-width: 36px; padding: 6px 10px; border-radius: 999px;
+    border: 1px solid rgba(51,65,85,0.7); background: rgba(15,23,42,0.6);
+    color: #cbd5e1; font-size: 12px; font-weight: 700; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pdf-tb-btn:hover { border-color: rgba(181,143,74,0.45); color: #e2e8f0; }
+  .pdf-tb-btn:disabled { opacity: 0.35; pointer-events: none; }
+  .pdf-tb-btn.pdf-tb-gold { color: #c9a558; border-color: rgba(181,143,74,0.45); }
+  .pdf-tb-label { font-size: 11px; font-weight: 700; color: #94a3b8; font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: center; }
+  .pdf-tb-spacer { flex: 1 1 auto; min-width: 4px; }
+  .fbc-pdf-open {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 11px; font-weight: 700; color: #c9a558; background: transparent;
+    border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .fbc-pdf-open:hover { color: #dfc07a; }
   @media (max-width: 520px) {
     .jf-card { flex-wrap: wrap; }
     .jf-actions { width: 100%; justify-content: flex-end; padding-top: 4px; }
@@ -9317,6 +9358,7 @@
 <div id="flModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[79] sheet-on-mobile">
   <div class="absolute inset-0 modal-backdrop" data-close></div>
   <div class="relative card rounded-3xl w-full max-w-3xl max-h-[88vh] overflow-hidden flex flex-col">
+    <div class="sheet-grab" aria-hidden="true"></div>
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between gap-3">
       <div>
         <h3 class="text-base font-semibold text-slate-100">Florida Product Approvals</h3>
@@ -9427,7 +9469,18 @@
         <button id="pdfPreviewClose" class="modal-close" data-close-pdf aria-label="Close">×</button>
       </div>
     </div>
-    <div class="px-5 pt-2 text-[10px] text-slate-500 tracking-wide flex-shrink-0" aria-hidden="true">Tap a page to zoom</div>
+    <div id="pdfToolbar" class="pdf-toolbar hidden">
+      <button type="button" class="pdf-tb-btn" id="pdfDocPrev" aria-label="Previous document" title="Previous document">‹</button>
+      <span class="pdf-tb-label" id="pdfDocLabel">Doc 1/1</span>
+      <button type="button" class="pdf-tb-btn" id="pdfDocNext" aria-label="Next document" title="Next document">›</button>
+      <span class="pdf-tb-spacer"></span>
+      <button type="button" class="pdf-tb-btn" id="pdfZoomOut" aria-label="Zoom out" title="Zoom out">−</button>
+      <button type="button" class="pdf-tb-btn" id="pdfZoomFit" aria-label="Fit to width" title="Fit to width">Fit</button>
+      <button type="button" class="pdf-tb-btn" id="pdfZoomIn" aria-label="Zoom in" title="Zoom in">+</button>
+      <span class="pdf-tb-spacer"></span>
+      <a id="pdfOpenTab" class="pdf-tb-btn pdf-tb-gold" href="#" target="_blank" rel="noopener" title="Open this PDF in a new tab">Open ↗</a>
+    </div>
+    <div id="pdfPreviewHint" class="px-5 pt-2 text-[10px] text-slate-500 tracking-wide flex-shrink-0" aria-hidden="true">Tap to zoom in · pinch to zoom · Fit resets</div>
     <div id="pdfPreviewPages" class="overflow-y-auto flex-1 px-3 sm:px-5 py-4 bg-slate-950/40"></div>
   </div>
 </div>
@@ -10586,6 +10639,192 @@ function loadState() {
   try { return JSON.parse(localStorage.getItem(LS_KEYS.state)) || {}; } catch { return {}; }
 }
 function saveState(s) { localStorage.setItem(LS_KEYS.state, JSON.stringify(s)); }
+
+// ── Screen / overlay restore across refresh (session-scoped) ────────────────
+// Quote fields already live in wcc.state.v1; this remembers dashboard vs calculator,
+// drill-in view, and open modals (FL, PDF, settings, job details, etc.).
+const NAV_KEY = "wcc.nav.v1";
+let _navRestoring = false;
+let _navSaveTimer = 0;
+let _pdfNavSnap = null; // serializable PDF reopen info (export kind or FBC urls)
+
+function loadNav() {
+  try { return JSON.parse(sessionStorage.getItem(NAV_KEY)) || null; } catch { return null; }
+}
+function clearNav() {
+  try { sessionStorage.removeItem(NAV_KEY); } catch (_) {}
+}
+function scheduleSaveNav() {
+  if (_navRestoring) return;
+  clearTimeout(_navSaveTimer);
+  _navSaveTimer = setTimeout(() => { _navSaveTimer = 0; saveNav(); }, 80);
+}
+function isModalOpen(id) {
+  const el = document.getElementById(id);
+  return !!(el && !el.classList.contains("hidden"));
+}
+function captureNav() {
+  if (!currentUser) return null;
+  const dashEl = document.getElementById("dashboardScreen");
+  const landingEl = document.getElementById("landingScreen");
+  let screen = "dashboard";
+  if (landingEl && !landingEl.classList.contains("hidden")) screen = "landing";
+  else if (!dashEl || dashEl.classList.contains("hidden")) screen = "calculator";
+
+  const nav = {
+    v: 1,
+    screen,
+    dashView: _dashView || "home",
+    dashInsightTab: (typeof _dashInsightTab !== "undefined") ? _dashInsightTab : "materials",
+    dashStatusFilter: (typeof _dashStatusFilter !== "undefined") ? _dashStatusFilter : null,
+    rail: {
+      pinned: document.body.classList.contains("rail-pinned"),
+      mobileOpen: document.body.classList.contains("rail-open"),
+    },
+    fl: null,
+    pdf: null,
+    admin: null,
+    jobDetailsId: null,
+    compareIds: null,
+    buck: false,
+    readPlan: false,
+  };
+
+  if (isModalOpen("flModal")) {
+    const search = (document.getElementById("flSearch")?.value || "").trim();
+    const addForm = !!(document.getElementById("flAddForm") && !document.getElementById("flAddForm").classList.contains("hidden"));
+    nav.fl = { search, addForm };
+  }
+  if (isModalOpen("pdfPreviewModal") && _pdfNavSnap) {
+    nav.pdf = Object.assign({}, _pdfNavSnap, { zoom: _pdfZoom || 1, docIdx: _pdfRemoteIdx || 0 });
+  }
+  if (isModalOpen("adminModal")) {
+    const tab = document.querySelector("#adminModal .set-tab.active")?.dataset?.tab || "setup";
+    const ratesLeaf = document.querySelector("#ratesLeafNav [data-rleaf-btn].active")?.dataset?.rleafBtn || null;
+    const setupLeaf = document.querySelector("#setupLeafNav [data-setupleaf-btn].active")?.dataset?.setupleafBtn || null;
+    const accountLeaf = document.querySelector("#accountLeafNav [data-accountleaf-btn].active")?.dataset?.accountleafBtn || null;
+    nav.admin = { tab, ratesLeaf, setupLeaf, accountLeaf, doorType: window._rDoorType || "swing" };
+  }
+  if (isModalOpen("jobDetailsModal") && _jdJobId) nav.jobDetailsId = _jdJobId;
+  if (isModalOpen("compareModal") && compareSet && compareSet.size) nav.compareIds = [...compareSet];
+  if (isModalOpen("buckModal")) nav.buck = true;
+  if (isModalOpen("readPlanModal")) nav.readPlan = true;
+  return nav;
+}
+function saveNav() {
+  if (_navRestoring || !currentUser) return;
+  try {
+    const nav = captureNav();
+    if (!nav) return;
+    sessionStorage.setItem(NAV_KEY, JSON.stringify(nav));
+  } catch (_) {}
+}
+
+async function restoreNavOverlay(nav) {
+  if (!nav) return;
+  try {
+    if (nav.fl) {
+      if (nav.fl.search) openFLForNumber(nav.fl.search);
+      else openFL();
+      if (nav.fl.addForm) { try { showFLAddForm(); } catch (_) {} }
+      await new Promise(r => setTimeout(r, 40));
+    }
+    if (nav.admin) {
+      openAdmin();
+      if (nav.admin.tab) showSettingsTab(nav.admin.tab);
+      if (nav.admin.setupLeaf) showSetupLeaf(nav.admin.setupLeaf);
+      if (nav.admin.ratesLeaf) showRatesLeaf(nav.admin.ratesLeaf);
+      if (nav.admin.doorType) showDoorType(nav.admin.doorType);
+      if (nav.admin.accountLeaf) showAccountLeaf(nav.admin.accountLeaf);
+      await new Promise(r => setTimeout(r, 40));
+    }
+    if (nav.buck) { try { openBuckModal(); } catch (_) {} }
+    if (nav.readPlan) { try { openReadPlanModal(); } catch (_) {} }
+    if (nav.jobDetailsId) { try { openJobDetails(nav.jobDetailsId); } catch (_) {} }
+    if (nav.compareIds && nav.compareIds.length >= 2) {
+      try {
+        compareSet = new Set(nav.compareIds);
+        openComparison();
+      } catch (_) {}
+    }
+    if (nav.pdf) {
+      const p = nav.pdf;
+      if (p.kind === "fbc" && Array.isArray(p.urls) && p.urls.length) {
+        await showFbcPdfViewer(p.urls, { title: p.title || "Install drawing", startIndex: p.docIdx || 0 });
+      } else if (p.kind === "customer") {
+        try { exportCustomerPDF("view"); } catch (_) {}
+      } else if (p.kind === "cost") {
+        try { exportPDF("view"); } catch (_) {}
+      } else if (p.kind === "materials") {
+        try { exportMaterialsPDF("view"); } catch (_) {}
+      } else if (p.kind === "buck") {
+        try { fileBuckAction("view"); } catch (_) {}
+      }
+      if (p.zoom && p.zoom > 1.01) {
+        for (let i = 0; i < 50; i++) {
+          if (_pdfJsDoc && isModalOpen("pdfPreviewModal")) break;
+          await new Promise(r => setTimeout(r, 60));
+        }
+        try { setPdfZoom(p.zoom, { immediate: true, force: true }); } catch (_) {}
+      }
+    }
+  } catch (e) {
+    console.warn("restoreNavOverlay failed", e);
+  }
+}
+
+async function restoreNav() {
+  const hash = window.location.hash || "";
+  const hashOwns = /^#\/(pricing|terms|privacy|cookies|aup|dpa|learn)/.test(hash);
+  const nav = loadNav();
+  if (!nav || !currentUser) {
+    if (!hashOwns) openDashboard({ skipHist: true });
+    return;
+  }
+  _navRestoring = true;
+  try {
+    if (typeof nav.dashInsightTab === "string") _dashInsightTab = nav.dashInsightTab;
+    if (nav.dashStatusFilter !== undefined) _dashStatusFilter = nav.dashStatusFilter;
+
+    if (nav.screen === "landing") {
+      try { showLanding(); } catch (_) { openDashboard({ skipHist: true }); }
+    } else if (nav.screen === "calculator") {
+      const d = document.getElementById("dashboardScreen");
+      if (d) d.classList.add("hidden");
+      _dashHistPushed = false;
+      if (nav.dashView) _dashView = nav.dashView;
+      try { updateTabBar(); } catch (_) {}
+    } else if (!hashOwns) {
+      openDashboard({ view: nav.dashView || "home", skipHist: true });
+    } else {
+      // Hash route will show pricing/legal/learn; still prime dashboard underneath.
+      _dashView = nav.dashView || "home";
+      openDashboard({ view: _dashView, skipHist: true });
+    }
+
+    if (nav.rail) {
+      document.body.classList.toggle("rail-pinned", !!nav.rail.pinned);
+      if (nav.rail.mobileOpen) {
+        try { openJobRail(); } catch (_) {}
+      } else {
+        try { closeJobRail(); } catch (_) {}
+      }
+    }
+
+    // Let chrome settle before reopening overlays.
+    await new Promise(r => setTimeout(r, 60));
+    if (!hashOwns) await restoreNavOverlay(nav);
+  } finally {
+    _navRestoring = false;
+    saveNav();
+  }
+}
+
+window.addEventListener("pagehide", () => { try { saveNav(); } catch (_) {} });
+window.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") { try { saveNav(); } catch (_) {} }
+});
+
 function loadJobs() {
   try { return JSON.parse(localStorage.getItem(LS_KEYS.jobs)) || []; } catch { return []; }
 }
@@ -13878,19 +14117,21 @@ function openDashboard(opts) {
     } catch (_) { _dashHistPushed = false; }
   }
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 function closeDashboard(opts) {
   const d = document.getElementById("dashboardScreen");
   if (d) d.classList.add("hidden");
   // If we opened via a pushed history entry and this close is programmatic
   // (Calculator →, Load job, etc.), pop that entry so Back doesn't re-open dash.
-  if (_dashHistPushed && !(opts && opts.fromPopstate)) {
+  if (_dashHistPushed && !(opts && (opts.fromPopstate || opts.skipHist))) {
     _dashHistPushed = false;
     try { history.back(); } catch (_) {}
   } else {
     _dashHistPushed = false;
   }
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 
 // ── Mobile bottom tab bar (UI refresh P1) ────────────────────────────────────
@@ -14576,6 +14817,7 @@ function dashGoTo(view) {
   const panel = document.querySelector(`#dashSection [data-dashview="${view}"]`);
   if (panel) panel.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 300, easing: "cubic-bezier(0.22,0.7,0.3,1)" });
   if (view === "insights") { const p = document.getElementById(INSIGHT_PANELS[_dashInsightTab]); if (p && !p.classList.contains("hidden")) dashPlayPanel(p); }
+  scheduleSaveNav();
 }
 
 // Open the Pricing calibration card and expand a specific job's actuals editor.
@@ -17218,6 +17460,7 @@ function wireDashboard() {
       _dashStatusFilter = null;
       renderDashJobsPanel(loadJobs());
       renderDashJobs(loadJobs());
+      scheduleSaveNav();
       return;
     }
     const f = e.target.closest("[data-dash-filter]");
@@ -17226,6 +17469,7 @@ function wireDashboard() {
     renderDashJobsPanel(loadJobs());
     if (_dashStatusFilter) dashGoTo("jobs");   // jump to the filtered jobs list
     else renderDashJobs(loadJobs());
+    scheduleSaveNav();
   });
   const search = document.getElementById("dashJobSearch");
   if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
@@ -17241,6 +17485,7 @@ function wireDashboard() {
       : (_dashStatusFilter === f.dataset.dashFilter ? null : f.dataset.dashFilter);
     renderDashJobsPanel(loadJobs());
     renderDashJobs(loadJobs());
+    scheduleSaveNav();
   });
   { const _so = document.getElementById("dashJobSort"); if (_so) _so.addEventListener("change", () => renderDashJobs(loadJobs())); }
   // Insights card: swap between the Materials and Customers panels.
@@ -17251,6 +17496,7 @@ function wireDashboard() {
     if (b.dataset.insight === _dashInsightTab) return;   // already active — don't replay
     _dashInsightTab = b.dataset.insight;
     applyInsightTab(true);
+    scheduleSaveNav();
   });
   // Customers section: metric toggle (donut) + open a customer's detail modal.
   const cust = document.getElementById("dashCustomers");
@@ -17414,6 +17660,7 @@ function openJobDetails(id) {
   const m = document.getElementById("jobDetailsModal");
   m.classList.remove("hidden"); m.classList.add("flex");
   trapDialog(m, closeJobDetails);   // Phase 4c: focus trap + Esc + restore-on-close
+  scheduleSaveNav();
 }
 // DASH-6: true when the Job Details text fields differ from what's stored, so a
 // backdrop mis-tap / × / Esc can't silently discard typed edits (Save is the only
@@ -17436,6 +17683,7 @@ function closeJobDetails() {
   if (jdDetailsDirty() && !confirm("Discard your unsaved changes to this job's details?")) return;
   _jdJobId = null;
   tvDismiss(document.getElementById("jobDetailsModal"));
+  scheduleSaveNav();
 }
 
 function saveJobDetailsEdits(id, silent) {
@@ -19734,23 +19982,217 @@ function outputPDF(doc, filename, mode, meta) {
 }
 
 // ── In-site PDF preview ─────────────────────────────────────────────────────
-// Renders a finished jsPDF doc into #pdfPreviewModal using the existing PDF.js
-// loader. The doc + filename are stashed so the modal's Download/Share buttons
-// act on the already-built doc (no rebuild, no re-running the save gate).
+// Renders a finished jsPDF doc OR remote FBC install PDFs into #pdfPreviewModal
+// via PDF.js. Fit-to-width by default; zoom re-rasters pages so text stays sharp
+// and overflow scrolling pans to every edge.
 let _pdfPreviewDoc = null, _pdfPreviewName = "document.pdf", _pdfPreviewMeta = null, _pdfRenderGen = 0;
+let _pdfRemoteUrls = null, _pdfRemoteIdx = 0, _pdfZoom = 1, _pdfBlobUrl = null;
+let _pdfJsDoc = null, _pdfRerenderTimer = 0, _pdfLivePreview = false;
+let _myGenGuard = null;
+// Fit → … → 2, then two more taps of room (2.5, 3.2) before maxing out.
+const PDF_ZOOM_STEPS = [0.7, 0.85, 1, 1.25, 1.6, 2, 2.5, 3.2];
+const PDF_TAP_ZOOM_STEPS = [1, 1.6, 2.5, 3.2];
+
+function pdfToolbarEls() {
+  return {
+    bar: document.getElementById("pdfToolbar"),
+    hint: document.getElementById("pdfPreviewHint"),
+    docPrev: document.getElementById("pdfDocPrev"),
+    docNext: document.getElementById("pdfDocNext"),
+    docLabel: document.getElementById("pdfDocLabel"),
+    zoomOut: document.getElementById("pdfZoomOut"),
+    zoomIn: document.getElementById("pdfZoomIn"),
+    zoomFit: document.getElementById("pdfZoomFit"),
+    openTab: document.getElementById("pdfOpenTab"),
+    pages: document.getElementById("pdfPreviewPages"),
+  };
+}
+function updatePdfZoomButtons() {
+  const minZ = PDF_ZOOM_STEPS[0], maxZ = PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1];
+  const { pages, zoomOut, zoomIn } = pdfToolbarEls();
+  if (pages) pages.classList.toggle("zoomed", _pdfZoom > 1.01);
+  if (zoomOut) zoomOut.disabled = _pdfZoom <= minZ + 0.001;
+  if (zoomIn) zoomIn.disabled = _pdfZoom >= maxZ - 0.001;
+}
+function setPdfZoom(z, opts) {
+  const minZ = PDF_ZOOM_STEPS[0], maxZ = PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1];
+  const next = Math.max(minZ, Math.min(maxZ, z));
+  const changed = Math.abs(next - _pdfZoom) > 0.001;
+  _pdfZoom = next;
+  updatePdfZoomButtons();
+  const live = !!(opts && opts.live);
+  const { pages } = pdfToolbarEls();
+  if (live && pages) {
+    // Pinch preview: cheap CSS zoom on the current raster, then re-render on end.
+    _pdfLivePreview = true;
+    pages.querySelectorAll(".pdf-preview-canvas").forEach(c => {
+      const base = parseFloat(c.dataset.fitW || c.style.width) || c.clientWidth;
+      c.style.zoom = "";
+      c.style.width = (base * _pdfZoom) + "px";
+      c.style.height = "auto";
+    });
+    return;
+  }
+  if (!changed && !(opts && opts.force)) return;
+  schedulePdfRerender(opts && opts.immediate);
+  if (!live) scheduleSaveNav();
+}
+function bumpPdfZoom(dir) {
+  let i = 0;
+  for (let k = 0; k < PDF_ZOOM_STEPS.length; k++) {
+    if (Math.abs(PDF_ZOOM_STEPS[k] - _pdfZoom) < 0.02) { i = k; break; }
+    if (PDF_ZOOM_STEPS[k] < _pdfZoom) i = k;
+  }
+  setPdfZoom(PDF_ZOOM_STEPS[Math.max(0, Math.min(PDF_ZOOM_STEPS.length - 1, i + dir))], { immediate: true });
+}
+// Tap cycles fit → 1.6 → 2.5 → 3.2 → fit (two more zoom-in stops than before).
+function cyclePdfZoomTap() {
+  let next = PDF_TAP_ZOOM_STEPS.find(z => z > _pdfZoom + 0.05);
+  if (!next) next = 1;
+  setPdfZoom(next, { immediate: true });
+}
+function schedulePdfRerender(immediate) {
+  clearTimeout(_pdfRerenderTimer);
+  if (!_pdfJsDoc) return;
+  const run = () => { _pdfRerenderTimer = 0; rerenderPdfAtZoom(); };
+  if (immediate) run();
+  else _pdfRerenderTimer = setTimeout(run, 140);
+}
+async function rerenderPdfAtZoom() {
+  const pages = document.getElementById("pdfPreviewPages");
+  if (!pages || !_pdfJsDoc) return;
+  _pdfLivePreview = false;
+  const gen = _pdfRenderGen;
+  const hadX = pages.scrollWidth > pages.clientWidth + 2;
+  const hadY = pages.scrollHeight > pages.clientHeight + 2;
+  const rx = hadX ? pages.scrollLeft / (pages.scrollWidth - pages.clientWidth) : 0.5;
+  const ry = hadY ? pages.scrollTop / (pages.scrollHeight - pages.clientHeight) : 0;
+  await renderPdfJsPages(_pdfJsDoc, pages, _pdfZoom);
+  if (gen !== _pdfRenderGen) return;
+  // Keep relative pan; from fit→zoom land centered so left and right edges are both reachable.
+  requestAnimationFrame(() => {
+    const nx = Math.max(0, pages.scrollWidth - pages.clientWidth);
+    const ny = Math.max(0, pages.scrollHeight - pages.clientHeight);
+    pages.scrollLeft = Math.max(0, Math.min(nx, rx * nx));
+    pages.scrollTop = Math.max(0, Math.min(ny, ry * ny));
+  });
+}
+function wirePdfPinchZoom(pages) {
+  if (!pages || pages._pinchWired) return;
+  pages._pinchWired = true;
+  let pinching = false, startDist = 0, startZoom = 1;
+  function dist(t) {
+    const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+    return Math.hypot(dx, dy) || 1;
+  }
+  function onStart(e) {
+    if (e.touches.length === 2) {
+      pinching = true;
+      startDist = dist(e.touches);
+      startZoom = _pdfZoom;
+      if (e.cancelable) e.preventDefault();
+    }
+  }
+  function onMove(e) {
+    if (!pinching || e.touches.length < 2) return;
+    if (e.cancelable) e.preventDefault();
+    setPdfZoom(startZoom * (dist(e.touches) / startDist), { live: true });
+  }
+  function endPinch(e) {
+    if (e.touches && e.touches.length >= 2) return;
+    if (!pinching) return;
+    pinching = false;
+    // Snap to nearest step, then re-rasterize sharp.
+    let nearest = PDF_ZOOM_STEPS[0], best = Infinity;
+    PDF_ZOOM_STEPS.forEach(z => { const d = Math.abs(z - _pdfZoom); if (d < best) { best = d; nearest = z; } });
+    setPdfZoom(nearest, { immediate: true, force: true });
+  }
+  pages.addEventListener("touchstart", onStart, { passive: false });
+  pages.addEventListener("touchmove", onMove, { passive: false });
+  pages.addEventListener("touchend", endPinch);
+  pages.addEventListener("touchcancel", endPinch);
+  ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+    pages.addEventListener(type, (e) => { e.preventDefault(); }, { passive: false });
+  });
+  const modal = document.getElementById("pdfPreviewModal");
+  if (modal && !modal._gestureWired) {
+    modal._gestureWired = true;
+    ["gesturestart", "gesturechange"].forEach(type => {
+      modal.addEventListener(type, (e) => { e.preventDefault(); }, { passive: false });
+    });
+    modal.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 1 && e.cancelable) e.preventDefault();
+    }, { passive: false });
+  }
+}
+function updatePdfDocChrome() {
+  const { bar, docPrev, docNext, docLabel, openTab } = pdfToolbarEls();
+  const n = (_pdfRemoteUrls && _pdfRemoteUrls.length) || 0;
+  const multi = n > 1;
+  if (bar) bar.classList.toggle("hidden", !n);
+  if (docPrev) { docPrev.disabled = !multi || _pdfRemoteIdx <= 0; docPrev.classList.toggle("hidden", !multi); }
+  if (docNext) { docNext.disabled = !multi || _pdfRemoteIdx >= n - 1; docNext.classList.toggle("hidden", !multi); }
+  if (docLabel) {
+    docLabel.classList.toggle("hidden", !multi);
+    if (multi) docLabel.textContent = `Doc ${_pdfRemoteIdx + 1}/${n}`;
+  }
+  if (openTab) {
+    const url = n ? _pdfRemoteUrls[_pdfRemoteIdx] : null;
+    openTab.href = url ? proxiedPdfUrl(url) : "#";
+    openTab.classList.toggle("hidden", !url);
+  }
+}
+async function renderPdfJsPages(pdf, pagesEl, zoomFactor) {
+  _pdfJsDoc = pdf;
+  const z = Math.max(0.5, zoomFactor == null ? _pdfZoom : zoomFactor);
+  pagesEl.innerHTML = "";
+  pagesEl.classList.toggle("zoomed", z > 1.01);
+  const stack = document.createElement("div");
+  stack.className = "pdf-preview-stack";
+  pagesEl.appendChild(stack);
+  // Fit width from the scrollport (not the growing stack) so zoom is a true multiplier of fit.
+  const fitW = Math.min(760, Math.max(280, (pagesEl.clientWidth || 360) - 16));
+  const cssW = fitW * z;
+  // Cap bitmap size so deep zoom on HiDPI doesn't explode memory.
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  // Fit / zoomed-out: supersample so CAD hairlines stay thin instead of chunky.
+  // Zoomed-in already has a large cssW — plain dpr is enough.
+  const pixelRatio = z < 1.5 ? Math.min(3.5, Math.max(3, dpr * 1.5)) : dpr;
+  const maxBitmapW = 5120;
+  for (let i = 1; i <= pdf.numPages; i++) {
+    if (_myGenGuard && _myGenGuard() === false) return;
+    const page = await pdf.getPage(i);
+    const base = page.getViewport({ scale: 1 });
+    let bitmapScale = (cssW / base.width) * pixelRatio;
+    if (base.width * bitmapScale > maxBitmapW) bitmapScale = maxBitmapW / base.width;
+    const viewport = page.getViewport({ scale: bitmapScale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    canvas.style.width = cssW + "px";
+    canvas.style.height = (base.height * (cssW / base.width)) + "px";
+    canvas.dataset.fitW = String(fitW);
+    canvas.className = "pdf-preview-canvas";
+    stack.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext("2d", { alpha: false }), viewport }).promise;
+  }
+  updatePdfZoomButtons();
+}
+
 async function showPdfPreview(doc, filename, meta) {
-  // Render-generation guard: if this preview is fired twice (e.g. a double-bound
-  // trigger from init()'s post-login re-run), a superseded call bails at its next
-  // await instead of appending a SECOND copy of every page into #pdfPreviewPages.
   const _myGen = ++_pdfRenderGen;
+  _myGenGuard = () => _myGen === _pdfRenderGen;
   _pdfPreviewDoc = doc; _pdfPreviewName = filename || "document.pdf"; _pdfPreviewMeta = meta || null;
+  _pdfRemoteUrls = null; _pdfRemoteIdx = 0; _pdfZoom = 1; _pdfJsDoc = null;
+  if (_pdfBlobUrl) { try { URL.revokeObjectURL(_pdfBlobUrl); } catch (_) {} _pdfBlobUrl = null; }
   const modal = document.getElementById("pdfPreviewModal");
   const pages = document.getElementById("pdfPreviewPages");
   const titleEl = document.getElementById("pdfPreviewTitle");
   if (!modal || !pages) { throw new Error("preview modal missing"); }
   if (titleEl) titleEl.textContent = (meta && meta.title) || "Preview";
-  // Share button only when the platform can share files
   const shareBtn = document.getElementById("pdfPreviewShare");
+  const dlBtn = document.getElementById("pdfPreviewDownload");
+  if (dlBtn) dlBtn.classList.remove("hidden");
   if (shareBtn) {
     let canShareFiles = false;
     try {
@@ -19760,45 +20202,108 @@ async function showPdfPreview(doc, filename, meta) {
     } catch (_) {}
     shareBtn.classList.toggle("hidden", !canShareFiles);
   }
+  updatePdfDocChrome();
   modal.classList.remove("hidden"); modal.classList.add("flex");
-  trapDialog(modal, closePdfPreview);   // Phase 4c
+  trapDialog(modal, closePdfPreview);
   pages.innerHTML = '<div class="text-slate-500 text-sm py-10 text-center">Rendering preview…</div>';
   const pdfjs = await loadPdfJs();
-  // PDF.js may detach the buffer it's given — hand it a fresh copy so the
-  // stashed doc stays intact for Download/Share.
   const buf = doc.output("arraybuffer");
   const pdf = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
-  if (_myGen !== _pdfRenderGen) return;   // superseded by a newer preview — don't wipe/append
-  pages.innerHTML = "";
-  pages.classList.remove("zoomed");   // OUT-2: always start un-zoomed
-  // Rasterize each page at a fixed CSS width (independent of the modal's
-  // not-yet-settled clientWidth — reading it too early gave a tiny canvas) and
-  // let CSS `max-width:100%` shrink it to fit narrow screens. Crisp on desktop
-  // and mobile with no layout-timing race. dpr upscales the bitmap for HiDPI.
-  const targetW = 760;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const base = page.getViewport({ scale: 1 });
-    const cssScale = targetW / base.width;
-    const viewport = page.getViewport({ scale: cssScale * dpr });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    canvas.style.width = (base.width * cssScale) + "px";
-    canvas.style.height = (base.height * cssScale) + "px";
-    canvas.className = "pdf-preview-canvas";
-    if (_myGen !== _pdfRenderGen) return;   // superseded mid-render — stop appending pages
-    pages.appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-  }
+  if (_myGen !== _pdfRenderGen) return;
+  await renderPdfJsPages(pdf, pages, 1);
+  if (_myGen !== _pdfRenderGen) return;
+  updatePdfZoomButtons();
   try { window.track && window.track("pdf_previewed", { kind: (meta && meta.kind) || "" }); } catch (_) {}
+  _pdfNavSnap = { kind: (meta && meta.kind) || "export", title: (meta && meta.title) || "Preview" };
+  scheduleSaveNav();
+}
+
+// Open one or more FBC install PDFs in the same preview modal (fit-to-width,
+// zoom controls, prev/next when an FL# ships multiple drawings).
+async function showFbcPdfViewer(urls, opts) {
+  const list = (urls || []).filter(Boolean);
+  if (!list.length) { toast("No install PDF available"); return; }
+  const _myGen = ++_pdfRenderGen;
+  _myGenGuard = () => _myGen === _pdfRenderGen;
+  _pdfPreviewDoc = null; _pdfPreviewMeta = { kind: "fbc_install", title: (opts && opts.title) || "Install drawing" };
+  _pdfPreviewName = "install-drawing.pdf";
+  _pdfRemoteUrls = list;
+  _pdfRemoteIdx = Math.max(0, Math.min(list.length - 1, (opts && opts.startIndex) || 0));
+  _pdfZoom = 1; _pdfJsDoc = null;
+  const modal = document.getElementById("pdfPreviewModal");
+  const pages = document.getElementById("pdfPreviewPages");
+  const titleEl = document.getElementById("pdfPreviewTitle");
+  const shareBtn = document.getElementById("pdfPreviewShare");
+  const dlBtn = document.getElementById("pdfPreviewDownload");
+  if (!modal || !pages) return;
+  if (titleEl) titleEl.textContent = (opts && opts.title) || "Install drawing";
+  if (shareBtn) shareBtn.classList.add("hidden");
+  if (dlBtn) dlBtn.classList.add("hidden");
+  updatePdfDocChrome();
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+  trapDialog(modal, closePdfPreview);
+  await renderRemotePdfAtIndex(_myGen);
+  _pdfNavSnap = {
+    kind: "fbc",
+    urls: list.slice(),
+    title: (opts && opts.title) || "Install drawing",
+    docIdx: _pdfRemoteIdx,
+  };
+  scheduleSaveNav();
+  try { window.track?.("fbc_pdf_viewed", { count: list.length }); } catch (_) {}
+}
+async function renderRemotePdfAtIndex(gen) {
+  const pages = document.getElementById("pdfPreviewPages");
+  if (!pages || !_pdfRemoteUrls || !_pdfRemoteUrls.length) return;
+  const url = _pdfRemoteUrls[_pdfRemoteIdx];
+  updatePdfDocChrome();
+  pages.innerHTML = '<div class="text-slate-500 text-sm py-10 text-center">Loading drawing…</div>';
+  try {
+    const res = await fetch(proxiedPdfUrl(url));
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const buf = await res.arrayBuffer();
+    if (gen != null && gen !== _pdfRenderGen) return;
+    const pdfjs = await loadPdfJs();
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
+    if (gen != null && gen !== _pdfRenderGen) return;
+    _pdfZoom = 1;
+    await renderPdfJsPages(pdf, pages, 1);
+    if (gen != null && gen !== _pdfRenderGen) return;
+    pages.scrollTop = 0; pages.scrollLeft = 0;
+  } catch (err) {
+    if (gen != null && gen !== _pdfRenderGen) return;
+    _pdfJsDoc = null;
+    pages.innerHTML = `<div class="text-center text-rose-300 text-sm py-10 px-4">
+      Couldn't load this drawing.
+      <div class="mt-3"><a class="text-[#c9a558] font-semibold underline" href="${escHtml(proxiedPdfUrl(url))}" target="_blank" rel="noopener">Open PDF in a new tab ↗</a></div>
+    </div>`;
+  }
+}
+async function stepFbcPdfDoc(dir) {
+  if (!_pdfRemoteUrls || _pdfRemoteUrls.length < 2) return;
+  const next = _pdfRemoteIdx + dir;
+  if (next < 0 || next >= _pdfRemoteUrls.length) return;
+  _pdfRemoteIdx = next;
+  const gen = ++_pdfRenderGen;
+  _myGenGuard = () => gen === _pdfRenderGen;
+  await renderRemotePdfAtIndex(gen);
+  if (_pdfNavSnap && _pdfNavSnap.kind === "fbc") _pdfNavSnap.docIdx = _pdfRemoteIdx;
+  scheduleSaveNav();
 }
 function closePdfPreview() {
+  clearTimeout(_pdfRerenderTimer); _pdfRerenderTimer = 0;
   _pdfPreviewDoc = null; _pdfPreviewMeta = null;
+  _pdfRemoteUrls = null; _pdfRemoteIdx = 0;
+  _pdfJsDoc = null; _pdfZoom = 1; _pdfLivePreview = false;
+  _pdfNavSnap = null;
+  if (_pdfBlobUrl) { try { URL.revokeObjectURL(_pdfBlobUrl); } catch (_) {} _pdfBlobUrl = null; }
   tvDismiss(document.getElementById("pdfPreviewModal"), () => {
     const pages = document.getElementById("pdfPreviewPages");
-    if (pages) pages.innerHTML = "";   // free canvases after the fold-up
+    if (pages) { pages.innerHTML = ""; pages.classList.remove("zoomed"); }
+    const bar = document.getElementById("pdfToolbar");
+    if (bar) bar.classList.add("hidden");
   });
+  scheduleSaveNav();
 }
 
 // ── Centralized PDF share ───────────────────────────────────────────────────
@@ -21068,8 +21573,9 @@ function openAdmin() {
   applyStaticCollapseState();
   adminModal.classList.remove("hidden");
   navPushOverlay(adminModal);   // Phase 4d (no-op unless HISTORY_NAV)
+  scheduleSaveNav();
 }
-function closeAdmin() { try { commitCustDetailIfDirty(); } catch (_) {} navPopOverlay(adminModal); tvDismiss(adminModal); }
+function closeAdmin() { try { commitCustDetailIfDirty(); } catch (_) {} navPopOverlay(adminModal); tvDismiss(adminModal); scheduleSaveNav(); }
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
@@ -21085,6 +21591,7 @@ function showSettingsTab(name) {
   if (name === "account") renderSubscriptionPanel();
   if (name === "resources") renderResources();
   if (name === "customers") renderCustomersSettings();
+  scheduleSaveNav();
 }
 
 // Resources tab — plain-English guide to how the app works. Lazy-loaded from a
@@ -21779,8 +22286,77 @@ function openFL() {
   loadFbcIndex()
     .then(() => { renderFLList(document.getElementById("flSearch")?.value || ""); })
     .catch(() => { /* surfaces in the search UI on retry */ });
+  scheduleSaveNav();
 }
-function closeFL() { tvDismiss(flModal); }
+function closeFL() { tvDismiss(flModal); scheduleSaveNav(); }
+
+// Drag the sheet grab handle down to dismiss (mobile sheet-on-mobile).
+// Same settle pattern as the price-bar sheet — no bounce from sheetUp replay.
+function wireMobileSheetDismiss(overlayEl, closeFn) {
+  if (!overlayEl || overlayEl._sheetDragWired) return;
+  const card = overlayEl.querySelector(":scope > .card");
+  const grab = card && card.querySelector(".sheet-grab");
+  if (!card || !grab) return;
+  overlayEl._sheetDragWired = true;
+  let startY = 0, dy = 0, dragging = false;
+  function pt(e) { return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; }
+  function begin(e) {
+    if (window.matchMedia("(min-width: 640px)").matches) return;
+    if (overlayEl.classList.contains("hidden")) return;
+    const p = pt(e); if (!p) return;
+    startY = p.clientY; dy = 0; dragging = true;
+    card.classList.add("sheet-dragging");
+    card.classList.remove("sheet-settling");
+  }
+  function move(e) {
+    if (!dragging) return;
+    const p = pt(e); if (!p) return;
+    dy = Math.max(0, p.clientY - startY);
+    card.style.transform = `translateY(${dy}px)`;
+    if (e.cancelable) e.preventDefault();
+  }
+  function end() {
+    if (!dragging) return;
+    dragging = false;
+    const dismiss = dy > 90 || (dy > 56 && dy > card.getBoundingClientRect().height * 0.18);
+    card.classList.add("sheet-settling");
+    card.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
+    card.classList.remove("sheet-dragging");
+    void card.offsetWidth;
+    if (dismiss) {
+      card.style.transform = "translateY(110%)";
+      setTimeout(() => {
+        card.classList.remove("sheet-settling");
+        card.style.transition = ""; card.style.transform = "";
+        try { closeFn({ fromDrag: true }); } catch (_) { try { closeFn(); } catch (__) {} }
+      }, 300);
+    } else {
+      card.style.transform = "translateY(0)";
+      setTimeout(() => {
+        card.classList.remove("sheet-settling");
+        card.style.transition = ""; card.style.transform = "";
+      }, 300);
+    }
+    dy = 0;
+  }
+  grab.addEventListener("touchstart", begin, { passive: true });
+  grab.addEventListener("touchmove", move, { passive: false });
+  grab.addEventListener("touchend", end);
+  grab.addEventListener("touchcancel", end);
+}
+
+// Instant hide used after a drag-dismiss already animated the sheet off-screen
+// (skip the TV fold so we don't bounce back on).
+function closeFLInstant() {
+  if (!flModal) return;
+  if (flModal._tvCloseTimer) { clearTimeout(flModal._tvCloseTimer); flModal._tvCloseTimer = 0; }
+  const card = flModal.querySelector(".modal-backdrop + div, :scope > .card");
+  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling"); card.style.transform = ""; card.style.transition = ""; }
+  flModal.classList.add("hidden");
+  flModal.classList.remove("flex", "modal-closing");
+  try { releaseDialog(flModal); } catch (_) {}
+  scheduleSaveNav();
+}
 
 // Collapsible result cards (Full Breakdown / Labor / Materials / Approvals / Job Files):
 // click the big centered header to minimize (title-left + summary-right) or expand.
@@ -22245,12 +22821,14 @@ function openJobRail() {
   document.getElementById("jobRailBackdrop").classList.add("open");
   document.body.classList.add("rail-open");
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 function closeJobRail() {
   document.getElementById("jobRail").classList.remove("show");
   document.getElementById("jobRailBackdrop").classList.remove("open");
   document.body.classList.remove("rail-open");
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 
 // Desktop: pin the rail open <-> collapse it
@@ -22258,6 +22836,7 @@ function toggleRailPin() {
   document.body.classList.toggle("rail-pinned");
   // pinned state is driven by the body class; clear any leftover peek
   document.getElementById("jobRail").classList.remove("show");
+  scheduleSaveNav();
 }
 // Rail header button: collapse on desktop, close the drawer on mobile
 function railHeaderAction() {
@@ -22332,20 +22911,18 @@ function flEntryCard(mfr, e, idx, readOnly) {
   const delBtn = readOnly ? "" :
     `<button class="btn text-slate-600 hover:text-rose-300 text-base leading-none px-1 flex-shrink-0"
         data-fl-del data-mfr="${escHtml(mfr)}" data-idx="${idx}" title="Delete this FL#">×</button>`;
-  // Install-drawing PDFs — one collapsible viewer per FL# that resolves to a
-  // PDF in the FBC index. Reuses the exact .fbc-pdf-details mechanism (the
-  // global toggle handler lazy-loads the iframe via the CORS proxy), so seeded
-  // approvals now get the same inline PDF viewer as the FBC search results.
+  // Install-drawing PDFs — open in the in-app PDF viewer (fit-to-width,
+  // zoom, multi-doc cycle) instead of a cramped iframe.
   const pdfToggles = (e.fls || []).map(fl => {
-    const pdf = fbcInstallPdfForFl(fl);
-    if (!pdf) return "";
-    return `<details class="fbc-pdf-details mt-2 group" data-pdf-url="${escHtml(pdf)}">
-         <summary class="cursor-pointer select-none inline-flex items-center gap-1.5 text-[11px] font-bold text-[#c9a558] hover:text-[#dfc07a]">
-           <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-open:rotate-90"><polyline points="7 4 13 10 7 16"/></svg>
-           View install drawing &mdash; ${escHtml(fl)}
-         </summary>
-         <div class="mt-2 fbc-pdf-frame-wrap"></div>
-       </details>`;
+    const pdfs = fbcInstallPdfsForFl(fl);
+    if (!pdfs.length) return "";
+    const label = pdfs.length > 1
+      ? `View install drawings (${pdfs.length}) — ${escHtml(fl)}`
+      : `View install drawing — ${escHtml(fl)}`;
+    return `<button type="button" class="fbc-pdf-open" data-fbc-pdfs data-fl="${escHtml(fl)}" title="Open install drawing">
+           <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+           ${label}
+         </button>`;
   }).filter(Boolean).join("");
 
   return `<div class="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
@@ -22528,24 +23105,29 @@ function searchFbc(query, limit = 100) {
   return [...exact, ...prefix, ...partial].slice(0, limit);
 }
 
-// Resolve the install-drawing PDF for a seeded FL# (e.g. "FL15590-R13") by
-// matching it against the loaded FBC index. Returns the PDF URL or null
-// (null when the index isn't loaded yet, the FL# isn't in it, or it has no
-// install PDF on file). Prefers an exact revision match, else any revision of
-// that FL number that has a PDF.
+// Resolve install PDF(s) for an FL# against the loaded FBC index.
+// Prefers an exact revision match, else any revision of that FL number.
 function fbcInstallPdfForFl(flStr) {
-  if (!_fbcCache || !flStr) return null;
+  const list = fbcInstallPdfsForFl(flStr);
+  return list[0] || null;
+}
+function fbcInstallPdfsForFl(flStr, revHint) {
+  if (!_fbcCache || !flStr) return [];
   const m = String(flStr).match(/(\d{1,7})(?:[-\s]?R?(\d+))?/i);
-  if (!m) return null;
+  if (!m) return [];
   const num = m[1];
-  const rev = m[2] ? ("R" + m[2]) : null;
-  let fallback = null;
+  const rev = revHint || (m[2] ? ("R" + m[2]) : null);
+  let exact = null, fallback = null;
   for (const a of _fbcCache.approvals) {
-    if (a.fl !== num || !a.installPdf) continue;
-    if (rev && a.rev === rev) return a.installPdf;   // exact FL# + revision
-    if (!fallback) fallback = a.installPdf;            // same FL#, any revision
+    if (a.fl !== num) continue;
+    const pdfs = (Array.isArray(a.allInstallPdfs) && a.allInstallPdfs.length)
+      ? a.allInstallPdfs.filter(Boolean)
+      : (a.installPdf ? [a.installPdf] : []);
+    if (!pdfs.length) continue;
+    if (rev && a.rev === rev) { exact = pdfs; break; }
+    if (!fallback) fallback = pdfs;
   }
-  return fallback;
+  return exact || fallback || [];
 }
 
 // Supabase edge function that proxies floridabuilding.org PDFs with CORS
@@ -22556,9 +23138,8 @@ function proxiedPdfUrl(fbcUrl) {
 }
 
 // Render a single FBC approval as a card (modal + landing both use this).
-// Each card has a collapsible "View install drawing" section that lazily
-// embeds the PDF via the proxy — keeps the initial render fast and only
-// pays the bandwidth for PDFs the user actually opens.
+// "View install drawing" opens the in-app PDF viewer (fit-to-width, zoom,
+// multi-doc cycle) instead of a cramped iframe.
 function fbcCard(a) {
   const fl = "FL" + escHtml(a.fl) + (a.rev ? "-" + escHtml(a.rev) : "");
   const hasHvhz   = (a.products || []).some(p => p.hvhz);
@@ -22582,9 +23163,6 @@ function fbcCard(a) {
   const moreProducts = a.products && a.products.length > 6
     ? `<div class="text-[10px] text-slate-600 italic">+ ${a.products.length - 6} more model line${a.products.length - 6 === 1 ? "" : "s"}</div>` : "";
 
-  // Pre-extracted structured screw patterns (Phase C output) — shown above
-  // the PDF embed when we have them. Falls back to the inline PDF for
-  // FL#s we haven't extracted yet.
   const patterns = a.patterns || {};
   const patternRows = Object.entries(patterns).map(([sub, text]) =>
     `<div class="flex gap-2 text-[11px] leading-snug">
@@ -22597,15 +23175,14 @@ function fbcCard(a) {
          <div class="space-y-1">${patternRows}</div>
        </div>` : "";
 
-  // Inline PDF viewer — collapsed by default, lazy-loaded on expand
-  const pdfBlock = a.installPdf
-    ? `<details class="fbc-pdf-details mt-2 group" data-pdf-url="${escHtml(a.installPdf)}">
-         <summary class="cursor-pointer select-none inline-flex items-center gap-1.5 text-[11px] font-bold text-[#c9a558] hover:text-[#dfc07a]">
-           <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-open:rotate-90"><polyline points="7 4 13 10 7 16"/></svg>
-           ${patternRows ? "View install drawing" : "View install drawing (screw pattern)"}
-         </summary>
-         <div class="mt-2 fbc-pdf-frame-wrap"></div>
-       </details>` : "";
+  const pdfs = (Array.isArray(a.allInstallPdfs) && a.allInstallPdfs.length)
+    ? a.allInstallPdfs.filter(Boolean)
+    : (a.installPdf ? [a.installPdf] : []);
+  const pdfBlock = pdfs.length
+    ? `<button type="button" class="fbc-pdf-open" data-fbc-pdfs data-fl="${escHtml(a.fl)}" data-rev="${escHtml(a.rev || "")}" title="Open install drawing">
+         <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+         ${patternRows ? "View install drawing" : "View install drawing (screw pattern)"}${pdfs.length > 1 ? ` · ${pdfs.length} docs` : ""}
+       </button>` : "";
 
   const detailBtn = a.detailUrl
     ? `<a href="${escHtml(a.detailUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 hover:text-slate-400">
@@ -22629,30 +23206,19 @@ function fbcCard(a) {
   </div>`;
 }
 
-// Delegated handler: when a <details data-pdf-url> opens, lazy-inject the
-// PDF iframe (via the CORS proxy). Inserts once, then re-opens are cached.
-document.addEventListener("toggle", (e) => {
-  const el = e.target;
-  if (!el.matches?.(".fbc-pdf-details")) return;
-  if (!el.open) return;
-  const wrap = el.querySelector(".fbc-pdf-frame-wrap");
-  if (!wrap || wrap.firstChild) return; // already loaded
-  const pdfUrl = el.dataset.pdfUrl;
-  if (!pdfUrl) return;
-  try { window.track?.("fbc_pdf_viewed", { url: pdfUrl }); } catch (_) {}
-  // 600px tall by default — tall enough to read a typical install drawing
-  // without dwarfing the rest of the modal. User can scroll inside iframe.
-  wrap.innerHTML = `<iframe
-    src="${escHtml(proxiedPdfUrl(pdfUrl))}#toolbar=1&navpanes=0"
-    class="w-full rounded border border-slate-800 bg-slate-950"
-    style="height:600px;"
-    title="Install instructions PDF"
-    loading="lazy"></iframe>
-   <div class="text-[10px] text-slate-600 mt-1.5 flex items-center justify-between">
-     <span>PDF served via Anchor's CORS proxy — original at floridabuilding.org.</span>
-     <a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener" class="text-[#c9a558] hover:text-[#dfc07a] font-semibold">Open in new tab ↗</a>
-   </div>`;
-}, true);
+// Open FBC install drawings in the in-app PDF viewer (fit-to-width + zoom +
+// multi-doc cycle + open-in-new-tab). Replaces the old iframe embed.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("[data-fbc-pdfs]");
+  if (!btn) return;
+  e.preventDefault();
+  const fl = btn.dataset.fl || "";
+  const rev = btn.dataset.rev || "";
+  const urls = fbcInstallPdfsForFl(fl, rev || null);
+  if (!urls.length) { toast("No install PDF on file for this FL#"); return; }
+  const title = "FL" + fl + (rev ? "-" + rev : "") + " · Install drawing";
+  showFbcPdfViewer(urls, { title });
+});
 
 // Render FBC results into a container — wraps the loader + search.
 // State machine: loading → loaded → error / no results.
@@ -23270,23 +23836,27 @@ function showRatesLeaf(name) {
   document.querySelectorAll('#ratesLeafNav [data-rleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.rleafBtn === name));
   document.querySelectorAll('#ratesShell [data-rleaf]').forEach(el => { el.style.display = (el.dataset.rleaf === name) ? '' : 'none'; });
   if (name === 'doors') showDoorType(window._rDoorType || 'swing');
+  scheduleSaveNav();
 }
 function showDoorType(type) {
   window._rDoorType = type;
   document.querySelectorAll('#ratesShell [data-rdoor-btn]').forEach(b => b.classList.toggle('active', b.dataset.rdoorBtn === type));
   document.querySelectorAll('#ratesShell [data-dtype]').forEach(el => { el.style.display = (el.dataset.dtype === type) ? '' : 'none'; });
+  scheduleSaveNav();
 }
 
 // Setup leaf switcher — Brand / Job Defaults / Manufacturers under one Setup tab.
 function showSetupLeaf(name) {
   document.querySelectorAll('#setupLeafNav [data-setupleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.setupleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="setup"] [data-setupleaf]').forEach(el => { el.style.display = (el.dataset.setupleaf === name) ? '' : 'none'; });
+  scheduleSaveNav();
 }
 
 // Account & Plan leaf switcher — Plan / Account under one merged tab (mirrors showSetupLeaf).
 function showAccountLeaf(name) {
   document.querySelectorAll('#accountLeafNav [data-accountleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.accountleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="account"] [data-accountleaf]').forEach(el => { el.style.display = (el.dataset.accountleaf === name) ? '' : 'none'; });
+  scheduleSaveNav();
 }
 
 /* ============================================================
@@ -24505,10 +25075,12 @@ function openReadPlanModal() {
   const modal = document.getElementById("readPlanModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  scheduleSaveNav();
 }
 
 function closeReadPlanModal() {
   tvDismiss(document.getElementById("readPlanModal"));
+  scheduleSaveNav();
 }
 
 async function openGrokWithPrompt() {
@@ -25754,10 +26326,12 @@ function openBuckModal() {
   const modal = document.getElementById("buckModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  scheduleSaveNav();
 }
 
 function closeBuckModal() {
   tvDismiss(document.getElementById("buckModal"));
+  scheduleSaveNav();
 }
 
 // Shows the result panel (yard order + download) when a cut list exists
@@ -26134,6 +26708,7 @@ function openComparison() {
   _cmpLastFocus = document.activeElement;
   setTimeout(() => { try { (modal.querySelector('[data-close-compare].modal-close') || modal.querySelector('[role="dialog"]')).focus(); } catch (_) {} }, 40);
   document.addEventListener("keydown", _cmpKeyHandler);
+  scheduleSaveNav();
 }
 
 function closeComparison() {
@@ -26141,6 +26716,7 @@ function closeComparison() {
   tvDismiss(document.getElementById("compareModal"));
   try { _cmpLastFocus && _cmpLastFocus.focus && _cmpLastFocus.focus(); } catch (_) {}
   _cmpLastFocus = null;
+  scheduleSaveNav();
 }
 
 function renderComparisonModal(jobs) {
@@ -26636,7 +27212,7 @@ async function handleAuthSubmit(e) {
       const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       window.track("auth_signup_completed");
-      if (data.session) { await enterApp(); openDashboard(); return; }   // confirmation disabled
+      if (data.session) { await enterApp(); await restoreNav(); return; }   // confirmation disabled
       setAuthMode("login");
       setAuthMsg("Account created. Check your email to confirm, then log in.", "ok");
     } else {
@@ -26644,7 +27220,7 @@ async function handleAuthSubmit(e) {
       if (error) throw error;
       window.track("auth_login_completed");
       await enterApp();
-      openDashboard();
+      await restoreNav();
       return;
     }
   } catch (err) {
@@ -26691,6 +27267,7 @@ async function handleSignOut() {
   localStorage.removeItem(LS_KEYS.pendingPush);
   localStorage.removeItem(LS_KEYS.jobsSyncedOnce);
   localStorage.removeItem(LS_SIGN_SEEN);
+  clearNav();
   location.reload();
 }
 
@@ -27951,10 +28528,12 @@ function showLanding() {
     _landingViewedTracked = true;
     window.track("landing_viewed");
   }
+  scheduleSaveNav();
 }
 // Leave the landing and return to the app (signed-in users only)
 function closeLanding() {
   document.getElementById("landingScreen").classList.add("hidden");
+  scheduleSaveNav();
 }
 // PFP menu → Dashboard: the signed-in home base.
 function goHome() {
@@ -29078,7 +29657,7 @@ async function boot() {
     } else if (event === "SIGNED_IN" && !currentUser) {
       scrubAuthHash();
       // Magic-link return — drop straight into the app
-      enterApp().then(() => openDashboard()).catch(() => showLanding());
+      enterApp().then(() => restoreNav()).catch(() => showLanding());
     }
   });
 
@@ -29097,10 +29676,10 @@ async function boot() {
     }, 400);
     document.getElementById("bootSplash").classList.add("hidden");
   } else if (session) {
-    // Signed-in users land on their dashboard (home base) — the calculator is
-    // initialised behind it, one click away via "Open Calculator".
+    // Signed-in users return to wherever they left off (dashboard, calculator,
+    // open PDF/FL, etc.). Fresh sessions with no saved nav land on the dashboard.
     await enterApp();
-    openDashboard();
+    await restoreNav();
   } else {
     setAuthMode("login");
     showLanding();
@@ -29905,8 +30484,19 @@ function init() {
       { const b = document.getElementById("pdfPreviewDownload"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) { _pdfPreviewDoc.save(_pdfPreviewName); toast("PDF downloaded"); } }); }
       { const b = document.getElementById("pdfPreviewShare"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) sharePDF(_pdfPreviewDoc, _pdfPreviewName, _pdfPreviewMeta); }); }
       { const b = document.getElementById("pdfPreviewClose"); if (b) b.addEventListener("click", closePdfPreview); }
-      // OUT-2: tap a rendered page to toggle full-width zoom (pan via the scroll container)
-      { const pv = document.getElementById("pdfPreviewPages"); if (pv) pv.addEventListener("click", e => { if (e.target.closest(".pdf-preview-canvas")) pv.classList.toggle("zoomed"); }); }
+      { const b = document.getElementById("pdfDocPrev"); if (b) b.addEventListener("click", () => stepFbcPdfDoc(-1)); }
+      { const b = document.getElementById("pdfDocNext"); if (b) b.addEventListener("click", () => stepFbcPdfDoc(1)); }
+      { const b = document.getElementById("pdfZoomOut"); if (b) b.addEventListener("click", () => bumpPdfZoom(-1)); }
+      { const b = document.getElementById("pdfZoomIn"); if (b) b.addEventListener("click", () => bumpPdfZoom(1)); }
+      { const b = document.getElementById("pdfZoomFit"); if (b) b.addEventListener("click", () => setPdfZoom(1)); }
+      // Tap cycles fit → 1.6 → 2.5 → 3.2 → fit; pinch zooms the PDF only.
+      { const pv = document.getElementById("pdfPreviewPages"); if (pv) {
+        pv.addEventListener("click", e => {
+          if (!e.target.closest(".pdf-preview-canvas")) return;
+          cyclePdfZoomTap();
+        });
+        wirePdfPinchZoom(pv);
+      } }
       _pdfM.addEventListener("click", e => { if (e.target.hasAttribute("data-close-pdf")) closePdfPreview(); });
       _pdfM._wired = true;
     }
@@ -30291,6 +30881,7 @@ function init() {
     // Also kick the FBC database search (lazy-loads on first call)
     renderFbcInto("flFbcList", q, { limit: 50 });
     scheduleFLMissingCheck(q, "app");
+    scheduleSaveNav();
     clearTimeout(_flSearchTrackTimer);
     _flSearchTrackTimer = setTimeout(() => {
       const trimmed = (q || "").trim().toLowerCase();
@@ -30312,6 +30903,10 @@ function init() {
     if (e.target.dataset.close !== undefined) { closeFL(); return; }
     const del = e.target.closest("[data-fl-del]");
     if (del) deleteFLEntry(del.dataset.mfr, parseInt(del.dataset.idx, 10));
+  });
+  wireMobileSheetDismiss(flModal, (opts) => {
+    if (opts && opts.fromDrag) closeFLInstant();
+    else closeFL();
   });
 
   // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
