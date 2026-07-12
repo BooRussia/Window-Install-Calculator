@@ -10735,6 +10735,27 @@ function clearLaborOverrideField(field) {
   STATE.laborOverride = normalizeLaborOverride(o);
 }
 
+// Pull in-progress crew edits out of the DOM before we re-render / add rows,
+// so typing a name then tapping "+ Add person" doesn't lose what wasn't blurred yet.
+function flushJobCrewFromDom(card) {
+  if (!card) return;
+  const o = normalizeLaborOverride(STATE.laborOverride);
+  if (!o || !o.crew || o.crew.mode !== "roster" || !Array.isArray(o.crew.members)) return;
+  card.querySelectorAll("[data-labor-crew-idx]").forEach(row => {
+    const idx = parseInt(row.getAttribute("data-labor-crew-idx"), 10);
+    if (!o.crew.members[idx]) return;
+    const active = row.querySelector("[data-labor-crew-active]");
+    const nameEl = row.querySelector("[data-labor-crew-name]");
+    const rateEl = row.querySelector("[data-labor-crew-rate]");
+    const wcEl = row.querySelector("[data-labor-crew-wc]");
+    if (active) o.crew.members[idx].active = !!active.checked;
+    if (nameEl) o.crew.members[idx].name = nameEl.value;
+    if (rateEl) o.crew.members[idx].hourlyRate = Math.max(0, Number(rateEl.value) || 0);
+    if (wcEl) o.crew.members[idx].workersCompPct = Math.max(0, Math.min(100, Number(wcEl.value) || 0));
+  });
+  STATE.laborOverride = normalizeLaborOverride(o) || o;
+}
+
 function wireLaborDetailCard(card) {
   if (!card || card._laborWired) return;
   card._laborWired = true;
@@ -10781,14 +10802,32 @@ function wireLaborDetailCard(card) {
       clearLaborOverrideField("crew"); render(); return;
     }
     if (e.target.closest("[data-labor-crew-add]")) {
-      seedJobCrewFromSettings();
-      const o = ensureLaborOverride();
+      // Keep existing job crew — never re-seed from Settings (that wiped edits).
+      flushJobCrewFromDom(card);
+      let o = ensureLaborOverride();
+      if (!o.crew || o.crew.mode !== "roster" || !Array.isArray(o.crew.members)) {
+        seedJobCrewFromSettings();
+        o = ensureLaborOverride();
+        if (o.crew && o.crew.mode === "flat") {
+          const n = Math.max(1, Number(o.crew.crewSize) || 1);
+          const rate = Math.max(0, Number(o.crew.crewPayRatePerHr) || 0);
+          const wc = (getCrewRoster().defaultWorkersCompPct ?? 10);
+          o.crew = {
+            mode: "roster",
+            members: Array.from({ length: n }, (_, i) => ({
+              id: newCrewMemberId(), name: i === 0 ? "Lead" : ("Helper " + i),
+              role: i === 0 ? "Lead" : "Helper", hourlyRate: rate, workersCompPct: wc, active: true, avatar: "",
+            })),
+          };
+        }
+      }
       if (!o.crew || o.crew.mode !== "roster") {
         o.crew = { mode: "roster", members: [] };
       }
       const wc = (getCrewRoster().defaultWorkersCompPct ?? 10);
+      const n = o.crew.members.length + 1;
       o.crew.members.push({
-        id: newCrewMemberId(), name: "Helper", role: "Helper",
+        id: newCrewMemberId(), name: "Helper " + n, role: "Helper",
         hourlyRate: 25, workersCompPct: wc, active: true, avatar: "",
       });
       STATE.laborOverride = normalizeLaborOverride(o) || o;
@@ -10796,6 +10835,7 @@ function wireLaborDetailCard(card) {
     }
     const rm = e.target.closest("[data-labor-crew-remove]");
     if (rm) {
+      flushJobCrewFromDom(card);
       const idx = parseInt(rm.getAttribute("data-labor-crew-remove"), 10);
       const o = ensureLaborOverride();
       if (o.crew && o.crew.mode === "roster" && Array.isArray(o.crew.members)) {
@@ -10817,6 +10857,43 @@ function wireLaborDetailCard(card) {
     STATE.laborOverride = normalizeLaborOverride(o);
     render();
   };
+  // Commit crew edits on input (not only blur) so Add/Remove never races a pending change.
+  card.addEventListener("input", e => {
+    const nameEl = e.target.closest("[data-labor-crew-name]");
+    if (nameEl) {
+      const row = nameEl.closest("[data-labor-crew-idx]");
+      const idx = row ? parseInt(row.getAttribute("data-labor-crew-idx"), 10) : -1;
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.members && o.crew.members[idx]) {
+        o.crew.members[idx].name = nameEl.value;
+        // Don't re-render on every keystroke — just keep STATE in sync.
+        STATE.laborOverride = o;
+      }
+      return;
+    }
+    const rateEl = e.target.closest("[data-labor-crew-rate]");
+    if (rateEl) {
+      const row = rateEl.closest("[data-labor-crew-idx]");
+      const idx = row ? parseInt(row.getAttribute("data-labor-crew-idx"), 10) : -1;
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.members && o.crew.members[idx]) {
+        o.crew.members[idx].hourlyRate = Math.max(0, Number(rateEl.value) || 0);
+        STATE.laborOverride = o;
+      }
+      return;
+    }
+    const wcEl = e.target.closest("[data-labor-crew-wc]");
+    if (wcEl) {
+      const row = wcEl.closest("[data-labor-crew-idx]");
+      const idx = row ? parseInt(row.getAttribute("data-labor-crew-idx"), 10) : -1;
+      const o = ensureLaborOverride();
+      if (o.crew && o.crew.members && o.crew.members[idx]) {
+        o.crew.members[idx].workersCompPct = Math.max(0, Math.min(100, Number(wcEl.value) || 0));
+        STATE.laborOverride = o;
+      }
+      return;
+    }
+  });
   card.addEventListener("change", e => {
     const fieldEl = e.target.closest("[data-labor-field]");
     if (fieldEl) { commitField(fieldEl); return; }
