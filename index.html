@@ -4073,14 +4073,19 @@
   .learn-nav-toc:hover { color:#c9a558; background:rgba(30,41,59,0.5); }
   /* content */
   .learn-prose { color:#cbd5e1; }
-  .learn-sec-head { margin-bottom:20px; }
+  .learn-sec-head { position:relative; margin-bottom:30px; padding:10px 0 22px; border-bottom:1px solid var(--hairline); background:radial-gradient(420px 190px at 8% -10%, rgba(181,143,74,0.10), transparent 70%); }
+  .learn-meta { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-top:14px; font-size:11.5px; font-weight:600; color:#64748b; font-variant-numeric:tabular-nums; }
+  .learn-meta-dot { width:3px; height:3px; border-radius:999px; background:#c9a558; flex-shrink:0; }
+  .learn-fig { margin:16px auto 6px; max-width:560px; color:#c9a558; }
+  .learn-fig svg { width:100%; height:auto; display:block; }
+  .learn-fig figcaption { font-size:11px; color:#64748b; text-align:center; margin-top:8px; line-height:1.5; }
   .learn-eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:0.16em; font-weight:800; color:#c9a558; margin-bottom:8px; }
-  .learn-prose .learn-h1 { font-size:30px; font-weight:800; color:#f1f5f9; letter-spacing:-0.02em; margin:0 0 8px; line-height:1.08; }
-  .learn-prose .learn-intro { font-size:14.5px; color:#94a3b8; line-height:1.6; margin:0; max-width:62ch; }
-  .learn-card { background:linear-gradient(180deg, rgba(15,23,42,0.55), rgba(2,6,23,0.45)); border:1px solid rgba(148,163,184,0.13); border-radius:18px; padding:22px 22px 24px; margin-top:18px; scroll-margin-top:84px; }
+  .learn-prose .learn-h1 { font-size:clamp(34px, 6vw, 50px); font-weight:900; color:#f1f5f9; letter-spacing:-0.03em; margin:0 0 10px; line-height:1.05; }
+  .learn-prose .learn-intro { font-size:16px; color:#94a3b8; line-height:1.7; margin:0; max-width:62ch; }
+  .learn-card { background:linear-gradient(180deg, rgba(15,23,42,0.55), rgba(2,6,23,0.45)); border:1px solid rgba(148,163,184,0.13); border-radius:18px; padding:24px 24px 26px; margin-top:18px; scroll-margin-top:84px; }
   .learn-card-head { display:flex; align-items:center; gap:11px; margin-bottom:10px; }
   .learn-card-num { flex-shrink:0; width:30px; height:30px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#0b1120; background:linear-gradient(180deg,#d8b96a,#b58f4a); }
-  .learn-card-head h2 { font-size:18px; font-weight:800; color:#f1f5f9; letter-spacing:-0.01em; margin:0; }
+  .learn-card-head h2 { font-size:20px; font-weight:800; color:#f1f5f9; letter-spacing:-0.015em; margin:0; }
   .learn-summary { font-size:14px; line-height:1.7; margin:0 0 12px; color:#cbd5e1; }
   .learn-keynums { display:flex; flex-wrap:wrap; gap:6px; margin:14px 0; }
   .learn-keynum { font-size:11.5px; font-weight:600; color:#c9a558; background:var(--gold-soft); border:1px solid rgba(181,143,74,0.25); border-radius:999px; padding:4px 11px; }
@@ -4106,6 +4111,8 @@
   [data-theme="light"] .learn-nav-toc { color:#475569; }
   [data-theme="light"] .learn-card { background:#ffffff; border-color:#e6e8ec; box-shadow:0 1px 2px rgba(15,23,42,0.04), 0 12px 30px -22px rgba(15,23,42,0.18); }
   [data-theme="light"] .learn-pc > div { background:#f8fafc; }
+  [data-theme="light"] .learn-fig { color:#9a7636; }
+  [data-theme="light"] .learn-sec-head { background:radial-gradient(420px 190px at 8% -10%, rgba(154,118,54,0.08), transparent 70%); }
   .legal-foot-link { color: inherit; background: transparent; border: 0; cursor: pointer; padding: 0; font: inherit; transition: color .15s ease; }
   .legal-foot-link:hover { color: #c9a558; }
 
@@ -17676,17 +17683,31 @@ function renderLearnSection() {
         + ((t.pros || []).length ? `<div class="pros"><h4>Pros</h4><ul>${t.pros.map(x => `<li>${escHtml(x)}</li>`).join("")}</ul></div>` : "")
         + ((t.cons || []).length ? `<div class="cons"><h4>Watch-outs</h4><ul>${t.cons.map(x => `<li>${escHtml(x)}</li>`).join("")}</ul></div>` : "")
         + `</div>` : "";
+    // Author-controlled diagram from anchor-learn.json — the svg is injected
+    // as-is (repo-authored static file, same-origin); every text field around
+    // it stays escaped. Strokes use currentColor so .learn-fig themes it.
+    const fig = (t.diagram && t.diagram.svg)
+      ? `<figure class="learn-fig">${t.diagram.svg}${t.diagram.caption ? `<figcaption>${escHtml(t.diagram.caption)}</figcaption>` : ""}</figure>`
+      : "";
     return `<section class="learn-card" id="learn-${escHtml(t.slug)}">
       <div class="learn-card-head"><span class="learn-card-num">${num}</span><h2>${escHtml(t.title)}</h2></div>
       <p class="learn-summary">${escHtml(t.summary)}</p>
-      ${keynums}${body}${pc}
+      ${fig}${keynums}${body}${pc}
     </section>`;
   }).join("");
   const blurb = sec.blurb || (sec.id === _learnFirstId() ? (meta.intro || "") : "");
+  // Reading time: whole-section word count at ~200 wpm (floor 1 min).
+  const words = (sec.topics || []).reduce((n, t) => {
+    const parts = [t.title || "", t.summary || ""].concat(t.body || [], t.pros || [], t.cons || [], t.keyNumbers || []);
+    return n + parts.join(" ").split(/\s+/).filter(Boolean).length;
+  }, 0);
+  const mins = Math.max(1, Math.round(words / 200));
+  const nTopics = (sec.topics || []).length;
   const head = `<header class="learn-sec-head">
       <div class="learn-eyebrow">${escHtml(meta.title || "Window & Door Basics")}</div>
       <h1 class="learn-h1">${escHtml(sec.label)}</h1>
       ${blurb ? `<p class="learn-intro">${escHtml(blurb)}</p>` : ""}
+      <div class="learn-meta">${nTopics} topic${nTopics === 1 ? "" : "s"}<span class="learn-meta-dot"></span>~${mins} min read${meta.updated ? `<span class="learn-meta-dot"></span>Updated ${escHtml(meta.updated)}` : ""}</div>
     </header>`;
   el.innerHTML = head + topics;
   renderLearnNav();
