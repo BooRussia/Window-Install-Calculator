@@ -5123,14 +5123,47 @@
 #landingScreen .range.hint::-webkit-slider-thumb { animation: none; }
 #landingScreen .range.hint::-moz-range-thumb { animation: none; }
 }
-#landingScreen .gauges { display: grid; gap: 22px; }
+#landingScreen .gauges {
+  display: grid; gap: 20px; justify-items: center; text-align: center;
+  align-content: center; min-height: 100%;
+}
+#landingScreen .calc-tog {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px; border-radius: 999px;
+  background: rgba(148,163,184,0.08); border: 1px solid rgba(148,163,184,0.22);
+}
+#landingScreen .calc-tog button {
+  appearance: none; border: 0; cursor: pointer;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-4); background: transparent;
+  padding: 8px 14px; border-radius: 999px; min-height: 36px;
+  transition: color .15s ease, background .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+#landingScreen .calc-tog button.on {
+  color: #0b1120; background: var(--gold-pale);
+}
+#landingScreen .calc-tog button:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+#landingScreen .calc-year {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-4); margin: 2px 0 0;
+}
 #landingScreen .gauge .g-lbl { font-size: 10px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 6px; }
+#landingScreen .gauge .g-val { display: inline-flex; align-items: baseline; justify-content: center; }
 #landingScreen .gauge .odo { font-size: clamp(2.2rem, 4.5vw, 3rem); color: var(--ink-1); }
 #landingScreen .gauge .g-unit { font-size: 12px; font-weight: 700; color: var(--ink-4); margin-left: 8px; letter-spacing: 0.1em; }
-#landingScreen .gauge.gold .odo, #landingScreen .gauge.gold .still { color: var(--gold-pale); }
-#landingScreen .gauge .still { font-family: 'Anton', sans-serif; font-size: clamp(2.2rem, 4.5vw, 3rem); line-height: 1; }
-#landingScreen .gauge-cap { font-size: 13px; color: var(--ink-4); min-height: 20px; }
+#landingScreen .gauge .still { font-family: 'Anton', sans-serif; font-size: clamp(2.2rem, 4.5vw, 3rem); line-height: 1; color: var(--ink-1); }
+#landingScreen .gauge-cap { font-size: 13px; color: var(--ink-4); min-height: 20px; max-width: 28ch; margin: 8px auto 0; }
 #landingScreen .gauge-cap b { color: var(--gold-hi); font-weight: 700; }
+/* Anchor: hours/days green, quote time gold */
+#landingScreen .gauges[data-mode="anchor"] .g-stat .odo { color: #4ade80; }
+#landingScreen .gauges[data-mode="anchor"] .g-stat .g-unit { color: #86efac; }
+#landingScreen .gauges[data-mode="anchor"] .g-quote .still { color: var(--gold-pale); }
+/* Traditional: hours/days red, quote time white */
+#landingScreen .gauges[data-mode="trad"] .g-stat .odo { color: #f87171; }
+#landingScreen .gauges[data-mode="trad"] .g-stat .g-unit { color: #fca5a5; }
+#landingScreen .gauges[data-mode="trad"] .g-quote .still { color: #f1f5f9; }
+#landingScreen .gauges[data-mode="trad"] .gauge-cap b { color: #fca5a5; }
 #landingScreen.js .maxcap { opacity: 0; transition: opacity .5s ease; }
 #landingScreen.js .maxcap.show { opacity: 1; }
 #landingScreen #demo { padding: 15vh 0 16vh; }
@@ -6420,19 +6453,28 @@
           </div>
           <div class="range-scale" aria-hidden="true"><span>1</span><span>5</span><span>10</span><span>15</span></div>
         </div>
-        <div class="gauges" id="calcResult" aria-live="polite">
-          <div class="gauge">
-            <div class="g-lbl">Hours back per year</div>
-            <span class="odo odo--ease" id="hrsOdo" data-value="0913" aria-hidden="true">0913</span><span class="g-unit">HRS</span>
+        <div class="gauges" id="calcResult" data-mode="anchor" aria-live="polite">
+          <div class="calc-tog" role="tablist" aria-label="Compare Anchor to traditional quoting">
+            <button type="button" role="tab" id="calcModeAnchor" data-calc-mode="anchor" class="on" aria-selected="true">Anchor</button>
+            <button type="button" role="tab" id="calcModeTrad" data-calc-mode="trad" aria-selected="false">Traditional</button>
           </div>
-          <div class="gauge">
-            <div class="g-lbl">Evenings reclaimed</div>
-            <span class="odo odo--ease" id="eveOdo" data-value="228" aria-hidden="true">228</span><span class="g-unit">EVENINGS</span>
-            <span class="sr-only" id="calcSr">About 913 hours and 228 evenings per year</span>
+          <p class="calc-year" id="calcYearNote">Saved each year</p>
+          <div class="gauge g-stat">
+            <div class="g-lbl" id="hrsLbl">Hours saved</div>
+            <div class="g-val">
+              <span class="odo odo--ease" id="hrsOdo" data-value="00000" aria-hidden="true">00913</span><span class="g-unit">HRS</span>
+            </div>
           </div>
-          <div class="gauge gold">
-            <div class="g-lbl">Time per quote, with Anchor</div>
-            <span class="still">0:60</span>
+          <div class="gauge g-stat">
+            <div class="g-lbl" id="daysLbl">Days saved</div>
+            <div class="g-val">
+              <span class="odo odo--ease" id="daysOdo" data-value="0000" aria-hidden="true">0114</span><span class="g-unit">DAYS</span>
+            </div>
+            <span class="sr-only" id="calcSr">About 913 hours and 114 days saved per year</span>
+          </div>
+          <div class="gauge g-quote">
+            <div class="g-lbl" id="quoteLbl">Time per quote</div>
+            <span class="still" id="quoteTime">0:60</span>
             <p class="gauge-cap maxcap" id="maxCap">Fifteen quotes a week. Still a minute each. <b>Go home.</b></p>
           </div>
         </div>
@@ -28152,44 +28194,83 @@ function initLandingStory() {
   var scanOdo  = buildOdo(document.getElementById("scanOdo"));
   var totalOdo = buildOdo(document.getElementById("totalOdo"));
   var hrsOdo   = buildOdo(document.getElementById("hrsOdo"));
-  var eveOdo   = buildOdo(document.getElementById("eveOdo"));
+  var daysOdo  = buildOdo(document.getElementById("daysOdo"));
 
   /* ---------- evenings calculator (works even under reduced motion) ---------- */
   var OLD_S = 3 * 3600 + 40 * 60, NEW_S = 58, WEEKS = 50;
   var slider = document.getElementById("qWeek"), qOut = document.getElementById("qOut");
+  var calcResult = document.getElementById("calcResult");
   var calcSr = document.getElementById("calcSr"), maxCap = document.getElementById("maxCap");
+  var hrsLbl = document.getElementById("hrsLbl"), daysLbl = document.getElementById("daysLbl");
+  var quoteLbl = document.getElementById("quoteLbl"), quoteTime = document.getElementById("quoteTime");
+  var calcYearNote = document.getElementById("calcYearNote");
   var tryPill = document.getElementById("tryPill");
   var teaseDone = false;
+  function calcMode() { return (calcResult && calcResult.getAttribute("data-mode")) || "anchor"; }
+  function setCalcMode(mode) {
+    if (!calcResult) return;
+    mode = mode === "trad" ? "trad" : "anchor";
+    calcResult.setAttribute("data-mode", mode);
+    calcResult.querySelectorAll("[data-calc-mode]").forEach(function (btn) {
+      var on = btn.getAttribute("data-calc-mode") === mode;
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    runCalc(false);
+  }
   function runCalc(quiet) {
     // q can be fractional mid-sweep (the tease glides with step="any");
     // the readout stays integer, the gauges roll through the in-betweens
+    if (!slider) return;
     var q = +slider.value;
-    var hrs = Math.round(q * WEEKS * (OLD_S - NEW_S) / 3600);
-    var eve = Math.round(hrs / 4);
+    var mode = calcMode();
+    var isAnchor = mode !== "trad";
+    var hrsSaved = Math.round(q * WEEKS * (OLD_S - NEW_S) / 3600);
+    var hrsLost = Math.round(q * WEEKS * OLD_S / 3600);
+    var hrs = isAnchor ? hrsSaved : hrsLost;
+    var days = Math.round(hrs / 8);
     qOut.textContent = Math.round(q);
     if (hrsOdo) hrsOdo.setVal(hrs);
-    if (eveOdo) eveOdo.setVal(eve);
+    if (daysOdo) daysOdo.setVal(days);
+    if (hrsLbl) hrsLbl.textContent = isAnchor ? "Hours saved" : "Hours lost";
+    if (daysLbl) daysLbl.textContent = isAnchor ? "Days saved" : "Days lost";
+    if (quoteLbl) quoteLbl.textContent = isAnchor ? "Time per quote" : "Avg time per quote";
+    if (quoteTime) quoteTime.textContent = isAnchor ? "0:60" : "3:40:00";
+    if (calcYearNote) calcYearNote.textContent = isAnchor ? "Saved each year" : "Lost each year";
+    if (maxCap) {
+      maxCap.innerHTML = isAnchor
+        ? "Fifteen quotes a week. Still a minute each. <b>Go home.</b>"
+        : "Fifteen quotes a week. That's a full-time job of quoting.";
+      maxCap.classList.toggle("show", Math.round(q) >= 15);
+    }
     if (!quiet) {
       // skipped during the auto-sweep so the live region isn't machine-gunned
-      slider.setAttribute("aria-valuetext", q + " quotes a week — about " + hrs + " hours and " + eve + " evenings back per year");
-      if (calcSr) calcSr.textContent = "About " + hrs + " hours and " + eve + " evenings per year";
+      var verb = isAnchor ? "saved" : "lost";
+      slider.setAttribute("aria-valuetext", Math.round(q) + " quotes a week — about " + hrs + " hours and " + days + " days " + verb + " per year");
+      if (calcSr) calcSr.textContent = "About " + hrs + " hours and " + days + " days " + verb + " per year";
     }
-    if (maxCap) maxCap.classList.toggle("show", Math.round(q) >= 15);
   }
   // "Try me!" pill rides the thumb (26px thumb, so center = 13px + f * (w - 26))
   function pillPos() {
-    if (!tryPill) return;
+    if (!tryPill || !slider) return;
     var f = (slider.value - slider.min) / (slider.max - slider.min);
     tryPill.style.left = (13 + f * (slider.clientWidth - 26)).toFixed(1) + "px";
   }
   function dismissTease() {
-    if (teaseDone) return;
+    if (teaseDone || !slider) return;
     teaseDone = true;
     // the glide runs with step="any" — hand the integer stops back to the user
     slider.step = "1";
     slider.value = Math.round(+slider.value);
     if (tryPill) tryPill.classList.add("gone");
     slider.classList.remove("hint");
+  }
+  if (calcResult) {
+    calcResult.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-calc-mode]");
+      if (!btn) return;
+      setCalcMode(btn.getAttribute("data-calc-mode"));
+    });
   }
   if (slider) {
     slider.addEventListener("input", function () { dismissTease(); runCalc(false); });
