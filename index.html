@@ -1496,13 +1496,20 @@
   /* In-site PDF preview modal — renders generated docs (PDF.js canvases) so
      "View" works inline on mobile instead of downloading. Also hosts FBC
      install drawings (fit-to-width, zoom, multi-doc cycle, open-in-tab). */
-  #pdfPreviewPages { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  #pdfPreviewPages {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    /* Native one-finger pan; we own two-finger pinch so the page doesn't scale. */
+    touch-action: pan-x pan-y;
+    -webkit-user-select: none; user-select: none;
+  }
+  #pdfPreviewModal { touch-action: manipulation; }
   .pdf-preview-canvas {
     max-width: 100%;
     border: 1px solid rgba(30,41,59,0.9);
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(0,0,0,0.35);
     background: #fff;
+    transform-origin: top center;
   }
   [data-theme="light"] .pdf-preview-canvas { border-color: rgba(203,213,225,0.9); box-shadow: 0 6px 24px rgba(15,23,42,0.12); }
   .pdf-preview-canvas { cursor: zoom-in; }
@@ -9465,7 +9472,7 @@
       <span class="pdf-tb-spacer"></span>
       <a id="pdfOpenTab" class="pdf-tb-btn pdf-tb-gold" href="#" target="_blank" rel="noopener" title="Open this PDF in a new tab">Open ↗</a>
     </div>
-    <div id="pdfPreviewHint" class="px-5 pt-2 text-[10px] text-slate-500 tracking-wide flex-shrink-0" aria-hidden="true">Tap a page to zoom · pinch-scroll when zoomed</div>
+    <div id="pdfPreviewHint" class="px-5 pt-2 text-[10px] text-slate-500 tracking-wide flex-shrink-0" aria-hidden="true">Tap to zoom in · pinch to zoom · Fit resets</div>
     <div id="pdfPreviewPages" class="overflow-y-auto flex-1 px-3 sm:px-5 py-4 bg-slate-950/40"></div>
   </div>
 </div>
@@ -19776,7 +19783,9 @@ function outputPDF(doc, filename, mode, meta) {
 // via PDF.js. Fit-to-width by default; zoom / multi-doc controls for FBC draws.
 let _pdfPreviewDoc = null, _pdfPreviewName = "document.pdf", _pdfPreviewMeta = null, _pdfRenderGen = 0;
 let _pdfRemoteUrls = null, _pdfRemoteIdx = 0, _pdfZoom = 1, _pdfBlobUrl = null;
-const PDF_ZOOM_STEPS = [0.7, 0.85, 1, 1.25, 1.6, 2];
+// Fit → … → 2, then two more taps of room (2.5, 3.2) before maxing out.
+const PDF_ZOOM_STEPS = [0.7, 0.85, 1, 1.25, 1.6, 2, 2.5, 3.2];
+const PDF_TAP_ZOOM_STEPS = [1, 1.6, 2.5, 3.2];
 
 function pdfToolbarEls() {
   return {
@@ -19793,16 +19802,20 @@ function pdfToolbarEls() {
   };
 }
 function setPdfZoom(z) {
-  _pdfZoom = Math.max(PDF_ZOOM_STEPS[0], Math.min(PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1], z));
+  const minZ = PDF_ZOOM_STEPS[0], maxZ = PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1];
+  _pdfZoom = Math.max(minZ, Math.min(maxZ, z));
   const { pages, zoomOut, zoomIn } = pdfToolbarEls();
   if (pages) {
     pages.classList.toggle("zoomed", _pdfZoom > 1.01);
     pages.querySelectorAll(".pdf-preview-canvas").forEach(c => {
-      c.style.zoom = String(_pdfZoom);
+      // Prefer transform over CSS zoom — more reliable under pinch + scroll.
+      c.style.zoom = "";
+      c.style.transform = _pdfZoom === 1 ? "" : `scale(${_pdfZoom})`;
+      c.style.marginBottom = _pdfZoom > 1 ? `${(c.offsetHeight * (_pdfZoom - 1))}px` : "";
     });
   }
-  if (zoomOut) zoomOut.disabled = _pdfZoom <= PDF_ZOOM_STEPS[0] + 0.001;
-  if (zoomIn) zoomIn.disabled = _pdfZoom >= PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1] - 0.001;
+  if (zoomOut) zoomOut.disabled = _pdfZoom <= minZ + 0.001;
+  if (zoomIn) zoomIn.disabled = _pdfZoom >= maxZ - 0.001;
 }
 function bumpPdfZoom(dir) {
   let i = 0;
@@ -19811,6 +19824,41 @@ function bumpPdfZoom(dir) {
     if (PDF_ZOOM_STEPS[k] < _pdfZoom) i = k;
   }
   setPdfZoom(PDF_ZOOM_STEPS[Math.max(0, Math.min(PDF_ZOOM_STEPS.length - 1, i + dir))]);
+}
+// Tap cycles fit → 1.6 → 2.5 → 3.2 → fit (two more zoom-in stops than before).
+function cyclePdfZoomTap() {
+  let next = PDF_TAP_ZOOM_STEPS.find(z => z > _pdfZoom + 0.05);
+  if (!next) next = 1;
+  setPdfZoom(next);
+}
+function wirePdfPinchZoom(pages) {
+  if (!pages || pages._pinchWired) return;
+  pages._pinchWired = true;
+  let pinching = false, startDist = 0, startZoom = 1;
+  function dist(t) {
+    const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+    return Math.hypot(dx, dy) || 1;
+  }
+  pages.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      pinching = true;
+      startDist = dist(e.touches);
+      startZoom = _pdfZoom;
+      if (e.cancelable) e.preventDefault();
+    }
+  }, { passive: false });
+  pages.addEventListener("touchmove", (e) => {
+    if (!pinching || e.touches.length < 2) return;
+    if (e.cancelable) e.preventDefault(); // keep the site from scaling
+    const ratio = dist(e.touches) / startDist;
+    setPdfZoom(startZoom * ratio);
+  }, { passive: false });
+  function endPinch() { pinching = false; }
+  pages.addEventListener("touchend", endPinch);
+  pages.addEventListener("touchcancel", endPinch);
+  // Block page-level gesture zoom while the modal is open (iOS Safari).
+  pages.addEventListener("gesturestart", (e) => { e.preventDefault(); }, { passive: false });
+  pages.addEventListener("gesturechange", (e) => { e.preventDefault(); }, { passive: false });
 }
 function updatePdfDocChrome() {
   const { bar, docPrev, docNext, docLabel, openTab } = pdfToolbarEls();
@@ -30125,11 +30173,14 @@ function init() {
       { const b = document.getElementById("pdfZoomOut"); if (b) b.addEventListener("click", () => bumpPdfZoom(-1)); }
       { const b = document.getElementById("pdfZoomIn"); if (b) b.addEventListener("click", () => bumpPdfZoom(1)); }
       { const b = document.getElementById("pdfZoomFit"); if (b) b.addEventListener("click", () => setPdfZoom(1)); }
-      // Tap a rendered page to step zoom (fit ↔ 1.6); toolbar −/+ for finer control
-      { const pv = document.getElementById("pdfPreviewPages"); if (pv) pv.addEventListener("click", e => {
-        if (!e.target.closest(".pdf-preview-canvas")) return;
-        setPdfZoom(_pdfZoom > 1.2 ? 1 : 1.6);
-      }); }
+      // Tap cycles fit → 1.6 → 2.5 → 3.2 → fit; pinch zooms the PDF only.
+      { const pv = document.getElementById("pdfPreviewPages"); if (pv) {
+        pv.addEventListener("click", e => {
+          if (!e.target.closest(".pdf-preview-canvas")) return;
+          cyclePdfZoomTap();
+        });
+        wirePdfPinchZoom(pv);
+      } }
       _pdfM.addEventListener("click", e => { if (e.target.hasAttribute("data-close-pdf")) closePdfPreview(); });
       _pdfM._wired = true;
     }
