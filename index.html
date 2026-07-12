@@ -3016,6 +3016,37 @@
   .cust-logo-btn:hover { text-decoration: underline; }
   .cust-logo-remove { color: #94a3b8; }
   .cust-logo-remove:hover { color: #fb7185; }
+  /* Settings → Crew roster cards */
+  .crew-list { display: flex; flex-direction: column; gap: 10px; max-width: 44rem; }
+  .crew-card { display: grid; grid-template-columns: auto 1fr; gap: 12px 14px; padding: 14px; border-radius: 14px; border: 1px solid rgba(51,65,85,0.6); background: rgba(15,23,42,0.35); }
+  [data-theme="light"] .crew-card { border-color: #e2e8f0; background: #f8fafc; }
+  .crew-card-avatar { position: relative; width: 56px; height: 56px; border-radius: 14px; overflow: hidden; flex-shrink: 0; background: rgba(181,143,74,0.14); border: 1px solid rgba(181,143,74,0.30); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .crew-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .crew-card-avatar .crew-av-initials { color: var(--gold-hi); font-weight: 800; font-size: 15px; letter-spacing: 0.02em; }
+  .crew-card-avatar .crew-av-hint { position: absolute; inset: auto 0 0 0; background: rgba(2,6,23,0.72); color: #e2e8f0; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; padding: 2px 0; opacity: 0; transition: opacity .15s; }
+  .crew-card-avatar:hover .crew-av-hint, .crew-card-avatar:focus-visible .crew-av-hint { opacity: 1; }
+  .crew-card-body { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .crew-card-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .crew-card-top .crew-name { flex: 1 1 140px; min-width: 0; }
+  .crew-card-top .crew-role { flex: 0 1 120px; }
+  .crew-card-rates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 480px) { .crew-card-rates { grid-template-columns: 1fr; } }
+  .crew-loaded { font-size: 11px; color: #94a3b8; }
+  .crew-loaded b { color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+  .crew-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .crew-active-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #cbd5e1; cursor: pointer; user-select: none; }
+  .crew-remove { font-size: 12px; font-weight: 600; color: #94a3b8; background: none; border: 0; cursor: pointer; padding: 4px 0; min-height: 44px; }
+  .crew-remove:hover { color: #fb7185; }
+  .crew-empty { padding: 18px 14px; border-radius: 14px; border: 1px dashed rgba(51,65,85,0.7); color: #94a3b8; font-size: 13px; max-width: 44rem; line-height: 1.45; }
+  .crew-summary-pill { display: inline-flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: #94a3b8; margin-top: 10px; }
+  .crew-summary-pill b { color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+  /* Setup wizard mini crew rows */
+  .setup-crew-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .setup-crew-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .setup-crew-row .setup-crew-name { flex: 1 1 140px; min-width: 0; }
+  .setup-crew-row .setup-crew-rate { width: 88px; }
+  .setup-crew-row .setup-crew-del { min-width: 44px; min-height: 44px; color: #94a3b8; }
+  .setup-crew-row .setup-crew-del:hover { color: #fb7185; }
   /* Mobile: settings sidebar collapses into a horizontal scroll strip so the
      content panel gets the full screen width instead of being crammed into a
      narrow column beside the rail. */
@@ -6631,19 +6662,16 @@
         </div>
       </div>
 
-      <!-- Step 3 — core rates -->
+      <!-- Step 3 — core rates / crew -->
       <div class="setup-step hidden" data-step="3">
-        <h2 class="text-lg font-black text-slate-100 tracking-tight">Your core rates</h2>
-        <p class="text-xs text-slate-500 mt-1">These two drive most of every quote. Set them if you know them — or leave them and update later.</p>
+        <h2 class="text-lg font-black text-slate-100 tracking-tight">Your crew &amp; markup</h2>
+        <p class="text-xs text-slate-500 mt-1">People on the job aren&apos;t always paid the same. Add each installer with their wage — or skip and use a flat rate later.</p>
         <div class="mt-4 space-y-4">
           <div>
-            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Crew pay rate</label>
-            <div class="flex items-center gap-2">
-              <span class="text-slate-400 text-sm">$</span>
-              <input id="setupLabor" type="number" step="1" min="0" inputmode="decimal" class="control rounded-xl px-4 py-3 w-32 text-sm text-slate-100" />
-              <span class="text-slate-400 text-sm">/ hr · per installer</span>
-            </div>
-            <p class="text-[10px] text-slate-600 mt-1">What you pay each crew member hourly. Crew size lives in Settings → Labor Model.</p>
+            <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Crew members</label>
+            <div id="setupCrewList" class="setup-crew-list"></div>
+            <button type="button" id="setupCrewAdd" class="mt-2 btn rounded-full px-3 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 min-h-[44px]">+ Add person</button>
+            <p class="text-[10px] text-slate-600 mt-2 leading-relaxed">Workers&apos; comp % and profile photos live in Settings → Rates → Crew. If you add nobody here, quotes keep using the flat crew size &times; pay rate.</p>
           </div>
           <div>
             <label class="text-[10px] uppercase tracking-[0.14em] text-slate-500 block mb-1">Markup</label>
@@ -8381,6 +8409,7 @@
           <div class="set-sub mb-5">Margins, taxes, labor, and what every material costs.</div>
           <div id="ratesLeafNav" class="rleaf-nav">
             <button type="button" class="rleaf-btn active" data-rleaf-btn="money" onclick="showRatesLeaf('money')">Money &amp; Tax</button>
+            <button type="button" class="rleaf-btn" data-rleaf-btn="crew" onclick="showRatesLeaf('crew')">Crew</button>
             <button type="button" class="rleaf-btn" data-rleaf-btn="labor" onclick="showRatesLeaf('labor')">Labor</button>
             <button type="button" class="rleaf-btn" data-rleaf-btn="materials" onclick="showRatesLeaf('materials')">Window Rates</button>
             <button type="button" class="rleaf-btn" data-rleaf-btn="doors" onclick="showRatesLeaf('doors')">Doors</button>
@@ -8455,10 +8484,32 @@
               </details>
             </section>
 
-            <!-- ═══ Section: Crew Pay & Labor Hours (Model 4) ═══ -->
-            <!-- ═══ Section: Labor — all labor cost lives here: the per-LF
-                 billing rate (rendered into #adminLaborRateBody by the
-                 renderer) PLUS the crew-pay / hours model. ═══ -->
+            <!-- ═══ Section: Crew roster (per-person wages + workers' comp) ═══ -->
+            <section id="rates-section-crew" data-rleaf="crew" style="display:none" data-rates-section data-nav-label="Crew">
+            <details class="set-collapse group" id="sc-rates-crew" data-collapse-key="rates-crew" data-collapse-open>
+            <summary class="set-collapse-summary">
+              <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+              <span class="set-collapse-title">Crew</span>
+              <span class="group-open:hidden set-collapse-sub" data-collapse-summary>People, pay rates &amp; workers&apos; comp</span>
+            </summary>
+            <div class="set-collapse-body">
+            <div class="set-card">
+              <div class="flex items-center justify-between gap-3">
+                <div class="set-card-head">Crew roster</div>
+                <span class="text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold whitespace-nowrap">Internal</span>
+              </div>
+              <div class="set-card-desc">Add each person with their wage and workers&apos; comp %. Loaded rate = wage &times; (1 + WC%). Active members sum into the quote&apos;s labor cost. Photos stay on-device with your settings.</div>
+              <div id="crewEditorBody" class="crew-list mt-3"></div>
+              <div id="crewEmptyHint" class="crew-empty mt-3 hidden">No crew members yet — you&apos;re on the flat rate in Labor (crew size &times; pay $/hr). Add people here when wages differ, or to include workers&apos; comp.</div>
+              <button type="button" id="crewAddBtn" class="mt-3 btn rounded-full px-4 py-2 text-xs font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 min-h-[44px]">+ Add crew member</button>
+              <div id="crewCostSummary" class="crew-summary-pill" aria-live="polite"></div>
+              <p class="text-[11px] text-slate-500 mt-3 leading-relaxed">Workers&apos; comp is your employer premium as a % of wages (varies by class code &amp; carrier — often mid-single to low-double digits for window install). Verify with your agent; this is for quoting accuracy, not payroll filing.</p>
+            </div>
+            </div><!-- /set-collapse-body -->
+            </details>
+            </section>
+
+            <!-- ═══ Section: Labor — billing rate + hours model (+ flat crew fallback) ═══ -->
             <section id="rates-section-labor" data-rleaf="labor" style="display:none" data-rates-section data-nav-label="Labor">
             <details class="set-collapse group" id="sc-rates-labor" data-collapse-key="rates-labor" data-collapse-open>
             <summary class="set-collapse-summary">
@@ -8479,16 +8530,19 @@
               <span class="text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold whitespace-nowrap">Internal</span>
             </div>
             <div class="set-card-desc">Labor cost = crew-hours &times; what the crew costs/hr — marked up by your job margin like materials.</div>
+            <div id="laborRosterBanner" class="hidden mb-3 rounded-xl border border-[#b58f4a]/35 bg-[#b58f4a]/8 px-3 py-2.5 text-[12px] text-slate-300 leading-snug">
+              Using your <button type="button" id="laborJumpToCrew" class="btn text-[#c9a558] font-bold underline underline-offset-2">crew roster</button> for pay. Flat size/rate below are ignored while the roster has active members.
+            </div>
             <div class="set-grid cols-2">
-              <div class="set-field">
+              <div class="set-field" id="flatCrewSizeField">
                 <label class="set-label" for="adminCrewSize">Crew size</label>
                 <input id="adminCrewSize" type="text" inputmode="numeric" autocomplete="off" placeholder="2" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">How many people on the crew.</span>
+                <span class="set-hint">How many people on the crew (flat model).</span>
               </div>
-              <div class="set-field">
+              <div class="set-field" id="flatCrewPayField">
                 <label class="set-label" for="adminCrewPayRatePerHr">Pay $/hr each</label>
                 <input id="adminCrewPayRatePerHr" type="text" inputmode="decimal" autocomplete="off" placeholder="30" class="control rounded-lg px-3 py-2 w-full text-slate-100" />
-                <span class="set-hint">What you pay each crew member per hour.</span>
+                <span class="set-hint">Same rate for everyone — use Crew when rates differ.</span>
               </div>
               <div class="set-field">
                 <label class="set-label" for="adminSetupMinPerOpening">Setup min / opening</label>
@@ -9282,8 +9336,8 @@ const DEFAULT_DATA = {
       // rate (costItems.labor.unitPrice) → ~20% labor margin. The user tunes
       // these to their real crew in Settings; the Labor Detail card flags red
       // if their numbers ever invert.
-      crewSize: 2,              // 2-person residential install crew
-      crewPayRatePerHr: 30,     // PER PERSON per hour (total payout = size × rate × hrs)
+      crewSize: 2,              // 2-person residential install crew (legacy flat model)
+      crewPayRatePerHr: 30,     // PER PERSON per hour — used only when crew roster is empty
       showLaborHoursInPDF: false,  // off by default — match existing customer PDF
       // Repeating-floors realism (PLACEHOLDER — tune in Settings). Efficiency:
       // each identical repeat floor costs this fraction of full install labor
@@ -9293,6 +9347,15 @@ const DEFAULT_DATA = {
       repeatFloorMinFactor: 0.70,
       heightPremiumPerStoryAbove3: 0.05,
       heightPremiumCap: 2.0,
+    },
+    // Per-person crew roster (Settings → Rates → Crew). When at least one
+    // member is active, labor cost uses Σ(loaded rates) instead of the flat
+    // crewSize × crewPayRatePerHr model above. Workers' comp is modeled as a
+    // % of wages (carrier premium) so loadedRate = wage × (1 + wc%/100).
+    crew: {
+      members: [],
+      // Default WC % suggested for new rows — tune per person / class code.
+      defaultWorkersCompPct: 10,
     },
     brand: {
       companyName: "Prime Window & Door",
@@ -10053,6 +10116,99 @@ const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1
   // deleted all jobs elsewhere (cloud authoritatively empty)".
   jobsSyncedOnce: "wcc.jobsSyncedOnce.v1" };
 
+/* ============================================================
+   CREW ROSTER — per-person wages + workers' comp burden
+   ------------------------------------------------------------
+   Flat model (legacy): crewCostPerHr = crewSize × crewPayRatePerHr
+   Roster model:        crewCostPerHr = Σ loadedRate for active members
+     loadedRate = hourlyRate × (1 + workersCompPct / 100)
+   Roster wins whenever ≥1 active member exists; otherwise fall back.
+   ============================================================ */
+const CREW_ROLES = ["Lead", "Installer", "Helper", "Apprentice", "Other"];
+
+function newCrewMemberId() {
+  return "cm_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+function normalizeCrewMember(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const hourlyRate = Math.max(0, Number(raw.hourlyRate) || 0);
+  let workersCompPct = Number(raw.workersCompPct);
+  if (isNaN(workersCompPct) || workersCompPct < 0) workersCompPct = 0;
+  if (workersCompPct > 100) workersCompPct = 100;
+  return {
+    id: String(raw.id || newCrewMemberId()),
+    name: String(raw.name || "").trim(),
+    role: String(raw.role || "Installer").trim() || "Installer",
+    avatar: typeof raw.avatar === "string" ? raw.avatar : "",
+    hourlyRate,
+    workersCompPct,
+    active: raw.active !== false,
+  };
+}
+
+function crewMemberLoadedRate(m) {
+  const wage = Math.max(0, Number(m && m.hourlyRate) || 0);
+  const wc = Math.max(0, Number(m && m.workersCompPct) || 0);
+  return wage * (1 + wc / 100);
+}
+
+function getCrewRoster() {
+  const c = (DATA.config && DATA.config.crew) || {};
+  const members = Array.isArray(c.members) ? c.members.map(normalizeCrewMember).filter(Boolean) : [];
+  return { members, defaultWorkersCompPct: c.defaultWorkersCompPct ?? 10 };
+}
+
+/** Resolve the $/hr the crew costs — roster if active members exist, else flat. */
+function resolveCrewCost() {
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+  const { members } = getCrewRoster();
+  const active = members.filter(m => m.active);
+  if (active.length > 0) {
+    let wageCostPerHr = 0;
+    let wcCostPerHr = 0;
+    const rows = active.map(m => {
+      const wage = m.hourlyRate;
+      const loaded = crewMemberLoadedRate(m);
+      const wcAmt = loaded - wage;
+      wageCostPerHr += wage;
+      wcCostPerHr += wcAmt;
+      return { ...m, loadedRate: loaded, wcCostPerHr: wcAmt };
+    });
+    const crewCostPerHr = wageCostPerHr + wcCostPerHr;
+    const crewSize = active.length;
+    const crewPayPerHrEach = crewSize ? (wageCostPerHr / crewSize) : 0;
+    return {
+      mode: "roster",
+      crewSize,
+      crewPayPerHrEach,
+      crewCostPerHr,
+      wageCostPerHr,
+      wcCostPerHr,
+      members: rows,
+    };
+  }
+  const crewSize = Math.max(1, LM.crewSize ?? 2);
+  const crewPayPerHrEach = LM.crewPayRatePerHr ?? 30;
+  const crewCostPerHr = crewSize * crewPayPerHrEach;
+  return {
+    mode: "flat",
+    crewSize,
+    crewPayPerHrEach,
+    crewCostPerHr,
+    wageCostPerHr: crewCostPerHr,
+    wcCostPerHr: 0,
+    members: [],
+  };
+}
+
+function crewInitials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function loadData() {
   try {
     const raw = localStorage.getItem(LS_KEYS.data);
@@ -10123,6 +10279,12 @@ function loadData() {
     if (mt.defaultWidth == null) mt.defaultWidth = dt.defaultWidth;
     if (mt.defaultLength == null) mt.defaultLength = dt.defaultLength;
     if (mt.defaultShares == null || typeof mt.defaultShares !== "object") mt.defaultShares = clone(dt.defaultShares);
+    // Crew roster — ensure shape for accounts saved before per-person crew.
+    const dc = DEFAULT_DATA.config.crew || { members: [], defaultWorkersCompPct: 10 };
+    const mc = merged.config.crew = merged.config.crew || {};
+    if (!Array.isArray(mc.members)) mc.members = [];
+    if (mc.defaultWorkersCompPct == null) mc.defaultWorkersCompPct = dc.defaultWorkersCompPct ?? 10;
+    mc.members = mc.members.map(normalizeCrewMember).filter(Boolean);
     return merged;
   } catch { return clone(DEFAULT_DATA); }
 }
@@ -10520,9 +10682,10 @@ function estimateLaborBreakdown(ctx) {
   const LM = (DATA.config && DATA.config.laborModel) || {};
   const setupMin = LM.setupMinPerOpening ?? 45;
   const mobHrs = LM.mobilizationHours ?? 2;
-  const crewSize = Math.max(1, LM.crewSize ?? 2);
-  const crewPayPerHrEach = LM.crewPayRatePerHr ?? 30;
-  const crewCostPerHr = crewSize * crewPayPerHrEach;
+  const crew = resolveCrewCost();
+  const crewSize = crew.crewSize;
+  const crewPayPerHrEach = crew.crewPayPerHrEach;
+  const crewCostPerHr = crew.crewCostPerHr;
 
   // With a ctx (passed by calculate() for the whole building) use its already-
   // aggregated counts / footage / door results; without one (the Labor Detail
@@ -10580,6 +10743,8 @@ function estimateLaborBreakdown(ctx) {
     mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
     sgdInstallHrs, bifoldInstallHrs, inspectionHrs, totalHrs,
     crewSize, crewPayPerHrEach, crewCostPerHr, laborCost, breakdown,
+    crewMode: crew.mode, wageCostPerHr: crew.wageCostPerHr, wcCostPerHr: crew.wcCostPerHr,
+    crewMembers: crew.members,
   };
 }
 
@@ -10947,9 +11112,9 @@ function computeSwingDoors(takeoff = STATE) {
   const dMat = dR.materialsBase || 0;
   // Door install time bills through the unified labor line (via laborMinutes);
   // this laborCost is only for the rail's door-subtotal chip, so price it at the
-  // real crew cost (crewSize × crew pay), matching the quote — not labor.unitPrice.
-  const _LM = (DATA.config && DATA.config.laborModel) || {};
-  const crewCostPerHr = Math.max(1, _LM.crewSize ?? 2) * (_LM.crewPayRatePerHr ?? 30);
+  // real crew cost (crewSize × crew pay, or roster Σ loaded rates), matching the quote.
+  const crewResolved = resolveCrewCost();
+  const crewCostPerHr = crewResolved.crewCostPerHr;
   const laborMinutes = single * sLaborMin + double * dLaborMin;
   const laborCost = (laborMinutes / 60) * crewCostPerHr * getImpactLaborMultiplier();
   const materialsCost = single * sMat + double * dMat;
@@ -12538,8 +12703,11 @@ function render() {
           closeFL?.();
           openAdmin();
           showSettingsTab("rates");
+          const useCrew = resolveCrewCost().mode === "roster";
+          try { showRatesLeaf(useCrew ? "crew" : "labor"); } catch (_) {}
           setTimeout(() => {
-            const target = document.getElementById("rates-section-labor") || document.getElementById("adminCrewSize");
+            const target = document.getElementById(useCrew ? "rates-section-crew" : "rates-section-labor")
+              || document.getElementById("adminCrewSize");
             if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
           }, 150);
         });
@@ -12550,11 +12718,30 @@ function render() {
         `<div class="px-5 sm:px-6 py-2 flex items-center justify-between text-[12px]">
            <div class="text-slate-300">${escHtml(b.label)}</div>
            <div class="text-slate-400 tabular-nums">${b.hrs.toFixed(1)} hr</div>
-         </div>`).join("");
+         </div>`).join("") + ((lb.crewMode === "roster" && lb.crewMembers && lb.crewMembers.length)
+        ? `<div class="px-5 sm:px-6 py-2.5 bg-slate-950/30 space-y-1.5">
+             <div class="text-[9px] uppercase tracking-[0.14em] text-slate-500 mb-1">Crew cost / hr</div>
+             ${lb.crewMembers.map(m =>
+               `<div class="flex items-center justify-between text-[11px] gap-2">
+                  <div class="text-slate-400 truncate">${escHtml(m.name || m.role || "Installer")}${m.workersCompPct > 0 ? ` <span class="text-slate-600">· WC ${m.workersCompPct}%</span>` : ""}</div>
+                  <div class="text-slate-300 tabular-nums shrink-0">${formatMoney(m.loadedRate)}/hr</div>
+                </div>`).join("")}
+           </div>`
+        : "");
       document.getElementById("laborCostTotal").textContent = formatMoney(lb.laborCost);
       { const _ls = document.getElementById("laborSummary"); if (_ls) _ls.innerHTML = `<span>Crew Hours: ${lb.totalHrs.toFixed(1)}</span><span class="rcard-sum-sub">Total Crew Cost: ${formatMoney(lb.laborCost)}</span>`; }
-      document.getElementById("laborCostRate").textContent =
-        lb.crewSize + " × " + formatMoney(lb.crewPayPerHrEach) + " = " + formatMoney(lb.crewCostPerHr) + "/hr";
+      const rateEl = document.getElementById("laborCostRate");
+      if (rateEl) {
+        if (lb.crewMode === "roster") {
+          const wcBit = (lb.wcCostPerHr > 0.005)
+            ? ` · wages ${formatMoney(lb.wageCostPerHr)} + WC ${formatMoney(lb.wcCostPerHr)}`
+            : "";
+          rateEl.textContent = lb.crewSize + " people · " + formatMoney(lb.crewCostPerHr) + "/hr loaded" + wcBit;
+        } else {
+          rateEl.textContent =
+            lb.crewSize + " × " + formatMoney(lb.crewPayPerHrEach) + " = " + formatMoney(lb.crewCostPerHr) + "/hr";
+        }
+      }
     } else {
       laborCard.classList.add("hidden");
     }
@@ -22382,6 +22569,8 @@ function buildAdminUI() {
   { const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
   updateEffReadout();
   { const effIn = document.getElementById("adminRepeatFloorEff"); if (effIn && !effIn._effWired) { effIn.addEventListener("input", updateEffReadout); effIn._effWired = true; } }
+  renderCrewEditor();
+  wireCrewEditorOnce();
   updateCrewCostReadout();
 
   // Swing doors — populate the editor with current rates
@@ -22671,8 +22860,16 @@ function buildSettingsSearchIndex() {
   // ---- Rates leaves + sections (ids are stable rates-section-* anchors) ----
   add({ label: "Money & Tax", kind: "Leaf", path: "Rates & Pricing", keywords: "markup margin tax materials surtax county profit",
     go: () => jump("rates", { ratesLeaf: "money", targetId: "rates-section-pricing", block: "start" }) });
+  add({ label: "Crew", kind: "Leaf", path: "Rates & Pricing", keywords: "crew roster installer wage workers comp burden photo avatar pay rate employee",
+    go: () => jump("rates", { ratesLeaf: "crew", targetId: "rates-section-crew", block: "start" }) });
   add({ label: "Labor", kind: "Leaf", path: "Rates & Pricing", keywords: "labor rate bill install hourly impact crew",
     go: () => jump("rates", { ratesLeaf: "labor", targetId: "rates-section-labor", block: "start" }) });
+  add({ label: "Workers' compensation", kind: "Field", path: "Rates › Crew", keywords: "wc workers comp burden insurance premium",
+    go: () => jump("rates", { ratesLeaf: "crew", targetId: "rates-section-crew", block: "start" }) });
+  add({ label: "Crew size", kind: "Field", path: "Rates › Labor", keywords: "people headcount flat",
+    go: () => jump("rates", { ratesLeaf: "labor", targetId: "adminCrewSize", pulse: "highlight" }) });
+  add({ label: "Crew pay $/hr", kind: "Field", path: "Rates › Labor", keywords: "wage hourly flat rate",
+    go: () => jump("rates", { ratesLeaf: "labor", targetId: "adminCrewPayRatePerHr", pulse: "highlight" }) });
   add({ label: "Window Rates", kind: "Leaf", path: "Rates & Pricing", keywords: "materials consumption variants brand price",
     go: () => jump("rates", { ratesLeaf: "materials", targetId: "rates-section-materials", block: "start" }) });
   add({ label: "Doors", kind: "Leaf", path: "Rates & Pricing", keywords: "swing sliding bifold glass door",
@@ -23100,6 +23297,321 @@ function variantRowHTML(catId, unit, v, isDefault) {
   </div>`;
 }
 
+function updateCrewCostReadout() {
+  const el = document.getElementById("adminCrewCostReadout");
+  if (!el) return;
+  // Prefer live roster from the editor DOM when Settings is open; else DATA.
+  const fromDom = readCrewCardsFromDom(false);
+  const snap = fromDom || resolveCrewCost();
+  if (snap.mode === "roster") {
+    const wc = snap.wcCostPerHr > 0.005 ? ` · WC $${snap.wcCostPerHr.toFixed(0)}` : "";
+    el.textContent = `$${snap.crewCostPerHr.toFixed(0)}/hr loaded  (${snap.crewSize} people · wages $${snap.wageCostPerHr.toFixed(0)}${wc})`;
+  } else {
+    const size = parseInt(document.getElementById("adminCrewSize")?.value, 10) || 0;
+    const pay = parseFloat(document.getElementById("adminCrewPayRatePerHr")?.value) || 0;
+    const total = size * pay;
+    el.textContent = size && pay
+      ? `$${total.toFixed(0)}/hr  (${size} × $${pay.toFixed(0)} · flat)`
+      : "—";
+  }
+  updateLaborRosterBanner();
+  updateCrewEditorSummary();
+}
+
+function updateLaborRosterBanner() {
+  const banner = document.getElementById("laborRosterBanner");
+  if (!banner) return;
+  const fromDom = document.getElementById("crewEditorBody") ? readCrewCardsFromDom(false) : null;
+  const roster = (fromDom || resolveCrewCost()).mode === "roster";
+  banner.classList.toggle("hidden", !roster);
+  ["adminCrewSize", "adminCrewPayRatePerHr"].forEach(id => {
+    const inp = document.getElementById(id);
+    if (inp) {
+      inp.disabled = roster;
+      inp.classList.toggle("opacity-50", roster);
+    }
+  });
+}
+
+function updateCrewEditorSummary() {
+  const el = document.getElementById("crewCostSummary");
+  const empty = document.getElementById("crewEmptyHint");
+  if (!el) return;
+  const fromDom = document.getElementById("crewEditorBody") ? readCrewCardsFromDom(false) : null;
+  const snap = fromDom || resolveCrewCost();
+  const memberCount = document.getElementById("crewEditorBody")
+    ? document.querySelectorAll("#crewEditorBody .crew-card").length
+    : (getCrewRoster().members || []).length;
+  if (snap.mode === "roster") {
+    el.innerHTML = `<span>Active <b>${snap.crewSize}</b></span><span>Wages <b>$${snap.wageCostPerHr.toFixed(2)}/hr</b></span><span>Workers&apos; comp <b>$${snap.wcCostPerHr.toFixed(2)}/hr</b></span><span>Loaded crew cost <b>$${snap.crewCostPerHr.toFixed(2)}/hr</b></span>`;
+    if (empty) empty.classList.add("hidden");
+  } else {
+    el.innerHTML = `<span>Flat model · <b>$${snap.crewCostPerHr.toFixed(0)}/hr</b> (${snap.crewSize} × $${snap.crewPayPerHrEach.toFixed(0)})</span>`;
+    if (empty) empty.classList.toggle("hidden", memberCount > 0);
+  }
+}
+
+function crewCardHTML(m) {
+  m = normalizeCrewMember(m) || normalizeCrewMember({
+    id: newCrewMemberId(),
+    name: "",
+    role: "Installer",
+    hourlyRate: 30,
+    workersCompPct: (DATA.config.crew && DATA.config.crew.defaultWorkersCompPct) ?? 10,
+    active: true,
+  });
+  const loaded = crewMemberLoadedRate(m);
+  const roleOpts = CREW_ROLES.map(r =>
+    `<option value="${escHtml(r)}"${m.role === r ? " selected" : ""}>${escHtml(r)}</option>`).join("");
+  const avInner = m.avatar
+    ? `<img src="${m.avatar}" alt="" />`
+    : `<span class="crew-av-initials">${escHtml(crewInitials(m.name))}</span>`;
+  return `<div class="crew-card" data-crew-id="${escHtml(m.id)}">
+    <button type="button" class="crew-card-avatar" data-crew-avatar-btn aria-label="Upload photo for ${escHtml(m.name || "crew member")}">
+      ${avInner}
+      <span class="crew-av-hint">Photo</span>
+    </button>
+    <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" data-crew-avatar-input />
+    <input type="hidden" data-crew-avatar-data value="" />
+    <div class="crew-card-body">
+      <div class="crew-card-top">
+        <input type="text" class="crew-name control rounded-lg px-3 py-2 text-sm text-slate-100" data-crew-name value="${escHtml(m.name)}" placeholder="Name" autocomplete="name" />
+        <select class="crew-role control rounded-lg px-2 py-2 text-sm text-slate-100" data-crew-role aria-label="Role">${roleOpts}</select>
+      </div>
+      <div class="crew-card-rates">
+        <div class="set-field">
+          <label class="set-label">Wage $/hr</label>
+          <input type="text" inputmode="decimal" class="control rounded-lg px-3 py-2 w-full text-slate-100" data-crew-rate value="${m.hourlyRate}" placeholder="30" />
+        </div>
+        <div class="set-field">
+          <label class="set-label">Workers&apos; comp %</label>
+          <input type="text" inputmode="decimal" class="control rounded-lg px-3 py-2 w-full text-slate-100" data-crew-wc value="${m.workersCompPct}" placeholder="10" />
+        </div>
+      </div>
+      <div class="crew-loaded">Loaded cost <b data-crew-loaded>$${loaded.toFixed(2)}/hr</b> <span class="text-slate-600">(wage + WC)</span></div>
+      <div class="crew-card-foot">
+        <label class="crew-active-label"><input type="checkbox" data-crew-active class="rounded border-slate-700 bg-slate-900 text-[#c9a558] focus:ring-[#b58f4a]" ${m.active ? "checked" : ""} /> Include in quote crew</label>
+        <button type="button" class="crew-remove" data-crew-remove>Remove</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCrewEditor() {
+  const body = document.getElementById("crewEditorBody");
+  if (!body) return;
+  const { members } = getCrewRoster();
+  // Preserve in-flight avatar data URLs already sitting in hidden inputs if we
+  // re-render mid-edit — prefer DATA (source of truth after commits).
+  body.innerHTML = members.map(crewCardHTML).join("");
+  // Stash avatars into hidden fields so readCrewCardsFromDom can round-trip
+  // without re-encoding from <img>.
+  body.querySelectorAll(".crew-card").forEach(card => {
+    const id = card.dataset.crewId;
+    const m = members.find(x => x.id === id);
+    const hid = card.querySelector("[data-crew-avatar-data]");
+    if (hid && m) hid.value = m.avatar || "";
+  });
+  const empty = document.getElementById("crewEmptyHint");
+  if (empty) empty.classList.toggle("hidden", members.length > 0);
+  updateCrewEditorSummary();
+  updateLaborRosterBanner();
+}
+
+/** Read crew cards from Settings DOM. Returns resolveCrewCost-shaped object, or null if no editor. */
+function readCrewCardsFromDom(commitToData) {
+  const body = document.getElementById("crewEditorBody");
+  if (!body) return null;
+  const members = [];
+  body.querySelectorAll(".crew-card").forEach(card => {
+    const name = (card.querySelector("[data-crew-name]")?.value || "").trim();
+    const role = (card.querySelector("[data-crew-role]")?.value || "Installer").trim();
+    const hourlyRate = parseFloat(card.querySelector("[data-crew-rate]")?.value);
+    const workersCompPct = parseFloat(card.querySelector("[data-crew-wc]")?.value);
+    const active = !!card.querySelector("[data-crew-active]")?.checked;
+    const avatar = card.querySelector("[data-crew-avatar-data]")?.value || "";
+    const id = card.dataset.crewId || newCrewMemberId();
+    const m = normalizeCrewMember({
+      id, name, role, avatar, active,
+      hourlyRate: isNaN(hourlyRate) ? 0 : hourlyRate,
+      workersCompPct: isNaN(workersCompPct) ? 0 : workersCompPct,
+    });
+    if (m) members.push(m);
+  });
+  if (commitToData) {
+    DATA.config.crew = DATA.config.crew || { members: [], defaultWorkersCompPct: 10 };
+    DATA.config.crew.members = members;
+  }
+  // Temporarily resolve against the DOM-read members without requiring save.
+  const prev = DATA.config.crew;
+  DATA.config.crew = { ...(prev || {}), members };
+  const snap = resolveCrewCost();
+  if (!commitToData) DATA.config.crew = prev;
+  return snap;
+}
+
+function refreshCrewCardLoaded(card) {
+  if (!card) return;
+  const rate = parseFloat(card.querySelector("[data-crew-rate]")?.value) || 0;
+  const wc = parseFloat(card.querySelector("[data-crew-wc]")?.value) || 0;
+  const loaded = rate * (1 + Math.max(0, wc) / 100);
+  const el = card.querySelector("[data-crew-loaded]");
+  if (el) el.textContent = "$" + loaded.toFixed(2) + "/hr";
+  const name = (card.querySelector("[data-crew-name]")?.value || "").trim();
+  const initials = card.querySelector(".crew-av-initials");
+  if (initials) initials.textContent = crewInitials(name);
+}
+
+function wireCrewEditorOnce() {
+  const body = document.getElementById("crewEditorBody");
+  if (!body || body._crewWired) return;
+  body._crewWired = true;
+  body.addEventListener("input", e => {
+    const card = e.target.closest(".crew-card");
+    if (card) refreshCrewCardLoaded(card);
+    updateCrewCostReadout();
+  });
+  body.addEventListener("change", e => {
+    const card = e.target.closest(".crew-card");
+    if (card) refreshCrewCardLoaded(card);
+    updateCrewCostReadout();
+  });
+  body.addEventListener("click", async e => {
+    const card = e.target.closest(".crew-card");
+    if (!card) return;
+    if (e.target.closest("[data-crew-remove]")) {
+      const name = (card.querySelector("[data-crew-name]")?.value || "").trim() || "this crew member";
+      if (!confirm(`Remove ${name} from the crew roster?`)) return;
+      card.remove();
+      // Commit immediately so autosave + quote stay in sync
+      readCrewCardsFromDom(true);
+      updateCrewCostReadout();
+      try { saveData(DATA); render(); } catch (_) {}
+      const empty = document.getElementById("crewEmptyHint");
+      if (empty) empty.classList.toggle("hidden", body.querySelectorAll(".crew-card").length > 0);
+      return;
+    }
+    if (e.target.closest("[data-crew-avatar-btn]")) {
+      const input = card.querySelector("[data-crew-avatar-input]");
+      if (input) input.click();
+    }
+  });
+  body.addEventListener("change", async e => {
+    const input = e.target.closest("[data-crew-avatar-input]");
+    if (!input) return;
+    const card = input.closest(".crew-card");
+    const file = input.files && input.files[0];
+    input.value = "";
+    if (!file || !card) return;
+    try {
+      const dataUrl = await resizeImageToDataURL(file, 256);
+      const hid = card.querySelector("[data-crew-avatar-data]");
+      if (hid) hid.value = dataUrl;
+      const btn = card.querySelector("[data-crew-avatar-btn]");
+      if (btn) btn.innerHTML = `<img src="${dataUrl}" alt="" /><span class="crew-av-hint">Photo</span>`;
+      readCrewCardsFromDom(true);
+      try { saveData(DATA); } catch (_) {}
+    } catch (_) { toast("Couldn't load that photo"); }
+  });
+}
+
+function addCrewMemberRow(seed) {
+  DATA.config.crew = DATA.config.crew || { members: [], defaultWorkersCompPct: 10 };
+  // Pull any in-progress DOM edits first
+  readCrewCardsFromDom(true);
+  const defWc = DATA.config.crew.defaultWorkersCompPct ?? 10;
+  const flatPay = (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30;
+  const m = normalizeCrewMember(seed || {
+    id: newCrewMemberId(),
+    name: "",
+    role: "Installer",
+    hourlyRate: flatPay,
+    workersCompPct: defWc,
+    active: true,
+  });
+  DATA.config.crew.members.push(m);
+  renderCrewEditor();
+  const body = document.getElementById("crewEditorBody");
+  const last = body && body.querySelector(".crew-card:last-child [data-crew-name]");
+  if (last) last.focus();
+}
+
+// ── Setup wizard mini crew list ─────────────────────────────────────────────
+function setupCrewRowHTML(m) {
+  m = m || { id: newCrewMemberId(), name: "", hourlyRate: 30 };
+  return `<div class="setup-crew-row" data-setup-crew-id="${escHtml(m.id)}">
+    <input type="text" class="setup-crew-name control rounded-xl px-3 py-2.5 text-sm text-slate-100" placeholder="Name" value="${escHtml(m.name || "")}" autocomplete="name" />
+    <div class="flex items-center gap-1">
+      <span class="text-slate-500 text-sm">$</span>
+      <input type="number" step="1" min="0" inputmode="decimal" class="setup-crew-rate control rounded-xl px-3 py-2.5 text-sm text-slate-100" placeholder="30" value="${m.hourlyRate != null ? m.hourlyRate : 30}" />
+      <span class="text-slate-500 text-xs">/hr</span>
+    </div>
+    <button type="button" class="setup-crew-del btn px-2" data-setup-crew-del aria-label="Remove">×</button>
+  </div>`;
+}
+
+function renderSetupCrewList(members) {
+  const list = document.getElementById("setupCrewList");
+  if (!list) return;
+  const rows = (members && members.length) ? members : [];
+  list.innerHTML = rows.map(setupCrewRowHTML).join("");
+  if (!rows.length) {
+    // Start with one empty row so the wizard isn't a blank wall
+    list.innerHTML = setupCrewRowHTML({ id: newCrewMemberId(), name: "", hourlyRate: (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30 });
+  }
+}
+
+function readSetupCrewList() {
+  const list = document.getElementById("setupCrewList");
+  if (!list) return [];
+  const defWc = (DATA.config.crew && DATA.config.crew.defaultWorkersCompPct) ?? 10;
+  const out = [];
+  list.querySelectorAll(".setup-crew-row").forEach(row => {
+    const name = (row.querySelector(".setup-crew-name")?.value || "").trim();
+    const hourlyRate = parseFloat(row.querySelector(".setup-crew-rate")?.value);
+    if (!name && (isNaN(hourlyRate) || hourlyRate <= 0)) return; // skip blank rows
+    out.push(normalizeCrewMember({
+      id: row.dataset.setupCrewId || newCrewMemberId(),
+      name: name || "Installer",
+      role: "Installer",
+      hourlyRate: isNaN(hourlyRate) ? 30 : hourlyRate,
+      workersCompPct: defWc,
+      active: true,
+    }));
+  });
+  return out.filter(Boolean);
+}
+
+function wireSetupCrewOnce() {
+  const list = document.getElementById("setupCrewList");
+  const addBtn = document.getElementById("setupCrewAdd");
+  if (addBtn && !addBtn._wired) {
+    addBtn._wired = true;
+    addBtn.addEventListener("click", () => {
+      if (!list) return;
+      list.insertAdjacentHTML("beforeend", setupCrewRowHTML({
+        id: newCrewMemberId(),
+        name: "",
+        hourlyRate: (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30,
+      }));
+      const last = list.querySelector(".setup-crew-row:last-child .setup-crew-name");
+      if (last) last.focus();
+    });
+  }
+  if (list && !list._wired) {
+    list._wired = true;
+    list.addEventListener("click", e => {
+      const del = e.target.closest("[data-setup-crew-del]");
+      if (!del) return;
+      const row = del.closest(".setup-crew-row");
+      if (row) row.remove();
+      if (!list.querySelector(".setup-crew-row")) {
+        list.innerHTML = setupCrewRowHTML({ id: newCrewMemberId(), name: "", hourlyRate: 30 });
+      }
+    });
+  }
+}
+
 // Live "crew costs you $X/hr" readout in the Labor settings (size × pay).
 // Live example under the efficiency % — makes the abstract knob tangible:
 // "10 identical floors price like ~8.7 floors of install labor".
@@ -23112,17 +23624,6 @@ function updateEffReadout() {
   if (isNaN(pct)) pct = (LM.repeatFloorEfficiency ?? 0.85) * 100;
   const eff = Math.min(1, Math.max(LM.repeatFloorMinFactor ?? 0.70, pct / 100));
   el.textContent = "~" + (Math.round((1 + 9 * eff) * 10) / 10);
-}
-
-function updateCrewCostReadout() {
-  const el = document.getElementById("adminCrewCostReadout");
-  if (!el) return;
-  const size = parseInt(document.getElementById("adminCrewSize")?.value, 10) || 0;
-  const pay = parseFloat(document.getElementById("adminCrewPayRatePerHr")?.value) || 0;
-  const total = size * pay;
-  el.textContent = size && pay
-    ? `$${total.toFixed(0)}/hr  (${size} × $${pay.toFixed(0)})`
-    : "—";
 }
 
 // Reads the entire admin form into DATA and persists. Every field is range/NaN
@@ -23168,6 +23669,9 @@ function commitAdmin() {
       DATA.config.jobDefaults.manufacturer = DATA.manufacturers[0];
     }
   }
+
+  // Crew roster (per-person wages + workers' comp)
+  readCrewCardsFromDom(true);
   // Job defaults
   if (!DATA.config.jobDefaults) DATA.config.jobDefaults = {};
   DATA.config.jobDefaults.manufacturer = document.getElementById("defaultMfg").value;
@@ -23412,7 +23916,7 @@ function wireSettingsAutosave() {
 }
 
 function restoreDefaults() {
-  if (!confirm("Restore default rates?\n\nThis also resets your brand info, manufacturers, labor model, tax, and any custom FL approval screw patterns. Your subscription/plan and saved jobs are kept.")) return;
+  if (!confirm("Restore default rates?\n\nThis also resets your brand info, manufacturers, crew roster, labor model, tax, and any custom FL approval screw patterns. Your subscription/plan and saved jobs are kept.")) return;
   // Entitlements (plan, trial clock, usage) live in the synced profile blob —
   // never reset them via a rates restore or a paying user drops back to trial.
   const ent = (DATA && DATA.config && DATA.config.entitlements) ? clone(DATA.config.entitlements) : null;
@@ -28499,9 +29003,11 @@ function showSetupStep(n) {
 
 function showSetupWizard() {
   try { closeDashboard(); } catch (_) {}   // ONBD-3: setupScreen is z-72, below the dashboard (z-74)
-  document.getElementById("setupLabor").value = (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30;
   document.getElementById("setupMargin").value = DATA.config.defaultMargin ?? 35;
   document.getElementById("setupMfrBody").dataset.filled = "";
+  const existing = (DATA.config.crew && Array.isArray(DATA.config.crew.members)) ? DATA.config.crew.members : [];
+  renderSetupCrewList(existing);
+  wireSetupCrewOnce();
   showSetupStep(1);
   const s = document.getElementById("setupScreen");
   s.classList.remove("hidden");
@@ -28526,14 +29032,21 @@ function setupBack() {
 // viaSkip = they bailed — leaves ratesCustomized false so the demo banner shows.
 function completeSetup(viaSkip) {
   const _ratesBefore = _pricingSignature();
-  const labor = parseFloat(document.getElementById("setupLabor").value);
   const margin = parseFloat(document.getElementById("setupMargin").value);
-  // Write to the crew-pay rate that actually drives the quote's labor line
-  // (estimateLaborBreakdown), not the legacy labor.unitPrice which calculate() ignores.
-  if (!isNaN(labor) && labor >= 0) {
-    DATA.config.laborModel = DATA.config.laborModel || {};
-    DATA.config.laborModel.crewPayRatePerHr = labor;
-    const li = DATA.costItems.find(c => c.id === "labor"); if (li) li.unverified = false;   // they've set their crew pay
+  // Crew roster from the wizard mini-list (name + wage). WC defaults applied;
+  // photos / per-person WC tuned later in Settings → Crew.
+  if (!viaSkip) {
+    const members = readSetupCrewList();
+    DATA.config.crew = DATA.config.crew || { members: [], defaultWorkersCompPct: 10 };
+    if (members.length) {
+      DATA.config.crew.members = members;
+      // Keep flat fields roughly in sync as a fallback average
+      DATA.config.laborModel = DATA.config.laborModel || {};
+      DATA.config.laborModel.crewSize = members.length;
+      const avg = members.reduce((s, m) => s + (m.hourlyRate || 0), 0) / members.length;
+      DATA.config.laborModel.crewPayRatePerHr = Math.round(avg * 100) / 100;
+      const li = DATA.costItems.find(c => c.id === "labor"); if (li) li.unverified = false;
+    }
   }
   if (!isNaN(margin) && margin >= 0) DATA.config.defaultMargin = margin;
   // Manufacturers — only if the step was opened/populated
@@ -29474,6 +29987,23 @@ function init() {
     adminLogoData = "";
     renderLogoPreview("adminLogoPreview", "adminLogoRemove", "");
   });
+  // Crew roster — add button + jump from Labor banner
+  { const addCrew = document.getElementById("crewAddBtn");
+    if (addCrew && !addCrew._wired) {
+      addCrew._wired = true;
+      addCrew.addEventListener("click", () => addCrewMemberRow());
+    }
+    const jumpCrew = document.getElementById("laborJumpToCrew");
+    if (jumpCrew && !jumpCrew._wired) {
+      jumpCrew._wired = true;
+      jumpCrew.addEventListener("click", () => {
+        try { showRatesLeaf("crew"); } catch (_) {}
+        const t = document.getElementById("rates-section-crew");
+        if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+    wireCrewEditorOnce();
+  }
   // Swing doors — keep the two "Enable" checkboxes (Defaults tab + Rates tab) in sync
   const swEnRates = document.getElementById("adminSwingEnabled");
   const swEnDef = document.getElementById("adminSwingEnabledDefault");
