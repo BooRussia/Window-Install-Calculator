@@ -345,10 +345,13 @@
   /* Materials Needed — swipe left to reveal Remove */
   .mat-swipe {
     position: relative; overflow: hidden;
+    /* Allow vertical page scroll; we lock horizontal ourselves in JS. */
     touch-action: pan-y;
+    -webkit-user-select: none; user-select: none;
   }
+  .mat-swipe.swiping { touch-action: none; }
   .mat-swipe-actions {
-    position: absolute; inset: 0 0 0 auto; width: 88px;
+    position: absolute; inset: 0 0 0 auto; width: 96px;
     display: flex; align-items: stretch; justify-content: stretch;
     background: #be123c; z-index: 0;
   }
@@ -356,10 +359,11 @@
     flex: 1; border: 0; background: transparent; color: #fff;
     font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
     cursor: pointer; -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
   }
   .mat-swipe-front {
     position: relative; z-index: 1;
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 16px 20px; background: #0b1220;
     transition: transform .18s ease;
     will-change: transform;
@@ -367,21 +371,20 @@
   @media (min-width: 640px) {
     .mat-swipe-front { padding-left: 24px; padding-right: 24px; }
   }
-  .mat-swipe.open .mat-swipe-front { transform: translateX(-88px); }
-  /* Desktop: small remove affordance without requiring swipe */
+  .mat-swipe.open .mat-swipe-front { transform: translateX(-96px); }
+  /* Always-visible remove control (swipe is primary on mobile; × is the fallback). */
   .mat-swipe-x {
-    display: none; flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
+    display: inline-flex; flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px;
     align-items: center; justify-content: center; border: 0; cursor: pointer;
-    color: #64748b; background: transparent; font-size: 18px; line-height: 1;
+    color: #64748b; background: rgba(51,65,85,0.35); font-size: 20px; line-height: 1;
     -webkit-tap-highlight-color: transparent;
   }
-  .mat-swipe-x:hover { color: #fda4af; background: rgba(190,18,60,0.12); }
-  @media (hover: hover) and (pointer: fine) {
-    .mat-swipe-x { display: inline-flex; }
-  }
+  .mat-swipe-x:hover, .mat-swipe-x:active { color: #fda4af; background: rgba(190,18,60,0.18); }
   [data-theme="light"] .mat-swipe-front { background: #fff; }
-  [data-theme="light"] .mat-swipe-x { color: #94a3b8; }
-  [data-theme="light"] .mat-swipe-x:hover { color: #be123c; background: rgba(190,18,60,0.08); }
+  [data-theme="light"] .mat-swipe-x { color: #94a3b8; background: rgba(241,245,249,0.95); }
+  [data-theme="light"] .mat-swipe-x:hover, [data-theme="light"] .mat-swipe-x:active {
+    color: #be123c; background: rgba(190,18,60,0.08);
+  }
   /* Block sealer gallons row under the Materials rail toggle */
   .sealer-qty {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -11144,10 +11147,15 @@ function removeMaterialFromQuote(id, opts) {
 function wireMaterialsSwipe(wrap) {
   if (!wrap || wrap._matSwipeWired) return;
   wrap._matSwipeWired = true;
-  let startX = 0, startY = 0, dx = 0, row = null, tracking = false, decided = false;
+  const REVEAL = 96;
+  let startX = 0, startY = 0, dx = 0, row = null, tracking = false, axis = null;
   const closeAll = (except) => {
     wrap.querySelectorAll(".mat-swipe.open").forEach(el => {
-      if (el !== except) el.classList.remove("open");
+      if (el !== except) {
+        el.classList.remove("open", "swiping");
+        const f = el.querySelector(".mat-swipe-front");
+        if (f) { f.style.transition = ""; f.style.transform = ""; }
+      }
     });
   };
   wrap.addEventListener("click", e => {
@@ -11159,38 +11167,63 @@ function wireMaterialsSwipe(wrap) {
       return;
     }
     const open = e.target.closest(".mat-swipe.open");
-    if (open && !e.target.closest(".mat-swipe-del")) open.classList.remove("open");
+    if (open && !e.target.closest(".mat-swipe-del")) {
+      open.classList.remove("open");
+      const f = open.querySelector(".mat-swipe-front");
+      if (f) { f.style.transition = ""; f.style.transform = ""; }
+    }
   });
   wrap.addEventListener("touchstart", e => {
     if (e.touches.length !== 1) return;
+    // Ignore taps on the always-visible × — that should just remove.
+    if (e.target.closest && e.target.closest(".mat-swipe-x")) return;
     row = e.target.closest(".mat-swipe");
     if (!row) return;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
-    dx = 0; tracking = true; decided = false;
+    dx = 0; tracking = true; axis = null;
+    // If already open, start from the revealed position so you can swipe closed.
+    if (row.classList.contains("open")) dx = -REVEAL;
   }, { passive: true });
   wrap.addEventListener("touchmove", e => {
     if (!tracking || !row || e.touches.length !== 1) return;
     const x = e.touches[0].clientX - startX;
     const y = e.touches[0].clientY - startY;
-    if (!decided) {
-      if (Math.abs(x) < 8 && Math.abs(y) < 8) return;
-      decided = true;
-      if (Math.abs(y) > Math.abs(x)) { tracking = false; row = null; return; }
+    if (!axis) {
+      if (Math.abs(x) < 10 && Math.abs(y) < 10) return;
+      // Decide axis once — vertical → let the page scroll; horizontal → own the gesture.
+      if (Math.abs(y) > Math.abs(x)) {
+        tracking = false; row.classList.remove("swiping"); row = null; axis = "y";
+        return;
+      }
+      axis = "x";
+      row.classList.add("swiping");
       closeAll(row);
     }
-    dx = Math.min(0, Math.max(-88, x));
+    if (axis !== "x") return;
+    // Stop the page from scrolling so the reveal can follow the finger.
+    if (e.cancelable) e.preventDefault();
+    const base = row.classList.contains("open") ? -REVEAL : 0;
+    dx = Math.min(0, Math.max(-REVEAL, base + x));
     const front = row.querySelector(".mat-swipe-front");
-    if (front) { front.style.transition = "none"; front.style.transform = `translateX(${dx}px)`; }
-  }, { passive: true });
+    if (front) {
+      front.style.transition = "none";
+      front.style.transform = `translateX(${dx}px)`;
+    }
+  }, { passive: false });
   const endSwipe = () => {
-    if (!tracking || !row) { tracking = false; return; }
+    if (!row) { tracking = false; axis = null; return; }
     const front = row.querySelector(".mat-swipe-front");
+    row.classList.remove("swiping");
     if (front) front.style.transition = "";
-    if (dx < -44) row.classList.add("open");
-    else row.classList.remove("open");
-    if (front) front.style.transform = "";
-    tracking = false; row = null; dx = 0;
+    if (axis === "x" && dx <= -(REVEAL * 0.4)) {
+      row.classList.add("open");
+      if (front) front.style.transform = "";
+    } else {
+      row.classList.remove("open");
+      if (front) front.style.transform = "";
+    }
+    tracking = false; row = null; dx = 0; axis = null;
   };
   wrap.addEventListener("touchend", endSwipe);
   wrap.addEventListener("touchcancel", endSwipe);
