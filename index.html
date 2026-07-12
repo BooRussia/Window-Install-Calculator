@@ -342,6 +342,59 @@
   .mat-body { padding: 2px 14px 14px; }
   [data-theme="light"] .mat-card { border-color: #e2e8f0; background: #f8fafc; }
   [data-theme="light"] .mat-title { color: #64748b; }
+  /* Materials Needed — swipe left to reveal Remove */
+  .mat-swipe {
+    position: relative; overflow: hidden;
+    touch-action: pan-y;
+  }
+  .mat-swipe-actions {
+    position: absolute; inset: 0 0 0 auto; width: 88px;
+    display: flex; align-items: stretch; justify-content: stretch;
+    background: #be123c; z-index: 0;
+  }
+  .mat-swipe-del {
+    flex: 1; border: 0; background: transparent; color: #fff;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .mat-swipe-front {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 16px 20px; background: #0b1220;
+    transition: transform .18s ease;
+    will-change: transform;
+  }
+  @media (min-width: 640px) {
+    .mat-swipe-front { padding-left: 24px; padding-right: 24px; }
+  }
+  .mat-swipe.open .mat-swipe-front { transform: translateX(-88px); }
+  /* Desktop: small remove affordance without requiring swipe */
+  .mat-swipe-x {
+    display: none; flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
+    align-items: center; justify-content: center; border: 0; cursor: pointer;
+    color: #64748b; background: transparent; font-size: 18px; line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mat-swipe-x:hover { color: #fda4af; background: rgba(190,18,60,0.12); }
+  @media (hover: hover) and (pointer: fine) {
+    .mat-swipe-x { display: inline-flex; }
+  }
+  [data-theme="light"] .mat-swipe-front { background: #fff; }
+  [data-theme="light"] .mat-swipe-x { color: #94a3b8; }
+  [data-theme="light"] .mat-swipe-x:hover { color: #be123c; background: rgba(190,18,60,0.08); }
+  /* Block sealer gallons row under the Materials rail toggle */
+  .sealer-qty {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-top: 9px; padding: 8px 10px; border-radius: 11px;
+    background: rgba(15,23,42,0.4); border: 1px solid rgba(51,65,85,0.55);
+  }
+  .sealer-qty .margin-pill { margin: 0; }
+  .sealer-qty .sealer-hint {
+    flex: 1 1 100%; font-size: 10.5px; color: #64748b; font-weight: 600; line-height: 1.35;
+  }
+  [data-theme="light"] .sealer-qty { background: rgba(248,250,252,0.9); border-color: #e2e8f0; }
+  [data-theme="light"] .sealer-qty .sealer-hint { color: #64748b; }
+
   /* Interior-trim dimension pickers (type / width / length) in the rail. */
   .trim-picker { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .trim-pick { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -10941,6 +10994,9 @@ function buildState() {
     liftDays: "1",
     permitEnabled: false,
     includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
+    blockSealerEnabled: false,   // OFF by default — rarely needed on remodels
+    blockSealerGallons: "",      // "" = recommended schedule; number = manual gallons
+    excludedMaterials: [],       // swipe-removed material ids for this quote
     customerName: "",
     customerAddress: "",
     customerCompany: "",
@@ -10974,6 +11030,13 @@ function buildState() {
     swingDoors,
     // Head/jamb/sill trim split — always a well-formed object (older blobs lack it).
     trimSplitCfg: normalizeTrimSplitCfg(persisted && persisted.trimSplitCfg),
+    // Coerce persisted nav-exclusion fields (older blobs lack them).
+    excludedMaterials: Array.isArray(persisted && persisted.excludedMaterials)
+      ? [...new Set(persisted.excludedMaterials.filter(x => typeof x === "string" && x))]
+      : [],
+    blockSealerEnabled: !!(persisted && persisted.blockSealerEnabled),
+    blockSealerGallons: (persisted && persisted.blockSealerGallons != null && persisted.blockSealerGallons !== "")
+      ? String(persisted.blockSealerGallons) : "",
   };
 }
 let STATE = buildState();
@@ -11012,6 +11075,126 @@ function getScrewsPerLF() {
 // buck-install labor premium). The per-job toggle lets a crew drop all of it when
 // the opening was already bucked on site. Default ON.
 function buckingIncluded() { return STATE.includeBucking !== false; }
+
+// Block sealer — optional job coating for Block Framed. Default OFF.
+function blockSealerIncluded() { return !!STATE.blockSealerEnabled; }
+
+// Materials swipe-removed from this quote (and anything mapped through toggles).
+function materialExcluded(id) {
+  const list = STATE.excludedMaterials;
+  return Array.isArray(list) && list.includes(id);
+}
+function normalizeExcludedMaterials(v) {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter(x => typeof x === "string" && x))];
+}
+// Remove a materials-needed row from the quote (pricing + breakdown follow).
+// Special materials flip their existing toggles; everything else lands in excludedMaterials.
+function removeMaterialFromQuote(id, opts) {
+  if (!id) return;
+  const silent = !!(opts && opts.silent);
+  let undo = null;
+  if (id === "block_sealer") {
+    const prev = { en: !!STATE.blockSealerEnabled, gal: STATE.blockSealerGallons };
+    STATE.blockSealerEnabled = false;
+    undo = () => { STATE.blockSealerEnabled = prev.en; STATE.blockSealerGallons = prev.gal; render(); };
+  } else if (id === "trim_board" || id === "brad_nails") {
+    const prev = !!STATE.trimEnabled;
+    STATE.trimEnabled = false;
+    undo = () => { STATE.trimEnabled = prev; render(); };
+  } else if (id === "wood_bucking") {
+    const prev = STATE.includeBucking !== false;
+    STATE.includeBucking = false;
+    undo = () => { STATE.includeBucking = prev; render(); };
+  } else if (id === "permit") {
+    const prev = !!STATE.permitEnabled;
+    STATE.permitEnabled = false;
+    undo = () => { STATE.permitEnabled = prev; render(); };
+  } else if (id === "lift_rental") {
+    const prev = !!STATE.liftEnabled;
+    STATE.liftEnabled = false;
+    undo = () => { STATE.liftEnabled = prev; render(); };
+  } else {
+    STATE.excludedMaterials = normalizeExcludedMaterials(STATE.excludedMaterials);
+    if (!STATE.excludedMaterials.includes(id)) STATE.excludedMaterials.push(id);
+    undo = () => {
+      STATE.excludedMaterials = normalizeExcludedMaterials(STATE.excludedMaterials).filter(x => x !== id);
+      render();
+    };
+  }
+  render();
+  if (!silent) {
+    const name = (DATA.costItems.find(c => c.id === id) || {}).name || id;
+    toast(`${name} removed from quote`, { ms: 5000 });
+    // Stash undo on toast click for a few seconds
+    try {
+      const t = document.getElementById("toast");
+      if (t && undo) {
+        t.style.cursor = "pointer";
+        t.title = "Tap to undo";
+        const onClick = () => { undo(); toast("Restored"); cleanup(); };
+        const cleanup = () => { t.removeEventListener("click", onClick); t.style.cursor = ""; t.title = ""; };
+        t.addEventListener("click", onClick);
+        setTimeout(cleanup, 5000);
+      }
+    } catch (_) {}
+  }
+}
+
+function wireMaterialsSwipe(wrap) {
+  if (!wrap || wrap._matSwipeWired) return;
+  wrap._matSwipeWired = true;
+  let startX = 0, startY = 0, dx = 0, row = null, tracking = false, decided = false;
+  const closeAll = (except) => {
+    wrap.querySelectorAll(".mat-swipe.open").forEach(el => {
+      if (el !== except) el.classList.remove("open");
+    });
+  };
+  wrap.addEventListener("click", e => {
+    const btn = e.target.closest("[data-mat-remove]");
+    if (btn) {
+      e.preventDefault();
+      e.stopPropagation();
+      removeMaterialFromQuote(btn.getAttribute("data-mat-remove"));
+      return;
+    }
+    const open = e.target.closest(".mat-swipe.open");
+    if (open && !e.target.closest(".mat-swipe-del")) open.classList.remove("open");
+  });
+  wrap.addEventListener("touchstart", e => {
+    if (e.touches.length !== 1) return;
+    row = e.target.closest(".mat-swipe");
+    if (!row) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dx = 0; tracking = true; decided = false;
+  }, { passive: true });
+  wrap.addEventListener("touchmove", e => {
+    if (!tracking || !row || e.touches.length !== 1) return;
+    const x = e.touches[0].clientX - startX;
+    const y = e.touches[0].clientY - startY;
+    if (!decided) {
+      if (Math.abs(x) < 8 && Math.abs(y) < 8) return;
+      decided = true;
+      if (Math.abs(y) > Math.abs(x)) { tracking = false; row = null; return; }
+      closeAll(row);
+    }
+    dx = Math.min(0, Math.max(-88, x));
+    const front = row.querySelector(".mat-swipe-front");
+    if (front) { front.style.transition = "none"; front.style.transform = `translateX(${dx}px)`; }
+  }, { passive: true });
+  const endSwipe = () => {
+    if (!tracking || !row) { tracking = false; return; }
+    const front = row.querySelector(".mat-swipe-front");
+    if (front) front.style.transition = "";
+    if (dx < -44) row.classList.add("open");
+    else row.classList.remove("open");
+    if (front) front.style.transform = "";
+    tracking = false; row = null; dx = 0;
+  };
+  wrap.addEventListener("touchend", endSwipe);
+  wrap.addEventListener("touchcancel", endSwipe);
+}
 
 function getConcreteAnchorsPerLF() {
   const item = DATA.costItems.find(c => c.id === "concrete_anchors");
@@ -11553,6 +11736,17 @@ function getBlockSealerJobQty(totalLF) {
   //   1–300 LF → 5 gal · 301–600 → 10 · 601–900 → 15 · etc.
   return Math.ceil(totalLF / 300) * 5;
 }
+// Recommended schedule, or a manual gallon override when the toggle is on.
+function resolveBlockSealerQty(totalLF) {
+  if (!blockSealerIncluded()) return 0;
+  if (STATE.houseType !== "Block Framed") return 0;
+  const rec = getBlockSealerJobQty(totalLF);
+  const raw = STATE.blockSealerGallons;
+  if (raw != null && String(raw).trim() !== "" && isFinite(Number(raw))) {
+    return Math.max(0, Number(raw));
+  }
+  return rec;
+}
 
 // Total linear feet of lumber bought across all boards in a buck cut list
 function buckListTotalLF(bl) {
@@ -11863,6 +12057,9 @@ function floorPersistFields() {
     // CALC-8: not a floor field, but this fn is the single point every job-build
     // site spreads, so the per-job markup override rides along to all of them.
     marginOverride: STATE.marginOverride ?? null,
+    blockSealerEnabled: !!STATE.blockSealerEnabled,
+    blockSealerGallons: STATE.blockSealerGallons != null ? String(STATE.blockSealerGallons) : "",
+    excludedMaterials: normalizeExcludedMaterials(STATE.excludedMaterials),
   };
 }
 
@@ -11898,14 +12095,22 @@ function calculate() {
     if (item.id === "labor") return;
     // Interior trim — priced from OPENING footage in the trim block below.
     if (item.id === "trim_board") return;
+    // Swipe-removed from Materials Needed — drop from breakdown + pricing too.
+    if (materialExcluded(item.id)) return;
 
-    // Block sealer — fixed gallons based on job LF
+    // Block sealer — optional coating; recommended gallons from LF schedule
     if (item.id === "block_sealer") {
-      const qty = getBlockSealerJobQty(materialLF);
+      const qty = resolveBlockSealerQty(materialLF);
       const cost = qty * getUnitPrice(item);
       if (cost > 0) {
-        rows.push({ id: item.id, name: itemDisplayName(item), rateLabel: `${qty} ${item.unit} · 5 gal / 300 LF`,
-          ratePerLF: lf > 0 ? cost / lf : 0, quantity: qty, unit: item.unit, totalCost: cost, isFixed: true });
+        const rec = getBlockSealerJobQty(materialLF);
+        const manual = STATE.blockSealerGallons != null && String(STATE.blockSealerGallons).trim() !== "";
+        rows.push({ id: item.id, name: itemDisplayName(item),
+          rateLabel: manual
+            ? `${qty} ${item.unit} entered`
+            : `${qty} ${item.unit} · 5 gal / 300 LF`,
+          ratePerLF: lf > 0 ? cost / lf : 0, quantity: qty, unit: item.unit, totalCost: cost, isFixed: true,
+          recommendedQty: rec });
         totalCost += cost;
         if (lf > 0) perLfCost += cost / lf;
       }
@@ -13327,12 +13532,22 @@ function render() {
     if (matTotalEl) matTotalEl.textContent = formatMoney(materialsTotalCost);
     { const _ms = document.getElementById("materialsSummary"); if (_ms) _ms.textContent = "Total Material Cost: " + formatMoney(materialsTotalCost); }
     matWrap.innerHTML = matItems.map(({ row, item, proc, buckList, trimPart }) => {
+      const mid = row.id;
+      const wrapOpen = (inner) => `
+        <div class="mat-swipe" data-mat-id="${escHtml(mid)}">
+          <div class="mat-swipe-actions">
+            <button type="button" class="mat-swipe-del" data-mat-remove="${escHtml(mid)}" aria-label="Remove from quote">Remove</button>
+          </div>
+          <div class="mat-swipe-front fade-in">
+            ${inner}
+            <button type="button" class="mat-swipe-x" data-mat-remove="${escHtml(mid)}" title="Remove from quote" aria-label="Remove from quote">×</button>
+          </div>
+        </div>`;
       // Split interior trim — one entry per board (head/jamb pile + wider sill)
       if (trimPart) {
         const wl = w => String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
-        return `
-          <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
-            <div class="min-w-0">
+        return wrapOpen(`
+            <div class="min-w-0 flex-1">
               <div class="text-sm text-slate-100 font-bold truncate">Interior trim &mdash; ${escHtml(trimPart.label)}
                 <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">${escHtml(wl(trimPart.width))}</span>
               </div>
@@ -13341,9 +13556,7 @@ function render() {
             <div class="text-right shrink-0 leading-none">
               <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${trimPart.sticks}</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${trimPart.sticks === 1 ? "stick" : "sticks"}</div>
-            </div>
-          </div>
-        `;
+            </div>`);
       }
       // AI cut list — show board counts by length
       if (buckList) {
@@ -13352,9 +13565,8 @@ function render() {
         const breakdown = used.map(l => `${buckList.byLength[l]} &times; ${l}ft`).join(" &middot; ") || "—";
         const waste = (buckList.wastePercent != null) ? ` &middot; ${buckList.wastePercent}% waste` : "";
         const totalBoards = buckListBoardCount(buckList);
-        return `
-          <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
-            <div class="min-w-0">
+        return wrapOpen(`
+            <div class="min-w-0 flex-1">
               <div class="text-sm text-slate-100 font-bold truncate">${escHtml(row.name)}
                 <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">AI Cut List</span>
               </div>
@@ -13363,9 +13575,7 @@ function render() {
             <div class="text-right shrink-0 leading-none">
               <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${totalBoards}</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${totalBoards === 1 ? "board" : "boards"}</div>
-            </div>
-          </div>
-        `;
+            </div>`);
       }
       let detail;
       if (proc.intCount != null) {
@@ -13381,19 +13591,17 @@ function render() {
         // Measured items where pack and base unit differ (LF cut into boards/rolls)
         detail = `${formatQty(row.quantity)} ${item.unit} &middot; ${proc.caseSize} ${item.unit} per ${proc.packName}`;
       }
-      return `
-        <div class="px-5 sm:px-6 py-4 flex items-center justify-between gap-4 fade-in">
-          <div class="min-w-0">
+      return wrapOpen(`
+          <div class="min-w-0 flex-1">
             <div class="text-sm text-slate-100 font-bold truncate">${escHtml(row.name)}</div>
             <div class="text-[11px] text-slate-500 mt-0.5 font-medium" style="font-variant-numeric: tabular-nums;">${detail}</div>
           </div>
           <div class="text-right shrink-0 leading-none">
             <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${proc.packs}</div>
             <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${proc.packLabel}</div>
-          </div>
-        </div>
-      `;
+          </div>`);
     }).join("");
+    try { wireMaterialsSwipe(matWrap); } catch (_) {}
   }
 
   // (Cost Basis card removed — per-pack breakdown now lives in Settings →
@@ -13487,6 +13695,9 @@ function render() {
     liftDays: STATE.liftDays,
     permitEnabled: STATE.permitEnabled,
     includeBucking: STATE.includeBucking,
+    blockSealerEnabled: !!STATE.blockSealerEnabled,
+    blockSealerGallons: STATE.blockSealerGallons != null ? String(STATE.blockSealerGallons) : "",
+    excludedMaterials: normalizeExcludedMaterials(STATE.excludedMaterials),
     customerName: STATE.customerName,
     customerAddress: STATE.customerAddress,
     customerCompany: STATE.customerCompany,
@@ -13761,6 +13972,9 @@ function renderMaterialsToggle() {
     // Interior trim is a dimensional add-on (type/width/length dropdowns, not
     // brand variants) — list it on ANY job so its switch is always available.
     if (c.id === "trim_board") return true;
+    // Block sealer — optional coating with gallons entry; always list on Block Framed
+    // so the installer can turn it on when needed (default OFF).
+    if (c.id === "block_sealer") return STATE.houseType === "Block Framed";
     if (!Array.isArray(c.variants) || c.variants.length <= 1) return false;
     // Wood bucking carries its own in-quote toggle, so keep it listed on any
     // Block-Framed job even when toggled OFF (otherwise the toggle would vanish).
@@ -13872,6 +14086,37 @@ function renderMaterialsToggle() {
           : ""}
       </div>`;
     }
+    if (item.id === "block_sealer") {
+      const on = blockSealerIncluded();
+      // Recommended gallons from the current material LF (windows + door frames).
+      let rec = 0;
+      try {
+        const _agg = aggregateTakeoff(getFloorGroups());
+        const sgd = computeSlidingDoors({ slidingDoors: _agg.slidingDoors });
+        const bifold = computeBifoldDoors({ bifoldDoors: _agg.bifoldDoors });
+        rec = getBlockSealerJobQty(_agg.windowLF + sgd.sgdLF + bifold.bifoldLF);
+      } catch (_) { rec = 0; }
+      const manual = STATE.blockSealerGallons != null && String(STATE.blockSealerGallons).trim() !== "";
+      const shown = manual ? STATE.blockSealerGallons : (rec || "");
+      const showSuggest = on && manual && Number(STATE.blockSealerGallons) !== rec && rec > 0;
+      return `<div>
+        <button type="button" data-sealer-toggle role="switch" aria-checked="${on}" class="buck-switch ${on ? "on" : ""}" title="Block sealer coating — off by default. Turn on when the job needs it; enter gallons or use the schedule (5 gal per 300 LF).">
+          <span class="buck-switch-main">
+            <span class="buck-switch-name">${escHtml(item.name)}</span>
+            <span class="buck-switch-state">${on ? "In quote" : "Not included — tap to add"}</span>
+          </span>
+          <span class="buck-switch-track"><span class="buck-switch-thumb"></span></span>
+        </button>
+        ${on ? `<div class="sealer-qty">
+          <label class="margin-pill" style="cursor:text">
+            <span class="lbl">Gallons</span>
+            <input id="blockSealerGallonsInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="${escHtml(String(shown))}" placeholder="${rec || 0}" style="width:52px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+          </label>
+          <button type="button" data-sealer-suggest class="sug-chip ${showSuggest ? "" : "hidden"}" title="Recommended from job LF — 5 gal per 300 LF">Suggest: ${rec}g</button>
+          <div class="sealer-hint">Schedule: 5 gal per 300 LF${rec ? ` → ${rec} gal recommended` : ""}. Enter a lower amount for partial openings.</div>
+        </div>` : ""}
+      </div>`;
+    }
     return `<div>
       <div class="text-xs font-semibold text-slate-300 mb-1.5">${escHtml(item.name)}</div>
       <div class="seg seg-rail" style="max-width:none">${btns}</div>
@@ -13890,6 +14135,20 @@ function renderMaterialsToggle() {
       }
       if (item.id === "wood_bucking") {
         if (buckingIncluded()) { const v = activeVariant(item); parts.push("Bucking" + (v ? " " + segMainLabel(v.brand) : "")); }
+        return;
+      }
+      if (item.id === "block_sealer") {
+        if (blockSealerIncluded()) {
+          const q = resolveBlockSealerQty((() => {
+            try {
+              const _agg = aggregateTakeoff(getFloorGroups());
+              const sgd = computeSlidingDoors({ slidingDoors: _agg.slidingDoors });
+              const bifold = computeBifoldDoors({ bifoldDoors: _agg.bifoldDoors });
+              return _agg.windowLF + sgd.sgdLF + bifold.bifoldLF;
+            } catch (_) { return 0; }
+          })());
+          parts.push("Sealer" + (q ? ` ${q}g` : ""));
+        }
         return;
       }
       const v = activeVariant(item);                 // other variant materials are in-quote once they apply
@@ -18901,6 +19160,9 @@ function resetAll() {
     liftDays: "1",
     permitEnabled: false,
     includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
+    blockSealerEnabled: false,
+    blockSealerGallons: "",
+    excludedMaterials: [],
     customerName: "",
     customerAddress: "",
     customerCompany: "",
@@ -19902,6 +20164,9 @@ function applyJobToState(j) {
   STATE.liftDays = j.liftDays || "1";
   STATE.permitEnabled = j.permitEnabled || false;
   STATE.includeBucking = j.includeBucking !== false;   // default ON for jobs saved before this toggle
+  STATE.blockSealerEnabled = !!j.blockSealerEnabled;   // default OFF
+  STATE.blockSealerGallons = (j.blockSealerGallons != null && j.blockSealerGallons !== "") ? String(j.blockSealerGallons) : "";
+  STATE.excludedMaterials = normalizeExcludedMaterials(j.excludedMaterials);
   STATE.customerName = j.customerName || "";
   STATE.jobName = j.name || "";   // job name is distinct from customer now
   STATE.customerAddress = j.customerAddress || "";
@@ -30758,6 +31023,28 @@ function init() {
     _matRow.addEventListener("click", e => {
       const tg = e.target.closest("[data-buck-toggle]");
       if (tg) { STATE.includeBucking = tg.getAttribute("aria-checked") !== "true"; render(); return; }
+      const sg = e.target.closest("[data-sealer-toggle]");
+      if (sg) {
+        const next = sg.getAttribute("aria-checked") !== "true";
+        STATE.blockSealerEnabled = next;
+        // Re-including via the rail clears a prior swipe-remove.
+        if (next) {
+          STATE.excludedMaterials = normalizeExcludedMaterials(STATE.excludedMaterials)
+            .filter(x => x !== "block_sealer");
+          if (STATE.blockSealerGallons == null) STATE.blockSealerGallons = "";
+        }
+        render(); return;
+      }
+      const sug = e.target.closest("[data-sealer-suggest]");
+      if (sug) {
+        try {
+          const _agg = aggregateTakeoff(getFloorGroups());
+          const sgd = computeSlidingDoors({ slidingDoors: _agg.slidingDoors });
+          const bifold = computeBifoldDoors({ bifoldDoors: _agg.bifoldDoors });
+          STATE.blockSealerGallons = String(getBlockSealerJobQty(_agg.windowLF + sgd.sgdLF + bifold.bifoldLF));
+        } catch (_) {}
+        render(); return;
+      }
       const tt = e.target.closest("[data-trim-toggle]");
       if (tt) { STATE.trimEnabled = tt.getAttribute("aria-checked") !== "true"; render(); return; }
       const tst = e.target.closest("[data-trimsplit-toggle]");
@@ -30796,6 +31083,10 @@ function init() {
     // Interior-trim dimension dropdowns (type / width / length) — one shared
     // trim spec for the whole job; update in place and re-render.
     _matRow.addEventListener("change", e => {
+      if (e.target && e.target.id === "blockSealerGallonsInput") {
+        STATE.blockSealerGallons = e.target.value;
+        render(); return;
+      }
       // Per-run board override (head/jamb/sill × type/width)
       const comp = e.target.closest("[data-trimcomp]");
       if (comp) {
@@ -30818,6 +31109,13 @@ function init() {
       else if (k === "width") STATE.trimWidth = sel.value;
       else if (k === "length") STATE.trimLength = parseInt(sel.value, 10) || sel.value;
       render();
+    });
+    _matRow.addEventListener("input", e => {
+      if (e.target && e.target.id === "blockSealerGallonsInput") {
+        STATE.blockSealerGallons = e.target.value;
+        // Soft update — don't full-render on every keystroke (steals focus).
+        // Pricing catches up on change/blur via the change handler + next render.
+      }
     });
     _matRow._wired = true;
   }
