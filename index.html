@@ -4119,6 +4119,8 @@
   .learn-pn-next { text-align: right; align-items: flex-end; }
   .learn-pn-k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #c9a558; font-weight: 800; }
   .learn-pn-t { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+  .learn-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; min-height: 44px; padding: 10px 18px; border-radius: 9999px; border: 1px solid rgba(181,143,74,0.5); background: transparent; color: #c9a558; font-size: 13px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s ease, border-color .15s ease; }
+  .learn-cta:hover { background: rgba(181,143,74,0.10); border-color: #c9a558; }
   @media (max-width: 767px) {
     #learnScreen aside { position: sticky; top: 64px; z-index: 20; background: #020617; margin: 0 -20px; padding: 10px 20px; border-bottom: 1px solid var(--hairline); }
     #learnScreen #learnNav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
@@ -4143,6 +4145,8 @@
   [data-theme="light"] .learn-pn-btn { background:#ffffff; border-color:#e6e8ec; }
   [data-theme="light"] .learn-pn-t { color:#0f172a; }
   [data-theme="light"] .learn-pn-k { color:#9a7636; }
+  [data-theme="light"] .learn-cta { color:#9a7636; border-color:rgba(154,118,54,0.5); }
+  [data-theme="light"] .learn-cta:hover { background:rgba(154,118,54,0.08); }
   @media (max-width: 767px) { [data-theme="light"] #learnScreen aside { background:#f3f4f7; } }
   .legal-foot-link { color: inherit; background: transparent; border: 0; cursor: pointer; padding: 0; font: inherit; transition: color .15s ease; }
   .legal-foot-link:hover { color: #c9a558; }
@@ -17726,10 +17730,14 @@ function renderLearnSection() {
     const fig = (t.diagram && t.diagram.svg)
       ? `<figure class="learn-fig">${t.diagram.svg}${t.diagram.caption ? `<figcaption>${escHtml(t.diagram.caption)}</figcaption>` : ""}</figure>`
       : "";
+    // Learn → do: allow-listed product CTA (see learnCtaAction).
+    const cta = (t.cta && t.cta.label && t.cta.action)
+      ? `<button type="button" class="learn-cta" data-learn-cta="${escHtml(t.cta.action)}">${escHtml(t.cta.label)} &rarr;</button>`
+      : "";
     return `<section class="learn-card" id="learn-${escHtml(t.slug)}">
       <div class="learn-card-head"><span class="learn-card-num">${num}</span><h2>${escHtml(t.title)}</h2></div>
       <p class="learn-summary">${escHtml(t.summary)}</p>
-      ${fig}${keynums}${body}${pc}
+      ${fig}${keynums}${body}${pc}${cta}
     </section>`;
   }).join("");
   const blurb = sec.blurb || (sec.id === _learnFirstId() ? (meta.intro || "") : "");
@@ -17803,6 +17811,20 @@ function learnGoSection(id) {
   renderLearnSection();
   try { history.replaceState({ learn: _learnSection }, "", _learnSection === _learnFirstId() ? LEARN_HASH : LEARN_HASH + "/" + _learnSection); } catch (_) {}
 }
+// Allow-listed Learn → product actions. Signed-out readers just land back on
+// the page beneath (the landing, where Get Started is front and center).
+function learnCtaAction(act) {
+  closeLearn();
+  const signedIn = (typeof currentUser !== "undefined") && !!currentUser;
+  try { window.track("learn_cta", { action: act, signedIn }); } catch (_) {}
+  if (!signedIn) return;
+  try {
+    if (act === "calc") { closeDashboard(); }
+    else if (act === "buck") { closeDashboard(); openBuckModal(); }
+    else if (act === "aiplan") { closeDashboard(); openReadPlanModal(); }
+  } catch (_) {}
+}
+
 function wireLearn() {
   if (_learnWired) return; _learnWired = true;
   const nav = document.getElementById("learnNav");
@@ -17815,6 +17837,8 @@ function wireLearn() {
   // Prev/next footers live in the content column — same shared switch path.
   const contentEl = document.getElementById("learnContent");
   if (contentEl) contentEl.addEventListener("click", (e) => {
+    const cta = e.target.closest("[data-learn-cta]");
+    if (cta) { learnCtaAction(cta.dataset.learnCta); return; }
     const b = e.target.closest("[data-learn-sec]");
     if (b) learnGoSection(b.dataset.learnSec);
   });
