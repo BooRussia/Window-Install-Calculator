@@ -3720,10 +3720,24 @@
   .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
   .dash-launch-card:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
   /* ---- Dashboard customize / edit mode ---- */
-  .dash-customize-btn { background: rgba(148,163,184,0.1); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.3); transition: all .15s ease; }
+  .dash-customize-row {
+    display: flex; justify-content: flex-end; align-items: center;
+    margin: -4px 0 12px;
+  }
+  .dash-customize-btn {
+    background: rgba(148,163,184,0.1); color: #94a3b8;
+    border: 1px solid rgba(148,163,184,0.28);
+    border-radius: 9999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 5px 10px; min-height: 0; line-height: 1.2;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: all .15s ease; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dash-customize-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
   .dash-customize-btn:hover { border-color: rgba(181,143,74,0.5); color: #e2e8f0; }
   .dash-customize-btn.active { background: rgba(181,143,74,0.18); color: #c9a558; border-color: #c9a558; }
-  [data-theme="light"] .dash-customize-btn { background: #eef1f5; color: #475569; border-color: #d6dae1; }
+  [data-theme="light"] .dash-customize-btn { background: #eef1f5; color: #64748b; border-color: #d6dae1; }
   [data-theme="light"] .dash-customize-btn.active { background: #faf3e2; color: #9a7636; border-color: #b58f4a; }
   .dash-editbar { border: 1px dashed rgba(181,143,74,0.5); border-radius: 16px; background: rgba(181,143,74,0.05); padding: 12px 14px; margin-bottom: 16px; }
   .dash-editbar-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -7125,10 +7139,6 @@
         <p class="text-slate-400 mt-2 text-sm sm:text-base">Your pipeline, your jobs, and where your money's going.</p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <button id="dashCustomizeBtn" type="button" class="dash-customize-btn btn rounded-full text-sm font-bold px-4 py-3.5 inline-flex items-center gap-2" aria-pressed="false" title="Reorder, add, or remove dashboard cards">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="14" r="1.6" fill="currentColor" stroke="none"/></svg>
-          <span class="dcb-label">Customize</span>
-        </button>
         <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-sm font-bold px-6 py-3.5 inline-flex items-center gap-2">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
           New quote
@@ -7137,7 +7147,16 @@
     </div>
 
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
-    <div id="dashStats" class="mb-7 hidden"></div>
+    <div id="dashStats" class="mb-4 hidden"></div>
+
+    <!-- Customize sits under the KPI glance tiles and above the Jobs card —
+         that's the launchpad it edits, so the control belongs with those cards. -->
+    <div id="dashCustomizeRow" class="dash-customize-row">
+      <button id="dashCustomizeBtn" type="button" class="dash-customize-btn" aria-pressed="false" title="Reorder, add, or remove dashboard cards">
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="14" r="1.6" fill="currentColor" stroke="none"/></svg>
+        <span class="dcb-label">Customize</span>
+      </button>
+    </div>
 
     <!-- First-run activation (DASH-1/ONBD-2): a brand-new account (no saved jobs)
          sees the endowed-progress checklist here instead of nine empty cards; once
@@ -14521,6 +14540,9 @@ function applyDashView() {
   if (firstRun) firstRun.classList.toggle("hidden", !home || !_dashChecklistShow);
   if (launch) launch.classList.toggle("hidden", !home || _dashFirstRunActive);
   if (section) section.classList.toggle("hidden", home);
+  // Customize edits the launchpad — keep it with those cards (under KPIs).
+  const custRow = document.getElementById("dashCustomizeRow");
+  if (custRow) custRow.classList.toggle("hidden", !home || _dashFirstRunActive);
   // KPI strip belongs to the glance/home; hide it inside a focused section (and for
   // a brand-new account there are no numbers worth showing yet).
   if (stats && (!home || _dashFirstRunActive)) stats.classList.add("hidden");
