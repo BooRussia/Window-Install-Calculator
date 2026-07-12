@@ -763,9 +763,13 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .bar-lbl .t { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--ink-2); }
 .bar { height: 14px; border-radius: 999px; background: rgba(148,163,184,0.10); overflow: hidden; position: relative; }
 .bar-fill { position: absolute; inset: 0; border-radius: 999px; background: linear-gradient(90deg, #33415c, #64748b); transform-origin: 0 50%; transform: scaleX(1); }
-.play .fill-old { animation: barCollapse 2.4s cubic-bezier(0.65, 0, 0.35, 1) 0.3s forwards; }
+/* Old way grows 0 → full; Anchor shrinks from the old duration → ~58s. */
+.bar-fill.fill-old { transform: scaleX(0); }
+.play .fill-old { animation: barGrow 2.4s cubic-bezier(0.65, 0, 0.35, 1) 0.3s forwards; }
+@keyframes barGrow { to { transform: scaleX(1); } }
+.bar-row.gold .bar-fill { background: linear-gradient(90deg, var(--gold), var(--gold-pale)); transform: scaleX(1); box-shadow: 0 0 12px rgba(216,185,106,0.5); }
+.play .bar-row.gold .bar-fill { animation: barCollapse 2.4s cubic-bezier(0.65, 0, 0.35, 1) 0.3s forwards; }
 @keyframes barCollapse { to { transform: scaleX(0.0044); } }
-.bar-row.gold .bar-fill { background: linear-gradient(90deg, var(--gold), var(--gold-pale)); transform: scaleX(0.0044); box-shadow: 0 0 12px rgba(216,185,106,0.5); }
 .bar-row.gold .bar { overflow: visible; }
 .bar-row.gold .t { color: var(--gold-pale); }
 .ping { position: absolute; left: 0.44%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; border: 2px solid var(--gold-pale); opacity: 0; pointer-events: none; }
@@ -960,7 +964,8 @@ footer {
 .no-js .set-rope, .static-flow .set-rope { transform: scaleY(1) !important; transition: none !important; }
 .no-js .set-anchor, .static-flow .set-anchor { transform: none !important; transition: none !important; }
 .no-js .cell, .static-flow .cell { transform: none !important; opacity: 1 !important; }
-.static-flow .bar-fill { transform: scaleX(0.0044) !important; }
+.static-flow .fill-old { transform: scaleX(1) !important; }
+.static-flow .bar-row.gold .bar-fill { transform: scaleX(0.0044) !important; }
 .no-js .clock, .no-js .cue, .static-flow .cue { display: none; }
 .no-js .srow::before, .static-flow .srow::before { opacity: 1; }
 .no-js .srow, .static-flow .srow { color: #111827; }
@@ -981,7 +986,8 @@ footer {
   .set-rope { transform: scaleY(1) !important; transition: none !important; }
   .ring { display: none; }
   .cell { transform: none !important; opacity: 1 !important; }
-  .bar-fill { transform: scaleX(0.0044) !important; }
+  .fill-old { transform: scaleX(1) !important; }
+  .bar-row.gold .bar-fill { transform: scaleX(0.0044) !important; }
   .beam { display: none; }
   .odo .strip { transition: none !important; }
   .strike, .strike-full { transition: none; }
@@ -1386,11 +1392,11 @@ footer {
         <p class="stamp">0:52 · <b>The time-saving part</b></p>
         <h2 class="anton" style="margin-top:8px">Your evenings, returned.</h2>
         <div class="bar-row">
-          <div class="bar-lbl"><span>One quote, the old way</span><span class="t" id="oldTime">3:40:00</span></div>
+          <div class="bar-lbl"><span>One quote, the old way</span><span class="t" id="oldTime">0:00:00</span></div>
           <div class="bar"><span class="bar-fill fill-old"></span></div>
         </div>
         <div class="bar-row gold" id="goldRow">
-          <div class="bar-lbl"><span>One quote, with Anchor</span><span class="t">0:00:58</span></div>
+          <div class="bar-lbl"><span>One quote, with Anchor</span><span class="t" id="newTime">3:40:00</span></div>
           <div class="bar"><span class="bar-fill"></span><span class="ping" aria-hidden="true"></span></div>
         </div>
         <p class="time-kicker" style="margin-top:18px">Then it's your turn — set your week below.</p>
@@ -1671,7 +1677,8 @@ footer {
     document.querySelectorAll(".srow").forEach(function (el) { el.classList.add("lit"); });
     document.getElementById("heroH").classList.add("struck");
     var gr = document.getElementById("goldRow"); if (gr) gr.classList.add("pinged");
-    var ot = document.getElementById("oldTime"); if (ot) ot.textContent = "0:00:58";
+    var ot = document.getElementById("oldTime"); if (ot) ot.textContent = "3:40:00";
+    var nt = document.getElementById("newTime"); if (nt) nt.textContent = "0:00:58";
     var csr = document.getElementById("clockSr"); if (csr) csr.textContent = "60 seconds — quote complete";
     return;
   }
@@ -1708,6 +1715,7 @@ footer {
   var scrubs = [].slice.call(document.querySelectorAll("[data-scrub]"));
   var timeTrack = document.getElementById("timeTrack");
   var oldTime = document.getElementById("oldTime");
+  var newTime = document.getElementById("newTime");
   var goldRow = document.getElementById("goldRow");
   var drums = [].slice.call(document.querySelectorAll(".drum"));
   var closeSec = document.getElementById("close");
@@ -1972,18 +1980,23 @@ footer {
     if (totalOdo) totalOdo.setVal(0);
   });
 
-  // EVENINGS — the old-way bar collapses, gold bar pings
+  // EVENINGS — old way counts 0 → 3:40:00 (bar grows); Anchor counts
+  // 3:40:00 → 0:00:58 (bar shrinks); gold ping fires at the settle.
   replay(timeTrack, function () {
     if (cTime) cTime();
     if (timeTrack) timeTrack.classList.add("play");
     if (goldRow) goldRow.classList.remove("pinged");   // re-arm before it fires
     cTime = tween(2400, 300, easeInOutCubic,
-      function (t) { if (oldTime) oldTime.textContent = fmtHMS(13200 - (13200 - 58) * t); },
+      function (t) {
+        if (oldTime) oldTime.textContent = fmtHMS(13200 * t);
+        if (newTime) newTime.textContent = fmtHMS(13200 - (13200 - 58) * t);
+      },
       function () { if (goldRow) goldRow.classList.add("pinged"); });
   }, function () {
     if (cTime) cTime();
     if (timeTrack) timeTrack.classList.remove("play");
-    if (oldTime) oldTime.textContent = "3:40:00";
+    if (oldTime) oldTime.textContent = "0:00:00";
+    if (newTime) newTime.textContent = "3:40:00";
     if (goldRow) goldRow.classList.remove("pinged");
   });
 
