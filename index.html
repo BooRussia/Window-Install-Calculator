@@ -10639,6 +10639,192 @@ function loadState() {
   try { return JSON.parse(localStorage.getItem(LS_KEYS.state)) || {}; } catch { return {}; }
 }
 function saveState(s) { localStorage.setItem(LS_KEYS.state, JSON.stringify(s)); }
+
+// ── Screen / overlay restore across refresh (session-scoped) ────────────────
+// Quote fields already live in wcc.state.v1; this remembers dashboard vs calculator,
+// drill-in view, and open modals (FL, PDF, settings, job details, etc.).
+const NAV_KEY = "wcc.nav.v1";
+let _navRestoring = false;
+let _navSaveTimer = 0;
+let _pdfNavSnap = null; // serializable PDF reopen info (export kind or FBC urls)
+
+function loadNav() {
+  try { return JSON.parse(sessionStorage.getItem(NAV_KEY)) || null; } catch { return null; }
+}
+function clearNav() {
+  try { sessionStorage.removeItem(NAV_KEY); } catch (_) {}
+}
+function scheduleSaveNav() {
+  if (_navRestoring) return;
+  clearTimeout(_navSaveTimer);
+  _navSaveTimer = setTimeout(() => { _navSaveTimer = 0; saveNav(); }, 80);
+}
+function isModalOpen(id) {
+  const el = document.getElementById(id);
+  return !!(el && !el.classList.contains("hidden"));
+}
+function captureNav() {
+  if (!currentUser) return null;
+  const dashEl = document.getElementById("dashboardScreen");
+  const landingEl = document.getElementById("landingScreen");
+  let screen = "dashboard";
+  if (landingEl && !landingEl.classList.contains("hidden")) screen = "landing";
+  else if (!dashEl || dashEl.classList.contains("hidden")) screen = "calculator";
+
+  const nav = {
+    v: 1,
+    screen,
+    dashView: _dashView || "home",
+    dashInsightTab: (typeof _dashInsightTab !== "undefined") ? _dashInsightTab : "materials",
+    dashStatusFilter: (typeof _dashStatusFilter !== "undefined") ? _dashStatusFilter : null,
+    rail: {
+      pinned: document.body.classList.contains("rail-pinned"),
+      mobileOpen: document.body.classList.contains("rail-open"),
+    },
+    fl: null,
+    pdf: null,
+    admin: null,
+    jobDetailsId: null,
+    compareIds: null,
+    buck: false,
+    readPlan: false,
+  };
+
+  if (isModalOpen("flModal")) {
+    const search = (document.getElementById("flSearch")?.value || "").trim();
+    const addForm = !!(document.getElementById("flAddForm") && !document.getElementById("flAddForm").classList.contains("hidden"));
+    nav.fl = { search, addForm };
+  }
+  if (isModalOpen("pdfPreviewModal") && _pdfNavSnap) {
+    nav.pdf = Object.assign({}, _pdfNavSnap, { zoom: _pdfZoom || 1, docIdx: _pdfRemoteIdx || 0 });
+  }
+  if (isModalOpen("adminModal")) {
+    const tab = document.querySelector("#adminModal .set-tab.active")?.dataset?.tab || "setup";
+    const ratesLeaf = document.querySelector("#ratesLeafNav [data-rleaf-btn].active")?.dataset?.rleafBtn || null;
+    const setupLeaf = document.querySelector("#setupLeafNav [data-setupleaf-btn].active")?.dataset?.setupleafBtn || null;
+    const accountLeaf = document.querySelector("#accountLeafNav [data-accountleaf-btn].active")?.dataset?.accountleafBtn || null;
+    nav.admin = { tab, ratesLeaf, setupLeaf, accountLeaf, doorType: window._rDoorType || "swing" };
+  }
+  if (isModalOpen("jobDetailsModal") && _jdJobId) nav.jobDetailsId = _jdJobId;
+  if (isModalOpen("compareModal") && compareSet && compareSet.size) nav.compareIds = [...compareSet];
+  if (isModalOpen("buckModal")) nav.buck = true;
+  if (isModalOpen("readPlanModal")) nav.readPlan = true;
+  return nav;
+}
+function saveNav() {
+  if (_navRestoring || !currentUser) return;
+  try {
+    const nav = captureNav();
+    if (!nav) return;
+    sessionStorage.setItem(NAV_KEY, JSON.stringify(nav));
+  } catch (_) {}
+}
+
+async function restoreNavOverlay(nav) {
+  if (!nav) return;
+  try {
+    if (nav.fl) {
+      if (nav.fl.search) openFLForNumber(nav.fl.search);
+      else openFL();
+      if (nav.fl.addForm) { try { showFLAddForm(); } catch (_) {} }
+      await new Promise(r => setTimeout(r, 40));
+    }
+    if (nav.admin) {
+      openAdmin();
+      if (nav.admin.tab) showSettingsTab(nav.admin.tab);
+      if (nav.admin.setupLeaf) showSetupLeaf(nav.admin.setupLeaf);
+      if (nav.admin.ratesLeaf) showRatesLeaf(nav.admin.ratesLeaf);
+      if (nav.admin.doorType) showDoorType(nav.admin.doorType);
+      if (nav.admin.accountLeaf) showAccountLeaf(nav.admin.accountLeaf);
+      await new Promise(r => setTimeout(r, 40));
+    }
+    if (nav.buck) { try { openBuckModal(); } catch (_) {} }
+    if (nav.readPlan) { try { openReadPlanModal(); } catch (_) {} }
+    if (nav.jobDetailsId) { try { openJobDetails(nav.jobDetailsId); } catch (_) {} }
+    if (nav.compareIds && nav.compareIds.length >= 2) {
+      try {
+        compareSet = new Set(nav.compareIds);
+        openComparison();
+      } catch (_) {}
+    }
+    if (nav.pdf) {
+      const p = nav.pdf;
+      if (p.kind === "fbc" && Array.isArray(p.urls) && p.urls.length) {
+        await showFbcPdfViewer(p.urls, { title: p.title || "Install drawing", startIndex: p.docIdx || 0 });
+      } else if (p.kind === "customer") {
+        try { exportCustomerPDF("view"); } catch (_) {}
+      } else if (p.kind === "cost") {
+        try { exportPDF("view"); } catch (_) {}
+      } else if (p.kind === "materials") {
+        try { exportMaterialsPDF("view"); } catch (_) {}
+      } else if (p.kind === "buck") {
+        try { fileBuckAction("view"); } catch (_) {}
+      }
+      if (p.zoom && p.zoom > 1.01) {
+        for (let i = 0; i < 50; i++) {
+          if (_pdfJsDoc && isModalOpen("pdfPreviewModal")) break;
+          await new Promise(r => setTimeout(r, 60));
+        }
+        try { setPdfZoom(p.zoom, { immediate: true, force: true }); } catch (_) {}
+      }
+    }
+  } catch (e) {
+    console.warn("restoreNavOverlay failed", e);
+  }
+}
+
+async function restoreNav() {
+  const hash = window.location.hash || "";
+  const hashOwns = /^#\/(pricing|terms|privacy|cookies|aup|dpa|learn)/.test(hash);
+  const nav = loadNav();
+  if (!nav || !currentUser) {
+    if (!hashOwns) openDashboard({ skipHist: true });
+    return;
+  }
+  _navRestoring = true;
+  try {
+    if (typeof nav.dashInsightTab === "string") _dashInsightTab = nav.dashInsightTab;
+    if (nav.dashStatusFilter !== undefined) _dashStatusFilter = nav.dashStatusFilter;
+
+    if (nav.screen === "landing") {
+      try { showLanding(); } catch (_) { openDashboard({ skipHist: true }); }
+    } else if (nav.screen === "calculator") {
+      const d = document.getElementById("dashboardScreen");
+      if (d) d.classList.add("hidden");
+      _dashHistPushed = false;
+      if (nav.dashView) _dashView = nav.dashView;
+      try { updateTabBar(); } catch (_) {}
+    } else if (!hashOwns) {
+      openDashboard({ view: nav.dashView || "home", skipHist: true });
+    } else {
+      // Hash route will show pricing/legal/learn; still prime dashboard underneath.
+      _dashView = nav.dashView || "home";
+      openDashboard({ view: _dashView, skipHist: true });
+    }
+
+    if (nav.rail) {
+      document.body.classList.toggle("rail-pinned", !!nav.rail.pinned);
+      if (nav.rail.mobileOpen) {
+        try { openJobRail(); } catch (_) {}
+      } else {
+        try { closeJobRail(); } catch (_) {}
+      }
+    }
+
+    // Let chrome settle before reopening overlays.
+    await new Promise(r => setTimeout(r, 60));
+    if (!hashOwns) await restoreNavOverlay(nav);
+  } finally {
+    _navRestoring = false;
+    saveNav();
+  }
+}
+
+window.addEventListener("pagehide", () => { try { saveNav(); } catch (_) {} });
+window.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") { try { saveNav(); } catch (_) {} }
+});
+
 function loadJobs() {
   try { return JSON.parse(localStorage.getItem(LS_KEYS.jobs)) || []; } catch { return []; }
 }
@@ -13931,19 +14117,21 @@ function openDashboard(opts) {
     } catch (_) { _dashHistPushed = false; }
   }
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 function closeDashboard(opts) {
   const d = document.getElementById("dashboardScreen");
   if (d) d.classList.add("hidden");
   // If we opened via a pushed history entry and this close is programmatic
   // (Calculator →, Load job, etc.), pop that entry so Back doesn't re-open dash.
-  if (_dashHistPushed && !(opts && opts.fromPopstate)) {
+  if (_dashHistPushed && !(opts && (opts.fromPopstate || opts.skipHist))) {
     _dashHistPushed = false;
     try { history.back(); } catch (_) {}
   } else {
     _dashHistPushed = false;
   }
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 
 // ── Mobile bottom tab bar (UI refresh P1) ────────────────────────────────────
@@ -14629,6 +14817,7 @@ function dashGoTo(view) {
   const panel = document.querySelector(`#dashSection [data-dashview="${view}"]`);
   if (panel) panel.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 300, easing: "cubic-bezier(0.22,0.7,0.3,1)" });
   if (view === "insights") { const p = document.getElementById(INSIGHT_PANELS[_dashInsightTab]); if (p && !p.classList.contains("hidden")) dashPlayPanel(p); }
+  scheduleSaveNav();
 }
 
 // Open the Pricing calibration card and expand a specific job's actuals editor.
@@ -17271,6 +17460,7 @@ function wireDashboard() {
       _dashStatusFilter = null;
       renderDashJobsPanel(loadJobs());
       renderDashJobs(loadJobs());
+      scheduleSaveNav();
       return;
     }
     const f = e.target.closest("[data-dash-filter]");
@@ -17279,6 +17469,7 @@ function wireDashboard() {
     renderDashJobsPanel(loadJobs());
     if (_dashStatusFilter) dashGoTo("jobs");   // jump to the filtered jobs list
     else renderDashJobs(loadJobs());
+    scheduleSaveNav();
   });
   const search = document.getElementById("dashJobSearch");
   if (search) search.addEventListener("input", () => renderDashJobs(loadJobs()));
@@ -17294,6 +17485,7 @@ function wireDashboard() {
       : (_dashStatusFilter === f.dataset.dashFilter ? null : f.dataset.dashFilter);
     renderDashJobsPanel(loadJobs());
     renderDashJobs(loadJobs());
+    scheduleSaveNav();
   });
   { const _so = document.getElementById("dashJobSort"); if (_so) _so.addEventListener("change", () => renderDashJobs(loadJobs())); }
   // Insights card: swap between the Materials and Customers panels.
@@ -17304,6 +17496,7 @@ function wireDashboard() {
     if (b.dataset.insight === _dashInsightTab) return;   // already active — don't replay
     _dashInsightTab = b.dataset.insight;
     applyInsightTab(true);
+    scheduleSaveNav();
   });
   // Customers section: metric toggle (donut) + open a customer's detail modal.
   const cust = document.getElementById("dashCustomers");
@@ -17467,6 +17660,7 @@ function openJobDetails(id) {
   const m = document.getElementById("jobDetailsModal");
   m.classList.remove("hidden"); m.classList.add("flex");
   trapDialog(m, closeJobDetails);   // Phase 4c: focus trap + Esc + restore-on-close
+  scheduleSaveNav();
 }
 // DASH-6: true when the Job Details text fields differ from what's stored, so a
 // backdrop mis-tap / × / Esc can't silently discard typed edits (Save is the only
@@ -17489,6 +17683,7 @@ function closeJobDetails() {
   if (jdDetailsDirty() && !confirm("Discard your unsaved changes to this job's details?")) return;
   _jdJobId = null;
   tvDismiss(document.getElementById("jobDetailsModal"));
+  scheduleSaveNav();
 }
 
 function saveJobDetailsEdits(id, silent) {
@@ -19840,6 +20035,7 @@ function setPdfZoom(z, opts) {
   }
   if (!changed && !(opts && opts.force)) return;
   schedulePdfRerender(opts && opts.immediate);
+  if (!live) scheduleSaveNav();
 }
 function bumpPdfZoom(dir) {
   let i = 0;
@@ -19978,11 +20174,7 @@ async function renderPdfJsPages(pdf, pagesEl, zoomFactor) {
     canvas.dataset.fitW = String(fitW);
     canvas.className = "pdf-preview-canvas";
     stack.appendChild(canvas);
-    const ctx = canvas.getContext("2d", { alpha: false });
-    // Smooth downscale of the supersampled raster (crisper than 1:1 low-res pixels).
-    ctx.imageSmoothingEnabled = true;
-    if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = "high";
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page.render({ canvasContext: canvas.getContext("2d", { alpha: false }), viewport }).promise;
   }
   updatePdfZoomButtons();
 }
@@ -20022,6 +20214,8 @@ async function showPdfPreview(doc, filename, meta) {
   if (_myGen !== _pdfRenderGen) return;
   updatePdfZoomButtons();
   try { window.track && window.track("pdf_previewed", { kind: (meta && meta.kind) || "" }); } catch (_) {}
+  _pdfNavSnap = { kind: (meta && meta.kind) || "export", title: (meta && meta.title) || "Preview" };
+  scheduleSaveNav();
 }
 
 // Open one or more FBC install PDFs in the same preview modal (fit-to-width,
@@ -20049,6 +20243,13 @@ async function showFbcPdfViewer(urls, opts) {
   modal.classList.remove("hidden"); modal.classList.add("flex");
   trapDialog(modal, closePdfPreview);
   await renderRemotePdfAtIndex(_myGen);
+  _pdfNavSnap = {
+    kind: "fbc",
+    urls: list.slice(),
+    title: (opts && opts.title) || "Install drawing",
+    docIdx: _pdfRemoteIdx,
+  };
+  scheduleSaveNav();
   try { window.track?.("fbc_pdf_viewed", { count: list.length }); } catch (_) {}
 }
 async function renderRemotePdfAtIndex(gen) {
@@ -20086,12 +20287,15 @@ async function stepFbcPdfDoc(dir) {
   const gen = ++_pdfRenderGen;
   _myGenGuard = () => gen === _pdfRenderGen;
   await renderRemotePdfAtIndex(gen);
+  if (_pdfNavSnap && _pdfNavSnap.kind === "fbc") _pdfNavSnap.docIdx = _pdfRemoteIdx;
+  scheduleSaveNav();
 }
 function closePdfPreview() {
   clearTimeout(_pdfRerenderTimer); _pdfRerenderTimer = 0;
   _pdfPreviewDoc = null; _pdfPreviewMeta = null;
   _pdfRemoteUrls = null; _pdfRemoteIdx = 0;
   _pdfJsDoc = null; _pdfZoom = 1; _pdfLivePreview = false;
+  _pdfNavSnap = null;
   if (_pdfBlobUrl) { try { URL.revokeObjectURL(_pdfBlobUrl); } catch (_) {} _pdfBlobUrl = null; }
   tvDismiss(document.getElementById("pdfPreviewModal"), () => {
     const pages = document.getElementById("pdfPreviewPages");
@@ -20099,6 +20303,7 @@ function closePdfPreview() {
     const bar = document.getElementById("pdfToolbar");
     if (bar) bar.classList.add("hidden");
   });
+  scheduleSaveNav();
 }
 
 // ── Centralized PDF share ───────────────────────────────────────────────────
@@ -21368,8 +21573,9 @@ function openAdmin() {
   applyStaticCollapseState();
   adminModal.classList.remove("hidden");
   navPushOverlay(adminModal);   // Phase 4d (no-op unless HISTORY_NAV)
+  scheduleSaveNav();
 }
-function closeAdmin() { try { commitCustDetailIfDirty(); } catch (_) {} navPopOverlay(adminModal); tvDismiss(adminModal); }
+function closeAdmin() { try { commitCustDetailIfDirty(); } catch (_) {} navPopOverlay(adminModal); tvDismiss(adminModal); scheduleSaveNav(); }
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
@@ -21385,6 +21591,7 @@ function showSettingsTab(name) {
   if (name === "account") renderSubscriptionPanel();
   if (name === "resources") renderResources();
   if (name === "customers") renderCustomersSettings();
+  scheduleSaveNav();
 }
 
 // Resources tab — plain-English guide to how the app works. Lazy-loaded from a
@@ -22079,8 +22286,9 @@ function openFL() {
   loadFbcIndex()
     .then(() => { renderFLList(document.getElementById("flSearch")?.value || ""); })
     .catch(() => { /* surfaces in the search UI on retry */ });
+  scheduleSaveNav();
 }
-function closeFL() { tvDismiss(flModal); }
+function closeFL() { tvDismiss(flModal); scheduleSaveNav(); }
 
 // Drag the sheet grab handle down to dismiss (mobile sheet-on-mobile).
 // Same settle pattern as the price-bar sheet — no bounce from sheetUp replay.
@@ -22147,6 +22355,7 @@ function closeFLInstant() {
   flModal.classList.add("hidden");
   flModal.classList.remove("flex", "modal-closing");
   try { releaseDialog(flModal); } catch (_) {}
+  scheduleSaveNav();
 }
 
 // Collapsible result cards (Full Breakdown / Labor / Materials / Approvals / Job Files):
@@ -22612,12 +22821,14 @@ function openJobRail() {
   document.getElementById("jobRailBackdrop").classList.add("open");
   document.body.classList.add("rail-open");
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 function closeJobRail() {
   document.getElementById("jobRail").classList.remove("show");
   document.getElementById("jobRailBackdrop").classList.remove("open");
   document.body.classList.remove("rail-open");
   try { updateTabBar(); } catch (_) {}
+  scheduleSaveNav();
 }
 
 // Desktop: pin the rail open <-> collapse it
@@ -22625,6 +22836,7 @@ function toggleRailPin() {
   document.body.classList.toggle("rail-pinned");
   // pinned state is driven by the body class; clear any leftover peek
   document.getElementById("jobRail").classList.remove("show");
+  scheduleSaveNav();
 }
 // Rail header button: collapse on desktop, close the drawer on mobile
 function railHeaderAction() {
@@ -23624,23 +23836,27 @@ function showRatesLeaf(name) {
   document.querySelectorAll('#ratesLeafNav [data-rleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.rleafBtn === name));
   document.querySelectorAll('#ratesShell [data-rleaf]').forEach(el => { el.style.display = (el.dataset.rleaf === name) ? '' : 'none'; });
   if (name === 'doors') showDoorType(window._rDoorType || 'swing');
+  scheduleSaveNav();
 }
 function showDoorType(type) {
   window._rDoorType = type;
   document.querySelectorAll('#ratesShell [data-rdoor-btn]').forEach(b => b.classList.toggle('active', b.dataset.rdoorBtn === type));
   document.querySelectorAll('#ratesShell [data-dtype]').forEach(el => { el.style.display = (el.dataset.dtype === type) ? '' : 'none'; });
+  scheduleSaveNav();
 }
 
 // Setup leaf switcher — Brand / Job Defaults / Manufacturers under one Setup tab.
 function showSetupLeaf(name) {
   document.querySelectorAll('#setupLeafNav [data-setupleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.setupleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="setup"] [data-setupleaf]').forEach(el => { el.style.display = (el.dataset.setupleaf === name) ? '' : 'none'; });
+  scheduleSaveNav();
 }
 
 // Account & Plan leaf switcher — Plan / Account under one merged tab (mirrors showSetupLeaf).
 function showAccountLeaf(name) {
   document.querySelectorAll('#accountLeafNav [data-accountleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.accountleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="account"] [data-accountleaf]').forEach(el => { el.style.display = (el.dataset.accountleaf === name) ? '' : 'none'; });
+  scheduleSaveNav();
 }
 
 /* ============================================================
@@ -24859,10 +25075,12 @@ function openReadPlanModal() {
   const modal = document.getElementById("readPlanModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  scheduleSaveNav();
 }
 
 function closeReadPlanModal() {
   tvDismiss(document.getElementById("readPlanModal"));
+  scheduleSaveNav();
 }
 
 async function openGrokWithPrompt() {
@@ -26108,10 +26326,12 @@ function openBuckModal() {
   const modal = document.getElementById("buckModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  scheduleSaveNav();
 }
 
 function closeBuckModal() {
   tvDismiss(document.getElementById("buckModal"));
+  scheduleSaveNav();
 }
 
 // Shows the result panel (yard order + download) when a cut list exists
@@ -26488,6 +26708,7 @@ function openComparison() {
   _cmpLastFocus = document.activeElement;
   setTimeout(() => { try { (modal.querySelector('[data-close-compare].modal-close') || modal.querySelector('[role="dialog"]')).focus(); } catch (_) {} }, 40);
   document.addEventListener("keydown", _cmpKeyHandler);
+  scheduleSaveNav();
 }
 
 function closeComparison() {
@@ -26495,6 +26716,7 @@ function closeComparison() {
   tvDismiss(document.getElementById("compareModal"));
   try { _cmpLastFocus && _cmpLastFocus.focus && _cmpLastFocus.focus(); } catch (_) {}
   _cmpLastFocus = null;
+  scheduleSaveNav();
 }
 
 function renderComparisonModal(jobs) {
@@ -26990,7 +27212,7 @@ async function handleAuthSubmit(e) {
       const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       window.track("auth_signup_completed");
-      if (data.session) { await enterApp(); openDashboard(); return; }   // confirmation disabled
+      if (data.session) { await enterApp(); await restoreNav(); return; }   // confirmation disabled
       setAuthMode("login");
       setAuthMsg("Account created. Check your email to confirm, then log in.", "ok");
     } else {
@@ -26998,7 +27220,7 @@ async function handleAuthSubmit(e) {
       if (error) throw error;
       window.track("auth_login_completed");
       await enterApp();
-      openDashboard();
+      await restoreNav();
       return;
     }
   } catch (err) {
@@ -27045,6 +27267,7 @@ async function handleSignOut() {
   localStorage.removeItem(LS_KEYS.pendingPush);
   localStorage.removeItem(LS_KEYS.jobsSyncedOnce);
   localStorage.removeItem(LS_SIGN_SEEN);
+  clearNav();
   location.reload();
 }
 
@@ -28305,10 +28528,12 @@ function showLanding() {
     _landingViewedTracked = true;
     window.track("landing_viewed");
   }
+  scheduleSaveNav();
 }
 // Leave the landing and return to the app (signed-in users only)
 function closeLanding() {
   document.getElementById("landingScreen").classList.add("hidden");
+  scheduleSaveNav();
 }
 // PFP menu → Dashboard: the signed-in home base.
 function goHome() {
@@ -29432,7 +29657,7 @@ async function boot() {
     } else if (event === "SIGNED_IN" && !currentUser) {
       scrubAuthHash();
       // Magic-link return — drop straight into the app
-      enterApp().then(() => openDashboard()).catch(() => showLanding());
+      enterApp().then(() => restoreNav()).catch(() => showLanding());
     }
   });
 
@@ -29451,10 +29676,10 @@ async function boot() {
     }, 400);
     document.getElementById("bootSplash").classList.add("hidden");
   } else if (session) {
-    // Signed-in users land on their dashboard (home base) — the calculator is
-    // initialised behind it, one click away via "Open Calculator".
+    // Signed-in users return to wherever they left off (dashboard, calculator,
+    // open PDF/FL, etc.). Fresh sessions with no saved nav land on the dashboard.
     await enterApp();
-    openDashboard();
+    await restoreNav();
   } else {
     setAuthMode("login");
     showLanding();
@@ -30656,6 +30881,7 @@ function init() {
     // Also kick the FBC database search (lazy-loads on first call)
     renderFbcInto("flFbcList", q, { limit: 50 });
     scheduleFLMissingCheck(q, "app");
+    scheduleSaveNav();
     clearTimeout(_flSearchTrackTimer);
     _flSearchTrackTimer = setTimeout(() => {
       const trimmed = (q || "").trim().toLowerCase();
