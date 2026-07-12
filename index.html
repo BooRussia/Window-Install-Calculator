@@ -668,14 +668,22 @@
 
   /* Bottom-chrome offsets: one var feeds every element that must clear the bar.
      Scoped to body.tabbar-on so behavior with the bar off stays byte-identical. */
+  /* Dashboard scroll shell: content scrolls here; the cloned tab bar is a sibling
+     pinned with position:absolute so it stays locked on mobile (fixed-inside-
+     overflow:auto scrolls away on iOS/Android). */
+  #dashboardScreen .dash-scroll {
+    position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   @media (max-width: 1023px) {
     body.tabbar-on { --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
-    /* The dashboard (z-74) gets its OWN bar instance inside its stacking
-       context — the body-level bar (z-45) painted UNDER the dashboard's edge
-       and clipped the FAB's raised top. Content clears the bar via padding. */
-    body.tabbar-on #dashboardScreen { padding-bottom: var(--chrome-b); }
+    /* Body-level #appTabBar stays hidden on the dashboard — it sits at z-45 under
+       the overlay (z-74) and would clip the raised FAB. */
+    body.tabbar-on #dashScroll { padding-bottom: var(--chrome-b); }
     body.tabbar-on:has(#dashboardScreen:not(.hidden)) #appTabBar { display: none !important; }
-    #dashboardScreen .app-tabbar { z-index: 45; }
+    #dashboardScreen .app-tabbar {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
+    }
     body.tabbar-on #compareBar { bottom: calc(var(--chrome-b) + 14px); }
     body.tabbar-on #appBody { padding-bottom: var(--chrome-b); }
     body.tabbar-on #mtotalBar { bottom: var(--chrome-b); }
@@ -4863,9 +4871,6 @@
   0%   { opacity: 0; transform: translateY(-16px); }
   100% { opacity: 1; transform: none; }
 }
-#landingScreen .jamb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-#landingScreen .jamb-head .jh-t { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); }
-#landingScreen .jamb-head .jh-b { font-size: 11px; font-weight: 800; color: var(--gold-hi); }
 #landingScreen .jamb svg text { font-family: 'Inter', sans-serif; }
 /* Anchors drive in once the cards clash */
 #landingScreen.js .fast .screw-drive { opacity: 0; transform: translateX(84px); }
@@ -6115,7 +6120,7 @@
           </span>
           <div>
             <div class="fl-ai-title">Simple Anchor Patterns <span class="fl-ai-badge">PDF</span></div>
-            <p class="fl-ai-sub">Embedded PDF Drawings for your assurance.</p>
+            <p class="fl-ai-sub">Embedded PDF Drawings for you ensurance.</p>
           </div>
         </div>
         <svg viewBox="0 0 380 240" width="100%" role="img" aria-label="Anchoring cross-section: screws drive through the frame and wood buck into the block">
@@ -6944,7 +6949,8 @@
      stats + job cards (with photo thumbnails). Overlays the app;
      "Open Calculator" / "Load" close it to reveal the calculator.
      ============================================================ -->
-<div id="dashboardScreen" class="fixed inset-0 z-[74] hidden overflow-y-auto" style="background:#020617;">
+<div id="dashboardScreen" class="fixed inset-0 z-[74] hidden" style="background:#020617;">
+  <div id="dashScroll" class="dash-scroll">
   <nav class="lp-nav sticky top-0 z-30">
     <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
       <button id="dashHome" type="button" class="flex items-center gap-2.5 group shrink-0" aria-label="Dashboard">
@@ -7109,6 +7115,7 @@
       </div>
       <div class="text-center sm:text-right">© 2026 Anchor · Estimates are for reference — verify before use.</div>
     </footer>
+  </div>
   </div>
 </div>
 
@@ -13735,7 +13742,9 @@ function wireTabBar() {
   // The dashboard screen (fixed, z-74) needs its OWN bar instance inside its
   // stacking context: the body-level bar sits at z-45 (under modals/sheets),
   // so on the dashboard it painted underneath the screen's edge and the FAB's
-  // raised circle lost its top. One source of markup — cloned once here.
+  // raised circle lost its top. Append as a SIBLING of #dashScroll (not inside
+  // the scroll container) so position:absolute keeps it locked to the bottom
+  // while the dashboard content scrolls — fixed-inside-overflow breaks on mobile.
   const dash = document.getElementById("dashboardScreen");
   if (dash && !document.getElementById("dashTabBar")) {
     const clone = src.cloneNode(true);
