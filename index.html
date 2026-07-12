@@ -372,19 +372,32 @@
     .mat-swipe-front { padding-left: 24px; padding-right: 24px; }
   }
   .mat-swipe.open .mat-swipe-front { transform: translateX(-96px); }
-  /* Always-visible remove control (swipe is primary on mobile; × is the fallback). */
-  .mat-swipe-x {
+  /* Always-visible remove / restore control */
+  .mat-swipe-x, .mat-swipe-restore {
     display: inline-flex; flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px;
     align-items: center; justify-content: center; border: 0; cursor: pointer;
     color: #64748b; background: rgba(51,65,85,0.35); font-size: 20px; line-height: 1;
     -webkit-tap-highlight-color: transparent;
   }
   .mat-swipe-x:hover, .mat-swipe-x:active { color: #fda4af; background: rgba(190,18,60,0.18); }
+  .mat-swipe-restore { color: #c9a558; background: rgba(181,143,74,0.14); }
+  .mat-swipe-restore:hover, .mat-swipe-restore:active { color: #dfc07a; background: rgba(181,143,74,0.28); }
+  .mat-swipe-restore svg { width: 18px; height: 18px; }
+  .mat-swipe.excluded .mat-swipe-front { opacity: 0.72; }
+  .mat-swipe.excluded .mat-strike { text-decoration: line-through; text-decoration-thickness: 1.5px; color: #94a3b8 !important; }
+  .mat-swipe.excluded .mat-strike-num { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.45; }
+  .mat-swipe.excluded .mat-removed-tag {
+    display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #fb7185; border: 1px solid rgba(251,113,133,0.35);
+    border-radius: 999px; padding: 1px 7px; vertical-align: middle;
+  }
   [data-theme="light"] .mat-swipe-front { background: #fff; }
   [data-theme="light"] .mat-swipe-x { color: #94a3b8; background: rgba(241,245,249,0.95); }
   [data-theme="light"] .mat-swipe-x:hover, [data-theme="light"] .mat-swipe-x:active {
     color: #be123c; background: rgba(190,18,60,0.08);
   }
+  [data-theme="light"] .mat-swipe-restore { color: #8a6a2e; background: rgba(201,165,88,0.12); }
+  [data-theme="light"] .mat-swipe.excluded .mat-strike { color: #64748b !important; }
   /* Block sealer gallons row under the Materials rail toggle */
   .sealer-qty {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -11091,58 +11104,112 @@ function normalizeExcludedMaterials(v) {
   if (!Array.isArray(v)) return [];
   return [...new Set(v.filter(x => typeof x === "string" && x))];
 }
-// Remove a materials-needed row from the quote (pricing + breakdown follow).
-// Special materials flip their existing toggles; everything else lands in excludedMaterials.
+function materialDisplayName(id) {
+  const item = (DATA.costItems || []).find(c => c.id === id);
+  return (item && (itemDisplayName(item) || item.name)) || id;
+}
+// Remove a materials-needed row from pricing (stays visible, crossed out).
+// Special materials also flip their rail toggles so Settings chrome stays in sync.
 function removeMaterialFromQuote(id, opts) {
   if (!id) return;
   const silent = !!(opts && opts.silent);
-  let undo = null;
-  if (id === "block_sealer") {
-    const prev = { en: !!STATE.blockSealerEnabled, gal: STATE.blockSealerGallons };
-    STATE.blockSealerEnabled = false;
-    undo = () => { STATE.blockSealerEnabled = prev.en; STATE.blockSealerGallons = prev.gal; render(); };
-  } else if (id === "trim_board" || id === "brad_nails") {
-    const prev = !!STATE.trimEnabled;
-    STATE.trimEnabled = false;
-    undo = () => { STATE.trimEnabled = prev; render(); };
-  } else if (id === "wood_bucking") {
-    const prev = STATE.includeBucking !== false;
-    STATE.includeBucking = false;
-    undo = () => { STATE.includeBucking = prev; render(); };
-  } else if (id === "permit") {
-    const prev = !!STATE.permitEnabled;
-    STATE.permitEnabled = false;
-    undo = () => { STATE.permitEnabled = prev; render(); };
-  } else if (id === "lift_rental") {
-    const prev = !!STATE.liftEnabled;
-    STATE.liftEnabled = false;
-    undo = () => { STATE.liftEnabled = prev; render(); };
-  } else {
-    STATE.excludedMaterials = normalizeExcludedMaterials(STATE.excludedMaterials);
-    if (!STATE.excludedMaterials.includes(id)) STATE.excludedMaterials.push(id);
-    undo = () => {
-      STATE.excludedMaterials = normalizeExcludedMaterials(STATE.excludedMaterials).filter(x => x !== id);
-      render();
-    };
+  const skipConfirm = !!(opts && opts.skipConfirm);
+  const name = materialDisplayName(id);
+  if (!skipConfirm && !silent) {
+    if (!confirm(`Remove "${name}" from this quote?\n\nIt will be crossed out here — tap the restore arrow anytime to put it back.`)) {
+      return;
+    }
   }
+  STATE.excludedMaterials = normalizeExcludedMaterials(STATE.excludedMaterials);
+  if (!STATE.excludedMaterials.includes(id)) STATE.excludedMaterials.push(id);
+  if (id === "block_sealer") STATE.blockSealerEnabled = false;
+  else if (id === "trim_board" || id === "brad_nails") STATE.trimEnabled = false;
+  else if (id === "wood_bucking") STATE.includeBucking = false;
+  else if (id === "permit") STATE.permitEnabled = false;
+  else if (id === "lift_rental") STATE.liftEnabled = false;
   render();
-  if (!silent) {
-    const name = (DATA.costItems.find(c => c.id === id) || {}).name || id;
-    toast(`${name} removed from quote`, { ms: 5000 });
-    // Stash undo on toast click for a few seconds
-    try {
-      const t = document.getElementById("toast");
-      if (t && undo) {
-        t.style.cursor = "pointer";
-        t.title = "Tap to undo";
-        const onClick = () => { undo(); toast("Restored"); cleanup(); };
-        const cleanup = () => { t.removeEventListener("click", onClick); t.style.cursor = ""; t.title = ""; };
-        t.addEventListener("click", onClick);
-        setTimeout(cleanup, 5000);
-      }
-    } catch (_) {}
+  if (!silent) toast(`${name} removed — tap ↺ to restore`, { ms: 3500 });
+}
+function restoreMaterialToQuote(id) {
+  if (!id) return;
+  STATE.excludedMaterials = normalizeExcludedMaterials(STATE.excludedMaterials).filter(x => x !== id);
+  if (id === "block_sealer") STATE.blockSealerEnabled = true;
+  else if (id === "trim_board" || id === "brad_nails") STATE.trimEnabled = true;
+  else if (id === "wood_bucking") STATE.includeBucking = true;
+  else if (id === "permit") STATE.permitEnabled = true;
+  else if (id === "lift_rental") STATE.liftEnabled = true;
+  render();
+  toast(`${materialDisplayName(id)} restored`);
+}
+
+// Build Materials Needed rows including crossed-out exclusions (for restore).
+function materialsNeededEntries(liveResult) {
+  const toEntries = (rows, excludedSet) => rows.flatMap(row => {
+    const item = DATA.costItems.find(c => c.id === row.id);
+    if (!item) return [];
+    const excluded = excludedSet.has(row.id);
+    if (row.fromBuckList && STATE.buckList) {
+      return [{ row, item, buckList: STATE.buckList, excluded }];
+    }
+    if (row.id === "trim_board") {
+      // Trim breakdown follows STATE.trimEnabled — caller re-enables for ghosts.
+      const tb = computeTrimBreakdown();
+      const parts = tb && tb.split ? trimMaterialParts(tb) : null;
+      if (parts && parts.length) return parts.map(p => ({ row, item, trimPart: p, excluded }));
+    }
+    const proc = computeProcurement(row.quantity, item);
+    if (!proc) return [];
+    return [{ row, item, proc, excluded }];
+  });
+
+  const excl = normalizeExcludedMaterials(STATE.excludedMaterials);
+  if (!excl.length) return toEntries(liveResult.rows || [], new Set());
+
+  // Second pass with exclusions cleared so removed lines still have qty/labels.
+  const snap = {
+    excludedMaterials: STATE.excludedMaterials,
+    blockSealerEnabled: STATE.blockSealerEnabled,
+    trimEnabled: STATE.trimEnabled,
+    includeBucking: STATE.includeBucking,
+    permitEnabled: STATE.permitEnabled,
+    liftEnabled: STATE.liftEnabled,
+  };
+  try {
+    STATE.excludedMaterials = [];
+    excl.forEach(id => {
+      if (id === "block_sealer") STATE.blockSealerEnabled = true;
+      else if (id === "trim_board" || id === "brad_nails") STATE.trimEnabled = true;
+      else if (id === "wood_bucking") STATE.includeBucking = true;
+      else if (id === "permit") STATE.permitEnabled = true;
+      else if (id === "lift_rental") STATE.liftEnabled = true;
+    });
+    const full = calculate();
+    const exclSet = new Set(excl);
+    const all = toEntries(full.rows || [], exclSet);
+    // Prefer live order for active rows, then append any excluded ghosts not already listed.
+    const active = toEntries(liveResult.rows || [], new Set());
+    const seen = new Set();
+    const out = [];
+    active.forEach(e => { seen.add(e.row.id + (e.trimPart ? ":" + e.trimPart.label : "")); out.push(e); });
+    all.forEach(e => {
+      if (!e.excluded) return;
+      const key = e.row.id + (e.trimPart ? ":" + e.trimPart.label : "");
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(e);
+    });
+    return out;
+  } finally {
+    STATE.excludedMaterials = snap.excludedMaterials;
+    STATE.blockSealerEnabled = snap.blockSealerEnabled;
+    STATE.trimEnabled = snap.trimEnabled;
+    STATE.includeBucking = snap.includeBucking;
+    STATE.permitEnabled = snap.permitEnabled;
+    STATE.liftEnabled = snap.liftEnabled;
   }
 }
+
+const MAT_RESTORE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/></svg>`;
 
 function wireMaterialsSwipe(wrap) {
   if (!wrap || wrap._matSwipeWired) return;
@@ -11159,6 +11226,13 @@ function wireMaterialsSwipe(wrap) {
     });
   };
   wrap.addEventListener("click", e => {
+    const restore = e.target.closest("[data-mat-restore]");
+    if (restore) {
+      e.preventDefault();
+      e.stopPropagation();
+      restoreMaterialToQuote(restore.getAttribute("data-mat-restore"));
+      return;
+    }
     const btn = e.target.closest("[data-mat-remove]");
     if (btn) {
       e.preventDefault();
@@ -11175,14 +11249,12 @@ function wireMaterialsSwipe(wrap) {
   });
   wrap.addEventListener("touchstart", e => {
     if (e.touches.length !== 1) return;
-    // Ignore taps on the always-visible × — that should just remove.
-    if (e.target.closest && e.target.closest(".mat-swipe-x")) return;
+    if (e.target.closest && (e.target.closest(".mat-swipe-x") || e.target.closest(".mat-swipe-restore"))) return;
     row = e.target.closest(".mat-swipe");
-    if (!row) return;
+    if (!row || row.classList.contains("excluded")) return; // crossed-out rows don't swipe
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     dx = 0; tracking = true; axis = null;
-    // If already open, start from the revealed position so you can swipe closed.
     if (row.classList.contains("open")) dx = -REVEAL;
   }, { passive: true });
   wrap.addEventListener("touchmove", e => {
@@ -11191,7 +11263,6 @@ function wireMaterialsSwipe(wrap) {
     const y = e.touches[0].clientY - startY;
     if (!axis) {
       if (Math.abs(x) < 10 && Math.abs(y) < 10) return;
-      // Decide axis once — vertical → let the page scroll; horizontal → own the gesture.
       if (Math.abs(y) > Math.abs(x)) {
         tracking = false; row.classList.remove("swiping"); row = null; axis = "y";
         return;
@@ -11201,7 +11272,6 @@ function wireMaterialsSwipe(wrap) {
       closeAll(row);
     }
     if (axis !== "x") return;
-    // Stop the page from scrolling so the reveal can follow the finger.
     if (e.cancelable) e.preventDefault();
     const base = row.classList.contains("open") ? -REVEAL : 0;
     dx = Math.min(0, Math.max(-REVEAL, base + x));
@@ -13519,28 +13589,11 @@ function render() {
     }
   }
 
-  // Materials Needed list
+  // Materials Needed list — removed lines stay crossed out with a restore arrow
   const matWrap = document.getElementById("materialsList");
   const matCard = document.getElementById("materialsCard");
   const matCountEl = document.getElementById("materialsCount");
-  const matItems = r.rows.flatMap(row => {
-    const item = DATA.costItems.find(c => c.id === row.id);
-    if (!item) return [];
-    // Wood bucking driven by an AI cut list — render the board-length breakdown
-    if (row.fromBuckList && STATE.buckList) {
-      return [{ row, item, buckList: STATE.buckList }];
-    }
-    // Split interior trim — one buy-list entry per board size (head/jamb pile +
-    // the wider sill), so the sticks & cost reflect the actual boards bought.
-    if (row.id === "trim_board") {
-      const tb = computeTrimBreakdown();
-      const parts = tb && tb.split ? trimMaterialParts(tb) : null;
-      if (parts && parts.length) return parts.map(p => ({ row, item, trimPart: p }));
-    }
-    const proc = computeProcurement(row.quantity, item);
-    if (!proc) return [];
-    return [{ row, item, proc }];
-  });
+  const matItems = materialsNeededEntries(r);
 
   const matFooter = document.getElementById("materialsFooter");
   const matTotalEl = document.getElementById("materialsTotal");
@@ -13550,9 +13603,14 @@ function render() {
     if (matFooter) matFooter.classList.add("hidden");
   } else {
     matCard.classList.remove("hidden");
-    matCountEl.textContent = `${matItems.length} item${matItems.length === 1 ? "" : "s"}`;
+    const activeCount = matItems.filter(m => !m.excluded).length;
+    const removedCount = matItems.length - activeCount;
+    matCountEl.textContent = removedCount
+      ? `${activeCount} item${activeCount === 1 ? "" : "s"} · ${removedCount} removed`
+      : `${matItems.length} item${matItems.length === 1 ? "" : "s"}`;
     let materialsTotalCost = 0;
-    matItems.forEach(({ item, proc, buckList, trimPart }) => {
+    matItems.forEach(({ item, proc, buckList, trimPart, excluded }) => {
+      if (excluded) return;
       if (buckList) {
         materialsTotalCost += buckListTotalLF(buckList) * getUnitPrice(item);
         return;
@@ -13564,29 +13622,33 @@ function render() {
     if (matFooter) matFooter.classList.remove("hidden");
     if (matTotalEl) matTotalEl.textContent = formatMoney(materialsTotalCost);
     { const _ms = document.getElementById("materialsSummary"); if (_ms) _ms.textContent = "Total Material Cost: " + formatMoney(materialsTotalCost); }
-    matWrap.innerHTML = matItems.map(({ row, item, proc, buckList, trimPart }) => {
+    matWrap.innerHTML = matItems.map(({ row, item, proc, buckList, trimPart, excluded }) => {
       const mid = row.id;
+      const struck = !!excluded;
+      const actionBtn = struck
+        ? `<button type="button" class="mat-swipe-restore" data-mat-restore="${escHtml(mid)}" title="Restore to quote" aria-label="Restore ${escHtml(row.name || mid)} to quote">${MAT_RESTORE_ICON}</button>`
+        : `<button type="button" class="mat-swipe-x" data-mat-remove="${escHtml(mid)}" title="Remove from quote" aria-label="Remove ${escHtml(row.name || mid)} from quote">×</button>`;
       const wrapOpen = (inner) => `
-        <div class="mat-swipe" data-mat-id="${escHtml(mid)}">
-          <div class="mat-swipe-actions">
+        <div class="mat-swipe${struck ? " excluded" : ""}" data-mat-id="${escHtml(mid)}" data-excluded="${struck ? "1" : "0"}">
+          ${struck ? "" : `<div class="mat-swipe-actions">
             <button type="button" class="mat-swipe-del" data-mat-remove="${escHtml(mid)}" aria-label="Remove from quote">Remove</button>
-          </div>
+          </div>`}
           <div class="mat-swipe-front fade-in">
             ${inner}
-            <button type="button" class="mat-swipe-x" data-mat-remove="${escHtml(mid)}" title="Remove from quote" aria-label="Remove from quote">×</button>
+            ${actionBtn}
           </div>
         </div>`;
       // Split interior trim — one entry per board (head/jamb pile + wider sill)
       if (trimPart) {
         const wl = w => String(w).replace(/(\d)\s*[xX]\s*(\d)/, "$1×$2");
         return wrapOpen(`
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1${struck ? " mat-strike" : ""}">
               <div class="text-sm text-slate-100 font-bold truncate">Interior trim &mdash; ${escHtml(trimPart.label)}
-                <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">${escHtml(wl(trimPart.width))}</span>
+                <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">${escHtml(wl(trimPart.width))}</span>${struck ? `<span class="mat-removed-tag">Removed</span>` : ""}
               </div>
               <div class="text-[11px] text-slate-500 mt-1 font-medium" style="font-variant-numeric: tabular-nums;">${formatQty(Math.round(trimPart.lf * 10) / 10)} LF &middot; ${trimPart.stickLen} ft sticks</div>
             </div>
-            <div class="text-right shrink-0 leading-none">
+            <div class="text-right shrink-0 leading-none${struck ? " mat-strike-num" : ""}">
               <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${trimPart.sticks}</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${trimPart.sticks === 1 ? "stick" : "sticks"}</div>
             </div>`);
@@ -13599,13 +13661,13 @@ function render() {
         const waste = (buckList.wastePercent != null) ? ` &middot; ${buckList.wastePercent}% waste` : "";
         const totalBoards = buckListBoardCount(buckList);
         return wrapOpen(`
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1${struck ? " mat-strike" : ""}">
               <div class="text-sm text-slate-100 font-bold truncate">${escHtml(row.name)}
-                <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">AI Cut List</span>
+                <span class="ml-1 text-[9px] align-middle text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 tracking-[0.1em] uppercase font-bold">AI Cut List</span>${struck ? `<span class="mat-removed-tag">Removed</span>` : ""}
               </div>
               <div class="text-[11px] text-slate-500 mt-1 font-medium" style="font-variant-numeric: tabular-nums;">${breakdown}${waste}</div>
             </div>
-            <div class="text-right shrink-0 leading-none">
+            <div class="text-right shrink-0 leading-none${struck ? " mat-strike-num" : ""}">
               <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${totalBoards}</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${totalBoards === 1 ? "board" : "boards"}</div>
             </div>`);
@@ -13625,11 +13687,11 @@ function render() {
         detail = `${formatQty(row.quantity)} ${item.unit} &middot; ${proc.caseSize} ${item.unit} per ${proc.packName}`;
       }
       return wrapOpen(`
-          <div class="min-w-0 flex-1">
-            <div class="text-sm text-slate-100 font-bold truncate">${escHtml(row.name)}</div>
+          <div class="min-w-0 flex-1${struck ? " mat-strike" : ""}">
+            <div class="text-sm text-slate-100 font-bold truncate">${escHtml(row.name)}${struck ? `<span class="mat-removed-tag">Removed</span>` : ""}</div>
             <div class="text-[11px] text-slate-500 mt-0.5 font-medium" style="font-variant-numeric: tabular-nums;">${detail}</div>
           </div>
-          <div class="text-right shrink-0 leading-none">
+          <div class="text-right shrink-0 leading-none${struck ? " mat-strike-num" : ""}">
             <div class="text-3xl sm:text-4xl font-extrabold accent-glow" style="font-variant-numeric: tabular-nums;">${proc.packs}</div>
             <div class="text-[10px] text-slate-500 uppercase tracking-[0.18em] font-bold mt-1">${proc.packLabel}</div>
           </div>`);
