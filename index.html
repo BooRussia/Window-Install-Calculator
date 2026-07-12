@@ -20413,8 +20413,12 @@ function closeAdmin() {
   // ~600ms repainted stale DATA and the timer then committed the stale form, losing
   // the last edit. commitAdmin() is idempotent (reads the whole form), so a belt-and-
   // suspenders flush here is safe.
+  // GUARD (must stay): only commit when the modal is actually OPEN. closeAdmin is also
+  // called by the global Escape catch-all even when Settings was never opened; committing
+  // then would read empty static inputs (buildAdminUI never ran) and blank the brand +
+  // job-defaults. Mirrors the same guard in navResolveBack.
   try { commitCustDetailIfDirty(); } catch (_) {}
-  try { commitAdmin(); } catch (_) {}
+  if (!adminModal.classList.contains("hidden")) { try { commitAdmin(); } catch (_) {} }
   navPopOverlay(adminModal); tvDismiss(adminModal);
 }
 
