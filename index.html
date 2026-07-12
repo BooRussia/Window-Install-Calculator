@@ -4102,6 +4102,31 @@
   .learn-pc ul { margin:0; padding-left:16px; font-size:12.5px; line-height:1.6; color:#cbd5e1; }
   .learn-pc li { margin:0 0 5px; }
   @media (max-width:560px){ .learn-pc { grid-template-columns:1fr; } }
+  /* Learn P2 — motion + nav */
+  .learn-card { transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+  .learn-card:hover { border-color: rgba(181,143,74,0.35); transform: translateY(-2px); }
+  .learn-card.reveal { opacity: 0; transform: translateY(14px); transition: opacity .55s cubic-bezier(0.16,1,0.3,1), transform .55s cubic-bezier(0.16,1,0.3,1); }
+  .learn-card.reveal.in { opacity: 1; transform: none; }
+  .learn-keynum-stat { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; border-radius: 11px; padding: 7px 13px; }
+  .learn-keynum-stat > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.09em; color: #64748b; font-weight: 800; }
+  .learn-keynum-stat > b { font-size: 13px; color: #c9a558; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .learn-nav-toc.active { color: #c9a558; background: rgba(181,143,74,0.10); }
+  .learn-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; }
+  .learn-progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #b58f4a, #c9a558); transition: width .15s linear; }
+  .learn-pn { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
+  .learn-pn-btn { text-align: left; border: 1px solid rgba(148,163,184,0.16); border-radius: 14px; padding: 14px 16px; background: rgba(15,23,42,0.4); cursor: pointer; display: flex; flex-direction: column; gap: 3px; transition: border-color .15s ease, transform .15s ease; -webkit-tap-highlight-color: transparent; }
+  .learn-pn-btn:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-1px); }
+  .learn-pn-next { text-align: right; align-items: flex-end; }
+  .learn-pn-k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #c9a558; font-weight: 800; }
+  .learn-pn-t { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+  @media (max-width: 767px) {
+    #learnScreen aside { position: sticky; top: 64px; z-index: 20; background: #020617; margin: 0 -20px; padding: 10px 20px; border-bottom: 1px solid var(--hairline); }
+    #learnScreen #learnNav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    #learnScreen #learnNav::-webkit-scrollbar { display: none; }
+    #learnScreen .learn-nav-link { white-space: nowrap; }
+    #learnScreen .learn-nav-sub { display: none; }
+    .learn-pn { grid-template-columns: 1fr; }
+  }
   [data-theme="light"] .learn-prose { color:#334155; }
   [data-theme="light"] .learn-prose .learn-h1, [data-theme="light"] .learn-card-head h2 { color:#0f172a; }
   [data-theme="light"] .learn-summary, [data-theme="light"] .learn-body, [data-theme="light"] .learn-pc ul { color:#334155; }
@@ -4113,6 +4138,12 @@
   [data-theme="light"] .learn-pc > div { background:#f8fafc; }
   [data-theme="light"] .learn-fig { color:#9a7636; }
   [data-theme="light"] .learn-sec-head { background:radial-gradient(420px 190px at 8% -10%, rgba(154,118,54,0.08), transparent 70%); }
+  [data-theme="light"] .learn-nav-toc.active { color:#9a7636; background:rgba(154,118,54,0.08); }
+  [data-theme="light"] .learn-keynum-stat > b { color:#9a7636; }
+  [data-theme="light"] .learn-pn-btn { background:#ffffff; border-color:#e6e8ec; }
+  [data-theme="light"] .learn-pn-t { color:#0f172a; }
+  [data-theme="light"] .learn-pn-k { color:#9a7636; }
+  @media (max-width: 767px) { [data-theme="light"] #learnScreen aside { background:#f3f4f7; } }
   .legal-foot-link { color: inherit; background: transparent; border: 0; cursor: pointer; padding: 0; font: inherit; transition: color .15s ease; }
   .legal-foot-link:hover { color: #c9a558; }
 
@@ -17675,7 +17706,13 @@ function renderLearnSection() {
   const topics = (sec.topics || []).map((t, i) => {
     const num = String(i + 1).padStart(2, "0");
     const keynums = (t.keyNumbers || []).length
-      ? `<div class="learn-keynums">${t.keyNumbers.map(k => `<span class="learn-keynum">${escHtml(k)}</span>`).join("")}</div>` : "";
+      ? `<div class="learn-keynums">${t.keyNumbers.map(k => {
+          // "Label: value" chips read as two-tier specs; anything else stays a pill.
+          const m = String(k).match(/^([^:]{2,26}):\s+(.{1,60})$/);
+          return m
+            ? `<span class="learn-keynum learn-keynum-stat"><span>${escHtml(m[1])}</span><b>${escHtml(m[2])}</b></span>`
+            : `<span class="learn-keynum">${escHtml(k)}</span>`;
+        }).join("")}</div>` : "";
     const body = (t.body || []).length
       ? `<ul class="learn-body">${t.body.map(b => `<li>${escHtml(b)}</li>`).join("")}</ul>` : "";
     const pc = ((t.pros || []).length || (t.cons || []).length)
@@ -17709,9 +17746,62 @@ function renderLearnSection() {
       ${blurb ? `<p class="learn-intro">${escHtml(blurb)}</p>` : ""}
       <div class="learn-meta">${nTopics} topic${nTopics === 1 ? "" : "s"}<span class="learn-meta-dot"></span>~${mins} min read${meta.updated ? `<span class="learn-meta-dot"></span>Updated ${escHtml(meta.updated)}` : ""}</div>
     </header>`;
-  el.innerHTML = head + topics;
+  const idx = sections.indexOf(sec);
+  const prevS = sections[idx - 1], nextS = sections[idx + 1];
+  const pn = `<nav class="learn-pn">` +
+    (prevS ? `<button type="button" class="learn-pn-btn" data-learn-sec="${escHtml(prevS.id)}"><span class="learn-pn-k">&larr; Previous</span><span class="learn-pn-t">${escHtml(prevS.label)}</span></button>` : "<span></span>") +
+    (nextS ? `<button type="button" class="learn-pn-btn learn-pn-next" data-learn-sec="${escHtml(nextS.id)}"><span class="learn-pn-k">Next &rarr;</span><span class="learn-pn-t">${escHtml(nextS.label)}</span></button>` : "<span></span>") +
+    `</nav>`;
+  el.innerHTML = head + topics + pn;
   renderLearnNav();
+  learnRevealCards();
+  learnSpyCards();
   const s = document.getElementById("learnScreen"); if (s) s.scrollTop = 0;
+}
+
+// Scroll-reveal: cards rise in as they enter the viewport. Fully skipped under
+// reduced motion or without IntersectionObserver (cards simply stay visible).
+// After a card lands, the reveal classes are stripped so the stagger delay
+// never taints the hover transition.
+function learnRevealCards() {
+  if (dashReduceMotion() || !("IntersectionObserver" in window)) return;
+  const cards = document.querySelectorAll("#learnContent .learn-card");
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      en.target.classList.add("in");
+      io.unobserve(en.target);
+      en.target.addEventListener("transitionend", function h() {
+        en.target.classList.remove("reveal", "in");
+        en.target.style.transitionDelay = "";
+        en.target.removeEventListener("transitionend", h);
+      });
+    });
+  }, { root: document.getElementById("learnScreen"), rootMargin: "0px 0px -6% 0px", threshold: 0.06 });
+  cards.forEach((c, i) => { c.classList.add("reveal"); c.style.transitionDelay = Math.min(i * 55, 220) + "ms"; io.observe(c); });
+}
+
+// Scrollspy: the sidebar TOC tracks which topic is on screen.
+let _learnSpyIO = null;
+function learnSpyCards() {
+  if (_learnSpyIO) { try { _learnSpyIO.disconnect(); } catch (_) {} _learnSpyIO = null; }
+  if (!("IntersectionObserver" in window)) return;
+  _learnSpyIO = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const slug = (en.target.id || "").replace(/^learn-/, "");
+      document.querySelectorAll("#learnNav .learn-nav-toc").forEach(b =>
+        b.classList.toggle("active", b.dataset.learnToc === slug));
+    });
+  }, { root: document.getElementById("learnScreen"), rootMargin: "-25% 0px -65% 0px" });
+  document.querySelectorAll("#learnContent .learn-card").forEach(c => _learnSpyIO.observe(c));
+}
+
+// One switch path shared by the sidebar, prev/next footers and future links.
+function learnGoSection(id) {
+  _learnSection = id;
+  renderLearnSection();
+  try { history.replaceState({ learn: _learnSection }, "", _learnSection === _learnFirstId() ? LEARN_HASH : LEARN_HASH + "/" + _learnSection); } catch (_) {}
 }
 function wireLearn() {
   if (_learnWired) return; _learnWired = true;
@@ -17720,8 +17810,26 @@ function wireLearn() {
     const toc = e.target.closest("[data-learn-toc]");
     if (toc) { const tgt = document.getElementById("learn-" + toc.dataset.learnToc); if (tgt) tgt.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     const b = e.target.closest("[data-learn-sec]");
-    if (b) { _learnSection = b.dataset.learnSec; renderLearnSection(); try { history.replaceState({ learn: _learnSection }, "", _learnSection === _learnFirstId() ? LEARN_HASH : LEARN_HASH + "/" + _learnSection); } catch (_) {} }
+    if (b) learnGoSection(b.dataset.learnSec);
   });
+  // Prev/next footers live in the content column — same shared switch path.
+  const contentEl = document.getElementById("learnContent");
+  if (contentEl) contentEl.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-learn-sec]");
+    if (b) learnGoSection(b.dataset.learnSec);
+  });
+  // Reading-progress hairline pinned to the bottom of the sticky nav.
+  const screenEl = document.getElementById("learnScreen");
+  const navBar = screenEl ? screenEl.querySelector(".lp-nav") : null;
+  if (navBar && !navBar.querySelector(".learn-progress")) {
+    navBar.insertAdjacentHTML("beforeend", '<div class="learn-progress" aria-hidden="true"><span id="learnProgressFill"></span></div>');
+    screenEl.addEventListener("scroll", () => {
+      const fill = document.getElementById("learnProgressFill");
+      if (!fill) return;
+      const max = screenEl.scrollHeight - screenEl.clientHeight;
+      fill.style.width = (max > 0 ? Math.min(100, (screenEl.scrollTop / max) * 100) : 0) + "%";
+    }, { passive: true });
+  }
   const close = document.getElementById("learnClose"); if (close) close.addEventListener("click", closeLearn);
   const home = document.getElementById("learnHome"); if (home) home.addEventListener("click", closeLearn);
 }
