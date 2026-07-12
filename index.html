@@ -1497,24 +1497,32 @@
      "View" works inline on mobile instead of downloading. Also hosts FBC
      install drawings (fit-to-width, zoom, multi-doc cycle, open-in-tab). */
   #pdfPreviewPages {
-    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    /* Always flex-start on the scrollport — centering a wider child traps L/R pan. */
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+    overflow: auto;
     /* Native one-finger pan; we own two-finger pinch so the page doesn't scale. */
     touch-action: pan-x pan-y;
     -webkit-user-select: none; user-select: none;
+    overscroll-behavior: contain;
   }
   #pdfPreviewModal { touch-action: manipulation; }
+  .pdf-preview-stack {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    width: max-content; min-width: 100%;
+    box-sizing: border-box;
+    padding: 4px 0 12px;
+  }
   .pdf-preview-canvas {
-    max-width: 100%;
+    display: block;
     border: 1px solid rgba(30,41,59,0.9);
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(0,0,0,0.35);
     background: #fff;
-    transform-origin: top center;
+    max-width: none; /* width comes from the raster — zoomed pages must overflow to pan */
+    cursor: zoom-in;
   }
   [data-theme="light"] .pdf-preview-canvas { border-color: rgba(203,213,225,0.9); box-shadow: 0 6px 24px rgba(15,23,42,0.12); }
-  .pdf-preview-canvas { cursor: zoom-in; }
-  #pdfPreviewPages.zoomed { overflow: auto; align-items: flex-start; }
-  #pdfPreviewPages.zoomed .pdf-preview-canvas { max-width: none; cursor: zoom-out; }
+  #pdfPreviewPages.zoomed .pdf-preview-canvas { cursor: zoom-out; }
   .pdf-toolbar {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
     padding: 8px 16px 10px; border-bottom: 1px solid rgba(30,41,59,0.85);
@@ -19780,9 +19788,12 @@ function outputPDF(doc, filename, mode, meta) {
 
 // ── In-site PDF preview ─────────────────────────────────────────────────────
 // Renders a finished jsPDF doc OR remote FBC install PDFs into #pdfPreviewModal
-// via PDF.js. Fit-to-width by default; zoom / multi-doc controls for FBC draws.
+// via PDF.js. Fit-to-width by default; zoom re-rasters pages so text stays sharp
+// and overflow scrolling pans to every edge.
 let _pdfPreviewDoc = null, _pdfPreviewName = "document.pdf", _pdfPreviewMeta = null, _pdfRenderGen = 0;
 let _pdfRemoteUrls = null, _pdfRemoteIdx = 0, _pdfZoom = 1, _pdfBlobUrl = null;
+let _pdfJsDoc = null, _pdfRerenderTimer = 0, _pdfLivePreview = false;
+let _myGenGuard = null;
 // Fit → … → 2, then two more taps of room (2.5, 3.2) before maxing out.
 const PDF_ZOOM_STEPS = [0.7, 0.85, 1, 1.25, 1.6, 2, 2.5, 3.2];
 const PDF_TAP_ZOOM_STEPS = [1, 1.6, 2.5, 3.2];
@@ -19801,21 +19812,34 @@ function pdfToolbarEls() {
     pages: document.getElementById("pdfPreviewPages"),
   };
 }
-function setPdfZoom(z) {
+function updatePdfZoomButtons() {
   const minZ = PDF_ZOOM_STEPS[0], maxZ = PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1];
-  _pdfZoom = Math.max(minZ, Math.min(maxZ, z));
   const { pages, zoomOut, zoomIn } = pdfToolbarEls();
-  if (pages) {
-    pages.classList.toggle("zoomed", _pdfZoom > 1.01);
-    pages.querySelectorAll(".pdf-preview-canvas").forEach(c => {
-      // Prefer transform over CSS zoom — more reliable under pinch + scroll.
-      c.style.zoom = "";
-      c.style.transform = _pdfZoom === 1 ? "" : `scale(${_pdfZoom})`;
-      c.style.marginBottom = _pdfZoom > 1 ? `${(c.offsetHeight * (_pdfZoom - 1))}px` : "";
-    });
-  }
+  if (pages) pages.classList.toggle("zoomed", _pdfZoom > 1.01);
   if (zoomOut) zoomOut.disabled = _pdfZoom <= minZ + 0.001;
   if (zoomIn) zoomIn.disabled = _pdfZoom >= maxZ - 0.001;
+}
+function setPdfZoom(z, opts) {
+  const minZ = PDF_ZOOM_STEPS[0], maxZ = PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1];
+  const next = Math.max(minZ, Math.min(maxZ, z));
+  const changed = Math.abs(next - _pdfZoom) > 0.001;
+  _pdfZoom = next;
+  updatePdfZoomButtons();
+  const live = !!(opts && opts.live);
+  const { pages } = pdfToolbarEls();
+  if (live && pages) {
+    // Pinch preview: cheap CSS zoom on the current raster, then re-render on end.
+    _pdfLivePreview = true;
+    pages.querySelectorAll(".pdf-preview-canvas").forEach(c => {
+      const base = parseFloat(c.dataset.fitW || c.style.width) || c.clientWidth;
+      c.style.zoom = "";
+      c.style.width = (base * _pdfZoom) + "px";
+      c.style.height = "auto";
+    });
+    return;
+  }
+  if (!changed && !(opts && opts.force)) return;
+  schedulePdfRerender(opts && opts.immediate);
 }
 function bumpPdfZoom(dir) {
   let i = 0;
@@ -19823,13 +19847,39 @@ function bumpPdfZoom(dir) {
     if (Math.abs(PDF_ZOOM_STEPS[k] - _pdfZoom) < 0.02) { i = k; break; }
     if (PDF_ZOOM_STEPS[k] < _pdfZoom) i = k;
   }
-  setPdfZoom(PDF_ZOOM_STEPS[Math.max(0, Math.min(PDF_ZOOM_STEPS.length - 1, i + dir))]);
+  setPdfZoom(PDF_ZOOM_STEPS[Math.max(0, Math.min(PDF_ZOOM_STEPS.length - 1, i + dir))], { immediate: true });
 }
 // Tap cycles fit → 1.6 → 2.5 → 3.2 → fit (two more zoom-in stops than before).
 function cyclePdfZoomTap() {
   let next = PDF_TAP_ZOOM_STEPS.find(z => z > _pdfZoom + 0.05);
   if (!next) next = 1;
-  setPdfZoom(next);
+  setPdfZoom(next, { immediate: true });
+}
+function schedulePdfRerender(immediate) {
+  clearTimeout(_pdfRerenderTimer);
+  if (!_pdfJsDoc) return;
+  const run = () => { _pdfRerenderTimer = 0; rerenderPdfAtZoom(); };
+  if (immediate) run();
+  else _pdfRerenderTimer = setTimeout(run, 140);
+}
+async function rerenderPdfAtZoom() {
+  const pages = document.getElementById("pdfPreviewPages");
+  if (!pages || !_pdfJsDoc) return;
+  _pdfLivePreview = false;
+  const gen = _pdfRenderGen;
+  const hadX = pages.scrollWidth > pages.clientWidth + 2;
+  const hadY = pages.scrollHeight > pages.clientHeight + 2;
+  const rx = hadX ? pages.scrollLeft / (pages.scrollWidth - pages.clientWidth) : 0.5;
+  const ry = hadY ? pages.scrollTop / (pages.scrollHeight - pages.clientHeight) : 0;
+  await renderPdfJsPages(_pdfJsDoc, pages, _pdfZoom);
+  if (gen !== _pdfRenderGen) return;
+  // Keep relative pan; from fit→zoom land centered so left and right edges are both reachable.
+  requestAnimationFrame(() => {
+    const nx = Math.max(0, pages.scrollWidth - pages.clientWidth);
+    const ny = Math.max(0, pages.scrollHeight - pages.clientHeight);
+    pages.scrollLeft = Math.max(0, Math.min(nx, rx * nx));
+    pages.scrollTop = Math.max(0, Math.min(ny, ry * ny));
+  });
 }
 function wirePdfPinchZoom(pages) {
   if (!pages || pages._pinchWired) return;
@@ -19839,26 +19889,45 @@ function wirePdfPinchZoom(pages) {
     const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
     return Math.hypot(dx, dy) || 1;
   }
-  pages.addEventListener("touchstart", (e) => {
+  function onStart(e) {
     if (e.touches.length === 2) {
       pinching = true;
       startDist = dist(e.touches);
       startZoom = _pdfZoom;
       if (e.cancelable) e.preventDefault();
     }
-  }, { passive: false });
-  pages.addEventListener("touchmove", (e) => {
+  }
+  function onMove(e) {
     if (!pinching || e.touches.length < 2) return;
-    if (e.cancelable) e.preventDefault(); // keep the site from scaling
-    const ratio = dist(e.touches) / startDist;
-    setPdfZoom(startZoom * ratio);
-  }, { passive: false });
-  function endPinch() { pinching = false; }
+    if (e.cancelable) e.preventDefault();
+    setPdfZoom(startZoom * (dist(e.touches) / startDist), { live: true });
+  }
+  function endPinch(e) {
+    if (e.touches && e.touches.length >= 2) return;
+    if (!pinching) return;
+    pinching = false;
+    // Snap to nearest step, then re-rasterize sharp.
+    let nearest = PDF_ZOOM_STEPS[0], best = Infinity;
+    PDF_ZOOM_STEPS.forEach(z => { const d = Math.abs(z - _pdfZoom); if (d < best) { best = d; nearest = z; } });
+    setPdfZoom(nearest, { immediate: true, force: true });
+  }
+  pages.addEventListener("touchstart", onStart, { passive: false });
+  pages.addEventListener("touchmove", onMove, { passive: false });
   pages.addEventListener("touchend", endPinch);
   pages.addEventListener("touchcancel", endPinch);
-  // Block page-level gesture zoom while the modal is open (iOS Safari).
-  pages.addEventListener("gesturestart", (e) => { e.preventDefault(); }, { passive: false });
-  pages.addEventListener("gesturechange", (e) => { e.preventDefault(); }, { passive: false });
+  ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+    pages.addEventListener(type, (e) => { e.preventDefault(); }, { passive: false });
+  });
+  const modal = document.getElementById("pdfPreviewModal");
+  if (modal && !modal._gestureWired) {
+    modal._gestureWired = true;
+    ["gesturestart", "gesturechange"].forEach(type => {
+      modal.addEventListener(type, (e) => { e.preventDefault(); }, { passive: false });
+    });
+    modal.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 1 && e.cancelable) e.preventDefault();
+    }, { passive: false });
+  }
 }
 function updatePdfDocChrome() {
   const { bar, docPrev, docNext, docLabel, openTab } = pdfToolbarEls();
@@ -19873,38 +19942,48 @@ function updatePdfDocChrome() {
   }
   if (openTab) {
     const url = n ? _pdfRemoteUrls[_pdfRemoteIdx] : null;
-    // Open the PDF itself (not the FBC detail page). Proxy keeps CORS happy
-    // when the browser would otherwise block floridabuilding.org embeds.
     openTab.href = url ? proxiedPdfUrl(url) : "#";
     openTab.classList.toggle("hidden", !url);
   }
 }
-async function renderPdfJsPages(pdf, pagesEl) {
+async function renderPdfJsPages(pdf, pagesEl, zoomFactor) {
+  _pdfJsDoc = pdf;
+  const z = Math.max(0.5, zoomFactor == null ? _pdfZoom : zoomFactor);
   pagesEl.innerHTML = "";
-  const targetW = Math.min(760, Math.max(280, (pagesEl.clientWidth || 360) - 8));
+  pagesEl.classList.toggle("zoomed", z > 1.01);
+  const stack = document.createElement("div");
+  stack.className = "pdf-preview-stack";
+  pagesEl.appendChild(stack);
+  // Fit width from the scrollport (not the growing stack) so zoom is a true multiplier of fit.
+  const fitW = Math.min(760, Math.max(280, (pagesEl.clientWidth || 360) - 16));
+  const cssW = fitW * z;
+  // Cap bitmap size so 3.2× zoom on HiDPI doesn't explode memory.
   const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const maxBitmapW = 4096;
   for (let i = 1; i <= pdf.numPages; i++) {
     if (_myGenGuard && _myGenGuard() === false) return;
     const page = await pdf.getPage(i);
     const base = page.getViewport({ scale: 1 });
-    const cssScale = targetW / base.width;
-    const viewport = page.getViewport({ scale: cssScale * dpr });
+    let bitmapScale = (cssW / base.width) * dpr;
+    if (base.width * bitmapScale > maxBitmapW) bitmapScale = maxBitmapW / base.width;
+    const viewport = page.getViewport({ scale: bitmapScale });
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width; canvas.height = viewport.height;
-    canvas.style.width = (base.width * cssScale) + "px";
-    canvas.style.height = (base.height * cssScale) + "px";
+    canvas.style.width = cssW + "px";
+    canvas.style.height = (base.height * (cssW / base.width)) + "px";
+    canvas.dataset.fitW = String(fitW);
     canvas.className = "pdf-preview-canvas";
-    pagesEl.appendChild(canvas);
+    stack.appendChild(canvas);
     await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
   }
+  updatePdfZoomButtons();
 }
-let _myGenGuard = null;
 
 async function showPdfPreview(doc, filename, meta) {
   const _myGen = ++_pdfRenderGen;
   _myGenGuard = () => _myGen === _pdfRenderGen;
   _pdfPreviewDoc = doc; _pdfPreviewName = filename || "document.pdf"; _pdfPreviewMeta = meta || null;
-  _pdfRemoteUrls = null; _pdfRemoteIdx = 0;
+  _pdfRemoteUrls = null; _pdfRemoteIdx = 0; _pdfZoom = 1; _pdfJsDoc = null;
   if (_pdfBlobUrl) { try { URL.revokeObjectURL(_pdfBlobUrl); } catch (_) {} _pdfBlobUrl = null; }
   const modal = document.getElementById("pdfPreviewModal");
   const pages = document.getElementById("pdfPreviewPages");
@@ -19931,9 +20010,9 @@ async function showPdfPreview(doc, filename, meta) {
   const buf = doc.output("arraybuffer");
   const pdf = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
   if (_myGen !== _pdfRenderGen) return;
-  await renderPdfJsPages(pdf, pages);
+  await renderPdfJsPages(pdf, pages, 1);
   if (_myGen !== _pdfRenderGen) return;
-  setPdfZoom(1);
+  updatePdfZoomButtons();
   try { window.track && window.track("pdf_previewed", { kind: (meta && meta.kind) || "" }); } catch (_) {}
 }
 
@@ -19948,6 +20027,7 @@ async function showFbcPdfViewer(urls, opts) {
   _pdfPreviewName = "install-drawing.pdf";
   _pdfRemoteUrls = list;
   _pdfRemoteIdx = Math.max(0, Math.min(list.length - 1, (opts && opts.startIndex) || 0));
+  _pdfZoom = 1; _pdfJsDoc = null;
   const modal = document.getElementById("pdfPreviewModal");
   const pages = document.getElementById("pdfPreviewPages");
   const titleEl = document.getElementById("pdfPreviewTitle");
@@ -19956,7 +20036,7 @@ async function showFbcPdfViewer(urls, opts) {
   if (!modal || !pages) return;
   if (titleEl) titleEl.textContent = (opts && opts.title) || "Install drawing";
   if (shareBtn) shareBtn.classList.add("hidden");
-  if (dlBtn) dlBtn.classList.add("hidden"); // remote — use Open ↗ instead
+  if (dlBtn) dlBtn.classList.add("hidden");
   updatePdfDocChrome();
   modal.classList.remove("hidden"); modal.classList.add("flex");
   trapDialog(modal, closePdfPreview);
@@ -19977,12 +20057,13 @@ async function renderRemotePdfAtIndex(gen) {
     const pdfjs = await loadPdfJs();
     const pdf = await pdfjs.getDocument({ data: buf }).promise;
     if (gen != null && gen !== _pdfRenderGen) return;
-    await renderPdfJsPages(pdf, pages);
+    _pdfZoom = 1;
+    await renderPdfJsPages(pdf, pages, 1);
     if (gen != null && gen !== _pdfRenderGen) return;
-    setPdfZoom(1);
-    pages.scrollTop = 0;
+    pages.scrollTop = 0; pages.scrollLeft = 0;
   } catch (err) {
     if (gen != null && gen !== _pdfRenderGen) return;
+    _pdfJsDoc = null;
     pages.innerHTML = `<div class="text-center text-rose-300 text-sm py-10 px-4">
       Couldn't load this drawing.
       <div class="mt-3"><a class="text-[#c9a558] font-semibold underline" href="${escHtml(proxiedPdfUrl(url))}" target="_blank" rel="noopener">Open PDF in a new tab ↗</a></div>
@@ -19999,8 +20080,10 @@ async function stepFbcPdfDoc(dir) {
   await renderRemotePdfAtIndex(gen);
 }
 function closePdfPreview() {
+  clearTimeout(_pdfRerenderTimer); _pdfRerenderTimer = 0;
   _pdfPreviewDoc = null; _pdfPreviewMeta = null;
   _pdfRemoteUrls = null; _pdfRemoteIdx = 0;
+  _pdfJsDoc = null; _pdfZoom = 1; _pdfLivePreview = false;
   if (_pdfBlobUrl) { try { URL.revokeObjectURL(_pdfBlobUrl); } catch (_) {} _pdfBlobUrl = null; }
   tvDismiss(document.getElementById("pdfPreviewModal"), () => {
     const pages = document.getElementById("pdfPreviewPages");
