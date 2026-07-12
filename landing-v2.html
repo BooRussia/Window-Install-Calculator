@@ -553,39 +553,98 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .q-perlf b { color: var(--gold-hi); }
 
 /* ============================================================
-   BEAT 5 — FL APPROVAL
+   BEAT 5 — FL APPROVAL (side-clash dual cards)
    ============================================================ */
 #fl { padding: 22vh 0; }
-.fl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 80px); align-items: center; margin-top: 8px; }
-@media (max-width: 860px) { .fl-grid { grid-template-columns: 1fr; } }
-.fl-search {
-  display: flex; align-items: center; gap: 12px;
-  margin-top: 26px; padding: 16px 20px; border-radius: 16px;
-  background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7);
-  max-width: 24rem;
+.fl-head { text-align: center; max-width: none; margin: 0 auto 40px; }
+.fl-head .sub { margin-left: auto; margin-right: auto; max-width: 40rem; }
+.fl-title {
+  white-space: nowrap; font-size: clamp(1.2rem, 4.6vw, 3.15rem);
+  letter-spacing: 0.005em; line-height: 1.12;
 }
-.fl-search svg { color: var(--ink-4); flex-shrink: 0; }
-.fl-type { position: relative; font-size: 17px; font-weight: 700; color: var(--ink-1); font-variant-numeric: tabular-nums; }
-.fl-type .mask {
-  position: absolute; top: -4px; bottom: -4px; left: -2px; right: -2px;
-  background: #0b1526; transform: translateX(0);
+.fl-u { position: relative; display: inline-block; }
+.fl-u::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0.04em;
+  height: 0.085em; border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-pale));
+  transform: scaleX(0); transform-origin: left center;
 }
-.js .go .fl-type .mask { animation: typeSweep 1s steps(9, end) .3s forwards; }
-@keyframes typeSweep { to { transform: translateX(103%); } }
-.jamb {
+.js .go .fl-u::after {
+  transition: transform .7s cubic-bezier(0.22, 1, 0.36, 1) .08s;
+  transform: scaleX(1);
+}
+.no-js .fl-u::after, .static-flow .fl-u::after { transform: scaleX(1); }
+.fl-clash {
+  display: grid; grid-template-columns: 1fr 1fr; gap: clamp(14px, 2.2vw, 24px);
+  align-items: stretch; position: relative; overflow: clip;
+}
+@media (max-width: 860px) { .fl-clash { grid-template-columns: 1fr; } }
+.fl-card {
   background: var(--card); border: 1px solid var(--hairline); border-radius: 20px;
-  padding: clamp(18px, 3vw, 30px); position: relative;
+  padding: clamp(16px, 2.4vw, 26px); position: relative; min-width: 0;
+  will-change: transform;
 }
-.jamb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.jamb-head .jh-t { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); }
-.jamb-head .jh-b { font-size: 11px; font-weight: 800; color: var(--gold-hi); }
+.js .fl-card--ai { opacity: 0; transform: translate3d(-118%, 0, 0); }
+.js .fl-card--jamb { opacity: 0; transform: translate3d(118%, 0, 0); }
+.js .go .fl-card--ai { animation: flClashInL .82s cubic-bezier(0.18, 0.9, 0.28, 1) .28s both; }
+.js .go .fl-card--jamb { animation: flClashInR .82s cubic-bezier(0.18, 0.9, 0.28, 1) .28s both; }
+@keyframes flClashInL {
+  0%   { opacity: 0; transform: translate3d(-118%, 0, 0); }
+  68%  { opacity: 1; transform: translate3d(10px, 0, 0); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes flClashInR {
+  0%   { opacity: 0; transform: translate3d(118%, 0, 0); }
+  68%  { opacity: 1; transform: translate3d(-10px, 0, 0); }
+  100% { opacity: 1; transform: none; }
+}
+.fl-ai-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.fl-ai-ico {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--gold-hi); background: rgba(181,143,74,0.1);
+  border: 1px solid rgba(181,143,74,0.28);
+}
+.fl-ai-title {
+  font-size: 15px; font-weight: 800; color: var(--ink-1); letter-spacing: -0.01em;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; line-height: 1.2;
+}
+.fl-ai-badge {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--gold-hi); border: 1px solid rgba(181,143,74,0.4);
+  border-radius: 5px; padding: 2px 7px; line-height: 1.4;
+}
+.fl-ai-sub { font-size: 11px; color: var(--ink-4); margin-top: 4px; font-weight: 500; line-height: 1.35; }
+.fl-ai-list { display: flex; flex-direction: column; gap: 8px; }
+.fl-appr-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: 1px solid rgba(30,41,59,0.95); border-radius: 12px;
+  background: rgba(2,6,23,0.45); padding: 10px 12px;
+}
+.fl-appr-num {
+  font-size: 13px; font-weight: 800; color: #c9a558; letter-spacing: 0.01em;
+  flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
+.fl-appr-name {
+  font-size: 12px; color: #94a3b8; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fl-appr-cta { margin-left: auto; font-size: 12px; font-weight: 700; color: #64748b; flex-shrink: 0; }
+.js .fl-appr-row { opacity: 0; transform: translateY(-16px); }
+.js .go .fl-appr-row {
+  animation: flRowDrop .48s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(0.95s + var(--i) * 0.1s);
+}
+@keyframes flRowDrop {
+  0%   { opacity: 0; transform: translateY(-16px); }
+  100% { opacity: 1; transform: none; }
+}
 .jamb svg text { font-family: 'Inter', sans-serif; }
-/* fasteners drive in from the right: accelerate through the frame, seat with
-   a 2px recoil, and an impact ring blooms where the head meets the frame */
+/* fasteners drive in once the cards clash */
 .js .fast .screw-drive { opacity: 0; transform: translateX(84px); }
 .js .go .fast .screw-drive {
   animation: screwDrive .55s cubic-bezier(0.5, 0, 0.55, 1) both;
-  animation-delay: calc(1.2s + var(--i) * 0.4s);
+  animation-delay: calc(1.08s + var(--i) * 0.38s);
 }
 @keyframes screwDrive {
   0%   { opacity: 0; transform: translateX(84px); }
@@ -596,7 +655,7 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 .fast .hit { opacity: 0; transform-box: fill-box; transform-origin: center; }
 .js .go .fast .hit {
   animation: hitRing .5s ease-out both;
-  animation-delay: calc(1.2s + var(--i) * 0.4s + 0.4s);
+  animation-delay: calc(1.08s + var(--i) * 0.38s + 0.4s);
 }
 @keyframes hitRing {
   0%   { opacity: 0.75; transform: scale(0.35); }
@@ -604,8 +663,15 @@ h2.anton { font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.06; color: var(
 }
 .dim { transform-box: fill-box; }
 .js .dim { opacity: 0; }
-.js .go .dim { transition: opacity .6s ease 3.4s; opacity: 1; }
-.fl-note { font-size: 11px; color: var(--ink-4); margin-top: 14px; }
+.js .go .dim { transition: opacity .6s ease 3.1s; opacity: 1; }
+.fl-note { font-size: 11px; color: var(--ink-4); margin-top: 18px; text-align: center; }
+.no-js .fl-card--ai, .no-js .fl-card--jamb,
+.static-flow .fl-card--ai, .static-flow .fl-card--jamb {
+  opacity: 1 !important; transform: none !important; animation: none !important;
+}
+.no-js .fl-appr-row, .static-flow .fl-appr-row {
+  opacity: 1 !important; transform: none !important; animation: none !important;
+}
 
 /* ============================================================
    BEAT 6 — DOCUMENTS (stack → fan → settle)
@@ -889,7 +955,6 @@ footer {
   margin: 0; transform: none !important;
 }
 .no-js .beam, .static-flow .beam,
-.no-js .fl-type .mask, .static-flow .fl-type .mask,
 .no-js .sig .sig-mask, .static-flow .sig .sig-mask,
 .no-js .ring, .static-flow .ring { display: none; }
 .no-js .set-rope, .static-flow .set-rope { transform: scaleY(1) !important; transition: none !important; }
@@ -908,7 +973,9 @@ footer {
   .js .fast .screw-drive { opacity: 1; transform: none; animation: none !important; }
   .js .fast .hit { display: none; }
   .js .dim { opacity: 1; transition: none; }
-  .fl-type .mask { display: none; }
+  .js .fl-card--ai, .js .fl-card--jamb { opacity: 1; transform: none; animation: none !important; }
+  .js .fl-appr-row { opacity: 1; transform: none; animation: none !important; }
+  .js .fl-u::after { transform: scaleX(1); transition: none; }
   .js .sig .sig-mask { display: none; }
   .set-anchor { transform: none !important; transition: none !important; }
   .set-rope { transform: scaleY(1) !important; transition: none !important; }
@@ -1104,25 +1171,42 @@ footer {
 </section>
 
 <!-- ============ BEAT 5 — FL APPROVAL (0:38) ============ -->
-<section id="fl" data-io>
+<section id="fl">
   <div class="wrap">
-    <p class="stamp rv">0:38 · <b>The Florida part</b></p>
-    <h2 class="anton rv" style="--d:.06s">The inspector already said yes.</h2>
-    <div class="fl-grid">
-      <div>
-        <p class="sub rv" style="--d:.12s">Search any Florida product approval right off the unit's sticker. The anchoring schedule comes back in one tap — no PDF spelunking on a job site.</p>
-        <div class="fl-search rv" style="--d:.18s" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-            <circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/>
-          </svg>
-          <span class="fl-type">FL 12345.6<span class="mask"></span></span>
+    <div class="fl-head">
+      <p class="stamp rv">0:38 · <b>The Florida part</b></p>
+      <h2 class="anton fl-title rv" style="--d:.06s"><span class="fl-u">Automatic</span> FL Product Approvals</h2>
+      <p class="sub rv" style="--d:.12s">Our AI automatically pulls the FL Product Approval numbers from the window schedule if listed. If not listed search any Florida product approval right off the unit's sticker in the app. The anchoring schedule comes back in one tap with embedded PDF to see the drawings.</p>
+    </div>
+    <div class="fl-clash" aria-hidden="true">
+      <div class="fl-card fl-card--ai">
+        <div class="fl-ai-head">
+          <span class="fl-ai-ico" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </span>
+          <div>
+            <div class="fl-ai-title">Florida Product Approvals <span class="fl-ai-badge">AI</span></div>
+            <p class="fl-ai-sub">Read off your schedule — tap any number to look up its screw pattern</p>
+          </div>
         </div>
-        <p class="fl-note rv" style="--d:.24s">Reference catalog of 3,400+ approvals — always verify the FL# on the unit's NFRC label.</p>
+        <div class="fl-ai-list">
+          <div class="fl-appr-row" style="--i:0"><span class="fl-appr-num">17532.2</span><span class="fl-appr-name">Ocean View NC Trapezoid</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:1"><span class="fl-appr-num">46320.2</span><span class="fl-appr-name">Ocean View NC Awning</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:2"><span class="fl-appr-num">17548.2</span><span class="fl-appr-name">S-Series Mulled Units 2U-1R2C</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:3"><span class="fl-appr-num">46985.1</span><span class="fl-appr-name">Ocean View NC Picture</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:4"><span class="fl-appr-num">33810.1</span><span class="fl-appr-name">Ocean View NC Casement</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:5"><span class="fl-appr-num">28643.1</span><span class="fl-appr-name">Ocean View 650 Door 3 Panels</span><span class="fl-appr-cta">Look up →</span></div>
+        </div>
       </div>
-      <div class="jamb rv" style="--d:.15s" aria-hidden="true">
-        <div class="jamb-head">
-          <span class="jh-t">Anchoring schedule · jamb</span>
-          <span class="jh-b">Masonry / block</span>
+      <div class="fl-card fl-card--jamb jamb">
+        <div class="fl-ai-head">
+          <span class="fl-ai-ico" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+          </span>
+          <div>
+            <div class="fl-ai-title">Simple Anchor Patterns <span class="fl-ai-badge">PDF</span></div>
+            <p class="fl-ai-sub">Embedded PDF Drawings for you ensurance.</p>
+          </div>
         </div>
         <svg viewBox="0 0 380 240" width="100%" role="img" aria-label="Anchoring cross-section: screws drive through the frame and wood buck into the block">
           <!-- masonry block -->
@@ -1231,6 +1315,7 @@ footer {
         </svg>
       </div>
     </div>
+    <p class="fl-note rv" style="--d:.2s">Reference catalog of 3,400+ approvals — always verify the FL# on the unit's NFRC label.</p>
   </div>
 </section>
 
@@ -1554,9 +1639,8 @@ footer {
       if (e.isIntersecting) { e.target.classList.add("in", "go", "go2"); io.unobserve(e.target); }
     });
   }, { threshold: 0.35, rootMargin: "0px 0px -8% 0px" });
-  // .jamb is handed to the replay system below (its screw-drive re-arms), so
-  // keep it out of the one-time reveal observer
-  document.querySelectorAll(".rv:not(.jamb), [data-io]").forEach(function (el) { io.observe(el); });
+  // .fl clash + screw/row anims are handed to the replay system below
+  document.querySelectorAll(".rv, [data-io]").forEach(function (el) { io.observe(el); });
 
   /* hero entrance */
   window.addEventListener("load", function () { document.body.classList.add("loaded"); });
@@ -1859,7 +1943,7 @@ footer {
     }, { threshold: [0, 0.3] }).observe(el);
   }
 
-  var jamb = document.querySelector(".jamb");
+  var flSec = document.getElementById("fl");
   var calcEl = document.querySelector(".calc");
   var cScan, cQuote, cTime, cTease;
 
@@ -1903,12 +1987,29 @@ footer {
     if (goldRow) goldRow.classList.remove("pinged");
   });
 
-  // FL cross-section — fasteners drive in; on exit keep the card, re-arm the screws
-  replay(document.getElementById("fl"), function () {
-    if (jamb) jamb.classList.add("in", "go");
-  }, function () {
-    if (jamb) jamb.classList.remove("go");
-  });
+  // FL clash — wait until the cards area is well on-screen, then underline
+  // "Automatic" and (after a short beat) slide the two cards in from the sides.
+  // Exit re-arms so scrolling back replays the beat.
+  (function () {
+    if (!flSec) return;
+    var flClash = flSec.querySelector(".fl-clash");
+    var on = false, delayTimer = null;
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting && e.intersectionRatio >= 0.4) {
+          if (!on) {
+            on = true;
+            delayTimer = setTimeout(function () { flSec.classList.add("go"); }, 160);
+          }
+        } else if (!e.isIntersecting && on) {
+          on = false;
+          if (delayTimer) { clearTimeout(delayTimer); delayTimer = null; }
+          flSec.classList.remove("go");
+        }
+      });
+    }, { threshold: [0, 0.4, 0.55], rootMargin: "0px 0px -10% 0px" })
+      .observe(flClash || flSec);
+  })();
 
   // slider tease — replays until the user actually grabs the handle
   replay(calcEl, function () {

@@ -585,7 +585,9 @@
 
   /* Mobile-only sticky live TOTAL bar — keeps the selling price in the thumb
      zone while you edit, so the number reacts to every choice without leaving
-     the drawer. (frontend-design skill: components.md §1, mobile-patterns §7.) */
+     the drawer. (frontend-design skill: components.md §1, mobile-patterns §7.)
+     Drag the bar down to tuck it away; a peek tab stays so you can drag/tap it
+     back up. Clearance rules use :not(.mtotal-tucked) so tucked frees the screen. */
   #mtotalBar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
     background: rgba(7,12,24,0.93);
@@ -594,8 +596,11 @@
     box-shadow: 0 -12px 32px -18px rgba(0,0,0,0.8);
     transform: translateY(115%);
     transition: transform .32s cubic-bezier(0.16,1,0.3,1);
+    touch-action: pan-y;
   }
   #mtotalBar.show { transform: translateY(0); }
+  #mtotalBar.show.tucked { transform: translateY(calc(100% + 12px)); }
+  #mtotalBar.dragging { transition: none !important; }
   #mtotalBtn {
     width: 100%; min-height: 56px;
     display: flex; align-items: center; gap: 12px;
@@ -609,21 +614,45 @@
   #mtotalBar .mtotal-amount { margin-left: auto; font-size: 22px; font-weight: 800; color: #f8fafc; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; line-height: 1; }
   #mtotalBar .mtotal-chev { flex-shrink: 0; color: #c9a558; }
   .mtotal-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  @media (min-width: 1024px) { #mtotalBar { display: none !important; } }
+  /* Peek tab — only while the selling-price bar is tucked; drag/tap to restore. */
+  #mtotalPeek {
+    position: fixed; left: 50%; z-index: 36; display: none;
+    transform: translateX(-50%);
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    align-items: center; gap: 8px;
+    padding: 8px 14px; min-height: 36px; border-radius: 999px;
+    background: rgba(7,12,24,0.94); border: 1px solid rgba(181,143,74,0.4);
+    box-shadow: 0 8px 24px -10px rgba(0,0,0,0.7);
+    color: #e2e8f0; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    -webkit-tap-highlight-color: transparent; cursor: pointer;
+    touch-action: none;
+  }
+  body.mtotal-on.mtotal-tucked #mtotalPeek { display: inline-flex; }
+  #mtotalPeek svg { color: var(--gold-hi); flex-shrink: 0; }
+  @media (min-width: 1024px) { #mtotalBar, #mtotalPeek { display: none !important; } }
   /* When the bar is up (mobile only), clear the drawer's bottom controls and
      lift the FAB above it so nothing is covered. */
   @media (max-width: 1023px) {
     /* Rail audit: Save moved OUT of the scroller into the pinned .rail-save-row
        (which carries its own mtotal clearance), so the scroller no longer needs
        bottom padding — the old 88px left a dead band at the drawer's scroll end. */
-    body.mtotal-on #jobSpecsFab { bottom: calc(88px + env(safe-area-inset-bottom)); }
+    body.mtotal-on:not(.mtotal-tucked) #jobSpecsFab { bottom: calc(88px + env(safe-area-inset-bottom)); }
     /* MOB-3/FLD-4: now that toasts linger ≥4s, lift them above the sticky mobile
        total bar so a failure message isn't hidden behind it. */
-    body.mtotal-on .toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
+    body.mtotal-on:not(.mtotal-tucked) .toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
     /* VIS-1: reserve space below the results so the fixed FAB + sticky total bar
        never sit on top of the last content (e.g. the Customer Quote Download
        button). Without this the FAB overlapped tap targets in the Job Files card. */
     #results { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+    /* Sit above the tab bar on the LEFT — center would cover the raised calc FAB. */
+    body.tabbar-on #mtotalPeek {
+      left: max(14px, env(safe-area-inset-left));
+      right: auto;
+      transform: none;
+      bottom: calc(var(--chrome-b) + 10px);
+      z-index: 46;
+    }
   }
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
 
@@ -660,7 +689,13 @@
     box-shadow: 0 10px 26px -8px var(--gold-glow), 0 0 0 6px rgba(7,12,24,0.94);
     transition: transform .15s var(--ease-out);
   }
+  .app-fab-circle .fab-ico.hidden { display: none; }
   .app-tab:active .app-fab-circle { transform: scale(0.94); }
+  /* Calculator mode: center tab opens the job-specs rail (no floating FAB). */
+  body.tabbar-calc .app-fab-circle .fab-ico-plus { display: none; }
+  body.tabbar-calc .app-fab-circle .fab-ico-calc { display: block; }
+  body.tabbar-calc .app-tab-center { /* keep raised circle */ }
+  #jobSpecsFab { display: none !important; }
   [data-theme="light"] body.tabbar-on .app-tabbar { background: rgba(255,255,255,0.96); border-top-color: #e2e6ec; }
   [data-theme="light"] .app-tab { color: #64748b; }
   [data-theme="light"] .app-tab.active { color: #9a7636; }
@@ -668,24 +703,32 @@
 
   /* Bottom-chrome offsets: one var feeds every element that must clear the bar.
      Scoped to body.tabbar-on so behavior with the bar off stays byte-identical. */
+  /* Dashboard scroll shell: content scrolls here; the cloned tab bar is a sibling
+     pinned with position:absolute so it stays locked on mobile (fixed-inside-
+     overflow:auto scrolls away on iOS/Android). */
+  #dashboardScreen .dash-scroll {
+    position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   @media (max-width: 1023px) {
     body.tabbar-on { --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
-    /* The dashboard (z-74) gets its OWN bar instance inside its stacking
-       context — the body-level bar (z-45) painted UNDER the dashboard's edge
-       and clipped the FAB's raised top. Content clears the bar via padding. */
-    body.tabbar-on #dashboardScreen { padding-bottom: var(--chrome-b); }
+    /* Body-level #appTabBar stays hidden on the dashboard — it sits at z-45 under
+       the overlay (z-74) and would clip the raised FAB. */
+    body.tabbar-on #dashScroll { padding-bottom: var(--chrome-b); }
     body.tabbar-on:has(#dashboardScreen:not(.hidden)) #appTabBar { display: none !important; }
-    #dashboardScreen .app-tabbar { z-index: 45; }
+    #dashboardScreen .app-tabbar {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
+    }
     body.tabbar-on #compareBar { bottom: calc(var(--chrome-b) + 14px); }
     body.tabbar-on #appBody { padding-bottom: var(--chrome-b); }
     body.tabbar-on #mtotalBar { bottom: var(--chrome-b); }
     body.tabbar-on #mtotalBtn { padding-bottom: 9px; }   /* safe-area now spent by the bar below */
     body.tabbar-on #jobSpecsFab { bottom: calc(var(--chrome-b) + 18px); }
-    body.tabbar-on.mtotal-on #jobSpecsFab { bottom: calc(var(--chrome-b) + 86px); }
+    body.tabbar-on.mtotal-on:not(.mtotal-tucked) #jobSpecsFab { bottom: calc(var(--chrome-b) + 86px); }
     body.tabbar-on .toast { bottom: calc(var(--chrome-b) + 20px); }
-    body.tabbar-on.mtotal-on .toast { bottom: calc(var(--chrome-b) + 86px); }
-    body.tabbar-on.mtotal-on #results { padding-bottom: calc(var(--chrome-b) + 150px); }
-    body.tabbar-on.mtotal-on #jobRail > .overflow-y-auto { padding-bottom: calc(var(--chrome-b) + 88px); }
+    body.tabbar-on.mtotal-on:not(.mtotal-tucked) .toast { bottom: calc(var(--chrome-b) + 86px); }
+    body.tabbar-on.mtotal-on:not(.mtotal-tucked) #results { padding-bottom: calc(var(--chrome-b) + 150px); }
+    body.tabbar-on.mtotal-on:not(.mtotal-tucked) #jobRail > .overflow-y-auto { padding-bottom: calc(var(--chrome-b) + 88px); }
     body.tabbar-on #jobRail > .overflow-y-auto { padding-bottom: calc(var(--chrome-b) + 16px); }
     /* Present mode = customer is looking: drop the app chrome entirely. */
     body.present-mode .app-tabbar { display: none !important; }
@@ -719,6 +762,7 @@
      mode strips them; ≥1024px never shows it (the bar itself is mobile-only). */
   #mtotalSheet { position: fixed; inset: 0; z-index: 49; display: none; }
   #mtotalSheet.open { display: block; }
+  body.msheet-open { overscroll-behavior-y: none; }
   .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
   .msheet-panel {
     position: absolute; left: 0; right: 0; bottom: 0; max-height: 78svh;
@@ -727,9 +771,20 @@
     border-top: 1px solid rgba(181,143,74,0.35); border-radius: 20px 20px 0 0;
     padding: 8px 18px calc(18px + env(safe-area-inset-bottom));
     animation: sheetUp .34s cubic-bezier(0.16,1,0.3,1);
+    will-change: transform;
   }
+  .msheet-panel.dragging { animation: none !important; transition: none !important; }
+  /* Keep sheetUp from replaying while we settle a drag dismiss/snap-back —
+     that replay was the bounce after finger-up. */
+  .msheet-panel.settling { animation: none !important; }
   @media (prefers-reduced-motion: reduce) { .msheet-panel { animation: none; } }
-  .msheet-grab { width: 40px; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.45); margin: 6px auto 14px; }
+  .msheet-grab {
+    width: 40px; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.45);
+    margin: 6px auto 14px; position: relative; touch-action: none; cursor: grab;
+  }
+  .msheet-grab::before {
+    content: ""; position: absolute; left: -48px; right: -48px; top: -18px; bottom: -18px;
+  }
   .msheet-cap { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: #94a3b8; }
   .msheet-num { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; color: #f8fafc; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
   .msheet-margin { font-size: 12px; font-weight: 700; color: var(--gold-hi); }
@@ -1149,7 +1204,7 @@
   }
   [data-theme="light"] .rail-save-row { border-top-color: #e6e8ec; }
   @media (max-width: 1023px) {
-    body.mtotal-on .rail-save-row { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+    body.mtotal-on:not(.mtotal-tucked) .rail-save-row { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
   }
   /* Compact rail LF input — replaces the old hero-size one for the rail */
   .rail-lf-input-wrap {
@@ -3590,47 +3645,31 @@
   @media (max-width: 480px) { .dash-nav-btn { font-size: 12.5px; padding: 8px 6px; } }
   .dash-job-card { border: 1px solid #1e293b; border-radius: 16px; background: rgba(15,23,42,0.5); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
   .dash-job-card:hover { border-color: rgba(181,143,74,0.4); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
-  .dash-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; background: rgba(2,6,23,0.6); border: 0; padding: 0; overflow: hidden; }
-  .dash-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .dash-thumb-empty { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
-  .dash-thumb:hover .dash-thumb-empty { color: #c9a558; }
-  .dash-thumb-badge { position: absolute; top: 8px; left: 8px; z-index: 2; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; border-radius: 9999px; padding: 2px 9px; border: 1px solid; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-  /* hover overlay with the two photo actions */
+  .dash-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; background: rgba(2,6,23,0.6); border: 0; padding: 0; overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .dash-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .dash-thumb-empty { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; pointer-events: none; }
+  .dash-thumb:hover .dash-thumb-empty { color: #94a3b8; }
+  .dash-thumb-badge { position: absolute; top: 8px; left: 8px; z-index: 2; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; border-radius: 9999px; padding: 2px 9px; border: 1px solid; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); pointer-events: none; }
+  /* Empty-thumb only: two compact icon buttons (upload / Grok). Hidden once a
+     photo exists — change the photo from the job details page instead. */
   .dash-thumb-actions {
-    position: absolute; inset: 0; z-index: 3;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 12px;
-    background: rgba(2,6,23,0.62); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
-    opacity: 0; transition: opacity .18s ease; pointer-events: none;
+    position: absolute; right: 8px; bottom: 8px; z-index: 3;
+    display: flex; flex-direction: row; align-items: center; gap: 6px;
+    pointer-events: auto;
   }
-  .dash-thumb:hover .dash-thumb-actions { opacity: 1; pointer-events: auto; }
-  /* DASH-11: reveal the overlay when either action button is keyboard-focused
-     (the buttons are tab-reachable, so without this a keyboard user could fire
-     the credit-spending Grok action with zero visual feedback). */
-  .dash-thumb:focus-within .dash-thumb-actions { opacity: 1; pointer-events: auto; }
   .dash-thumb-act {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    width: 78%; max-width: 210px; cursor: pointer;
-    font-size: 12px; font-weight: 800; border: 0; border-radius: 9px; padding: 9px 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; min-width: 40px; min-height: 40px; padding: 0;
+    cursor: pointer; border: 0; border-radius: 999px;
     background: rgba(255,255,255,0.94); color: #0b1120;
+    box-shadow: 0 6px 16px -8px rgba(0,0,0,0.55);
     transition: background .12s ease, transform .08s ease;
   }
   .dash-thumb-act:hover { background: #ffffff; }
-  .dash-thumb-act:active { transform: scale(0.97); }
+  .dash-thumb-act:active { transform: scale(0.94); }
   .dash-thumb-act-ai { background: linear-gradient(180deg,#d8b96a,#b58f4a); color: #0b1120; }
   .dash-thumb-act-ai:hover { background: linear-gradient(180deg,#e6c878,#c9a558); }
-  /* touch devices have no hover — pin the actions as a bottom bar so they stay
-     reachable without covering the photo. Critically, DROP the backdrop blur:
-     this overlay is always visible on touch, and inset:0 + backdrop-filter
-     would blur the whole thumbnail behind it — the baked title AND the status
-     badge — which is exactly what looked blurry on mobile. The bottom gradient
-     keeps the buttons legible without any blur. */
-  @media (hover: none) {
-    /* DASH-11: stack the two actions as full-width 44px bars on touch so each
-       clears the tap-target floor (they were ~24px side-by-side). Still no
-       backdrop-blur (see note above). */
-    .dash-thumb-actions { opacity: 1; pointer-events: auto; flex-direction: column; align-items: stretch; justify-content: flex-end; gap: 6px; padding: 8px; background: linear-gradient(transparent 35%, rgba(2,6,23,0.82)); -webkit-backdrop-filter: none; backdrop-filter: none; }
-    .dash-thumb-act { width: 100%; max-width: none; min-height: 44px; font-size: 12px; padding: 0 12px; }
-  }
+  .dash-thumb-act:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .dash-card-load { font-size: 12px; font-weight: 700; border-radius: 9999px; padding: 6px 14px; cursor: pointer; background: rgba(181,143,74,0.12); color: #c9a558; border: 1px solid rgba(181,143,74,0.5); transition: all .15s ease; }
   .dash-card-load:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
   .dash-card-del { background: transparent; color: #64748b; border: 1px solid transparent; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
@@ -4210,6 +4249,9 @@
   [data-theme="light"] #mtotalBar .mtotal-sub { color: #64748b; }
   [data-theme="light"] #mtotalBar .mtotal-amount { color: #0f172a; }
   [data-theme="light"] #mtotalBar .mtotal-chev { color: #97772e; }
+  [data-theme="light"] #mtotalPeek {
+    background: rgba(255,255,255,0.96); border-color: rgba(181,143,74,0.45); color: #0f172a;
+  }
   [data-theme="light"] #jobSummaryBar { background: rgba(255,255,255,0.85); border-bottom-color: rgba(15,23,42,0.08); }
   [data-theme="light"] #jobSummaryBar #jobSpecSummary .jss-size { color: #0f172a; }
   [data-theme="light"] #jobSummaryBar #jobSpecSummary .jss-spec { color: #64748b; }
@@ -4809,29 +4851,107 @@
 #landingScreen .q-perlf { font-size: 12px; font-weight: 700; color: var(--ink-4); letter-spacing: 0.06em; margin-top: 18px; text-transform: uppercase; }
 #landingScreen .q-perlf b { color: var(--gold-hi); }
 #landingScreen #fl { padding: 22vh 0; }
-#landingScreen .fl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 80px); align-items: center; margin-top: 8px; }
-@media (max-width: 860px) {
-#landingScreen .fl-grid { grid-template-columns: 1fr; }
+#landingScreen .fl-head { text-align: center; max-width: none; margin: 0 auto 40px; }
+#landingScreen .fl-head .sub { margin-left: auto; margin-right: auto; max-width: 40rem; }
+#landingScreen .fl-title {
+  white-space: nowrap; font-size: clamp(1.2rem, 4.6vw, 3.15rem);
+  letter-spacing: 0.005em; line-height: 1.12;
 }
-#landingScreen .fl-search { display: flex; align-items: center; gap: 12px;
-  margin-top: 26px; padding: 16px 20px; border-radius: 16px;
-  background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7);
-  max-width: 24rem; }
-#landingScreen .fl-search svg { color: var(--ink-4); flex-shrink: 0; }
-#landingScreen .fl-type { position: relative; font-size: 17px; font-weight: 700; color: var(--ink-1); font-variant-numeric: tabular-nums; }
-#landingScreen .fl-type .mask { position: absolute; top: -4px; bottom: -4px; left: -2px; right: -2px;
-  background: #0b1526; transform: translateX(0); }
-#landingScreen.js .go .fl-type .mask { animation: typeSweep 1s steps(9, end) .3s forwards; }
-@keyframes typeSweep { to { transform: translateX(103%); } }
-#landingScreen .jamb { background: var(--card); border: 1px solid var(--hairline); border-radius: 20px;
-  padding: clamp(18px, 3vw, 30px); position: relative; }
-#landingScreen .jamb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-#landingScreen .jamb-head .jh-t { font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); }
-#landingScreen .jamb-head .jh-b { font-size: 11px; font-weight: 800; color: var(--gold-hi); }
+#landingScreen .fl-u { position: relative; display: inline-block; }
+#landingScreen .fl-u::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0.04em;
+  height: 0.085em; border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-pale));
+  transform: scaleX(0); transform-origin: left center;
+}
+#landingScreen.js .go .fl-u::after {
+  transition: transform .7s cubic-bezier(0.22, 1, 0.36, 1) .08s;
+  transform: scaleX(1);
+}
+#landingScreen.no-js .fl-u::after, #landingScreen.static-flow .fl-u::after { transform: scaleX(1); }
+#landingScreen .fl-clash {
+  display: grid; grid-template-columns: 1fr 1fr; gap: clamp(14px, 2.2vw, 24px);
+  align-items: stretch; position: relative; overflow: clip;
+}
+@media (max-width: 860px) {
+#landingScreen .fl-clash { grid-template-columns: 1fr; }
+}
+#landingScreen .fl-card {
+  background: var(--card); border: 1px solid var(--hairline); border-radius: 20px;
+  padding: clamp(16px, 2.4vw, 26px); position: relative; min-width: 0;
+  will-change: transform;
+}
+/* Side-clash: wait for .go (delayed until well on-screen), then rush in */
+#landingScreen.js .fl-card--ai { opacity: 0; transform: translate3d(-118%, 0, 0); }
+#landingScreen.js .fl-card--jamb { opacity: 0; transform: translate3d(118%, 0, 0); }
+#landingScreen.js .go .fl-card--ai {
+  animation: flClashInL .82s cubic-bezier(0.18, 0.9, 0.28, 1) .28s both;
+}
+#landingScreen.js .go .fl-card--jamb {
+  animation: flClashInR .82s cubic-bezier(0.18, 0.9, 0.28, 1) .28s both;
+}
+@keyframes flClashInL {
+  0%   { opacity: 0; transform: translate3d(-118%, 0, 0); }
+  68%  { opacity: 1; transform: translate3d(10px, 0, 0); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes flClashInR {
+  0%   { opacity: 0; transform: translate3d(118%, 0, 0); }
+  68%  { opacity: 1; transform: translate3d(-10px, 0, 0); }
+  100% { opacity: 1; transform: none; }
+}
+/* AI approvals card (matches calculator planApprovalsCard) */
+#landingScreen .fl-ai-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+#landingScreen .fl-ai-ico {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--gold-hi); background: rgba(181,143,74,0.1);
+  border: 1px solid rgba(181,143,74,0.28);
+}
+#landingScreen .fl-ai-title {
+  font-size: 15px; font-weight: 800; color: var(--ink-1); letter-spacing: -0.01em;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; line-height: 1.2;
+}
+#landingScreen .fl-ai-badge {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--gold-hi); border: 1px solid rgba(181,143,74,0.4);
+  border-radius: 5px; padding: 2px 7px; line-height: 1.4;
+}
+#landingScreen .fl-ai-sub {
+  font-size: 11px; color: var(--ink-4); margin-top: 4px; font-weight: 500; line-height: 1.35;
+}
+#landingScreen .fl-ai-list { display: flex; flex-direction: column; gap: 8px; }
+#landingScreen .fl-appr-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: 1px solid rgba(30,41,59,0.95); border-radius: 12px;
+  background: rgba(2,6,23,0.45); padding: 10px 12px;
+}
+#landingScreen .fl-appr-num {
+  font-size: 13px; font-weight: 800; color: #c9a558; letter-spacing: 0.01em;
+  flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
+#landingScreen .fl-appr-name {
+  font-size: 12px; color: #94a3b8; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#landingScreen .fl-appr-cta {
+  margin-left: auto; font-size: 12px; font-weight: 700; color: #64748b; flex-shrink: 0;
+}
+/* After clash: approval rows cascade down */
+#landingScreen.js .fl-appr-row { opacity: 0; transform: translateY(-16px); }
+#landingScreen.js .go .fl-appr-row {
+  animation: flRowDrop .48s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(0.95s + var(--i) * 0.1s);
+}
+@keyframes flRowDrop {
+  0%   { opacity: 0; transform: translateY(-16px); }
+  100% { opacity: 1; transform: none; }
+}
 #landingScreen .jamb svg text { font-family: 'Inter', sans-serif; }
+/* Anchors drive in once the cards clash */
 #landingScreen.js .fast .screw-drive { opacity: 0; transform: translateX(84px); }
 #landingScreen.js .go .fast .screw-drive { animation: screwDrive .55s cubic-bezier(0.5, 0, 0.55, 1) both;
-  animation-delay: calc(1.2s + var(--i) * 0.4s); }
+  animation-delay: calc(1.08s + var(--i) * 0.38s); }
 @keyframes screwDrive {
   0%   { opacity: 0; transform: translateX(84px); }
   18%  { opacity: 1; }
@@ -4840,15 +4960,22 @@
 }
 #landingScreen .fast .hit { opacity: 0; transform-box: fill-box; transform-origin: center; }
 #landingScreen.js .go .fast .hit { animation: hitRing .5s ease-out both;
-  animation-delay: calc(1.2s + var(--i) * 0.4s + 0.4s); }
+  animation-delay: calc(1.08s + var(--i) * 0.38s + 0.4s); }
 @keyframes hitRing {
   0%   { opacity: 0.75; transform: scale(0.35); }
   100% { opacity: 0; transform: scale(1.9); }
 }
 #landingScreen .dim { transform-box: fill-box; }
 #landingScreen.js .dim { opacity: 0; }
-#landingScreen.js .go .dim { transition: opacity .6s ease 3.4s; opacity: 1; }
-#landingScreen .fl-note { font-size: 11px; color: var(--ink-4); margin-top: 14px; }
+#landingScreen.js .go .dim { transition: opacity .6s ease 3.1s; opacity: 1; }
+#landingScreen .fl-note { font-size: 11px; color: var(--ink-4); margin-top: 18px; text-align: center; }
+#landingScreen.no-js .fl-card--ai, #landingScreen.no-js .fl-card--jamb,
+#landingScreen.static-flow .fl-card--ai, #landingScreen.static-flow .fl-card--jamb {
+  opacity: 1 !important; transform: none !important; animation: none !important;
+}
+#landingScreen.no-js .fl-appr-row, #landingScreen.static-flow .fl-appr-row {
+  opacity: 1 !important; transform: none !important; animation: none !important;
+}
 #landingScreen #docs { height: 300vh; }
 #landingScreen #docs .stage { gap: 10px; }
 #landingScreen .docs-head { text-align: center; padding: 0 24px; position: relative; z-index: 5; }
@@ -5073,7 +5200,7 @@
   gap: 14px; padding: 0 24px; max-width: 1160px; }
 #landingScreen.no-js .doc, #landingScreen.static-flow .doc { position: static; width: auto; height: auto; min-height: 250px;
   margin: 0; transform: none !important; }
-#landingScreen.no-js .beam, #landingScreen.static-flow .beam, #landingScreen.no-js .fl-type .mask, #landingScreen.static-flow .fl-type .mask, #landingScreen.no-js .sig .sig-mask, #landingScreen.static-flow .sig .sig-mask, #landingScreen.no-js .ring, #landingScreen.static-flow .ring { display: none; }
+#landingScreen.no-js .beam, #landingScreen.static-flow .beam, #landingScreen.no-js .sig .sig-mask, #landingScreen.static-flow .sig .sig-mask, #landingScreen.no-js .ring, #landingScreen.static-flow .ring { display: none; }
 #landingScreen.no-js .set-rope, #landingScreen.static-flow .set-rope { transform: scaleY(1) !important; transition: none !important; }
 #landingScreen.no-js .set-anchor, #landingScreen.static-flow .set-anchor { transform: none !important; transition: none !important; }
 #landingScreen.no-js .cell, #landingScreen.static-flow .cell { transform: none !important; opacity: 1 !important; }
@@ -5090,7 +5217,9 @@
 #landingScreen.js .fast .screw-drive { opacity: 1; transform: none; animation: none !important; }
 #landingScreen.js .fast .hit { display: none; }
 #landingScreen.js .dim { opacity: 1; transition: none; }
-#landingScreen .fl-type .mask { display: none; }
+#landingScreen.js .fl-card--ai, #landingScreen.js .fl-card--jamb { opacity: 1; transform: none; animation: none !important; }
+#landingScreen.js .fl-appr-row { opacity: 1; transform: none; animation: none !important; }
+#landingScreen.js .fl-u::after { transform: scaleX(1); transition: none; }
 #landingScreen.js .sig .sig-mask { display: none; }
 #landingScreen .set-anchor { transform: none !important; transition: none !important; }
 #landingScreen .set-rope { transform: scaleY(1) !important; transition: none !important; }
@@ -5156,9 +5285,6 @@
 [data-theme="light"] #landingScreen .cell.err { color: #b91c1c; border-color: rgba(185,28,28,0.35); }
 [data-theme="light"] #landingScreen .cue-label { color: #8a6a2e; text-shadow: none; }
 [data-theme="light"] #landingScreen .cue-line { background: #8a6a2e; filter: drop-shadow(0 0 4px rgba(138,106,46,0.5)); }
-/* Approvals-beat search mock: dark input + typing mask → light */
-[data-theme="light"] #landingScreen .fl-search { background: rgba(255,255,255,0.85); border-color: rgba(15,23,42,0.14); }
-[data-theme="light"] #landingScreen .fl-type .mask { background: #f7f8fa; }
 /* "Try me!" pill is a gold BACKGROUND (not text) — keep it bright on light so it still pops */
 [data-theme="light"] #landingScreen .try-pill { background: #dfc07a; color: #1b1206; }
 
@@ -6036,25 +6162,42 @@
 </section>
 
 <!-- ============ BEAT 5 — FL APPROVAL (0:38) ============ -->
-<section id="fl" data-io>
+<section id="fl">
   <div class="wrap">
-    <p class="stamp rv">0:38 · <b>The Florida part</b></p>
-    <h2 class="anton rv" style="--d:.06s">The inspector already said yes.</h2>
-    <div class="fl-grid">
-      <div>
-        <p class="sub rv" style="--d:.12s">Search any Florida product approval right off the unit's sticker. The anchoring schedule comes back in one tap — no PDF spelunking on a job site.</p>
-        <div class="fl-search rv" style="--d:.18s" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-            <circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/>
-          </svg>
-          <span class="fl-type">FL 12345.6<span class="mask"></span></span>
+    <div class="fl-head">
+      <p class="stamp rv">0:38 · <b>The Florida part</b></p>
+      <h2 class="anton fl-title rv" style="--d:.06s"><span class="fl-u">Automatic</span> FL Product Approvals</h2>
+      <p class="sub rv" style="--d:.12s">Our AI automatically pulls the FL Product Approval numbers from the window schedule if listed. If not listed search any Florida product approval right off the unit's sticker in the app. The anchoring schedule comes back in one tap with embedded PDF to see the drawings.</p>
+    </div>
+    <div class="fl-clash" aria-hidden="true">
+      <div class="fl-card fl-card--ai">
+        <div class="fl-ai-head">
+          <span class="fl-ai-ico" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </span>
+          <div>
+            <div class="fl-ai-title">Florida Product Approvals <span class="fl-ai-badge">AI</span></div>
+            <p class="fl-ai-sub">Read off your schedule — tap any number to look up its screw pattern</p>
+          </div>
         </div>
-        <p class="fl-note rv" style="--d:.24s">Reference catalog of 3,400+ approvals — always verify the FL# on the unit's NFRC label.</p>
+        <div class="fl-ai-list">
+          <div class="fl-appr-row" style="--i:0"><span class="fl-appr-num">17532.2</span><span class="fl-appr-name">Ocean View NC Trapezoid</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:1"><span class="fl-appr-num">46320.2</span><span class="fl-appr-name">Ocean View NC Awning</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:2"><span class="fl-appr-num">17548.2</span><span class="fl-appr-name">S-Series Mulled Units 2U-1R2C</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:3"><span class="fl-appr-num">46985.1</span><span class="fl-appr-name">Ocean View NC Picture</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:4"><span class="fl-appr-num">33810.1</span><span class="fl-appr-name">Ocean View NC Casement</span><span class="fl-appr-cta">Look up →</span></div>
+          <div class="fl-appr-row" style="--i:5"><span class="fl-appr-num">28643.1</span><span class="fl-appr-name">Ocean View 650 Door 3 Panels</span><span class="fl-appr-cta">Look up →</span></div>
+        </div>
       </div>
-      <div class="jamb rv" style="--d:.15s" aria-hidden="true">
-        <div class="jamb-head">
-          <span class="jh-t">Anchoring schedule · jamb</span>
-          <span class="jh-b">Masonry / block</span>
+      <div class="fl-card fl-card--jamb jamb">
+        <div class="fl-ai-head">
+          <span class="fl-ai-ico" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+          </span>
+          <div>
+            <div class="fl-ai-title">Simple Anchor Patterns <span class="fl-ai-badge">PDF</span></div>
+            <p class="fl-ai-sub">Embedded PDF Drawings for you ensurance.</p>
+          </div>
         </div>
         <svg viewBox="0 0 380 240" width="100%" role="img" aria-label="Anchoring cross-section: screws drive through the frame and wood buck into the block">
           <!-- masonry block -->
@@ -6163,6 +6306,7 @@
         </svg>
       </div>
     </div>
+    <p class="fl-note rv" style="--d:.2s">Reference catalog of 3,400+ approvals — always verify the FL# on the unit's NFRC label.</p>
   </div>
 </section>
 
@@ -6881,7 +7025,8 @@
      stats + job cards (with photo thumbnails). Overlays the app;
      "Open Calculator" / "Load" close it to reveal the calculator.
      ============================================================ -->
-<div id="dashboardScreen" class="fixed inset-0 z-[74] hidden overflow-y-auto" style="background:#020617;">
+<div id="dashboardScreen" class="fixed inset-0 z-[74] hidden" style="background:#020617;">
+  <div id="dashScroll" class="dash-scroll">
   <nav class="lp-nav sticky top-0 z-30">
     <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
       <button id="dashHome" type="button" class="flex items-center gap-2.5 group shrink-0" aria-label="Dashboard">
@@ -7046,6 +7191,7 @@
       </div>
       <div class="text-center sm:text-right">© 2026 Anchor · Estimates are for reference — verify before use.</div>
     </footer>
+  </div>
   </div>
 </div>
 
@@ -7540,7 +7686,8 @@
 <div id="jobRailBackdrop"></div>
 <div id="railHotzone" aria-hidden="true"><span class="rail-grip"></span></div>
 
-<!-- Mobile-only sticky live total — persistent price in the thumb zone; tap to view the full breakdown. -->
+<!-- Mobile-only sticky live total — persistent price in the thumb zone; tap to view the full breakdown.
+     Drag down to tuck it away; #mtotalPeek brings it back. -->
 <div id="mtotalBar">
   <button id="mtotalBtn" type="button" aria-controls="mtotalSheet" aria-label="Open the price breakdown">
     <span class="mtotal-meta">
@@ -7551,6 +7698,10 @@
     <svg class="mtotal-chev" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 8 14 12"/></svg>
   </button>
 </div>
+<button id="mtotalPeek" type="button" aria-label="Show selling price bar" title="Drag up or tap to show selling price">
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 7 15 12"/></svg>
+  <span id="mtotalPeekAmt">$0.00</span>
+</button>
 
 <!-- Expandable live-total sheet (UI refresh P5) — tap the sticky selling-price
      bar to peek the itemized breakdown without losing your place in the form. -->
@@ -7616,7 +7767,7 @@
   <section id="results" class="mt-12 hidden">
     <!-- OUT-14: Present mode hides internal-only numbers (profit, markup, cost, per-LF)
          so the installer can turn the screen to the customer safely. Session-scoped. -->
-    <div class="flex justify-end -mb-3 sm:-mb-2">
+    <div class="flex justify-end mb-3">
       <button type="button" id="presentToggle" class="present-toggle" aria-pressed="false" title="Hide profit, markup, cost & per-LF — show the customer just the price">Present mode</button>
     </div>
     <div class="text-center">
@@ -7745,19 +7896,15 @@
     </div>
 
     <!-- Florida Product Approvals — FL#/NOA numbers the AI read off the
-         uploaded window schedule. Hidden until an upload populates it. -->
-    <div id="planApprovalsCard" class="mt-8 card rounded-2xl overflow-hidden hidden">
-      <div class="px-5 sm:px-6 py-4 border-b border-slate-800/80 flex items-center gap-3">
-        <span class="flex-shrink-0 w-9 h-9 rounded-xl bg-[#b58f4a]/10 border border-[#b58f4a]/28 flex items-center justify-center text-[#c9a558]">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-        </span>
-        <div class="flex-1 min-w-0">
-          <h2 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">Florida Product Approvals
-            <span class="ml-1.5 align-middle text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold">AI</span>
-          </h2>
-          <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Read off your schedule — tap any number to look up its screw pattern</p>
-        </div>
-      </div>
+         uploaded window schedule. Hidden until an upload populates it.
+         Same collapsible rcard pattern as Materials / Job Files. -->
+    <div id="planApprovalsCard" class="mt-8 card rounded-2xl overflow-hidden rcard hidden" data-rcard="approvals">
+      <button type="button" class="rcard-head border-b border-slate-800/80" aria-expanded="true">
+        <span class="rcard-title">Florida Product Approvals<span class="ml-1.5 align-middle text-[9px] uppercase tracking-[0.14em] text-[#c9a558] border border-[#b58f4a]/40 rounded px-1.5 py-0.5 font-bold">AI</span></span>
+        <span class="rcard-sum" id="planApprovalsSummary"></span>
+        <svg class="rcard-chev" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>
+      </button>
+      <p class="px-5 sm:px-6 pt-3 text-[11px] text-slate-500 font-medium">Read off your schedule — tap any number to look up its screw pattern</p>
       <div id="planApprovalsList" class="px-5 sm:px-6 py-4 flex flex-col gap-2"></div>
     </div>
 
@@ -9215,8 +9362,11 @@
     <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/></svg>
     <span>Jobs</span>
   </button>
-  <button type="button" class="app-tab" data-tabact="new" aria-label="New quote" title="New quote">
-    <span class="app-fab-circle"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+  <button type="button" class="app-tab app-tab-center" data-tabact="center" aria-label="New quote" title="New quote">
+    <span class="app-fab-circle" data-fab-slot>
+      <svg class="fab-ico fab-ico-plus" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg class="fab-ico fab-ico-calc hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="10" y2="11"/><line x1="14" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/><line x1="8" y1="19" x2="10" y2="19"/><line x1="14" y1="19" x2="16" y2="19"/></svg>
+    </span>
   </button>
   <button type="button" class="app-tab" data-tab="shopping" aria-label="Shopping list">
     <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l2 2 4-4"/><path d="M5 6h16l-1.5 9.5a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 4H3"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>
@@ -9230,14 +9380,8 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">Saved</div>
 
-<!-- Mobile-only thumb-reachable shortcut to open the job rail. Hidden on
-     desktop (the pinned rail covers that case) and while the rail is open. -->
-<button id="jobSpecsFab" type="button" aria-label="Open job specs">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/>
-  </svg>
-  Job specs
-</button>
+<!-- Job-specs FAB retired — on the calculator the center tab opens the rail. -->
+<button id="jobSpecsFab" type="button" class="hidden" aria-hidden="true" tabindex="-1" hidden></button>
 
 <script>
 /* ============================================================
@@ -12637,7 +12781,17 @@ function render() {
   empty.classList.toggle("hidden", hasInput);
   // Mobile sticky total bar mirrors results visibility (thumb-zone live price).
   { const _mbar = document.getElementById("mtotalBar");
-    if (_mbar) { _mbar.classList.toggle("show", hasInput); document.body.classList.toggle("mtotal-on", hasInput); } }
+    if (_mbar) {
+      _mbar.classList.toggle("show", hasInput);
+      if (!hasInput) {
+        _mbar.classList.remove("tucked");
+        document.body.classList.remove("mtotal-tucked");
+      }
+      document.body.classList.toggle("mtotal-on", hasInput);
+    }
+    const _peekAmt = document.getElementById("mtotalPeekAmt");
+    if (_peekAmt && hasInput) _peekAmt.textContent = formatMoney(r.sellingPrice);
+  }
   try { updateCalcPaywall(); } catch (_) {}   // lapsed-account wall tracks entitlements
   // Rail audit: the pinned Save states its consequence once a price exists
   // ("Save job — $12,480"), so committing is never a leap of faith.
@@ -13606,7 +13760,9 @@ let _dashDragKey = null;             // card key being dragged in edit mode
 // Distinct, theme-friendly palette for the material charts.
 const MAT_COLORS = ["#c9a558", "#60a5fa", "#34d399", "#f472b6", "#f59e0b", "#a78bfa", "#22d3ee", "#fb7185", "#94a3b8", "#facc15"];
 
-function openDashboard() {
+let _dashHistPushed = false;         // browser Back from dashboard → calculator (quote intact)
+
+function openDashboard(opts) {
   try { closePfpMenu(); } catch (_) {}
   ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen"].forEach(id => {
     const el = document.getElementById(id); if (el) el.classList.add("hidden");
@@ -13614,21 +13770,46 @@ function openDashboard() {
   const splash = document.getElementById("bootSplash"); if (splash) splash.classList.add("hidden");
   const d = document.getElementById("dashboardScreen");
   if (!d) return;
+  const wasHidden = d.classList.contains("hidden");
   wireDashboard();
   d.classList.remove("hidden");
-  d.scrollTop = 0;
-  _dashView = "home";   // always land on the launchpad
-  _dashEditMode = false; // never carry customize mode across opens
-  _dashEsignLastUrl = "";   // don't resurface a stale "last created" link on a fresh open
+  // Keep drill-in if caller is just switching tabs while already on the dashboard;
+  // only reset chrome when freshly opening from the calculator / elsewhere.
+  if (wasHidden) {
+    d.scrollTop = 0;
+    const ds = document.getElementById("dashScroll"); if (ds) ds.scrollTop = 0;
+    _dashEditMode = false;
+    _dashEsignLastUrl = "";
+  }
+  if (opts && opts.view) _dashView = opts.view;
+  else if (wasHidden) _dashView = "home";
   renderDashboard();
-  try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}   // premium count-up + chart entrance
-  try { renderPfp(); } catch (_) {}   // paint the dashboard avatar + admin gate
+  try { requestAnimationFrame(dashPlayEntrance); } catch (_) {}
+  try { renderPfp(); } catch (_) {}
   try { updateThemeToggleIcon(); } catch (_) {}
   try { window.track("dashboard_opened"); } catch (_) {}
+  // Push a history entry when leaving the calculator so hardware/browser Back
+  // returns to the quote in progress instead of exiting the app / losing place.
+  if (wasHidden && !(opts && opts.skipHist)) {
+    try {
+      history.pushState({ _dashFromCalc: true }, "");
+      _dashHistPushed = true;
+    } catch (_) { _dashHistPushed = false; }
+  }
+  try { updateTabBar(); } catch (_) {}
 }
-function closeDashboard() {
+function closeDashboard(opts) {
   const d = document.getElementById("dashboardScreen");
   if (d) d.classList.add("hidden");
+  // If we opened via a pushed history entry and this close is programmatic
+  // (Calculator →, Load job, etc.), pop that entry so Back doesn't re-open dash.
+  if (_dashHistPushed && !(opts && opts.fromPopstate)) {
+    _dashHistPushed = false;
+    try { history.back(); } catch (_) {}
+  } else {
+    _dashHistPushed = false;
+  }
+  try { updateTabBar(); } catch (_) {}
 }
 
 // ── Mobile bottom tab bar (UI refresh P1) ────────────────────────────────────
@@ -13642,11 +13823,11 @@ function startNewQuote() {
   try { resetAll(); } catch (_) {} closeDashboard();
 }
 // Visibility: signed-in app surfaces only (calculator or dashboard) — never on
-// landing/pricing/onboarding/setup or the public-quote route. Active tab mirrors
-// the dashboard view; the calculator itself has no active tab (the FAB is its
-// entry). Desktop hiding is pure CSS (min-width media query).
+// landing/pricing/onboarding/setup or the public-quote route.
+// Dashboard: Home · Jobs · [⊕ New quote] · Shopping · More
+// Calculator: Home · Jobs · [Calculator → job-specs rail] · Shopping · More
 function updateTabBar() {
-  try { updateCalcPaywall(); } catch (_) {}   // screen/auth transitions re-check the wall
+  try { updateCalcPaywall(); } catch (_) {}
   const bars = document.querySelectorAll(".app-tabbar");
   if (!bars.length) return;
   const hiddenEl = id => { const el = document.getElementById(id); return !el || el.classList.contains("hidden"); };
@@ -13656,15 +13837,32 @@ function updateTabBar() {
     && hiddenEl("onboardScreen") && hiddenEl("setupScreen")
     && !document.body.hasAttribute("data-public-quote");
   document.body.classList.toggle("tabbar-on", show);
-  if (!show) return;
+  if (!show) { document.body.classList.remove("tabbar-calc"); return; }
   const dashOpen = !hiddenEl("dashboardScreen");
+  document.body.classList.toggle("tabbar-calc", !dashOpen);
   const view = (typeof _dashView !== "undefined") ? _dashView : "home";
   const active = dashOpen ? (view === "home" || view === "jobs" || view === "shopping" ? view : "") : "";
-  bars.forEach(bar => bar.querySelectorAll(".app-tab[data-tab]").forEach(b => {
-    const on = b.dataset.tab === active;
-    b.classList.toggle("active", on);
-    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
-  }));
+  bars.forEach(bar => {
+    bar.querySelectorAll(".app-tab[data-tab]").forEach(b => {
+      const on = b.dataset.tab === active;
+      b.classList.toggle("active", on);
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    const center = bar.querySelector(".app-tab-center, [data-tabact='center'], [data-tabact='new'], [data-tabact='rail']");
+    if (center) {
+      if (dashOpen) {
+        center.setAttribute("aria-label", "New quote");
+        center.title = "New quote";
+        center.dataset.tabact = "center";
+      } else {
+        const railOpen = !!document.getElementById("jobRail")?.classList.contains("show")
+          || (isDesktopRail() && document.body.classList.contains("rail-pinned"));
+        center.setAttribute("aria-label", railOpen ? "Close job specs" : "Job specs");
+        center.title = railOpen ? "Close job specs" : "Open job specs";
+        center.dataset.tabact = "center";
+      }
+    }
+  });
 }
 function wireTabBar() {
   const src = document.getElementById("appTabBar");
@@ -13672,7 +13870,9 @@ function wireTabBar() {
   // The dashboard screen (fixed, z-74) needs its OWN bar instance inside its
   // stacking context: the body-level bar sits at z-45 (under modals/sheets),
   // so on the dashboard it painted underneath the screen's edge and the FAB's
-  // raised circle lost its top. One source of markup — cloned once here.
+  // raised circle lost its top. Append as a SIBLING of #dashScroll (not inside
+  // the scroll container) so position:absolute keeps it locked to the bottom
+  // while the dashboard content scrolls — fixed-inside-overflow breaks on mobile.
   const dash = document.getElementById("dashboardScreen");
   if (dash && !document.getElementById("dashTabBar")) {
     const clone = src.cloneNode(true);
@@ -13685,20 +13885,37 @@ function wireTabBar() {
     bar.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-tab],[data-tabact]");
       if (!btn) return;
-      try { closeJobRail(); } catch (_) {}
       const t = btn.dataset.tab || btn.dataset.tabact;
-      if (t === "home") { openDashboard(); }
-      else if (t === "jobs") { openDashboard(); dashGoTo("jobs"); }
-      else if (t === "shopping") { openDashboard(); dashGoTo("shopping"); }
-      else if (t === "new") { startNewQuote(); }
-      else if (t === "more") { togglePfpMenu(e, btn); }
+      const dashOpen = !document.getElementById("dashboardScreen")?.classList.contains("hidden");
+      if (t === "home") {
+        try { closeJobRail(); } catch (_) {}
+        openDashboard({ view: "home" });
+        dashGoTo("home");
+      } else if (t === "jobs") {
+        try { closeJobRail(); } catch (_) {}
+        openDashboard({ view: "jobs" });
+        dashGoTo("jobs");
+      } else if (t === "shopping") {
+        try { closeJobRail(); } catch (_) {}
+        openDashboard({ view: "shopping" });
+        dashGoTo("shopping");
+      } else if (t === "center") {
+        if (dashOpen) {
+          startNewQuote();
+        } else {
+          // Calculator mode: center tab toggles the job-specs sidebar.
+          try { toggleRail(); } catch (_) {}
+        }
+      } else if (t === "new") {
+        startNewQuote();
+      } else if (t === "more") {
+        togglePfpMenu(e, btn);
+      }
       updateTabBar();
     });
   });
   if (!wireTabBar._observed) {
     wireTabBar._observed = true;
-    // Screens toggle .hidden from a dozen code paths (auth, pricing, onboarding…)
-    // — observe their class attribute instead of patching every site.
     ["landingScreen", "pricingScreen", "onboardScreen", "setupScreen", "dashboardScreen"].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -15892,25 +16109,29 @@ function dashJobCard(j) {
   const price = formatMoney(j.sellingPrice);
   const marginTxt = (j.margin != null && !isNaN(j.margin)) ? `${Math.round(j.margin)}% markup` : "";
   const draftPill = j.isDraft ? ` <span class="ml-1 inline-flex items-center text-[8px] uppercase tracking-[0.16em] font-bold text-[#c9a558]/85 border border-[#b58f4a]/45 bg-[#b58f4a]/10 rounded-full px-1.5 py-0.5 align-middle">Draft</span>` : "";
-  const thumbInner = (j.photoPath || j.photo)
+  const hasPhoto = !!(j.photoPath || j.photo);
+  const thumbInner = hasPhoto
     ? jobPhotoImgHTML(j, "dash-thumb-img")
-    : `<span class="dash-thumb-empty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg>Add photo</span>`;
+    : `<span class="dash-thumb-empty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg></span>`;
   const badgeOverlay = `<span class="dash-thumb-badge ${stCls}">${st}</span>`;
+  // Only nudge upload/generate when there's no photo yet — once set, manage
+  // photos on the job page so the thumb stays a clean tap target.
+  const thumbActions = hasPhoto ? "" : `<div class="dash-thumb-actions">
+        <button type="button" class="dash-thumb-act" data-dash-photo="${j.id}" aria-label="Upload photo" title="Upload photo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
+        </button>
+        <button type="button" class="dash-thumb-act dash-thumb-act-ai" data-dash-genthumb="${j.id}" aria-label="Generate with Grok" title="Generate with Grok">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.2 4.3L17.5 8l-4.3 1.2L12 13.5l-1.2-4.3L6.5 8l4.3-1.2L12 2.5zm6.8 9.2l.7 2.4 2.4.7-2.4.7-.7 2.4-.7-2.4-2.4-.7 2.4-.7.7-2.4zM5.8 14.2l.55 1.9 1.9.55-1.9.55-.55 1.9-.55-1.9-1.9-.55 1.9-.55.55-1.9z"/></svg>
+        </button>
+      </div>`;
   const statusSel = j.isDraft
     ? `<span class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Working draft</span>`
     : `<select data-dash-status="${j.id}" class="job-status-sel ${stCls}" title="Set deal status">` +
         JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("") +
       `</select>`;
   return `<div class="dash-job-card">
-    <div class="dash-thumb">
-      ${thumbInner}${badgeOverlay}
-      <div class="dash-thumb-actions">
-        <button type="button" class="dash-thumb-act" data-dash-photo="${j.id}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
-          Upload photo
-        </button>
-        <button type="button" class="dash-thumb-act dash-thumb-act-ai" data-dash-genthumb="${j.id}">✨ Generate with Grok</button>
-      </div>
+    <div class="dash-thumb" data-dash-details="${j.id}" role="link" tabindex="0" title="View job details" aria-label="Open ${escHtml(name)}">
+      ${thumbInner}${badgeOverlay}${thumbActions}
     </div>
     <div class="p-4 flex-1 flex flex-col">
       <button type="button" data-dash-details="${j.id}" class="dash-card-body text-left w-full -m-1 p-1 rounded-lg" title="View job details">
@@ -16771,7 +16992,16 @@ function wireDashboard() {
     window.addEventListener("scroll", () => closeAllDashTips(), { passive: true });
   }
   const backBtn = document.getElementById("dashBack");
-  if (backBtn) backBtn.addEventListener("click", () => dashGoTo("home"));
+  if (backBtn) backBtn.addEventListener("click", () => {
+    // Tab destinations (Jobs / Shopping) opened from the calculator should
+    // return to the quote — same as browser Back. Drill-ins from the
+    // launchpad (Insights, Calibration, …) still return to dashboard home.
+    if (_dashHistPushed && (_dashView === "shopping" || _dashView === "jobs")) {
+      try { closeDashboard(); } catch (_) {}
+      return;
+    }
+    dashGoTo("home");
+  });
   // Pricing calibration: apply a suggested rate or dismiss it.
   const calib = document.getElementById("dashCalibration");
   if (calib) {
@@ -16861,9 +17091,9 @@ function wireDashboard() {
   if (grid) {
     grid.addEventListener("click", (e) => {
       const photoBtn = e.target.closest("[data-dash-photo]");
-      if (photoBtn) { _dashPhotoTargetId = photoBtn.dataset.dashPhoto; document.getElementById("dashPhotoInput")?.click(); return; }
+      if (photoBtn) { e.stopPropagation(); _dashPhotoTargetId = photoBtn.dataset.dashPhoto; document.getElementById("dashPhotoInput")?.click(); return; }
       const genThumbBtn = e.target.closest("[data-dash-genthumb]");
-      if (genThumbBtn) { generateJobThumbnail(genThumbBtn.dataset.dashGenthumb, genThumbBtn); return; }
+      if (genThumbBtn) { e.stopPropagation(); generateJobThumbnail(genThumbBtn.dataset.dashGenthumb, genThumbBtn); return; }
       const cmpBtn = e.target.closest("[data-dash-compare]");
       if (cmpBtn) { toggleCompareJob(cmpBtn.dataset.dashCompare, cmpBtn); return; }
       const detailsBtn = e.target.closest("[data-dash-details]");
@@ -16872,6 +17102,14 @@ function wireDashboard() {
       if (loadBtn) { loadJob(loadBtn.dataset.dashLoad); closeDashboard(); return; }
       const delBtn = e.target.closest("[data-dash-del]");
       if (delBtn) { if (confirmDeleteJob(loadJobs().find(x => x.id === delBtn.dataset.dashDel))) { deleteJob(delBtn.dataset.dashDel); renderDashboard(); } return; }
+    });
+    grid.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target.closest("[data-dash-photo],[data-dash-genthumb],[data-dash-load],[data-dash-del],[data-dash-compare],select")) return;
+      const thumb = e.target.closest(".dash-thumb[data-dash-details]");
+      if (!thumb) return;
+      e.preventDefault();
+      openJobDetails(thumb.dataset.dashDetails);
     });
     grid.addEventListener("change", (e) => {
       const sel = e.target.closest("[data-dash-status]");
@@ -21460,9 +21698,8 @@ function openFL() {
 }
 function closeFL() { tvDismiss(flModal); }
 
-// Collapsible result cards (Full Breakdown / Labor Detail / Job Files): click the
-// big centered header to minimize (title-left + summary-right) or expand. The
-// summaries themselves are kept current by render().
+// Collapsible result cards (Full Breakdown / Labor / Materials / Approvals / Job Files):
+// click the big centered header to minimize (title-left + summary-right) or expand.
 document.addEventListener("click", e => {
   const head = e.target.closest && e.target.closest(".rcard-head");
   if (!head) return;
@@ -21923,11 +22160,13 @@ function openJobRail() {
   document.getElementById("jobRail").classList.add("show");
   document.getElementById("jobRailBackdrop").classList.add("open");
   document.body.classList.add("rail-open");
+  try { updateTabBar(); } catch (_) {}
 }
 function closeJobRail() {
   document.getElementById("jobRail").classList.remove("show");
   document.getElementById("jobRailBackdrop").classList.remove("open");
   document.body.classList.remove("rail-open");
+  try { updateTabBar(); } catch (_) {}
 }
 
 // Desktop: pin the rail open <-> collapse it
@@ -24977,6 +25216,8 @@ function renderPlanApprovals() {
   const items = Array.isArray(STATE.planApprovals) ? STATE.planApprovals : [];
   if (!items.length) { card.classList.add("hidden"); list.innerHTML = ""; return; }
   card.classList.remove("hidden");
+  const sum = document.getElementById("planApprovalsSummary");
+  if (sum) sum.textContent = items.length + (items.length === 1 ? " approval" : " approvals");
   list.innerHTML = items.map((a) =>
     `<button type="button" class="plan-approval-row" data-approval="${escHtml(a.number)}" title="Look up ${escHtml(a.number)} in the FL approval database">`
     + `<span class="plan-approval-num">${escHtml(a.number)}</span>`
@@ -27718,6 +27959,13 @@ window.addEventListener("popstate", () => {
   // Dormant by default — with HISTORY_NAV false this whole block is skipped and the
   // listener behaves exactly as before (just the pricing close).
   if (HISTORY_NAV && navResolveBack()) return;
+  // Fat-finger safety: Back from dashboard (opened via tab bar) returns to the
+  // calculator with the in-progress quote intact — no work lost.
+  const dash = document.getElementById("dashboardScreen");
+  if (dash && !dash.classList.contains("hidden") && _dashHistPushed) {
+    closeDashboard({ fromPopstate: true });
+    return;
+  }
   if (window.location.hash !== "#/pricing") closePricing();
 });
 
@@ -27937,9 +28185,8 @@ function initLandingStory() {
       if (e.isIntersecting) { e.target.classList.add("in", "go", "go2"); io.unobserve(e.target); }
     });
   }, { root: scroller, threshold: 0.35, rootMargin: "0px 0px -8% 0px" });
-  // .jamb is handed to the replay system below (its screw-drive re-arms), so
-  // keep it out of the one-time reveal observer
-  document.querySelectorAll(".rv:not(.jamb), [data-io]").forEach(function (el) { io.observe(el); });
+  // .fl clash + screw/row anims are handed to the replay system below
+  document.querySelectorAll(".rv, [data-io]").forEach(function (el) { io.observe(el); });
 
   /* hero entrance */
   window.addEventListener("load", function () { scroller.classList.add("loaded"); });
@@ -28243,7 +28490,7 @@ function initLandingStory() {
     }, { root: scroller, threshold: [0, 0.3] }).observe(el);
   }
 
-  var jamb = document.querySelector(".jamb");
+  var flSec = document.getElementById("fl");
   var calcEl = document.querySelector(".calc");
   var cScan, cQuote, cTime, cTease;
 
@@ -28287,12 +28534,29 @@ function initLandingStory() {
     if (goldRow) goldRow.classList.remove("pinged");
   });
 
-  // FL cross-section — fasteners drive in; on exit keep the card, re-arm the screws
-  replay(document.getElementById("fl"), function () {
-    if (jamb) jamb.classList.add("in", "go");
-  }, function () {
-    if (jamb) jamb.classList.remove("go");
-  });
+  // FL clash — wait until the cards area is well on-screen, then underline
+  // "Automatic" and (after a short beat) slide the two cards in from the sides.
+  // Exit re-arms so scrolling back replays the beat.
+  (function () {
+    if (!flSec) return;
+    var flClash = flSec.querySelector(".fl-clash");
+    var on = false, delayTimer = null;
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting && e.intersectionRatio >= 0.4) {
+          if (!on) {
+            on = true;
+            delayTimer = setTimeout(function () { flSec.classList.add("go"); }, 160);
+          }
+        } else if (!e.isIntersecting && on) {
+          on = false;
+          if (delayTimer) { clearTimeout(delayTimer); delayTimer = null; }
+          flSec.classList.remove("go");
+        }
+      });
+    }, { root: scroller, threshold: [0, 0.4, 0.55], rootMargin: "0px 0px -10% 0px" })
+      .observe(flClash || flSec);
+  })();
 
   // slider tease — replays until the user actually grabs the handle
   replay(calcEl, function () {
@@ -30216,18 +30480,47 @@ function init() {
   document.getElementById("jobRailToggle").addEventListener("click", railHeaderAction);
   document.getElementById("railToggleHeader").addEventListener("click", toggleRail);
   document.getElementById("jobRailBackdrop").addEventListener("click", closeJobRail);
-  // Mobile sticky total bar → close the drawer (if open) and reveal the full breakdown.
   // Expandable live-total sheet (UI refresh P5): the bar opens an itemized
-  // peek; "See full breakdown" inside it does the old scroll-to-results jump.
+  // peek; drag the grab handle (or the panel when scrolled to top) down to
+  // dismiss — preventDefault blocks browser pull-to-refresh. Drag the hard
+  // bar itself down to tuck it away; #mtotalPeek restores it.
   const _msheet = document.getElementById("mtotalSheet");
-  function closeMtotalSheet() {
-    if (_msheet) { _msheet.classList.remove("open"); _msheet.setAttribute("aria-hidden", "true"); }
+  const _mbar = document.getElementById("mtotalBar");
+  const _mpeek = document.getElementById("mtotalPeek");
+  function setMtotalTucked(on, fromDrag) {
+    if (!_mbar) return;
+    if (on) {
+      document.body.classList.add("mtotal-tucked");
+      _mbar.classList.add("tucked");
+      if (!fromDrag) {
+        _mbar.style.transition = "";
+        _mbar.style.transform = "";
+      }
+    } else {
+      document.body.classList.remove("mtotal-tucked");
+      _mbar.classList.remove("tucked");
+      _mbar.style.transition = "";
+      _mbar.style.transform = "";
+    }
+  }
+  function closeMtotalSheet(instant) {
+    if (!_msheet) return;
+    _msheet.classList.remove("open");
+    _msheet.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("msheet-open");
+    const panel = _msheet.querySelector(".msheet-panel");
+    if (panel) {
+      panel.classList.remove("dragging", "settling");
+      panel.style.transition = "";
+      panel.style.transform = "";
+    }
   }
   function openMtotalSheet() {
     if (!_msheet) return;
     let r = null;
     try { r = calculate(); } catch (_) { return; }
     if (!r || !hasQuoteInput(r)) return;
+    if (_mbar && _mbar.classList.contains("tucked")) setMtotalTucked(false);
     const rows = (r.rows || []).filter(x => (Number(x.totalCost) || 0) > 0)
       .sort((a, b) => (b.totalCost || 0) - (a.totalCost || 0));
     const top = rows.slice(0, 6), rest = rows.length - top.length;
@@ -30245,8 +30538,101 @@ function init() {
       <button type="button" class="msheet-full" data-msheet-full>See full breakdown</button>`;
     _msheet.classList.add("open");
     _msheet.setAttribute("aria-hidden", "false");
+    document.body.classList.add("msheet-open");
   }
-  document.getElementById("mtotalBtn")?.addEventListener("click", () => { closeJobRail(); openMtotalSheet(); });
+  // Tap opens the sheet; a downward drag tucks the bar instead (no PTR).
+  (function wireMtotalBarGestures() {
+    if (!_mbar || _mbar._gestured) return;
+    _mbar._gestured = true;
+    const btn = document.getElementById("mtotalBtn");
+    let startY = 0, startX = 0, dy = 0, tracking = false, decided = false, isDrag = false;
+    function pt(e) { const t = e.touches ? e.touches[0] : e.changedTouches ? e.changedTouches[0] : e; return t; }
+    function onStart(e) {
+      if (_msheet && _msheet.classList.contains("open")) return;
+      if (_mbar.classList.contains("tucked")) return;
+      const p = pt(e); if (!p) return;
+      startY = p.clientY; startX = p.clientX; dy = 0;
+      tracking = true; decided = false; isDrag = false;
+      _mbar.classList.add("dragging");
+    }
+    function onMove(e) {
+      if (!tracking) return;
+      const p = pt(e); if (!p) return;
+      const rawY = p.clientY - startY;
+      const rawX = p.clientX - startX;
+      if (!decided) {
+        if (Math.abs(rawY) < 8 && Math.abs(rawX) < 8) return;
+        decided = true;
+        isDrag = Math.abs(rawY) >= Math.abs(rawX) && rawY > 0;
+        if (!isDrag) { tracking = false; _mbar.classList.remove("dragging"); _mbar.style.transform = ""; return; }
+      }
+      if (!isDrag) return;
+      dy = Math.max(0, rawY);
+      _mbar.style.transform = `translateY(${dy}px)`;
+      if (e.cancelable) e.preventDefault();
+    }
+    function onEnd() {
+      if (!tracking) return;
+      tracking = false;
+      if (isDrag) {
+        _mbar._didDrag = true;
+        if (dy > 48) {
+          // Continue from the finger position into the tucked rest — never
+          // snap back to "shown" first (that was the hitch).
+          _mbar.classList.add("tucked");
+          document.body.classList.add("mtotal-tucked");
+          _mbar.style.transition = "transform .28s cubic-bezier(0.22, 1, 0.36, 1)";
+          _mbar.classList.remove("dragging");
+          void _mbar.offsetWidth;
+          _mbar.style.transform = "";
+          setTimeout(() => { _mbar.style.transition = ""; }, 300);
+        } else {
+          _mbar.style.transition = "transform .28s cubic-bezier(0.16, 1, 0.3, 1)";
+          _mbar.classList.remove("dragging");
+          void _mbar.offsetWidth;
+          _mbar.style.transform = "";
+          setTimeout(() => { _mbar.style.transition = ""; }, 300);
+        }
+      } else {
+        _mbar.classList.remove("dragging");
+        _mbar.style.transform = "";
+      }
+      isDrag = false; dy = 0;
+    }
+    _mbar.addEventListener("touchstart", onStart, { passive: true });
+    _mbar.addEventListener("touchmove", onMove, { passive: false });
+    _mbar.addEventListener("touchend", onEnd);
+    _mbar.addEventListener("touchcancel", onEnd);
+    btn?.addEventListener("click", (e) => {
+      if (_mbar.classList.contains("tucked")) { e.preventDefault(); return; }
+      // If the last gesture was a drag, suppress the synthetic click.
+      if (_mbar._didDrag) { _mbar._didDrag = false; e.preventDefault(); return; }
+      closeJobRail(); openMtotalSheet();
+    });
+  })();
+  (function wireMtotalPeek() {
+    if (!_mpeek || _mpeek._wired) return;
+    _mpeek._wired = true;
+    let startY = 0, dy = 0, tracking = false;
+    function pt(e) { return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; }
+    _mpeek.addEventListener("click", () => setMtotalTucked(false));
+    _mpeek.addEventListener("touchstart", (e) => {
+      const p = pt(e); if (!p) return;
+      startY = p.clientY; dy = 0; tracking = true;
+    }, { passive: true });
+    _mpeek.addEventListener("touchmove", (e) => {
+      if (!tracking) return;
+      const p = pt(e); if (!p) return;
+      dy = p.clientY - startY;
+      if (dy < -12 && e.cancelable) e.preventDefault();
+    }, { passive: false });
+    _mpeek.addEventListener("touchend", () => {
+      if (!tracking) return;
+      tracking = false;
+      if (dy < -28) setMtotalTucked(false);
+      dy = 0;
+    });
+  })();
   if (_msheet && !_msheet._wired) {
     _msheet._wired = true;
     _msheet.addEventListener("click", (e) => {
@@ -30258,6 +30644,79 @@ function init() {
       }
     });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMtotalSheet(); });
+    // Drag-to-dismiss: grab handle always; panel body when scrolled to top.
+    (function wireSheetDrag() {
+      const panel = _msheet.querySelector(".msheet-panel");
+      const grab = _msheet.querySelector(".msheet-grab");
+      if (!panel) return;
+      let startY = 0, dy = 0, dragging = false, fromGrab = false;
+      function pt(e) { return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; }
+      function begin(e, grabOnly) {
+        if (!_msheet.classList.contains("open")) return;
+        const p = pt(e); if (!p) return;
+        fromGrab = !!grabOnly;
+        if (!fromGrab && panel.scrollTop > 0) return;
+        startY = p.clientY; dy = 0; dragging = true;
+        panel.classList.add("dragging");
+      }
+      function move(e) {
+        if (!dragging) return;
+        const p = pt(e); if (!p) return;
+        dy = Math.max(0, p.clientY - startY);
+        // Once pulling down from top of sheet, lock scroll + block PTR
+        if (dy > 0 || fromGrab) {
+          panel.style.transform = `translateY(${dy}px)`;
+          if (e.cancelable) e.preventDefault();
+        }
+      }
+      function end() {
+        if (!dragging) return;
+        dragging = false;
+        const dismiss = dy > 90 || (dy > 56 && dy > panel.getBoundingClientRect().height * 0.18);
+        // Same pattern as bar tuck: keep current finger offset, enable transition,
+        // THEN set the settle target — never jump under transition:none, and
+        // never let sheetUp replay (settling keeps animation:none).
+        panel.classList.add("settling");
+        panel.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
+        panel.classList.remove("dragging");
+        void panel.offsetWidth;
+        if (dismiss) {
+          panel.style.transform = "translateY(110%)";
+          const bd = _msheet.querySelector(".msheet-backdrop");
+          if (bd) { bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
+          setTimeout(() => {
+            closeMtotalSheet(true);
+            panel.classList.remove("settling");
+            panel.style.transition = ""; panel.style.transform = "";
+            if (bd) { bd.style.transition = ""; bd.style.opacity = ""; }
+          }, 300);
+        } else {
+          panel.style.transform = "translateY(0)";
+          setTimeout(() => {
+            panel.classList.remove("settling");
+            panel.style.transition = ""; panel.style.transform = "";
+          }, 300);
+        }
+        dy = 0;
+      }
+      grab?.addEventListener("touchstart", (e) => begin(e, true), { passive: true });
+      panel.addEventListener("touchstart", (e) => {
+        if (e.target.closest(".msheet-grab")) return;
+        begin(e, false);
+      }, { passive: true });
+      panel.addEventListener("touchmove", move, { passive: false });
+      panel.addEventListener("touchend", end);
+      panel.addEventListener("touchcancel", end);
+      // Pointer fallback for desktop testing
+      grab?.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "touch") return;
+        begin(e, true);
+        const moveP = (ev) => move(ev);
+        const upP = () => { end(); window.removeEventListener("pointermove", moveP); window.removeEventListener("pointerup", upP); };
+        window.addEventListener("pointermove", moveP);
+        window.addEventListener("pointerup", upP);
+      });
+    })();
   }
   // Empty-state "Enter job details" → open the input drawer (mobile path made obvious).
   document.getElementById("emptyStateEnterBtn")?.addEventListener("click", openJobRail);
