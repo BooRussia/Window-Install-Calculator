@@ -35,10 +35,12 @@ Labor quote line unchanged: `crew-hours × crewCostPerHr`, then job markup.
 
 | Surface | Behavior |
 |---------|----------|
-| **Settings → Rates → Crew** | Full roster: name, role, photo, wage, WC %, include toggle |
-| **Settings → Rates → Labor** | Flat size/pay kept as fallback; banner when roster is active |
+| **Settings → Rates → Crew** | **Simple crew pay** (size × $/hr) + optional **roster** (name, role, photo, wage, WC %) |
+| **Settings → Rates → Labor** | Install speed, setup/travel time, high-rise efficiency only — no pay fields |
 | **Setup wizard Step 3** | Mini list (name + $/hr); WC/photos deferred to Settings |
-| **Labor Detail card** | Shows loaded $/hr + per-person lines in roster mode |
+| **Labor Detail card** | Shows loaded $/hr + per-person lines in roster mode; Adjust → Crew |
+
+When the roster has ≥1 active member, simple crew pay is disabled (banner on the Crew tab).
 
 ## Out of scope (later)
 
