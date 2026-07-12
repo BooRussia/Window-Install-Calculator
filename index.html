@@ -846,7 +846,7 @@
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
-     keeps the centered dialog. CSS-only — no change to open/close logic. */
+     keeps the centered dialog. Real `.sheet-grab` handle dismisses via drag. */
   @media (max-width: 639px) {
     .sheet-on-mobile { align-items: flex-end !important; padding: 0 !important; }
     .sheet-on-mobile > .card {
@@ -856,14 +856,23 @@
       padding-bottom: max(env(safe-area-inset-bottom), 8px);
       animation: sheetUp .34s cubic-bezier(0.16,1,0.3,1);
       overscroll-behavior: contain;
+      will-change: transform;
     }
-    /* grab handle — pinned at the top of the scrolling sheet */
-    .sheet-on-mobile > .card::before {
-      content: ""; position: sticky; top: 0; z-index: 5;
-      display: block; width: 40px; height: 4px; margin: 8px auto -2px;
+    .sheet-on-mobile > .card.sheet-dragging { animation: none !important; transition: none !important; }
+    .sheet-on-mobile > .card.sheet-settling { animation: none !important; }
+    .sheet-on-mobile .sheet-grab {
+      display: block; position: sticky; top: 0; z-index: 6;
+      width: 40px; height: 4px; margin: 8px auto 6px;
       border-radius: 999px; background: rgba(148,163,184,0.45);
+      touch-action: none; cursor: grab; flex-shrink: 0;
     }
+    /* Expanded hit target around the sticky pill */
+    .sheet-on-mobile .sheet-grab::before {
+      content: ""; position: absolute; left: -48px; right: -48px; top: -16px; bottom: -16px;
+    }
+    .sheet-on-mobile > .card > .sheet-grab { position: sticky; }
   }
+  .sheet-grab { display: none; }
   @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) { .sheet-on-mobile > .card { animation: none; } }
 
@@ -1485,26 +1494,43 @@
     .jf-btn { min-height: 44px; }
   }
   /* In-site PDF preview modal — renders generated docs (PDF.js canvases) so
-     "View" works inline on mobile instead of downloading. */
+     "View" works inline on mobile instead of downloading. Also hosts FBC
+     install drawings (fit-to-width, zoom, multi-doc cycle, open-in-tab). */
   #pdfPreviewPages { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .pdf-preview-canvas {
     max-width: 100%;
     border: 1px solid rgba(30,41,59,0.9);
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(0,0,0,0.35);
-    background: #fff;            /* PDF pages are white regardless of app theme */
+    background: #fff;
   }
   [data-theme="light"] .pdf-preview-canvas { border-color: rgba(203,213,225,0.9); box-shadow: 0 6px 24px rgba(15,23,42,0.12); }
-  /* OUT-2: tap a preview page to zoom it to full width for legibility on phones
-     (scoped to the modal — the global user-scalable=no is intentionally left intact). */
   .pdf-preview-canvas { cursor: zoom-in; }
   #pdfPreviewPages.zoomed { overflow: auto; align-items: flex-start; }
-  /* OUT-2 fix: each page canvas is rendered at an inline width:760px, so the old
-     max-width:none alone couldn't enlarge it past 760px — on desktop that's ~the
-     modal width, so the tap did nothing. `zoom` is a real layout scale (unlike
-     transform it reflows multi-page stacks and pans correctly via the overflow:auto
-     above), giving a visible 1.6× zoom on every screen size. */
-  #pdfPreviewPages.zoomed .pdf-preview-canvas { max-width: none; zoom: 1.6; cursor: zoom-out; }
+  #pdfPreviewPages.zoomed .pdf-preview-canvas { max-width: none; cursor: zoom-out; }
+  .pdf-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+    padding: 8px 16px 10px; border-bottom: 1px solid rgba(30,41,59,0.85);
+    flex-shrink: 0; background: rgba(2,6,23,0.35);
+  }
+  .pdf-tb-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    min-height: 36px; min-width: 36px; padding: 6px 10px; border-radius: 999px;
+    border: 1px solid rgba(51,65,85,0.7); background: rgba(15,23,42,0.6);
+    color: #cbd5e1; font-size: 12px; font-weight: 700; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pdf-tb-btn:hover { border-color: rgba(181,143,74,0.45); color: #e2e8f0; }
+  .pdf-tb-btn:disabled { opacity: 0.35; pointer-events: none; }
+  .pdf-tb-btn.pdf-tb-gold { color: #c9a558; border-color: rgba(181,143,74,0.45); }
+  .pdf-tb-label { font-size: 11px; font-weight: 700; color: #94a3b8; font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: center; }
+  .pdf-tb-spacer { flex: 1 1 auto; min-width: 4px; }
+  .fbc-pdf-open {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 11px; font-weight: 700; color: #c9a558; background: transparent;
+    border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .fbc-pdf-open:hover { color: #dfc07a; }
   @media (max-width: 520px) {
     .jf-card { flex-wrap: wrap; }
     .jf-actions { width: 100%; justify-content: flex-end; padding-top: 4px; }
@@ -9317,6 +9343,7 @@
 <div id="flModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[79] sheet-on-mobile">
   <div class="absolute inset-0 modal-backdrop" data-close></div>
   <div class="relative card rounded-3xl w-full max-w-3xl max-h-[88vh] overflow-hidden flex flex-col">
+    <div class="sheet-grab" aria-hidden="true"></div>
     <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between gap-3">
       <div>
         <h3 class="text-base font-semibold text-slate-100">Florida Product Approvals</h3>
@@ -9427,7 +9454,18 @@
         <button id="pdfPreviewClose" class="modal-close" data-close-pdf aria-label="Close">×</button>
       </div>
     </div>
-    <div class="px-5 pt-2 text-[10px] text-slate-500 tracking-wide flex-shrink-0" aria-hidden="true">Tap a page to zoom</div>
+    <div id="pdfToolbar" class="pdf-toolbar hidden">
+      <button type="button" class="pdf-tb-btn" id="pdfDocPrev" aria-label="Previous document" title="Previous document">‹</button>
+      <span class="pdf-tb-label" id="pdfDocLabel">Doc 1/1</span>
+      <button type="button" class="pdf-tb-btn" id="pdfDocNext" aria-label="Next document" title="Next document">›</button>
+      <span class="pdf-tb-spacer"></span>
+      <button type="button" class="pdf-tb-btn" id="pdfZoomOut" aria-label="Zoom out" title="Zoom out">−</button>
+      <button type="button" class="pdf-tb-btn" id="pdfZoomFit" aria-label="Fit to width" title="Fit to width">Fit</button>
+      <button type="button" class="pdf-tb-btn" id="pdfZoomIn" aria-label="Zoom in" title="Zoom in">+</button>
+      <span class="pdf-tb-spacer"></span>
+      <a id="pdfOpenTab" class="pdf-tb-btn pdf-tb-gold" href="#" target="_blank" rel="noopener" title="Open this PDF in a new tab">Open ↗</a>
+    </div>
+    <div id="pdfPreviewHint" class="px-5 pt-2 text-[10px] text-slate-500 tracking-wide flex-shrink-0" aria-hidden="true">Tap a page to zoom · pinch-scroll when zoomed</div>
     <div id="pdfPreviewPages" class="overflow-y-auto flex-1 px-3 sm:px-5 py-4 bg-slate-950/40"></div>
   </div>
 </div>
@@ -19734,50 +19772,71 @@ function outputPDF(doc, filename, mode, meta) {
 }
 
 // ── In-site PDF preview ─────────────────────────────────────────────────────
-// Renders a finished jsPDF doc into #pdfPreviewModal using the existing PDF.js
-// loader. The doc + filename are stashed so the modal's Download/Share buttons
-// act on the already-built doc (no rebuild, no re-running the save gate).
+// Renders a finished jsPDF doc OR remote FBC install PDFs into #pdfPreviewModal
+// via PDF.js. Fit-to-width by default; zoom / multi-doc controls for FBC draws.
 let _pdfPreviewDoc = null, _pdfPreviewName = "document.pdf", _pdfPreviewMeta = null, _pdfRenderGen = 0;
-async function showPdfPreview(doc, filename, meta) {
-  // Render-generation guard: if this preview is fired twice (e.g. a double-bound
-  // trigger from init()'s post-login re-run), a superseded call bails at its next
-  // await instead of appending a SECOND copy of every page into #pdfPreviewPages.
-  const _myGen = ++_pdfRenderGen;
-  _pdfPreviewDoc = doc; _pdfPreviewName = filename || "document.pdf"; _pdfPreviewMeta = meta || null;
-  const modal = document.getElementById("pdfPreviewModal");
-  const pages = document.getElementById("pdfPreviewPages");
-  const titleEl = document.getElementById("pdfPreviewTitle");
-  if (!modal || !pages) { throw new Error("preview modal missing"); }
-  if (titleEl) titleEl.textContent = (meta && meta.title) || "Preview";
-  // Share button only when the platform can share files
-  const shareBtn = document.getElementById("pdfPreviewShare");
-  if (shareBtn) {
-    let canShareFiles = false;
-    try {
-      canShareFiles = !!(navigator.canShare && navigator.canShare({
-        files: [new File([new Blob([""],{type:"application/pdf"})], "x.pdf", {type:"application/pdf"})]
-      }));
-    } catch (_) {}
-    shareBtn.classList.toggle("hidden", !canShareFiles);
+let _pdfRemoteUrls = null, _pdfRemoteIdx = 0, _pdfZoom = 1, _pdfBlobUrl = null;
+const PDF_ZOOM_STEPS = [0.7, 0.85, 1, 1.25, 1.6, 2];
+
+function pdfToolbarEls() {
+  return {
+    bar: document.getElementById("pdfToolbar"),
+    hint: document.getElementById("pdfPreviewHint"),
+    docPrev: document.getElementById("pdfDocPrev"),
+    docNext: document.getElementById("pdfDocNext"),
+    docLabel: document.getElementById("pdfDocLabel"),
+    zoomOut: document.getElementById("pdfZoomOut"),
+    zoomIn: document.getElementById("pdfZoomIn"),
+    zoomFit: document.getElementById("pdfZoomFit"),
+    openTab: document.getElementById("pdfOpenTab"),
+    pages: document.getElementById("pdfPreviewPages"),
+  };
+}
+function setPdfZoom(z) {
+  _pdfZoom = Math.max(PDF_ZOOM_STEPS[0], Math.min(PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1], z));
+  const { pages, zoomOut, zoomIn } = pdfToolbarEls();
+  if (pages) {
+    pages.classList.toggle("zoomed", _pdfZoom > 1.01);
+    pages.querySelectorAll(".pdf-preview-canvas").forEach(c => {
+      c.style.zoom = String(_pdfZoom);
+    });
   }
-  modal.classList.remove("hidden"); modal.classList.add("flex");
-  trapDialog(modal, closePdfPreview);   // Phase 4c
-  pages.innerHTML = '<div class="text-slate-500 text-sm py-10 text-center">Rendering preview…</div>';
-  const pdfjs = await loadPdfJs();
-  // PDF.js may detach the buffer it's given — hand it a fresh copy so the
-  // stashed doc stays intact for Download/Share.
-  const buf = doc.output("arraybuffer");
-  const pdf = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
-  if (_myGen !== _pdfRenderGen) return;   // superseded by a newer preview — don't wipe/append
-  pages.innerHTML = "";
-  pages.classList.remove("zoomed");   // OUT-2: always start un-zoomed
-  // Rasterize each page at a fixed CSS width (independent of the modal's
-  // not-yet-settled clientWidth — reading it too early gave a tiny canvas) and
-  // let CSS `max-width:100%` shrink it to fit narrow screens. Crisp on desktop
-  // and mobile with no layout-timing race. dpr upscales the bitmap for HiDPI.
-  const targetW = 760;
+  if (zoomOut) zoomOut.disabled = _pdfZoom <= PDF_ZOOM_STEPS[0] + 0.001;
+  if (zoomIn) zoomIn.disabled = _pdfZoom >= PDF_ZOOM_STEPS[PDF_ZOOM_STEPS.length - 1] - 0.001;
+}
+function bumpPdfZoom(dir) {
+  let i = 0;
+  for (let k = 0; k < PDF_ZOOM_STEPS.length; k++) {
+    if (Math.abs(PDF_ZOOM_STEPS[k] - _pdfZoom) < 0.02) { i = k; break; }
+    if (PDF_ZOOM_STEPS[k] < _pdfZoom) i = k;
+  }
+  setPdfZoom(PDF_ZOOM_STEPS[Math.max(0, Math.min(PDF_ZOOM_STEPS.length - 1, i + dir))]);
+}
+function updatePdfDocChrome() {
+  const { bar, docPrev, docNext, docLabel, openTab } = pdfToolbarEls();
+  const n = (_pdfRemoteUrls && _pdfRemoteUrls.length) || 0;
+  const multi = n > 1;
+  if (bar) bar.classList.toggle("hidden", !n);
+  if (docPrev) { docPrev.disabled = !multi || _pdfRemoteIdx <= 0; docPrev.classList.toggle("hidden", !multi); }
+  if (docNext) { docNext.disabled = !multi || _pdfRemoteIdx >= n - 1; docNext.classList.toggle("hidden", !multi); }
+  if (docLabel) {
+    docLabel.classList.toggle("hidden", !multi);
+    if (multi) docLabel.textContent = `Doc ${_pdfRemoteIdx + 1}/${n}`;
+  }
+  if (openTab) {
+    const url = n ? _pdfRemoteUrls[_pdfRemoteIdx] : null;
+    // Open the PDF itself (not the FBC detail page). Proxy keeps CORS happy
+    // when the browser would otherwise block floridabuilding.org embeds.
+    openTab.href = url ? proxiedPdfUrl(url) : "#";
+    openTab.classList.toggle("hidden", !url);
+  }
+}
+async function renderPdfJsPages(pdf, pagesEl) {
+  pagesEl.innerHTML = "";
+  const targetW = Math.min(760, Math.max(280, (pagesEl.clientWidth || 360) - 8));
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   for (let i = 1; i <= pdf.numPages; i++) {
+    if (_myGenGuard && _myGenGuard() === false) return;
     const page = await pdf.getPage(i);
     const base = page.getViewport({ scale: 1 });
     const cssScale = targetW / base.width;
@@ -19787,17 +19846,119 @@ async function showPdfPreview(doc, filename, meta) {
     canvas.style.width = (base.width * cssScale) + "px";
     canvas.style.height = (base.height * cssScale) + "px";
     canvas.className = "pdf-preview-canvas";
-    if (_myGen !== _pdfRenderGen) return;   // superseded mid-render — stop appending pages
-    pages.appendChild(canvas);
+    pagesEl.appendChild(canvas);
     await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
   }
+}
+let _myGenGuard = null;
+
+async function showPdfPreview(doc, filename, meta) {
+  const _myGen = ++_pdfRenderGen;
+  _myGenGuard = () => _myGen === _pdfRenderGen;
+  _pdfPreviewDoc = doc; _pdfPreviewName = filename || "document.pdf"; _pdfPreviewMeta = meta || null;
+  _pdfRemoteUrls = null; _pdfRemoteIdx = 0;
+  if (_pdfBlobUrl) { try { URL.revokeObjectURL(_pdfBlobUrl); } catch (_) {} _pdfBlobUrl = null; }
+  const modal = document.getElementById("pdfPreviewModal");
+  const pages = document.getElementById("pdfPreviewPages");
+  const titleEl = document.getElementById("pdfPreviewTitle");
+  if (!modal || !pages) { throw new Error("preview modal missing"); }
+  if (titleEl) titleEl.textContent = (meta && meta.title) || "Preview";
+  const shareBtn = document.getElementById("pdfPreviewShare");
+  const dlBtn = document.getElementById("pdfPreviewDownload");
+  if (dlBtn) dlBtn.classList.remove("hidden");
+  if (shareBtn) {
+    let canShareFiles = false;
+    try {
+      canShareFiles = !!(navigator.canShare && navigator.canShare({
+        files: [new File([new Blob([""],{type:"application/pdf"})], "x.pdf", {type:"application/pdf"})]
+      }));
+    } catch (_) {}
+    shareBtn.classList.toggle("hidden", !canShareFiles);
+  }
+  updatePdfDocChrome();
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+  trapDialog(modal, closePdfPreview);
+  pages.innerHTML = '<div class="text-slate-500 text-sm py-10 text-center">Rendering preview…</div>';
+  const pdfjs = await loadPdfJs();
+  const buf = doc.output("arraybuffer");
+  const pdf = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
+  if (_myGen !== _pdfRenderGen) return;
+  await renderPdfJsPages(pdf, pages);
+  if (_myGen !== _pdfRenderGen) return;
+  setPdfZoom(1);
   try { window.track && window.track("pdf_previewed", { kind: (meta && meta.kind) || "" }); } catch (_) {}
+}
+
+// Open one or more FBC install PDFs in the same preview modal (fit-to-width,
+// zoom controls, prev/next when an FL# ships multiple drawings).
+async function showFbcPdfViewer(urls, opts) {
+  const list = (urls || []).filter(Boolean);
+  if (!list.length) { toast("No install PDF available"); return; }
+  const _myGen = ++_pdfRenderGen;
+  _myGenGuard = () => _myGen === _pdfRenderGen;
+  _pdfPreviewDoc = null; _pdfPreviewMeta = { kind: "fbc_install", title: (opts && opts.title) || "Install drawing" };
+  _pdfPreviewName = "install-drawing.pdf";
+  _pdfRemoteUrls = list;
+  _pdfRemoteIdx = Math.max(0, Math.min(list.length - 1, (opts && opts.startIndex) || 0));
+  const modal = document.getElementById("pdfPreviewModal");
+  const pages = document.getElementById("pdfPreviewPages");
+  const titleEl = document.getElementById("pdfPreviewTitle");
+  const shareBtn = document.getElementById("pdfPreviewShare");
+  const dlBtn = document.getElementById("pdfPreviewDownload");
+  if (!modal || !pages) return;
+  if (titleEl) titleEl.textContent = (opts && opts.title) || "Install drawing";
+  if (shareBtn) shareBtn.classList.add("hidden");
+  if (dlBtn) dlBtn.classList.add("hidden"); // remote — use Open ↗ instead
+  updatePdfDocChrome();
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+  trapDialog(modal, closePdfPreview);
+  await renderRemotePdfAtIndex(_myGen);
+  try { window.track?.("fbc_pdf_viewed", { count: list.length }); } catch (_) {}
+}
+async function renderRemotePdfAtIndex(gen) {
+  const pages = document.getElementById("pdfPreviewPages");
+  if (!pages || !_pdfRemoteUrls || !_pdfRemoteUrls.length) return;
+  const url = _pdfRemoteUrls[_pdfRemoteIdx];
+  updatePdfDocChrome();
+  pages.innerHTML = '<div class="text-slate-500 text-sm py-10 text-center">Loading drawing…</div>';
+  try {
+    const res = await fetch(proxiedPdfUrl(url));
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const buf = await res.arrayBuffer();
+    if (gen != null && gen !== _pdfRenderGen) return;
+    const pdfjs = await loadPdfJs();
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
+    if (gen != null && gen !== _pdfRenderGen) return;
+    await renderPdfJsPages(pdf, pages);
+    if (gen != null && gen !== _pdfRenderGen) return;
+    setPdfZoom(1);
+    pages.scrollTop = 0;
+  } catch (err) {
+    if (gen != null && gen !== _pdfRenderGen) return;
+    pages.innerHTML = `<div class="text-center text-rose-300 text-sm py-10 px-4">
+      Couldn't load this drawing.
+      <div class="mt-3"><a class="text-[#c9a558] font-semibold underline" href="${escHtml(proxiedPdfUrl(url))}" target="_blank" rel="noopener">Open PDF in a new tab ↗</a></div>
+    </div>`;
+  }
+}
+async function stepFbcPdfDoc(dir) {
+  if (!_pdfRemoteUrls || _pdfRemoteUrls.length < 2) return;
+  const next = _pdfRemoteIdx + dir;
+  if (next < 0 || next >= _pdfRemoteUrls.length) return;
+  _pdfRemoteIdx = next;
+  const gen = ++_pdfRenderGen;
+  _myGenGuard = () => gen === _pdfRenderGen;
+  await renderRemotePdfAtIndex(gen);
 }
 function closePdfPreview() {
   _pdfPreviewDoc = null; _pdfPreviewMeta = null;
+  _pdfRemoteUrls = null; _pdfRemoteIdx = 0;
+  if (_pdfBlobUrl) { try { URL.revokeObjectURL(_pdfBlobUrl); } catch (_) {} _pdfBlobUrl = null; }
   tvDismiss(document.getElementById("pdfPreviewModal"), () => {
     const pages = document.getElementById("pdfPreviewPages");
-    if (pages) pages.innerHTML = "";   // free canvases after the fold-up
+    if (pages) { pages.innerHTML = ""; pages.classList.remove("zoomed"); }
+    const bar = document.getElementById("pdfToolbar");
+    if (bar) bar.classList.add("hidden");
   });
 }
 
@@ -21782,6 +21943,73 @@ function openFL() {
 }
 function closeFL() { tvDismiss(flModal); }
 
+// Drag the sheet grab handle down to dismiss (mobile sheet-on-mobile).
+// Same settle pattern as the price-bar sheet — no bounce from sheetUp replay.
+function wireMobileSheetDismiss(overlayEl, closeFn) {
+  if (!overlayEl || overlayEl._sheetDragWired) return;
+  const card = overlayEl.querySelector(":scope > .card");
+  const grab = card && card.querySelector(".sheet-grab");
+  if (!card || !grab) return;
+  overlayEl._sheetDragWired = true;
+  let startY = 0, dy = 0, dragging = false;
+  function pt(e) { return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; }
+  function begin(e) {
+    if (window.matchMedia("(min-width: 640px)").matches) return;
+    if (overlayEl.classList.contains("hidden")) return;
+    const p = pt(e); if (!p) return;
+    startY = p.clientY; dy = 0; dragging = true;
+    card.classList.add("sheet-dragging");
+    card.classList.remove("sheet-settling");
+  }
+  function move(e) {
+    if (!dragging) return;
+    const p = pt(e); if (!p) return;
+    dy = Math.max(0, p.clientY - startY);
+    card.style.transform = `translateY(${dy}px)`;
+    if (e.cancelable) e.preventDefault();
+  }
+  function end() {
+    if (!dragging) return;
+    dragging = false;
+    const dismiss = dy > 90 || (dy > 56 && dy > card.getBoundingClientRect().height * 0.18);
+    card.classList.add("sheet-settling");
+    card.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
+    card.classList.remove("sheet-dragging");
+    void card.offsetWidth;
+    if (dismiss) {
+      card.style.transform = "translateY(110%)";
+      setTimeout(() => {
+        card.classList.remove("sheet-settling");
+        card.style.transition = ""; card.style.transform = "";
+        try { closeFn({ fromDrag: true }); } catch (_) { try { closeFn(); } catch (__) {} }
+      }, 300);
+    } else {
+      card.style.transform = "translateY(0)";
+      setTimeout(() => {
+        card.classList.remove("sheet-settling");
+        card.style.transition = ""; card.style.transform = "";
+      }, 300);
+    }
+    dy = 0;
+  }
+  grab.addEventListener("touchstart", begin, { passive: true });
+  grab.addEventListener("touchmove", move, { passive: false });
+  grab.addEventListener("touchend", end);
+  grab.addEventListener("touchcancel", end);
+}
+
+// Instant hide used after a drag-dismiss already animated the sheet off-screen
+// (skip the TV fold so we don't bounce back on).
+function closeFLInstant() {
+  if (!flModal) return;
+  if (flModal._tvCloseTimer) { clearTimeout(flModal._tvCloseTimer); flModal._tvCloseTimer = 0; }
+  const card = flModal.querySelector(".modal-backdrop + div, :scope > .card");
+  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling"); card.style.transform = ""; card.style.transition = ""; }
+  flModal.classList.add("hidden");
+  flModal.classList.remove("flex", "modal-closing");
+  try { releaseDialog(flModal); } catch (_) {}
+}
+
 // Collapsible result cards (Full Breakdown / Labor / Materials / Approvals / Job Files):
 // click the big centered header to minimize (title-left + summary-right) or expand.
 document.addEventListener("click", e => {
@@ -22332,20 +22560,18 @@ function flEntryCard(mfr, e, idx, readOnly) {
   const delBtn = readOnly ? "" :
     `<button class="btn text-slate-600 hover:text-rose-300 text-base leading-none px-1 flex-shrink-0"
         data-fl-del data-mfr="${escHtml(mfr)}" data-idx="${idx}" title="Delete this FL#">×</button>`;
-  // Install-drawing PDFs — one collapsible viewer per FL# that resolves to a
-  // PDF in the FBC index. Reuses the exact .fbc-pdf-details mechanism (the
-  // global toggle handler lazy-loads the iframe via the CORS proxy), so seeded
-  // approvals now get the same inline PDF viewer as the FBC search results.
+  // Install-drawing PDFs — open in the in-app PDF viewer (fit-to-width,
+  // zoom, multi-doc cycle) instead of a cramped iframe.
   const pdfToggles = (e.fls || []).map(fl => {
-    const pdf = fbcInstallPdfForFl(fl);
-    if (!pdf) return "";
-    return `<details class="fbc-pdf-details mt-2 group" data-pdf-url="${escHtml(pdf)}">
-         <summary class="cursor-pointer select-none inline-flex items-center gap-1.5 text-[11px] font-bold text-[#c9a558] hover:text-[#dfc07a]">
-           <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-open:rotate-90"><polyline points="7 4 13 10 7 16"/></svg>
-           View install drawing &mdash; ${escHtml(fl)}
-         </summary>
-         <div class="mt-2 fbc-pdf-frame-wrap"></div>
-       </details>`;
+    const pdfs = fbcInstallPdfsForFl(fl);
+    if (!pdfs.length) return "";
+    const label = pdfs.length > 1
+      ? `View install drawings (${pdfs.length}) — ${escHtml(fl)}`
+      : `View install drawing — ${escHtml(fl)}`;
+    return `<button type="button" class="fbc-pdf-open" data-fbc-pdfs data-fl="${escHtml(fl)}" title="Open install drawing">
+           <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+           ${label}
+         </button>`;
   }).filter(Boolean).join("");
 
   return `<div class="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
@@ -22528,24 +22754,29 @@ function searchFbc(query, limit = 100) {
   return [...exact, ...prefix, ...partial].slice(0, limit);
 }
 
-// Resolve the install-drawing PDF for a seeded FL# (e.g. "FL15590-R13") by
-// matching it against the loaded FBC index. Returns the PDF URL or null
-// (null when the index isn't loaded yet, the FL# isn't in it, or it has no
-// install PDF on file). Prefers an exact revision match, else any revision of
-// that FL number that has a PDF.
+// Resolve install PDF(s) for an FL# against the loaded FBC index.
+// Prefers an exact revision match, else any revision of that FL number.
 function fbcInstallPdfForFl(flStr) {
-  if (!_fbcCache || !flStr) return null;
+  const list = fbcInstallPdfsForFl(flStr);
+  return list[0] || null;
+}
+function fbcInstallPdfsForFl(flStr, revHint) {
+  if (!_fbcCache || !flStr) return [];
   const m = String(flStr).match(/(\d{1,7})(?:[-\s]?R?(\d+))?/i);
-  if (!m) return null;
+  if (!m) return [];
   const num = m[1];
-  const rev = m[2] ? ("R" + m[2]) : null;
-  let fallback = null;
+  const rev = revHint || (m[2] ? ("R" + m[2]) : null);
+  let exact = null, fallback = null;
   for (const a of _fbcCache.approvals) {
-    if (a.fl !== num || !a.installPdf) continue;
-    if (rev && a.rev === rev) return a.installPdf;   // exact FL# + revision
-    if (!fallback) fallback = a.installPdf;            // same FL#, any revision
+    if (a.fl !== num) continue;
+    const pdfs = (Array.isArray(a.allInstallPdfs) && a.allInstallPdfs.length)
+      ? a.allInstallPdfs.filter(Boolean)
+      : (a.installPdf ? [a.installPdf] : []);
+    if (!pdfs.length) continue;
+    if (rev && a.rev === rev) { exact = pdfs; break; }
+    if (!fallback) fallback = pdfs;
   }
-  return fallback;
+  return exact || fallback || [];
 }
 
 // Supabase edge function that proxies floridabuilding.org PDFs with CORS
@@ -22556,9 +22787,8 @@ function proxiedPdfUrl(fbcUrl) {
 }
 
 // Render a single FBC approval as a card (modal + landing both use this).
-// Each card has a collapsible "View install drawing" section that lazily
-// embeds the PDF via the proxy — keeps the initial render fast and only
-// pays the bandwidth for PDFs the user actually opens.
+// "View install drawing" opens the in-app PDF viewer (fit-to-width, zoom,
+// multi-doc cycle) instead of a cramped iframe.
 function fbcCard(a) {
   const fl = "FL" + escHtml(a.fl) + (a.rev ? "-" + escHtml(a.rev) : "");
   const hasHvhz   = (a.products || []).some(p => p.hvhz);
@@ -22582,9 +22812,6 @@ function fbcCard(a) {
   const moreProducts = a.products && a.products.length > 6
     ? `<div class="text-[10px] text-slate-600 italic">+ ${a.products.length - 6} more model line${a.products.length - 6 === 1 ? "" : "s"}</div>` : "";
 
-  // Pre-extracted structured screw patterns (Phase C output) — shown above
-  // the PDF embed when we have them. Falls back to the inline PDF for
-  // FL#s we haven't extracted yet.
   const patterns = a.patterns || {};
   const patternRows = Object.entries(patterns).map(([sub, text]) =>
     `<div class="flex gap-2 text-[11px] leading-snug">
@@ -22597,15 +22824,14 @@ function fbcCard(a) {
          <div class="space-y-1">${patternRows}</div>
        </div>` : "";
 
-  // Inline PDF viewer — collapsed by default, lazy-loaded on expand
-  const pdfBlock = a.installPdf
-    ? `<details class="fbc-pdf-details mt-2 group" data-pdf-url="${escHtml(a.installPdf)}">
-         <summary class="cursor-pointer select-none inline-flex items-center gap-1.5 text-[11px] font-bold text-[#c9a558] hover:text-[#dfc07a]">
-           <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-open:rotate-90"><polyline points="7 4 13 10 7 16"/></svg>
-           ${patternRows ? "View install drawing" : "View install drawing (screw pattern)"}
-         </summary>
-         <div class="mt-2 fbc-pdf-frame-wrap"></div>
-       </details>` : "";
+  const pdfs = (Array.isArray(a.allInstallPdfs) && a.allInstallPdfs.length)
+    ? a.allInstallPdfs.filter(Boolean)
+    : (a.installPdf ? [a.installPdf] : []);
+  const pdfBlock = pdfs.length
+    ? `<button type="button" class="fbc-pdf-open" data-fbc-pdfs data-fl="${escHtml(a.fl)}" data-rev="${escHtml(a.rev || "")}" title="Open install drawing">
+         <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
+         ${patternRows ? "View install drawing" : "View install drawing (screw pattern)"}${pdfs.length > 1 ? ` · ${pdfs.length} docs` : ""}
+       </button>` : "";
 
   const detailBtn = a.detailUrl
     ? `<a href="${escHtml(a.detailUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 hover:text-slate-400">
@@ -22629,30 +22855,19 @@ function fbcCard(a) {
   </div>`;
 }
 
-// Delegated handler: when a <details data-pdf-url> opens, lazy-inject the
-// PDF iframe (via the CORS proxy). Inserts once, then re-opens are cached.
-document.addEventListener("toggle", (e) => {
-  const el = e.target;
-  if (!el.matches?.(".fbc-pdf-details")) return;
-  if (!el.open) return;
-  const wrap = el.querySelector(".fbc-pdf-frame-wrap");
-  if (!wrap || wrap.firstChild) return; // already loaded
-  const pdfUrl = el.dataset.pdfUrl;
-  if (!pdfUrl) return;
-  try { window.track?.("fbc_pdf_viewed", { url: pdfUrl }); } catch (_) {}
-  // 600px tall by default — tall enough to read a typical install drawing
-  // without dwarfing the rest of the modal. User can scroll inside iframe.
-  wrap.innerHTML = `<iframe
-    src="${escHtml(proxiedPdfUrl(pdfUrl))}#toolbar=1&navpanes=0"
-    class="w-full rounded border border-slate-800 bg-slate-950"
-    style="height:600px;"
-    title="Install instructions PDF"
-    loading="lazy"></iframe>
-   <div class="text-[10px] text-slate-600 mt-1.5 flex items-center justify-between">
-     <span>PDF served via Anchor's CORS proxy — original at floridabuilding.org.</span>
-     <a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener" class="text-[#c9a558] hover:text-[#dfc07a] font-semibold">Open in new tab ↗</a>
-   </div>`;
-}, true);
+// Open FBC install drawings in the in-app PDF viewer (fit-to-width + zoom +
+// multi-doc cycle + open-in-new-tab). Replaces the old iframe embed.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("[data-fbc-pdfs]");
+  if (!btn) return;
+  e.preventDefault();
+  const fl = btn.dataset.fl || "";
+  const rev = btn.dataset.rev || "";
+  const urls = fbcInstallPdfsForFl(fl, rev || null);
+  if (!urls.length) { toast("No install PDF on file for this FL#"); return; }
+  const title = "FL" + fl + (rev ? "-" + rev : "") + " · Install drawing";
+  showFbcPdfViewer(urls, { title });
+});
 
 // Render FBC results into a container — wraps the loader + search.
 // State machine: loading → loaded → error / no results.
@@ -29905,8 +30120,16 @@ function init() {
       { const b = document.getElementById("pdfPreviewDownload"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) { _pdfPreviewDoc.save(_pdfPreviewName); toast("PDF downloaded"); } }); }
       { const b = document.getElementById("pdfPreviewShare"); if (b) b.addEventListener("click", () => { if (_pdfPreviewDoc) sharePDF(_pdfPreviewDoc, _pdfPreviewName, _pdfPreviewMeta); }); }
       { const b = document.getElementById("pdfPreviewClose"); if (b) b.addEventListener("click", closePdfPreview); }
-      // OUT-2: tap a rendered page to toggle full-width zoom (pan via the scroll container)
-      { const pv = document.getElementById("pdfPreviewPages"); if (pv) pv.addEventListener("click", e => { if (e.target.closest(".pdf-preview-canvas")) pv.classList.toggle("zoomed"); }); }
+      { const b = document.getElementById("pdfDocPrev"); if (b) b.addEventListener("click", () => stepFbcPdfDoc(-1)); }
+      { const b = document.getElementById("pdfDocNext"); if (b) b.addEventListener("click", () => stepFbcPdfDoc(1)); }
+      { const b = document.getElementById("pdfZoomOut"); if (b) b.addEventListener("click", () => bumpPdfZoom(-1)); }
+      { const b = document.getElementById("pdfZoomIn"); if (b) b.addEventListener("click", () => bumpPdfZoom(1)); }
+      { const b = document.getElementById("pdfZoomFit"); if (b) b.addEventListener("click", () => setPdfZoom(1)); }
+      // Tap a rendered page to step zoom (fit ↔ 1.6); toolbar −/+ for finer control
+      { const pv = document.getElementById("pdfPreviewPages"); if (pv) pv.addEventListener("click", e => {
+        if (!e.target.closest(".pdf-preview-canvas")) return;
+        setPdfZoom(_pdfZoom > 1.2 ? 1 : 1.6);
+      }); }
       _pdfM.addEventListener("click", e => { if (e.target.hasAttribute("data-close-pdf")) closePdfPreview(); });
       _pdfM._wired = true;
     }
@@ -30312,6 +30535,10 @@ function init() {
     if (e.target.dataset.close !== undefined) { closeFL(); return; }
     const del = e.target.closest("[data-fl-del]");
     if (del) deleteFLEntry(del.dataset.mfr, parseInt(del.dataset.idx, 10));
+  });
+  wireMobileSheetDismiss(flModal, (opts) => {
+    if (opts && opts.fromDrag) closeFLInstant();
+    else closeFL();
   });
 
   // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
