@@ -3875,18 +3875,35 @@
     pointer-events: auto;
   }
   .dash-thumb-act {
+    position: relative;
     display: inline-flex; align-items: center; justify-content: center;
     width: 40px; height: 40px; min-width: 40px; min-height: 40px; padding: 0;
     cursor: pointer; border: 0; border-radius: 999px;
     background: rgba(255,255,255,0.94); color: #0b1120;
     box-shadow: 0 6px 16px -8px rgba(0,0,0,0.55);
-    transition: background .12s ease, transform .08s ease;
+    transition: background .12s ease, transform .08s ease, opacity .12s ease;
+    overflow: hidden; /* keep busy-state chrome inside the circle */
   }
+  .dash-thumb-act svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .dash-thumb-act-ai svg { width: 22px; height: 22px; }
   .dash-thumb-act:hover { background: #ffffff; }
   .dash-thumb-act:active { transform: scale(0.94); }
   .dash-thumb-act-ai { background: linear-gradient(180deg,#d8b96a,#b58f4a); color: #0b1120; }
   .dash-thumb-act-ai:hover { background: linear-gradient(180deg,#e6c878,#c9a558); }
   .dash-thumb-act:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+  .dash-thumb-act.is-busy { opacity: 0.75; cursor: wait; }
+  .dash-thumb-act.is-busy::after {
+    content: ""; position: absolute; inset: 3px; border-radius: 999px;
+    border: 2px solid rgba(11,17,32,0.15); border-top-color: rgba(11,17,32,0.75);
+    animation: dashThumbSpin 0.7s linear infinite;
+  }
+  .dash-thumb-act-ai.is-busy::after {
+    border-color: rgba(11,17,32,0.18); border-top-color: rgba(11,17,32,0.85);
+  }
+  @keyframes dashThumbSpin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .dash-thumb-act.is-busy::after { animation: none; border-top-color: rgba(11,17,32,0.55); }
+  }
   .dash-card-load { font-size: 12px; font-weight: 700; border-radius: 9999px; padding: 6px 14px; cursor: pointer; background: rgba(181,143,74,0.12); color: #c9a558; border: 1px solid rgba(181,143,74,0.5); transition: all .15s ease; }
   .dash-card-load:hover { background: rgba(181,143,74,0.2); border-color: #c9a558; }
   .dash-card-del { background: transparent; color: #64748b; border: 1px solid transparent; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; }
@@ -14375,7 +14392,7 @@ function render() {
     });
     if (matFooter) matFooter.classList.remove("hidden");
     if (matTotalEl) matTotalEl.textContent = formatMoney(materialsTotalCost);
-    { const _ms = document.getElementById("materialsSummary"); if (_ms) _ms.textContent = "Total Material Cost: " + formatMoney(materialsTotalCost); }
+    { const _ms = document.getElementById("materialsSummary"); if (_ms) _ms.textContent = formatMoney(materialsTotalCost); }
     matWrap.innerHTML = matItems.map(({ row, item, proc, buckList, trimPart, excluded }) => {
       const mid = row.id;
       const struck = !!excluded;
@@ -17587,10 +17604,10 @@ function dashJobCard(j) {
   // photos on the job page so the thumb stays a clean tap target.
   const thumbActions = hasPhoto ? "" : `<div class="dash-thumb-actions">
         <button type="button" class="dash-thumb-act" data-dash-photo="${j.id}" aria-label="Upload photo" title="Upload photo">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
         </button>
         <button type="button" class="dash-thumb-act dash-thumb-act-ai" data-dash-genthumb="${j.id}" aria-label="Generate with Grok" title="Generate with Grok">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.2 4.3L17.5 8l-4.3 1.2L12 13.5l-1.2-4.3L6.5 8l4.3-1.2L12 2.5zm6.8 9.2l.7 2.4 2.4.7-2.4.7-.7 2.4-.7-2.4-2.4-.7 2.4-.7.7-2.4zM5.8 14.2l.55 1.9 1.9.55-1.9.55-.55 1.9-.55-1.9-1.9-.55 1.9-.55.55-1.9z"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8l1.55 5.5L19 8.85l-5.45 1.55L12 15.9l-1.55-5.5L5 8.85l5.45-1.55L12 1.8zm7.2 9.6l.95 3.35 3.35.95-3.35.95-.95 3.35-.95-3.35-3.35-.95 3.35-.95.95-3.35zM4.9 14.4l.75 2.65 2.65.75-2.65.75-.75 2.65-.75-2.65-2.65-.75 2.65-.75.75-2.65z"/></svg>
         </button>
       </div>`;
   const statusSel = j.isDraft
@@ -18331,8 +18348,32 @@ async function generateJobThumbnail(jobId, btn) {
   // when a cover already exists AND a NEW generation will be billed — a cached retry (a
   // paid image whose earlier local save failed) reuses that image and spends no credit.
   if (!_aiThumbCache[jobId] && (job.photoPath || job.photo) && !confirm("Replace the current cover photo with an AI image? This uses 1 image credit and the current photo can't be recovered.")) return;
-  const prev = btn ? btn.textContent : "";
-  if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
+  // Icon buttons on job cards must keep their SVG — setting textContent to
+  // "Generating…" spilled across neighboring controls. Text buttons (job
+  // details) can swap their label instead.
+  const isIconBtn = !!(btn && btn.classList.contains("dash-thumb-act"));
+  const prevLabel = (!isIconBtn && btn) ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    if (isIconBtn) {
+      btn.classList.add("is-busy");
+      btn.setAttribute("aria-busy", "true");
+      btn.setAttribute("aria-label", "Generating thumbnail");
+    } else {
+      btn.textContent = "Generating…";
+    }
+  }
+  const restoreBtn = () => {
+    if (!btn) return;
+    btn.disabled = false;
+    if (isIconBtn) {
+      btn.classList.remove("is-busy");
+      btn.removeAttribute("aria-busy");
+      btn.setAttribute("aria-label", "Generate with Grok");
+    } else if (prevLabel) {
+      btn.textContent = prevLabel;
+    }
+  };
   try {
     // Reuse a paid-for image from a previous attempt that failed locally; only
     // invoke (and get billed by) the edge fn when we have nothing cached.
@@ -18356,6 +18397,7 @@ async function generateJobThumbnail(jobId, btn) {
     delete _aiThumbCache[jobId];        // saved — drop the cache so a future regen is fresh
     try { if (typeof window.track === "function") window.track("ai_thumbnail_generated"); } catch (_) {}
     toast("Thumbnail generated");
+    restoreBtn();
   } catch (e) {
     console.warn("thumbnail generation failed", e);
     // If the image was already generated (and billed), the retry only re-runs the
@@ -18363,7 +18405,7 @@ async function generateJobThumbnail(jobId, btn) {
     toast(_aiThumbCache[jobId]
       ? "Couldn't finish saving — tap Generate again to retry (no new credit used)"
       : "Couldn't generate a thumbnail — try again");
-    if (btn) { btn.disabled = false; btn.textContent = prev; }
+    restoreBtn();
   }
 }
 
