@@ -3299,6 +3299,15 @@
   .cust-row-name { font-size: 15px; font-weight: 700; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cust-row-sub { font-size: 12px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cust-row-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 11px; color: #64748b; font-weight: 600; }
+  .cust-tag-badge {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    vertical-align: middle; color: #c9a558;
+    background: rgba(181,143,74,0.14); border: 1px solid rgba(181,143,74,0.35);
+  }
+  [data-theme="light"] .cust-tag-badge {
+    color: #9a7636; background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.4);
+  }
   .cust-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 14px; font-size: 13px; font-weight: 600; color: #94a3b8; background: none; border: 0; cursor: pointer; padding: 4px 0; }
   .cust-back:hover { color: var(--gold-hi); }
   .cust-job { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(51,65,85,0.55); background: rgba(15,23,42,0.4); cursor: pointer; transition: border-color .15s, transform .15s; }
@@ -8576,6 +8585,15 @@
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Customer type <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
+        <div id="saveJobCustomerTag" class="seg" role="radiogroup" aria-label="Customer type" style="max-width:none;">
+          <button type="button" class="seg-btn active" data-cust-tag="" aria-pressed="true">None</button>
+          <button type="button" class="seg-btn" data-cust-tag="contractor" aria-pressed="false">Contractor</button>
+          <button type="button" class="seg-btn" data-cust-tag="owner" aria-pressed="false">Owner</button>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1.5">Tag builders as Contractor, or remodel clients as Owner.</p>
+      </div>
+      <div>
         <label for="saveJobCompany" class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Company <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
         <input id="saveJobCompany" type="text" placeholder="e.g. Acme Contracting LLC" autocomplete="organization" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
@@ -11623,6 +11641,7 @@ function buildState() {
     customerPhone: "",
     customerEmail: "",
     customerNotes: "",
+    customerTag: "",   // "" | "contractor" | "owner" — rolled up on the customer book
     buckList: null, planApprovals: [], slidingDoors: [], bifoldDoors: [],
     variants: {},
     currentJobId: null,
@@ -14720,6 +14739,7 @@ function render() {
     customerPhone: STATE.customerPhone,
     customerEmail: STATE.customerEmail,
     customerNotes: STATE.customerNotes,
+    customerTag: normalizeCustomerTag(STATE.customerTag),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: STATE.variants || {},
     currentJobId: STATE.currentJobId || null,
@@ -16812,7 +16832,7 @@ function getCustomerStats(jobs) {
     const key = name.toLowerCase();
     let c = map.get(key);
     if (!c) {
-      c = { key, name, phone: "", address: "", email: "", recurring: true, _ts: -1,
+      c = { key, name, phone: "", address: "", email: "", tag: "", recurring: true, _ts: -1,
             total: 0, won: 0, lost: 0, open: 0, revenue: 0, profit: 0, pipeline: 0, jobs: [] };
       map.set(key, c);
     }
@@ -16826,7 +16846,9 @@ function getCustomerStats(jobs) {
     if (ts >= c._ts) {
       c._ts = ts; c.name = name;
       c.phone = (j.customerPhone || "").trim(); c.address = (j.customerAddress || "").trim();
-      c.email = (j.customerEmail || "").trim(); c.recurring = j.customerRecurring !== false;
+      c.email = (j.customerEmail || "").trim();
+      c.tag = normalizeCustomerTag(j.customerTag);
+      c.recurring = j.customerRecurring !== false;
     }
   });
   const list = Array.from(map.values());
@@ -16895,7 +16917,7 @@ function renderDashCustomers(jobs) {
     return `<button type="button" data-cust-open="${escHtml(c.key)}" class="w-full text-left flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-slate-800/40 transition">
         <span style="width:11px;height:11px;border-radius:3px;background:${col};flex-shrink:0;"></span>
         <span class="min-w-0 flex-1">
-          <span class="block text-sm font-bold text-slate-100 truncate">${escHtml(c.name)}${oneTime}</span>
+          <span class="block text-sm font-bold text-slate-100 truncate">${escHtml(c.name)}${customerTagBadgeHTML(c.tag)}${oneTime}</span>
           <span class="block text-[11px] text-slate-500">${c.total} job${c.total === 1 ? "" : "s"} · ${wl}${c.winRate != null ? ` · ${c.winRate}% win` : ""}</span>
         </span>
         <span class="text-right shrink-0">
@@ -16965,7 +16987,8 @@ function renderCustomerStats(c, allStats) {
   const body = document.getElementById("custStatsBody");
   if (!nameEl || !body) return;
   nameEl.textContent = c.name;
-  const contact = [c.phone, c.email, c.address].filter(Boolean).join(" · ");
+  const tagLbl = customerTagLabel(c.tag);
+  const contact = [tagLbl, c.phone, c.email, c.address].filter(Boolean).join(" · ");
   contactEl.textContent = contact || (c.recurring ? "Recurring customer" : "One-time customer");
 
   const grandJobs = allStats.reduce((s, x) => s + x.total, 0) || 1;
@@ -19021,12 +19044,14 @@ function jdDetailsDirty() {
   const g = (x) => (document.getElementById(x)?.value || "").trim();
   const s = (v) => (v || "").trim();
   const nameNow = g("jdJobName") || g("jdName") || j.name || "Untitled job";
+  const tagNow = normalizeCustomerTag(document.querySelector("#jdCustomerTag .seg-btn.active")?.dataset.custTag);
   return g("jdName")    !== s(j.customerName)
       || g("jdCompany") !== s(j.customerCompany)
       || g("jdPhone")   !== s(j.customerPhone)
       || g("jdEmail")   !== s(j.customerEmail)
       || g("jdAddress") !== s(j.customerAddress)
       || g("jdNotes")   !== s(j.customerNotes)
+      || tagNow        !== normalizeCustomerTag(j.customerTag)
       || nameNow        !== s(j.name);
 }
 function closeJobDetails() {
@@ -19047,6 +19072,7 @@ function saveJobDetailsEdits(id, silent) {
   j.customerEmail = g("jdEmail");
   j.customerAddress = g("jdAddress");
   j.customerNotes = g("jdNotes");
+  j.customerTag = normalizeCustomerTag(document.querySelector("#jdCustomerTag .seg-btn.active")?.dataset.custTag);
   // Job name is its own field now; fall back to customer/old name if cleared.
   j.name = g("jdJobName") || j.customerName || j.name || "Untitled job";
   saveJobs(jobs);
@@ -19054,7 +19080,7 @@ function saveJobDetailsEdits(id, silent) {
   if (STATE.currentJobId === id) {
     STATE.customerName = j.customerName; STATE.customerCompany = j.customerCompany; STATE.customerPhone = j.customerPhone;
     STATE.customerEmail = j.customerEmail; STATE.customerAddress = j.customerAddress;
-    STATE.customerNotes = j.customerNotes;
+    STATE.customerNotes = j.customerNotes; STATE.customerTag = j.customerTag;
   }
   renderDashboard();
   if (!silent) toast("Saved");
@@ -19218,6 +19244,14 @@ function renderJobDetails(job) {
               <input id="jdJobName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Smith Residence" value="${escHtml(job.name || "")}"></div>
             <div><label for="jdName" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Customer</label>
               <input id="jdName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Acme Contracting" autocomplete="name" value="${escHtml(job.customerName || "")}"></div>
+            <div>
+              <label class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Customer type</label>
+              <div id="jdCustomerTag" class="seg" role="radiogroup" aria-label="Customer type" style="max-width:none;">
+                <button type="button" class="seg-btn ${!normalizeCustomerTag(job.customerTag) ? "active" : ""}" data-cust-tag="" aria-pressed="${!normalizeCustomerTag(job.customerTag)}">None</button>
+                <button type="button" class="seg-btn ${normalizeCustomerTag(job.customerTag) === "contractor" ? "active" : ""}" data-cust-tag="contractor" aria-pressed="${normalizeCustomerTag(job.customerTag) === "contractor"}">Contractor</button>
+                <button type="button" class="seg-btn ${normalizeCustomerTag(job.customerTag) === "owner" ? "active" : ""}" data-cust-tag="owner" aria-pressed="${normalizeCustomerTag(job.customerTag) === "owner"}">Owner</button>
+              </div>
+            </div>
             <div><label for="jdCompany" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Company <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
               <input id="jdCompany" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Acme Contracting LLC" autocomplete="organization" value="${escHtml(job.customerCompany || "")}"></div>
             <div><label for="jdPhone" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Phone</label>
@@ -19299,6 +19333,16 @@ function renderJobDetails(job) {
   body.querySelectorAll("[data-close-jd]").forEach(b => b.addEventListener("click", closeJobDetails));
   const status = document.getElementById("jdStatus");
   if (status) status.addEventListener("change", () => { setJobStatus(job.id, status.value); renderDashboard(); });
+  const jdTag = document.getElementById("jdCustomerTag");
+  if (jdTag) jdTag.addEventListener("click", e => {
+    const btn = e.target.closest("[data-cust-tag]");
+    if (!btn) return;
+    jdTag.querySelectorAll(".seg-btn").forEach(b => {
+      const on = b === btn;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  });
   const save = document.getElementById("jdSave");
   if (save) save.addEventListener("click", () => saveJobDetailsEdits(job.id));
   const openCalc = document.getElementById("jdOpenCalc");
@@ -20302,6 +20346,7 @@ function resetAll() {
     customerPhone: "",
     customerEmail: "",
     customerNotes: "",
+    customerTag: "",
     buckList: null, planApprovals: [], slidingDoors: [], bifoldDoors: [],
     variants: {},
     currentJobId: null,
@@ -20351,6 +20396,21 @@ function hasQuoteInput(r) {
 // with it false so they never clutter the picker — the JOB is untouched either
 // way. getCustomerEntries() returns ALL customers (for the Manage tool);
 // getCustomerBook() is the recurring-only subset the picker shows.
+//
+// `customerTag` ("" | "contractor" | "owner") labels who you're quoting —
+// builders vs homeowners — and rolls up the same way as contact fields.
+function normalizeCustomerTag(v) {
+  const t = String(v == null ? "" : v).trim().toLowerCase();
+  return (t === "contractor" || t === "owner") ? t : "";
+}
+function customerTagLabel(v) {
+  const t = normalizeCustomerTag(v);
+  return t === "contractor" ? "Contractor" : t === "owner" ? "Owner" : "";
+}
+function customerTagBadgeHTML(v) {
+  const label = customerTagLabel(v);
+  return label ? ` <span class="cust-tag-badge">${escHtml(label)}</span>` : "";
+}
 function getCustomerEntries() {
   const jobs = (typeof loadJobs === "function") ? loadJobs() : [];
   const map = new Map();
@@ -20368,6 +20428,7 @@ function getCustomerEntries() {
         address: (j.customerAddress || "").trim(),
         phone:   (j.customerPhone   || "").trim(),
         email:   (j.customerEmail   || "").trim(),
+        tag: normalizeCustomerTag(j.customerTag),
         recurring: j.customerRecurring !== false,
         count: 1, _ts: ts
       });
@@ -20379,6 +20440,7 @@ function getCustomerEntries() {
         prev.address = (j.customerAddress || "").trim();
         prev.phone   = (j.customerPhone   || "").trim();
         prev.email   = (j.customerEmail   || "").trim();
+        prev.tag = normalizeCustomerTag(j.customerTag);
         prev.recurring = j.customerRecurring !== false;
       }
     }
@@ -20405,8 +20467,10 @@ function commitCustDetailIfDirty() {
   const panel = document.querySelector('#adminModal .set-panel[data-panel="customers"]');
   if (!panel || !panel.classList.contains("active")) return;
   const val = f => { const el = card.querySelector(`[data-cust-field="${f}"]`); return el ? el.value : ""; };
+  const tagBtn = card.querySelector("[data-cust-tag-seg] .seg-btn.active");
   const fields = {
     company: val("company"), name: val("name"), phone: val("phone"), email: val("email"), address: val("address"),
+    tag: normalizeCustomerTag(tagBtn && tagBtn.dataset.setCustTag),
     recurring: card.querySelector('[data-cust-field="recurring"]')?.checked
   };
   if (!fields.name.trim()) return;                       // never commit an emptied name (would split records)
@@ -20415,6 +20479,7 @@ function commitCustDetailIfDirty() {
   const same = (a, b) => (a || "").trim() === (b || "").trim();
   const clean = same(fields.company, cur.company) && same(fields.name, cur.name)
     && same(fields.phone, cur.phone) && same(fields.email, cur.email) && same(fields.address, cur.address)
+    && normalizeCustomerTag(fields.tag) === normalizeCustomerTag(cur.tag)
     && (fields.recurring !== false) === (cur.recurring !== false);
   if (clean) return;                                     // nothing changed → no cloud write / re-render
   const n = setCustomerContact(card.dataset.custKey, fields);
@@ -20464,6 +20529,7 @@ function setCustomerContact(oldKey, fields) {
     if (fields.phone != null) j.customerPhone = fields.phone.trim();
     if (fields.email != null) j.customerEmail = fields.email.trim();
     if (fields.address != null) j.customerAddress = fields.address.trim();
+    if (fields.tag !== undefined) j.customerTag = normalizeCustomerTag(fields.tag);
     if (fields.recurring != null) j.customerRecurring = !!fields.recurring;
     changed.push(j);
   }
@@ -20496,7 +20562,7 @@ function renderCustomersSettings() {
     return `<button type="button" class="cust-row" data-cust-open="${escHtml(c.key)}">
       ${custAvatar(c, 40)}
       <span class="cust-row-main">
-        <span class="cust-row-name">${escHtml(c.name)}</span>
+        <span class="cust-row-name">${escHtml(c.name)}${customerTagBadgeHTML(c.tag)}</span>
         <span class="cust-row-sub">${escHtml(sub)}</span>
       </span>
       <span class="cust-row-meta">${c.count} job${c.count === 1 ? "" : "s"}
@@ -20541,6 +20607,15 @@ function custDetailHTML(c) {
           <div class="set-field"><label class="set-label">Phone</label><input data-cust-field="phone" type="text" inputmode="tel" value="${escHtml(c.phone)}" class="${inp}"></div>
           <div class="set-field"><label class="set-label">Email</label><input data-cust-field="email" type="email" value="${escHtml(c.email)}" class="${inp}"></div>
           <div class="set-field" style="grid-column:1 / -1"><label class="set-label">Address</label><input data-cust-field="address" type="text" value="${escHtml(c.address)}" class="${inp}"></div>
+          <div class="set-field" style="grid-column:1 / -1">
+            <label class="set-label">Customer type</label>
+            <div class="seg" data-cust-tag-seg role="radiogroup" aria-label="Customer type" style="max-width:none;">
+              <button type="button" class="seg-btn ${!normalizeCustomerTag(c.tag) ? "active" : ""}" data-set-cust-tag="" aria-pressed="${!normalizeCustomerTag(c.tag)}">None</button>
+              <button type="button" class="seg-btn ${normalizeCustomerTag(c.tag) === "contractor" ? "active" : ""}" data-set-cust-tag="contractor" aria-pressed="${normalizeCustomerTag(c.tag) === "contractor"}">Contractor</button>
+              <button type="button" class="seg-btn ${normalizeCustomerTag(c.tag) === "owner" ? "active" : ""}" data-set-cust-tag="owner" aria-pressed="${normalizeCustomerTag(c.tag) === "owner"}">Owner</button>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1.5">Contractor for builders · Owner for remodel homeowners.</p>
+          </div>
         </div>
         <div class="mt-3 flex justify-end">
           <button type="button" data-cust-save class="btn rounded-lg px-5 py-2 text-xs font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
@@ -20587,11 +20662,7 @@ function populateCustomerPicker() {
   if (!book.length) { row.classList.add("hidden"); sel._book = []; return; }
   row.classList.remove("hidden");
   sel.innerHTML = `<option value="">— New customer —</option>` +
-    book.map((c, i) => {
-      const meta = c.phone || c.address || c.email || "";
-      const label = meta ? `${c.name} · ${meta}` : c.name;
-      return `<option value="${i}">${escHtml(label)}</option>`;
-    }).join("");
+    book.map((c, i) => `<option value="${i}">${escHtml(c.name)}</option>`).join("");
   sel.value = "";
   sel._book = book;   // stash for the change handler
 }
@@ -20613,6 +20684,24 @@ function onCustomerPick() {
   // so the address belongs to THIS job, not the customer. Leave whatever's there.
   // a picked customer is recurring by definition (they're in the list)
   const rec = document.getElementById("saveJobRecurring"); if (rec) rec.checked = true;
+  STATE.customerTag = normalizeCustomerTag(c.tag);
+  syncSaveJobCustomerTagUI(STATE.customerTag);
+}
+
+function syncSaveJobCustomerTagUI(tag) {
+  const wrap = document.getElementById("saveJobCustomerTag");
+  if (!wrap) return;
+  const t = normalizeCustomerTag(tag);
+  wrap.querySelectorAll("[data-cust-tag]").forEach(btn => {
+    const on = normalizeCustomerTag(btn.dataset.custTag) === t;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+function getSaveJobCustomerTag() {
+  const wrap = document.getElementById("saveJobCustomerTag");
+  const active = wrap && wrap.querySelector(".seg-btn.active");
+  return normalizeCustomerTag(active && active.dataset.custTag);
 }
 
 // ─── Manage Customers tool ───────────────────────────────────────────────
@@ -20629,12 +20718,12 @@ function renderManageCustomers() {
     return;
   }
   list.innerHTML = entries.map((c, i) => {
-    const meta = [c.phone, c.address, c.email].filter(Boolean).join(" · ");
+    const meta = [c.phone, c.email].filter(Boolean).join(" · ");
     const jobs = c.count === 1 ? "1 job" : (c.count + " jobs");
     return `<label class="flex items-center gap-3 rounded-xl border border-slate-800 px-3 py-2.5 cursor-pointer hover:border-slate-700">
         <input type="checkbox" data-cust-idx="${i}" ${c.recurring ? "checked" : ""} class="h-4 w-4 shrink-0 accent-[#b58f4a] cursor-pointer" aria-label="Show ${escHtml(c.name)} in quick-pick list" />
         <span class="min-w-0 flex-1">
-          <span class="block text-sm font-semibold text-slate-100 truncate">${escHtml(c.name)}</span>
+          <span class="block text-sm font-semibold text-slate-100 truncate">${escHtml(c.name)}${customerTagBadgeHTML(c.tag)}</span>
           ${meta ? `<span class="block text-[11px] text-slate-400 truncate">${escHtml(meta)}</span>` : ""}
         </span>
         <span class="text-[10px] uppercase tracking-wide text-slate-600 shrink-0">${jobs}</span>
@@ -20700,6 +20789,14 @@ function openSaveJobModal() {
   { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
   document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
   populateCustomerPicker();   // refresh the saved-customer dropdown each open
+  // Prefill customer type from STATE (loaded job / prior pick); clear for a fresh quote.
+  { let tag = normalizeCustomerTag(STATE.customerTag);
+    if (!tag && STATE.currentJobId) {
+      const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
+      if (_j) tag = normalizeCustomerTag(_j.customerTag);
+    }
+    syncSaveJobCustomerTagUI(tag);
+  }
   // "Recurring customer" defaults ON. When re-saving an existing job, reflect
   // that job's stored flag so a one-time client stays one-time.
   { const _rec = document.getElementById("saveJobRecurring");
@@ -20739,6 +20836,7 @@ function confirmSaveJob() {
   STATE.customerPhone = (document.getElementById("saveJobPhone")?.value || "").trim();
   STATE.customerEmail = (document.getElementById("saveJobEmail")?.value || "").trim();
   STATE.customerNotes = document.getElementById("saveJobNotes").value.trim();
+  STATE.customerTag = getSaveJobCustomerTag();
 
   const jobs = loadJobs();
   const norm = s => (s || "").trim().toLowerCase();
@@ -20771,7 +20869,8 @@ function confirmSaveJob() {
 function doSaveJob(overrideId) {
   const r = calculate();
   const customer = STATE.customerName, jobName = STATE.jobName, address = STATE.customerAddress,
-        company = STATE.customerCompany, phone = STATE.customerPhone, email = STATE.customerEmail, notes = STATE.customerNotes;
+        company = STATE.customerCompany, phone = STATE.customerPhone, email = STATE.customerEmail, notes = STATE.customerNotes,
+        customerTag = normalizeCustomerTag(STATE.customerTag);
   const jobs = loadJobs();
   const draftIdx = jobs.findIndex(x => x.isDraft);
   const oldDraftId = (draftIdx >= 0 && jobs[draftIdx]) ? jobs[draftIdx].id : null;
@@ -20805,6 +20904,7 @@ function doSaveJob(overrideId) {
     id,
     name: jobName || customer || `Job ${new Date().toLocaleDateString()}`,
     customerName: customer, customerAddress: address, customerCompany: company, customerPhone: phone, customerEmail: email, customerNotes: notes,
+    customerTag,
     customerRecurring: !(document.getElementById("saveJobRecurring") && !document.getElementById("saveJobRecurring").checked),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
@@ -20984,6 +21084,7 @@ function quickSaveOrPrompt() {
         customerPhone: STATE.customerPhone != null ? STATE.customerPhone : existing.customerPhone,
         customerEmail: STATE.customerEmail != null ? STATE.customerEmail : existing.customerEmail,
         customerNotes: STATE.customerNotes != null ? STATE.customerNotes : existing.customerNotes,
+        customerTag: STATE.customerTag != null ? normalizeCustomerTag(STATE.customerTag) : normalizeCustomerTag(existing.customerTag),
         buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
         variants: clone(STATE.variants || {}),
         manufacturer: STATE.manufacturer, application: STATE.application,
@@ -21187,6 +21288,7 @@ function writeDraftJob(r) {
     customerPhone: STATE.customerPhone || "",
     customerEmail: STATE.customerEmail || "",
     customerNotes: STATE.customerNotes || "",
+    customerTag: normalizeCustomerTag(STATE.customerTag),
     buckList: STATE.buckList, planApprovals: STATE.planApprovals || [], slidingDoors: clone(STATE.slidingDoors || []), bifoldDoors: clone(STATE.bifoldDoors || []),
     variants: clone(STATE.variants || {}),
     createdAt: (idx >= 0 && jobs[idx].createdAt) || new Date().toISOString(),
@@ -21317,6 +21419,7 @@ function applyJobToState(j) {
   STATE.customerPhone = j.customerPhone || "";
   STATE.customerEmail = j.customerEmail || "";
   STATE.customerNotes = j.customerNotes || "";
+  STATE.customerTag = normalizeCustomerTag(j.customerTag);
   STATE.buckList = j.buckList || null;
   STATE.planApprovals = Array.isArray(j.planApprovals) ? j.planApprovals : [];
   STATE.slidingDoors = Array.isArray(j.slidingDoors) ? clone(j.slidingDoors) : [];
@@ -32063,6 +32166,16 @@ function init() {
     });
   })();
   { const _cp = document.getElementById("saveJobCustomerPick"); if (_cp) _cp.addEventListener("change", onCustomerPick); }
+  { const _tag = document.getElementById("saveJobCustomerTag");
+    if (_tag && !_tag._wired) {
+      _tag.addEventListener("click", e => {
+        const btn = e.target.closest("[data-cust-tag]");
+        if (!btn) return;
+        syncSaveJobCustomerTagUI(btn.dataset.custTag);
+        STATE.customerTag = getSaveJobCustomerTag();
+      });
+      _tag._wired = true;
+    } }
 
   // Manage Customers modal
   { const _mc = document.getElementById("saveJobManageCustomers"); if (_mc) _mc.addEventListener("click", openManageCustomers); }
@@ -32190,13 +32303,27 @@ function init() {
         renderCustomersSettings();
         return;
       }
+      const tagBtn = e.target.closest("[data-set-cust-tag]");
+      if (tagBtn) {
+        const seg = tagBtn.closest("[data-cust-tag-seg]");
+        if (seg) {
+          seg.querySelectorAll(".seg-btn").forEach(b => {
+            const on = b === tagBtn;
+            b.classList.toggle("active", on);
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+        }
+        return;
+      }
       const btn = e.target.closest("[data-cust-save]");
       if (!btn) return;
       const card = btn.closest("[data-cust-key]");
       if (!card) return;
       const val = f => { const el = card.querySelector(`[data-cust-field="${f}"]`); return el ? el.value : ""; };
+      const tagActive = card.querySelector("[data-cust-tag-seg] .seg-btn.active");
       const fields = {
         company: val("company"), name: val("name"), phone: val("phone"), email: val("email"), address: val("address"),
+        tag: normalizeCustomerTag(tagActive && tagActive.dataset.setCustTag),
         recurring: card.querySelector('[data-cust-field="recurring"]')?.checked
       };
       if (!fields.name.trim()) { toast("Customer name can't be empty"); return; }
