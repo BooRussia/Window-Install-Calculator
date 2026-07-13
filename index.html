@@ -3179,6 +3179,11 @@
   /* Rates leaf sub-navigation (redesign: split Rates into focused leaves) */
   .rleaf-nav { display: flex; gap: 6px; margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .rleaf-nav::-webkit-scrollbar { display: none; }
+  /* Edge-fade the horizontally-scrolling tab strips on mobile so it's visible that
+     more tabs continue off-screen (paired with scroll-active-into-view in the JS). */
+  @media (max-width: 639px) {
+    #settingsNav, .rleaf-nav { -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); }
+  }
   .rleaf-btn { flex: 0 0 auto; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
   .rleaf-btn:hover { color: #e2e8f0; border-color: #475569; }
   .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
@@ -9085,6 +9090,11 @@
                   <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
                 </div>
               </div>
+              <!-- Filter the material list by name (the old sidebar filter was retired). -->
+              <div class="relative mb-3">
+                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+                <input id="adminRatesFilter" type="search" autocomplete="off" placeholder="Filter materials…" aria-label="Filter materials by name" class="control rounded-lg pl-8 pr-3 py-2 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+              </div>
               <div id="adminRatesBody" class="space-y-3"></div>
             </section>
 
@@ -9456,7 +9466,10 @@
     <!-- Footer -->
     <div id="settingsFooter" class="px-5 sm:px-8 py-4 border-t border-slate-800 flex items-center justify-end gap-2 flex-shrink-0">
       <button id="adminReset" class="btn rounded-full text-sm text-slate-400 hover:text-rose-300 hover:bg-slate-800 px-4 py-2.5 min-h-[44px]">Restore Defaults</button>
-      <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Save</button>
+      <!-- Settings autosave on every edit (see wireSettingsAutosave); this Save just
+           forces an immediate commit + flashes "Saved". Demoted from a gold primary to
+           a quiet secondary so it doesn't read as the one thing you must click. -->
+      <button id="adminSave" class="btn rounded-full px-5 py-2.5 text-sm font-semibold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]">Save</button>
     </div>
   </div>
 </div>
@@ -22688,11 +22701,19 @@ function openAdmin() {
   document.getElementById("feedbackTabBtn").classList.toggle("hidden", !isAdmin());
   { const rb = document.getElementById("resourcesTabBtn"); if (rb) rb.classList.toggle("hidden", !isAdmin()); }
   if (isAdmin()) updateFeedbackBadge();
-  showSettingsTab("setup");
+  // Last-tab memory: reopen where the user left off (not always Setup→Brand). First-run
+  // / incomplete setup still lands on Setup; never restore a now-hidden owner-only tab.
+  let _startTab = "setup";
+  try {
+    const saved = localStorage.getItem("settings_last_tab");
+    if (saved && ["setup", "customers", "rates", "account"].includes(saved) && DATA.config && DATA.config.onboarded) _startTab = saved;
+  } catch (_) {}
+  showSettingsTab(_startTab);
   // Settings search: wire once, then reset query + force a fresh index next focus.
   wireSettingsSearch();
   _setSearchIdx = null; _setSearchHits = []; _setSearchActive = -1;
   { const si = document.getElementById("settingsSearch"); if (si) si.value = ""; }
+  { const rf = document.getElementById("adminRatesFilter"); if (rf) rf.value = ""; }   // don't reopen into a stale material filter
   renderSettingsSearch();
   applyStaticCollapseState();
   adminModal.classList.remove("hidden");
@@ -22728,6 +22749,11 @@ function showSettingsTab(name) {
   if (name === "account") renderSubscriptionPanel();
   if (name === "resources") renderResources();
   if (name === "customers") renderCustomersSettings();
+  // Keep the active tab visible on the mobile horizontally-scrolling strip (the
+  // active pill could sit off-screen with no scroll hint).
+  { const at = document.querySelector("#adminModal .set-tab.active"); if (at) try { at.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
+  // Remember the last main tab (owner-only tabs excluded) so re-opening returns here.
+  if (!["feedback", "resources", "admin"].includes(name)) { try { localStorage.setItem("settings_last_tab", name); } catch (_) {} }
   scheduleSaveNav();
 }
 
@@ -24712,6 +24738,29 @@ function swingStageCardHTML(collapsePrefs) {
     </details>`;
 }
 
+// Filter the Window Rates material list by name (reads #adminRatesFilter). Matches
+// each card's title (material cards use .text-sm.font-semibold; fee/trim/swing cards
+// use .set-collapse-title). Called on input + re-applied after each list re-render.
+function applyAdminRatesFilter() {
+  const inp = document.getElementById("adminRatesFilter");
+  const body = document.getElementById("adminRatesBody");
+  if (!body) return;
+  const q = (inp ? inp.value : "").trim().toLowerCase();
+  let shown = 0;
+  body.querySelectorAll("[data-rates-item]").forEach(c => {
+    const title = (c.querySelector(".set-collapse-title, .text-sm.font-semibold") || {}).textContent || "";
+    const match = !q || title.toLowerCase().includes(q);
+    c.classList.toggle("hidden", !match);
+    if (match) shown++;
+  });
+  let empty = document.getElementById("adminRatesFilterEmpty");
+  if (q && shown === 0) {
+    if (!empty) { empty = document.createElement("div"); empty.id = "adminRatesFilterEmpty"; empty.className = "text-[12px] text-slate-500 py-3 text-center"; body.appendChild(empty); }
+    empty.textContent = `No materials match “${inp.value.trim()}”.`;
+    empty.classList.remove("hidden");
+  } else if (empty) { empty.classList.add("hidden"); }
+}
+
 function buildAdminUI() {
   const b = DATA.config.brand || {};
   document.getElementById("brandCompanyName").value = b.companyName || "";
@@ -24881,7 +24930,10 @@ function buildAdminUI() {
             <div class="grid sm:grid-cols-2 gap-2 mb-4">${rateRows}</div>
             <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5">Brand variants <span class="text-slate-600 normal-case tracking-normal">· name them however you buy them</span></div>
             <div class="space-y-1.5" data-variant-list>${variantRows}</div>
-            <button type="button" class="var-add mt-2 btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10" data-add-cat="${item.id}">+ Add variant</button>
+            <div class="mt-2 flex items-center gap-2 flex-wrap">
+              <button type="button" class="var-add btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10" data-add-cat="${item.id}">+ Add variant</button>
+              <button type="button" class="var-reset-item btn rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-300" data-reset-cat="${item.id}" title="Restore this material's default consumption rate & brand variants">Reset to default</button>
+            </div>
           </div>
         </details>
       `;
@@ -24929,6 +24981,10 @@ function buildAdminUI() {
   // the list above, so wire its AI button + fetched stamp AFTER the list renders.
   updateTrimFetchedStamp();
   wireTrimFetchBtn();
+  // Wire the material filter once; re-apply the current query after each re-render.
+  { const _rf = document.getElementById("adminRatesFilter");
+    if (_rf && !_rf._wired) { _rf.addEventListener("input", applyAdminRatesFilter); _rf._wired = true; } }
+  applyAdminRatesFilter();
 
   // Render the install-speed presets into the Labor section, in plain
   // minutes/LF (stored as hr/LF — converted on display, ÷60 back on save via
@@ -24972,6 +25028,7 @@ function buildAdminUI() {
 function showRatesLeaf(name) {
   document.querySelectorAll('#ratesLeafNav [data-rleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.rleafBtn === name));
   document.querySelectorAll('#ratesShell [data-rleaf]').forEach(el => { el.style.display = (el.dataset.rleaf === name) ? '' : 'none'; });
+  { const a = document.querySelector('#ratesLeafNav [data-rleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
   if (name === 'doors') showDoorType(window._rDoorType || 'swing');
   scheduleSaveNav();
 }
@@ -24986,6 +25043,7 @@ function showDoorType(type) {
 function showSetupLeaf(name) {
   document.querySelectorAll('#setupLeafNav [data-setupleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.setupleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="setup"] [data-setupleaf]').forEach(el => { el.style.display = (el.dataset.setupleaf === name) ? '' : 'none'; });
+  { const a = document.querySelector('#setupLeafNav [data-setupleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
   scheduleSaveNav();
 }
 
@@ -24993,6 +25051,7 @@ function showSetupLeaf(name) {
 function showAccountLeaf(name) {
   document.querySelectorAll('#accountLeafNav [data-accountleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.accountleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="account"] [data-accountleaf]').forEach(el => { el.style.display = (el.dataset.accountleaf === name) ? '' : 'none'; });
+  { const a = document.querySelector('#accountLeafNav [data-accountleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
   scheduleSaveNav();
 }
 
@@ -32008,6 +32067,29 @@ function init() {
   }
   // Material brand variants — add / remove rows (delegated)
   document.getElementById("adminRatesBody").addEventListener("click", e => {
+    // Per-material "Reset to default" — restore this one material's consumption rate +
+    // brand variants from DEFAULT_DATA (previously the only undo was the nuke-everything
+    // Restore Defaults).
+    const rst = e.target.closest("[data-reset-cat]");
+    if (rst) {
+      const catId = rst.getAttribute("data-reset-cat");
+      const item = DATA.costItems.find(c => c.id === catId);
+      const def = (DEFAULT_DATA.costItems || []).find(c => c.id === catId);
+      if (!item || !def) return;
+      if (!confirm(`Reset ${item.name} to its default consumption rate and brand variants?\n\nYour other materials are unchanged.`)) return;
+      // FLUSH FIRST: commit any pending DOM edits (e.g. a just-added variant on another
+      // card that autosave hasn't picked up yet) into DATA, so the buildAdminUI() rebuild
+      // below doesn't wipe them — that would break the dialog's "other materials
+      // unchanged" promise. THEN overwrite only this material with its defaults.
+      try { commitAdmin(); } catch (_) {}
+      item.rates = clone(def.rates);
+      item.variants = clone(def.variants || []);
+      item.defaultVariant = def.defaultVariant;
+      saveData(DATA);
+      buildAdminUI();
+      if (typeof flashSettingsSaved === "function") flashSettingsSaved();
+      return;
+    }
     const add = e.target.closest(".var-add");
     if (add) {
       const item = DATA.costItems.find(c => c.id === add.dataset.addCat);
