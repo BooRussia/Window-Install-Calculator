@@ -3142,7 +3142,7 @@
   .set-panel { display: none; }
   .set-panel.active { display: block; animation: fadeIn .25s ease both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
-  .set-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .set-sub { font-size: 12px; color: #7e8ca0; margin-top: 2px; }  /* was #64748b (4.2:1, sub-AA); #7e8ca0 clears AA on the dark modal */
   /* ── Settings: one shared component layer (redesign Phase 1) ───────────────
      .set-card / .set-card-head / .set-card-desc / .set-grid / .set-field /
      .set-label / .set-hint — the single section+field+card template applied
@@ -3151,7 +3151,7 @@
   [data-theme="light"] .set-card { border-color: #e2e8f0; background: #f8fafc; }
   .set-card + .set-card { margin-top: 16px; }
   .set-card-head { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: #f1f5f9; }
-  .set-card-desc { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .set-card-desc { font-size: 12px; color: #7e8ca0; margin-top: 2px; }
   .set-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
   @media (min-width: 480px) {
     .set-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3159,7 +3159,7 @@
   }
   .set-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .set-label { font-size: 12px; font-weight: 600; color: #cbd5e1; }
-  .set-hint { font-size: 11px; line-height: 1.4; color: #64748b; }
+  .set-hint { font-size: 11px; line-height: 1.4; color: #7e8ca0; }
   /* Quiet autosave indicator in the Settings header (states-and-feedback §5):
      pre-mounted polite live region, invisible at rest, fades in on save and
      settles. Never a modal action, never focus-grabbed. */
@@ -3343,7 +3343,7 @@
   .set-collapse-chev { color: #64748b; flex-shrink: 0; transition: transform .15s ease; }
   .set-collapse[open] > .set-collapse-summary .set-collapse-chev { transform: rotate(90deg); }
   .set-collapse-title { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: #f1f5f9; flex-shrink: 0; }
-  .set-collapse-sub { flex: 1 1 auto; min-width: 0; text-align: right; font-size: 11px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .set-collapse-sub { flex: 1 1 auto; min-width: 0; text-align: right; font-size: 11px; color: #7e8ca0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
   .set-collapse[open] > .set-collapse-summary .set-collapse-sub { display: none; }
   .set-collapse-body { padding: 0 16px 16px; }
   /* Neutralize the legacy .set-card chrome when a card is nested directly inside
@@ -4564,6 +4564,19 @@
 
   /* ---- P1: Settings ---- */
   [data-theme="light"] .set-label { color: #334155; }
+  /* Settings helper/sub text — #7e8ca0 (the dark-mode AA value) is only ~3.3:1 on the
+     light modal, so darken it in light mode to clear AA (contrast inverts per theme). */
+  [data-theme="light"] .set-sub,
+  [data-theme="light"] .set-card-desc,
+  [data-theme="light"] .set-hint,
+  [data-theme="light"] .set-collapse-sub { color: #55606e; }
+  /* Settings micro-labels use inline `text-[10px] text-slate-500` (#64748b = 4.2:1,
+     sub-AA). Bump their contrast IN-SCOPE (no markup/size change) to clear AA in both
+     themes — higher specificity than the Tailwind utility, so no !important needed. */
+  #adminModal .text-\[10px\].text-slate-500 { color: #8a97a9; }
+  /* !important to beat the app-wide `[data-theme=light] .text-slate-500{…!important}`
+     remap (line ~3446); our #adminModal selector is more specific, so it wins. */
+  [data-theme="light"] #adminModal .text-\[10px\].text-slate-500 { color: #55606e !important; }
   [data-theme="light"] .set-tab.active,
   [data-theme="light"] .rleaf-btn.active,
   [data-theme="light"] .rdoor-btn.active { color: var(--gold-lo); background: #fff8ec; }
@@ -5569,6 +5582,11 @@
   /* Rail + settings destructive glyphs */
   .sgd-remove { width: 44px; height: 44px; }
   .var-remove { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  /* "Set default" radio: the glyph stays small; its wrapping label is the 44px tap
+     target (SET-audit T2.7). "+ Add variant" + footer Save grow to the floor too. */
+  .var-default-wrap { min-width: 44px; min-height: 44px; }
+  .var-add { min-height: 44px; }
+  #adminSave { min-height: 44px; }
   /* .mfr-del sits inside a <summary>; its click handler already preventDefaults
      the <details> toggle, so growing the hit box can't mis-toggle the card. */
   .mfr-del { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
@@ -22681,7 +22699,20 @@ function openAdmin() {
   navPushOverlay(adminModal);   // Phase 4d (no-op unless HISTORY_NAV)
   scheduleSaveNav();
 }
-function closeAdmin() { try { commitCustDetailIfDirty(); } catch (_) {} navPopOverlay(adminModal); tvDismiss(adminModal); scheduleSaveNav(); }
+function closeAdmin() {
+  // Flush settings explicitly on close. Persistence otherwise relied on the autosave
+  // timer firing after the modal is dismissed (DOM still mounted) — reopening within
+  // ~600ms repainted stale DATA and the timer then committed the stale form, losing
+  // the last edit. commitAdmin() is idempotent (reads the whole form), so a belt-and-
+  // suspenders flush here is safe.
+  // GUARD (must stay): only commit when the modal is actually OPEN. closeAdmin is also
+  // called by the global Escape catch-all even when Settings was never opened; committing
+  // then would read empty static inputs (buildAdminUI never ran) and blank the brand +
+  // job-defaults. Mirrors the same guard in navResolveBack.
+  try { commitCustDetailIfDirty(); } catch (_) {}
+  if (!adminModal.classList.contains("hidden")) { try { commitAdmin(); } catch (_) {} }
+  navPopOverlay(adminModal); tvDismiss(adminModal); scheduleSaveNav();
+}
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
@@ -24810,7 +24841,7 @@ function buildAdminUI() {
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
         <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${k}</span>
-        <input data-item="${item.id}" data-key="${k}" type="number" step="0.001" value="${v}" class="control rounded-lg px-2.5 py-2 w-24 sm:w-32 text-sm text-slate-100 flex-shrink-0" />
+        <input data-item="${item.id}" data-key="${k}" type="text" inputmode="decimal" value="${v}" class="control rounded-lg px-2.5 py-2 w-24 sm:w-32 text-sm text-slate-100 flex-shrink-0" />
         <span class="text-[11px] text-slate-500 flex-shrink-0 whitespace-nowrap">${item.unit}/LF</span>
       </div>
     `).join("");
@@ -24861,7 +24892,7 @@ function buildAdminUI() {
       ? Object.entries(item.unitPriceByApplication).map(([app, p]) => `
           <div class="flex items-center gap-2">
             <span class="text-xs text-slate-400 flex-1 min-w-0 truncate">${app} unit price</span>
-            <input data-appunitprice="${item.id}" data-app="${app}" type="number" step="0.001" value="${p}" class="control rounded-lg px-2.5 py-2 w-24 sm:w-32 text-sm text-slate-100 flex-shrink-0" />
+            <input data-appunitprice="${item.id}" data-app="${app}" type="text" inputmode="decimal" value="${p}" class="control rounded-lg px-2.5 py-2 w-24 sm:w-32 text-sm text-slate-100 flex-shrink-0" />
             <span class="text-[11px] text-slate-500 flex-shrink-0 whitespace-nowrap">$/${item.unit}</span>
           </div>
         `).join("")
@@ -24883,7 +24914,7 @@ function buildAdminUI() {
           <div class="flex items-center justify-end mb-3">
             <div class="flex items-center gap-2">
               <span class="text-[11px] text-slate-500">Unit Price</span>
-              <input data-unitprice="${item.id}" type="number" step="0.001" value="${item.unitPrice}" class="control rounded-lg px-3 py-2 w-28 text-sm text-slate-100" />
+              <input data-unitprice="${item.id}" type="text" inputmode="decimal" value="${item.unitPrice}" class="control rounded-lg px-3 py-2 w-28 text-sm text-slate-100" />
               <span class="text-[11px] text-slate-500">$/${item.unit}</span>
             </div>
           </div>
@@ -25464,10 +25495,10 @@ function applyStaticCollapseState() {
 function variantRowHTML(catId, unit, v, isDefault) {
   v = v || {};
   return `<div class="flex items-center gap-2" data-variant-row${v.id ? ` data-variant-id="${v.id}"` : ""}>
-    <input type="radio" name="vardefault_${catId}" class="var-default w-3.5 h-3.5 accent-[#c9a558] cursor-pointer flex-shrink-0" ${isDefault ? "checked" : ""} title="Use by default on new jobs" />
+    <label class="var-default-wrap flex-shrink-0 inline-flex items-center justify-center cursor-pointer" title="Use by default on new jobs"><input type="radio" name="vardefault_${catId}" class="var-default w-3.5 h-3.5 accent-[#c9a558] cursor-pointer" ${isDefault ? "checked" : ""} aria-label="Use this variant by default on new jobs" /></label>
     <input type="text" class="var-brand control rounded-lg px-3 py-2 flex-1 min-w-0 text-sm text-slate-100 placeholder:text-slate-600" value="${escHtml(v.brand || "")}" placeholder="Brand name" />
     <span class="text-[11px] text-slate-500 flex-shrink-0">$</span>
-    <input type="number" step="0.001" min="0" class="var-price control rounded-lg px-2 py-2 w-20 text-sm text-slate-100 placeholder:text-slate-600" value="${v.unitPrice != null ? v.unitPrice : ""}" placeholder="0.00" />
+    <input type="text" inputmode="decimal" min="0" class="var-price control rounded-lg px-2 py-2 w-20 text-sm text-slate-100 placeholder:text-slate-600" value="${v.unitPrice != null ? v.unitPrice : ""}" placeholder="0.00" />
     <span class="text-[11px] text-slate-500 flex-shrink-0">/${unit}</span>
     <button type="button" class="var-remove btn text-slate-600 hover:text-rose-300 px-1 text-base leading-none flex-shrink-0" title="Remove variant">×</button>
   </div>`;
@@ -26097,12 +26128,20 @@ function wireSettingsAutosave() {
 }
 
 function restoreDefaults() {
-  if (!confirm("Restore default rates?\n\nThis also resets your brand info, manufacturers, crew roster, labor model, tax, and any custom FL approval screw patterns. Your subscription/plan and saved jobs are kept.")) return;
-  // Entitlements (plan, trial clock, usage) live in the synced profile blob —
-  // never reset them via a rates restore or a paying user drops back to trial.
-  const ent = (DATA && DATA.config && DATA.config.entitlements) ? clone(DATA.config.entitlements) : null;
+  if (!confirm("Restore default rates?\n\nThis resets your brand info, manufacturers, crew roster, labor model, tax, and any custom FL approval screw patterns. Your subscription/plan, saved jobs, uploaded customer logos, and dashboard layout are kept.")) return;
+  // Carry forward everything that ISN'T rates/brand — a rates restore must not
+  // silently wipe these (they're not what the dialog promises to reset):
+  //  - entitlements: plan/trial clock/usage (else a paying user drops to trial)
+  //  - customerLogos: per-customer uploaded images (irreversible loss)
+  //  - dashLayout: the user's dashboard card arrangement
+  //  - firstQuoteSent: onboarding-checklist progress
+  const cfg = (DATA && DATA.config) ? DATA.config : {};
+  const keep = {};
+  ["entitlements", "customerLogos", "dashLayout", "firstQuoteSent"].forEach(k => {
+    if (cfg[k] !== undefined && cfg[k] !== null) keep[k] = clone(cfg[k]);
+  });
   DATA = clone(DEFAULT_DATA);
-  if (ent) DATA.config.entitlements = ent;
+  Object.assign(DATA.config, keep);
   saveData(DATA);
   buildAdminUI();
   applyBrandToUI();
@@ -31794,7 +31833,13 @@ function init() {
   document.getElementById("adminResetSetup").addEventListener("click", resetSetup);
   document.getElementById("settingsSignOut").addEventListener("click", handleSignOut);
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
-    t.addEventListener("click", () => showSettingsTab(t.dataset.tab)));
+    t.addEventListener("click", () => {
+      // Commit any in-progress customer edit BEFORE leaving the tab — the Customers
+      // panel is outside autosave and re-renders on return, so an unsaved edit would
+      // silently vanish. The guard no-ops unless the Customers panel is still active.
+      try { commitCustDetailIfDirty(); } catch (_) {}
+      showSettingsTab(t.dataset.tab);
+    }));
   // Settings → Customers: save a customer's edits across all their jobs (delegated, guarded)
   const _custBody = document.getElementById("customersBody");
   if (_custBody && !_custBody._wired) {
