@@ -7873,7 +7873,7 @@
             <span class="lbl">Lift days</span>
             <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
-          <button type="button" id="suggestLiftDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
+          <button type="button" id="suggestLiftDays" class="sug-chip hidden" title="Estimated from this job's crew-hours and crew size — tap to apply"></button>
         </div>
       </div>
       <div id="swingStageRailField" class="rail-field hidden">
@@ -7885,7 +7885,7 @@
             <span class="lbl">Stage days</span>
             <input id="swingStageDaysInput" type="number" min="1" step="1" value="3" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
-          <button type="button" id="suggestSwingDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
+          <button type="button" id="suggestSwingDays" class="sug-chip hidden" title="Estimated from this job's crew-hours and crew size — tap to apply"></button>
         </div>
       </div>
       <div class="rail-field" id="storageRailField">
@@ -11906,6 +11906,29 @@ function buildingLaborBreakdown() {
   return applyLaborRealism(estimateLaborBreakdown({ wc: agg.windowCount, lf: agg.windowLF, sd, sgd, bifold }), oneoffFloorsOnsiteHrs());
 }
 
+// Lift / swing-stage / storage schedule chips.
+//
+// The labor model tracks wall-clock crew-hours (the crew as a unit tied up on
+// the job) and prices them × full crew $/hr. A naive "hrs ÷ 8" calendar assumes
+// ONE sequential crew — fine for a small residential job, absurd on a tower
+// where the same hour budget is burned by a larger crew in parallel.
+//
+// Rates were calibrated around the default 2-person crew, so schedule capacity
+// scales with crewSize / 2: a 2-person crew keeps the old hrs÷8 days; an
+// 8-person crew finishes in ~1/4 the calendar. Storage months follow from
+// working days (÷ 22).
+function estimateJobCalendarDays(lb) {
+  const hrs = Number(lb && lb.totalHrs) || 0;
+  if (hrs <= 0) return 1;
+  const baseline = 2; // default residential crew the per-LF rates assume
+  const crewSize = Math.max(1, Number(lb && lb.crewSize) || baseline);
+  const parallel = Math.max(1, crewSize / baseline);
+  return Math.max(1, Math.ceil(hrs / (8 * parallel)));
+}
+function estimateJobCalendarMonths(days) {
+  return Math.max(1, Math.ceil(Math.max(1, Number(days) || 1) / 22));
+}
+
 // True when the INSTALLATION is to impact spec — either the job is impact glass,
 // or the brand is flagged alwaysImpactSpec (it attaches to impact spec regardless
 // of glass type). Mirrors useImpactPattern() so labor and materials agree.
@@ -14320,19 +14343,22 @@ function render() {
     accessEl.classList.toggle("hidden", !showAccess);
     if (!accessEl._wired) { accessEl.addEventListener("click", () => jumpToRailField(accessEl.dataset.nudgeJump)); accessEl._wired = true; }
   }
-  // Suggested lift / swing-stage days + storage months, derived from the job's
-  // own labor model (~8 crew-hrs/day on site, ~22 working days/month). The chip
-  // shows only when it differs from what's entered; tapping applies it.
+  // Suggested lift / swing-stage days + storage months from the job's labor
+  // hours, scaled by crew size (see estimateJobCalendarDays). Chip shows only
+  // when it differs from what's entered; tapping applies it.
   {
     const lbS = buildingLaborBreakdown();
-    const days = Math.max(1, Math.ceil(lbS.totalHrs / 8));
-    const months = Math.max(1, Math.ceil(days / 22));
+    const days = estimateJobCalendarDays(lbS);
+    const months = estimateJobCalendarMonths(days);
+    const crewSize = Math.max(1, Number(lbS.crewSize) || 2);
+    const tip = `${lbS.totalHrs.toFixed(0)} crew-hrs · ${crewSize}-person crew · ~8h/day — tap to apply`;
     const chip = (id, show, n, unit, cur) => {
       const el = document.getElementById(id);
       if (!el) return;
       const on = !!show && lbS.totalHrs > 0.01 && n !== cur;
       el.classList.toggle("hidden", !on);
       if (on) el.textContent = `Suggest: ${n}${unit}`;
+      el.title = tip;
       el._suggest = n;
     };
     chip("suggestLiftDays", STATE.liftEnabled, days, "d", parseInt(STATE.liftDays, 10) || 1);
