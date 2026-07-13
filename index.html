@@ -665,7 +665,8 @@
     box-shadow: 0 -12px 32px -18px rgba(0,0,0,0.8);
     transform: translateY(115%);
     transition: transform .32s cubic-bezier(0.16,1,0.3,1);
-    touch-action: pan-y;
+    /* Own the vertical gesture — don't let the page scroll steal the first frames. */
+    touch-action: none;
   }
   #mtotalBar.show { transform: translateY(0); }
   #mtotalBar.show.tucked { transform: translateY(calc(100% + 12px)); }
@@ -32412,6 +32413,11 @@ function init() {
     const btn = document.getElementById("mtotalBtn");
     let startY = 0, startX = 0, dy = 0, tracking = false, decided = false, isDrag = false;
     function pt(e) { const t = e.touches ? e.touches[0] : e.changedTouches ? e.changedTouches[0] : e; return t; }
+    function tuckedOffset() { return Math.round(_mbar.offsetHeight) + 12; }
+    function clearInlineMotion() {
+      _mbar.style.transition = "";
+      _mbar.style.transform = "";
+    }
     function onStart(e) {
       if (_msheet && _msheet.classList.contains("open")) return;
       if (_mbar.classList.contains("tucked")) return;
@@ -32419,6 +32425,9 @@ function init() {
       startY = p.clientY; startX = p.clientX; dy = 0;
       tracking = true; decided = false; isDrag = false;
       _mbar.classList.add("dragging");
+      // Kill any leftover settle transition so the finger owns the bar immediately.
+      _mbar.style.transition = "none";
+      _mbar.style.transform = "translateY(0px)";
     }
     function onMove(e) {
       if (!tracking) return;
@@ -32429,7 +32438,12 @@ function init() {
         if (Math.abs(rawY) < 8 && Math.abs(rawX) < 8) return;
         decided = true;
         isDrag = Math.abs(rawY) >= Math.abs(rawX) && rawY > 0;
-        if (!isDrag) { tracking = false; _mbar.classList.remove("dragging"); _mbar.style.transform = ""; return; }
+        if (!isDrag) {
+          tracking = false;
+          _mbar.classList.remove("dragging");
+          clearInlineMotion();
+          return;
+        }
       }
       if (!isDrag) return;
       dy = Math.max(0, rawY);
@@ -32441,26 +32455,58 @@ function init() {
       tracking = false;
       if (isDrag) {
         _mbar._didDrag = true;
+        const rest = tuckedOffset();
         if (dy > 48) {
-          // Continue from the finger position into the tucked rest — never
-          // snap back to "shown" first (that was the hitch).
-          _mbar.classList.add("tucked");
-          document.body.classList.add("mtotal-tucked");
-          _mbar.style.transition = "transform .28s cubic-bezier(0.22, 1, 0.36, 1)";
-          _mbar.classList.remove("dragging");
-          void _mbar.offsetWidth;
-          _mbar.style.transform = "";
-          setTimeout(() => { _mbar.style.transition = ""; }, 300);
+          // Animate in pixel space from the finger to the tucked rest, THEN flip
+          // the tucked class — applying body.mtotal-tucked mid-drag was shifting
+          // FAB/padding and felt like a hitch. If already past rest, commit
+          // without animating back upward.
+          const commitTuck = () => {
+            _mbar.classList.add("tucked");
+            document.body.classList.add("mtotal-tucked");
+            _mbar.classList.remove("dragging");
+            clearInlineMotion();
+          };
+          if (dy >= rest - 2) {
+            commitTuck();
+          } else {
+            _mbar.style.transition = "transform .28s cubic-bezier(0.22, 1, 0.36, 1)";
+            _mbar.classList.remove("dragging");
+            _mbar.style.transform = `translateY(${dy}px)`;
+            void _mbar.offsetWidth;
+            _mbar.style.transform = `translateY(${rest}px)`;
+            let done = false;
+            const finish = () => {
+              if (done) return;
+              done = true;
+              _mbar.removeEventListener("transitionend", onTe);
+              commitTuck();
+            };
+            const onTe = (ev) => { if (ev.propertyName === "transform") finish(); };
+            _mbar.addEventListener("transitionend", onTe);
+            setTimeout(finish, 340);
+          }
         } else {
+          // Spring back to shown — stay in pixel space so CSS .show doesn't pop.
           _mbar.style.transition = "transform .28s cubic-bezier(0.16, 1, 0.3, 1)";
           _mbar.classList.remove("dragging");
+          _mbar.style.transform = `translateY(${dy}px)`;
           void _mbar.offsetWidth;
-          _mbar.style.transform = "";
-          setTimeout(() => { _mbar.style.transition = ""; }, 300);
+          _mbar.style.transform = "translateY(0px)";
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            _mbar.removeEventListener("transitionend", onTe);
+            clearInlineMotion();
+          };
+          const onTe = (ev) => { if (ev.propertyName === "transform") finish(); };
+          _mbar.addEventListener("transitionend", onTe);
+          setTimeout(finish, 340);
         }
       } else {
         _mbar.classList.remove("dragging");
-        _mbar.style.transform = "";
+        clearInlineMotion();
       }
       isDrag = false; dy = 0;
     }
