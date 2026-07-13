@@ -32119,7 +32119,10 @@ function init() {
   document.getElementById("openFL").addEventListener("click", openFL);
   // Dashboard — header button (PFP "Dashboard" is wired via goHome above)
   const _hdrDash = document.getElementById("headerDashboardBtn");
-  if (_hdrDash) _hdrDash.addEventListener("click", openDashboard);
+  // Wrap in an arrow fn: passing openDashboard directly leaks the MouseEvent as
+  // its `opts` arg, and MouseEvent.view (the window) makes _dashView non-"home",
+  // so the dashboard opened on a blank drill-in panel instead of the launchpad.
+  if (_hdrDash) _hdrDash.addEventListener("click", () => openDashboard());
   // Rates & Pricing — header shortcut straight into Settings → Rates tab.
   const _hdrRates = document.getElementById("headerRatesBtn");
   if (_hdrRates) _hdrRates.addEventListener("click", () => {
