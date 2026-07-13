@@ -7866,14 +7866,22 @@
         <button id="permitToggleBtn" type="button" class="toggle-pill"><span class="lbl">Permit</span><span class="val">Off</span></button>
       </div>
       <div id="liftRailField" class="rail-field hidden">
-        <label><span class="lbl-impact med">Lift</span><span class="info-tip" tabindex="0" role="button" aria-label="How a lift affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Boom-lift rental for multi-story work. Only shows on 2+ story jobs. Daily rate is tunable in Settings.</span></span></label>
+        <label><span class="lbl-impact med">Lift</span><span class="info-tip" tabindex="0" role="button" aria-label="How a lift affects the bid"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M7.8 7.7a2.25 2.25 0 1 1 3.35 1.96c-.7.4-1.15.9-1.15 1.74v.35"/><circle cx="10" cy="14.3" r="0.6" fill="currentColor" stroke="none"/></svg><span class="info-pop"><span class="tip-tag med">Medium impact</span><br>Boom-lift rental for 2nd-floor and above &mdash; ground-floor openings don&rsquo;t need it. Enter days directly, or enter how many windows are upstairs and we&rsquo;ll estimate days from install speed &times; avg LF/window. Daily rate is tunable in Settings.</span></span></label>
         <div class="space-y-2">
           <button id="liftToggleBtn" type="button" class="toggle-pill"><span class="lbl">Lift</span><span class="val">Off</span></button>
-          <label id="liftDaysWrap" class="margin-pill hidden" style="cursor:text">
-            <span class="lbl">Lift days</span>
-            <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
-          </label>
-          <button type="button" id="suggestLiftDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
+          <div id="liftDetailWrap" class="space-y-2 hidden">
+            <p class="text-[11px] leading-snug text-slate-500">1st-floor openings don&rsquo;t need the lift. Set <strong class="text-slate-300 font-semibold">days</strong> yourself, or enter how many windows are on the <strong class="text-slate-300 font-semibold">2nd story and above</strong> and tap Suggest.</p>
+            <label id="liftDaysWrap" class="margin-pill" style="cursor:text">
+              <span class="lbl">Lift days</span>
+              <input id="liftDaysInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+            </label>
+            <label id="liftUpperWrap" class="margin-pill" style="cursor:text">
+              <span class="lbl">Windows on 2nd+</span>
+              <input id="liftUpperWindowsInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="—" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
+            </label>
+            <button type="button" id="suggestLiftDays" class="sug-chip hidden" title="Estimated from upper-floor windows × avg LF × install speed — tap to apply"></button>
+            <div id="liftEstimateHint" class="text-[10px] leading-snug text-slate-500 hidden"></div>
+          </div>
         </div>
       </div>
       <div id="swingStageRailField" class="rail-field hidden">
@@ -7885,7 +7893,7 @@
             <span class="lbl">Stage days</span>
             <input id="swingStageDaysInput" type="number" min="1" step="1" value="3" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
-          <button type="button" id="suggestSwingDays" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
+          <button type="button" id="suggestSwingDays" class="sug-chip hidden" title="Estimated from this job's crew-hours and crew size — tap to apply"></button>
         </div>
       </div>
       <div class="rail-field" id="storageRailField">
@@ -7900,7 +7908,7 @@
             <span class="lbl">Months</span>
             <input id="projectedMonthsInput" type="number" min="1" step="1" value="1" inputmode="numeric" autocomplete="off" style="width:48px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
-          <button type="button" id="suggestMonths" class="sug-chip hidden" title="Estimated from this job's crew-hours — tap to apply"></button>
+          <button type="button" id="suggestMonths" class="sug-chip hidden" title="Estimated from this job's crew-hours and crew size — tap to apply"></button>
         </div>
       </div>
       <!-- Rail audit: the access caution lives WITH the access-equipment fields it
@@ -11471,6 +11479,7 @@ function buildState() {
     windowCount: "",
     liftEnabled: false,
     liftDays: "1",
+    liftUpperWindows: "",   // windows on 2nd+ that need the lift; "" = unspecified
     permitEnabled: false,
     includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
     blockSealerEnabled: false,   // OFF by default — rarely needed on remodels
@@ -11904,6 +11913,98 @@ function buildingLaborBreakdown() {
   const sgd = computeSlidingDoors({ slidingDoors: agg.slidingDoors });
   const bifold = computeBifoldDoors({ bifoldDoors: agg.bifoldDoors });
   return applyLaborRealism(estimateLaborBreakdown({ wc: agg.windowCount, lf: agg.windowLF, sd, sgd, bifold }), oneoffFloorsOnsiteHrs());
+}
+
+// Lift / swing-stage / storage schedule chips.
+//
+// The labor model tracks wall-clock crew-hours (the crew as a unit tied up on
+// the job) and prices them × full crew $/hr. A naive "hrs ÷ 8" calendar assumes
+// ONE sequential crew — fine for a small residential job, absurd on a tower
+// where the same hour budget is burned by a larger crew in parallel.
+//
+// Rates were calibrated around the default 2-person crew, so schedule capacity
+// scales with crewSize / 2: a 2-person crew keeps the old hrs÷8 days; an
+// 8-person crew finishes in ~1/4 the calendar. Storage months follow from
+// working days (÷ 22).
+function estimateJobCalendarDays(lb) {
+  const hrs = Number(lb && lb.totalHrs) || 0;
+  if (hrs <= 0) return 1;
+  const baseline = 2; // default residential crew the per-LF rates assume
+  const crewSize = Math.max(1, Number(lb && lb.crewSize) || baseline);
+  const parallel = Math.max(1, crewSize / baseline);
+  return Math.max(1, Math.ceil(hrs / (8 * parallel)));
+}
+function estimateJobCalendarMonths(days) {
+  return Math.max(1, Math.ceil(Math.max(1, Number(days) || 1) / 22));
+}
+
+// Avg LF per window from the live takeoff (per-floor when Like Floors is on).
+function jobAvgLfPerWindow() {
+  const lf = parseFloat(STATE.totalLF) || 0;
+  const wc = parseInt(STATE.windowCount, 10) || 0;
+  if (lf > 0 && wc > 0) return lf / wc;
+  return 0;
+}
+
+// When Like Floors stacks identical floors, floors 2..N need the lift — infer
+// upper-floor window count from per-floor count × (stories − 1).
+function inferredLiftUpperWindows() {
+  const stories = storyNum(STATE.stories);
+  if (stories < 2) return null;
+  if (STATE.highRise && STATE.likeFloors) {
+    const perFloor = parseInt(STATE.windowCount, 10) || 0;
+    if (perFloor <= 0) return null;
+    return perFloor * (stories - 1);
+  }
+  return null;
+}
+
+function resolveLiftUpperWindows() {
+  const raw = STATE.liftUpperWindows;
+  if (raw != null && String(raw).trim() !== "" && isFinite(Number(raw))) {
+    return Math.max(0, Math.floor(Number(raw)));
+  }
+  return inferredLiftUpperWindows();
+}
+
+// Install hr/LF for lift-day estimates — base speed without the low-rise climb
+// premium (the lift is what buys that access). Keeps remodel/block/impact rates.
+// Per-job min/LF overrides are used as entered (already the installer's speed).
+function liftInstallHrPerLF() {
+  const o = STATE.laborOverride;
+  if (o && o.installMinPerLF != null && isFinite(Number(o.installMinPerLF))) {
+    return Math.max(0, Number(o.installMinPerLF)) / 60;
+  }
+  const withClimb = getLaborPerLF();
+  const sm = getStoriesMultiplier() || 1;
+  return sm > 0 ? withClimb / sm : withClimb;
+}
+
+// Lift calendar from upper-floor openings only:
+//   days ≈ (upperWindows × avgLF × hr/LF + setup) ÷ 8h workday
+function estimateLiftDaysFromUpperOpenings(upperCount) {
+  const n = Math.max(0, parseInt(upperCount, 10) || 0);
+  if (n <= 0) return null;
+  const avg = jobAvgLfPerWindow();
+  if (!(avg > 0)) return null;
+  const upperLF = n * avg;
+  const hrPerLF = liftInstallHrPerLF();
+  const setupMin = resolveSetupMinPerOpening();
+  const hrs = upperLF * hrPerLF + n * setupMin / 60;
+  if (!(hrs > 0)) return null;
+  // One working day = 8 hours on site (not a 24h clock, and not scaled by
+  // crew size — larger crews are already reflected in how fast the rates assume).
+  const days = Math.max(1, Math.ceil(hrs / 8));
+  return {
+    days,
+    upperWindows: n,
+    avgLf: avg,
+    upperLF,
+    hrs,
+    hrPerLF,
+    setupMin,
+    inferred: !(STATE.liftUpperWindows != null && String(STATE.liftUpperWindows).trim() !== ""),
+  };
 }
 
 // True when the INSTALLATION is to impact spec — either the job is impact glass,
@@ -13576,10 +13677,10 @@ function updateSwingStageVisibility() {
 function updateLiftToggleUI() {
   const btn = document.getElementById("liftToggleBtn");
   const valEl = btn.querySelector(".val");
-  const daysWrap = document.getElementById("liftDaysWrap");
+  const detail = document.getElementById("liftDetailWrap");
   btn.classList.toggle("active", STATE.liftEnabled);
   valEl.textContent = STATE.liftEnabled ? "On" : "Off";
-  daysWrap.classList.toggle("hidden", !STATE.liftEnabled);
+  if (detail) detail.classList.toggle("hidden", !STATE.liftEnabled);
 }
 
 function updateSwingStageToggleUI() {
@@ -14320,23 +14421,56 @@ function render() {
     accessEl.classList.toggle("hidden", !showAccess);
     if (!accessEl._wired) { accessEl.addEventListener("click", () => jumpToRailField(accessEl.dataset.nudgeJump)); accessEl._wired = true; }
   }
-  // Suggested lift / swing-stage days + storage months, derived from the job's
-  // own labor model (~8 crew-hrs/day on site, ~22 working days/month). The chip
-  // shows only when it differs from what's entered; tapping applies it.
+  // Lift days: prefer upper-floor openings × avg LF × install speed (1st floor
+  // never needs the lift). Swing-stage / storage still use whole-job calendar.
   {
     const lbS = buildingLaborBreakdown();
-    const days = Math.max(1, Math.ceil(lbS.totalHrs / 8));
-    const months = Math.max(1, Math.ceil(days / 22));
-    const chip = (id, show, n, unit, cur) => {
+    const jobDays = estimateJobCalendarDays(lbS);
+    const months = estimateJobCalendarMonths(jobDays);
+    const crewSize = Math.max(1, Number(lbS.crewSize) || 2);
+    const jobTip = `${lbS.totalHrs.toFixed(0)} crew-hrs · ${crewSize}-person crew · ~8h/day — tap to apply`;
+
+    const liftEst = estimateLiftDaysFromUpperOpenings(resolveLiftUpperWindows());
+    const liftChip = document.getElementById("suggestLiftDays");
+    const liftHint = document.getElementById("liftEstimateHint");
+    if (liftChip) {
+      const cur = parseInt(STATE.liftDays, 10) || 1;
+      const on = !!STATE.liftEnabled && liftEst && liftEst.days !== cur;
+      liftChip.classList.toggle("hidden", !on);
+      if (on) {
+        liftChip.textContent = `Suggest: ${liftEst.days}d`;
+        liftChip._suggest = liftEst.days;
+        const minPerLF = Math.round(liftEst.hrPerLF * 60 * 10) / 10;
+        liftChip.title = `${liftEst.upperWindows} upper windows × ${liftEst.avgLf.toFixed(1)} LF × ${minPerLF} min/LF`
+          + (liftEst.inferred ? " (inferred from floors 2+)" : "")
+          + " — tap to apply";
+      }
+    }
+    if (liftHint) {
+      if (STATE.liftEnabled && liftEst) {
+        const minPerLF = Math.round(liftEst.hrPerLF * 60 * 10) / 10;
+        liftHint.textContent = `${liftEst.upperWindows} upstairs × ${liftEst.avgLf.toFixed(1)} LF/win × ${minPerLF} min/LF`
+          + ` ≈ ${liftEst.hrs.toFixed(1)} hrs → ${liftEst.days} day${liftEst.days === 1 ? "" : "s"}`
+          + (liftEst.inferred ? " (floors 2+ inferred)" : "");
+        liftHint.classList.remove("hidden");
+      } else if (STATE.liftEnabled) {
+        liftHint.textContent = "Enter windows on 2nd+ (or set days above). Need LF + window count for an estimate.";
+        liftHint.classList.remove("hidden");
+      } else {
+        liftHint.classList.add("hidden");
+      }
+    }
+
+    const chip = (id, show, n, unit, cur, tip) => {
       const el = document.getElementById(id);
       if (!el) return;
       const on = !!show && lbS.totalHrs > 0.01 && n !== cur;
       el.classList.toggle("hidden", !on);
       if (on) el.textContent = `Suggest: ${n}${unit}`;
+      el.title = tip || jobTip;
       el._suggest = n;
     };
-    chip("suggestLiftDays", STATE.liftEnabled, days, "d", parseInt(STATE.liftDays, 10) || 1);
-    chip("suggestSwingDays", STATE.swingStageEnabled && storyNum(STATE.stories) >= ((DATA.config.swingStage && DATA.config.swingStage.minStories) || 4), days, "d", parseInt(STATE.swingStageDays, 10) || 1);
+    chip("suggestSwingDays", STATE.swingStageEnabled && storyNum(STATE.stories) >= ((DATA.config.swingStage && DATA.config.swingStage.minStories) || 4), jobDays, "d", parseInt(STATE.swingStageDays, 10) || 1);
     chip("suggestMonths", (parseFloat(STATE.storageMonthlyCost) || 0) > 0, months, " mo", parseInt(STATE.projectedMonths, 10) || 1);
   }
 
@@ -14358,6 +14492,7 @@ function render() {
     windowCount: STATE.windowCount,
     liftEnabled: STATE.liftEnabled,
     liftDays: STATE.liftDays,
+    liftUpperWindows: STATE.liftUpperWindows != null ? String(STATE.liftUpperWindows) : "",
     permitEnabled: STATE.permitEnabled,
     includeBucking: STATE.includeBucking,
     blockSealerEnabled: !!STATE.blockSealerEnabled,
@@ -19583,7 +19718,7 @@ function bindControls() {
   }
   updateLiftToggleUI();
 
-  // Lift days
+  // Lift days + upper-floor window count (for day estimates)
   const liftDaysInput = document.getElementById("liftDaysInput");
   liftDaysInput.value = STATE.liftDays || "1";
   if (!liftDaysInput._wired) {
@@ -19593,6 +19728,21 @@ function bindControls() {
       render();
     });
     liftDaysInput._wired = true;
+  }
+  const liftUpperInput = document.getElementById("liftUpperWindowsInput");
+  if (liftUpperInput) {
+    const inferred = inferredLiftUpperWindows();
+    const hasManual = STATE.liftUpperWindows != null && String(STATE.liftUpperWindows).trim() !== "";
+    liftUpperInput.value = hasManual ? String(STATE.liftUpperWindows) : "";
+    liftUpperInput.placeholder = (!hasManual && inferred != null) ? String(inferred) : "—";
+    if (!liftUpperInput._wired) {
+      liftUpperInput.addEventListener("input", e => {
+        STATE.liftUpperWindows = e.target.value;
+        updateJobExtrasSummary();
+        render();
+      });
+      liftUpperInput._wired = true;
+    }
   }
 
   // Swing stage toggle + days (field itself shown only > 3 stories)
@@ -19654,8 +19804,20 @@ function bindControls() {
     }
   }
 
-  // Suggestion chips — tap to apply the crew-hours-derived estimate
-  [["suggestLiftDays", v => { STATE.liftDays = String(v); const i = document.getElementById("liftDaysInput"); if (i) i.value = v; }],
+  // Suggestion chips — tap to apply (lift days from upper openings; others from job calendar)
+  [["suggestLiftDays", v => {
+      STATE.liftDays = String(v);
+      const i = document.getElementById("liftDaysInput"); if (i) i.value = v;
+      // Lock in an inferred upper count so the estimate stays reproducible
+      if (!(STATE.liftUpperWindows != null && String(STATE.liftUpperWindows).trim() !== "")) {
+        const inf = inferredLiftUpperWindows();
+        if (inf != null) {
+          STATE.liftUpperWindows = String(inf);
+          const u = document.getElementById("liftUpperWindowsInput");
+          if (u) u.value = String(inf);
+        }
+      }
+    }],
    ["suggestSwingDays", v => { STATE.swingStageDays = String(v); const i = document.getElementById("swingStageDaysInput"); if (i) i.value = v; }],
    ["suggestMonths", v => { STATE.projectedMonths = String(v); const i = document.getElementById("projectedMonthsInput"); if (i) i.value = v; }]]
   .forEach(([id, apply]) => {
@@ -19824,6 +19986,7 @@ function resetAll() {
     windowCount: "",
     liftEnabled: false,
     liftDays: "1",
+    liftUpperWindows: "",   // windows on 2nd+ that need the lift; "" = unspecified
     permitEnabled: false,
     includeBucking: jd.includeBucking !== false,   // Block-Framed bucking on by default
     blockSealerEnabled: false,
@@ -20346,7 +20509,9 @@ function doSaveJob(overrideId) {
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    liftUpperWindows: STATE.liftUpperWindows != null ? String(STATE.liftUpperWindows) : "",
+    includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     ...floorPersistFields(),
@@ -20520,7 +20685,9 @@ function quickSaveOrPrompt() {
         manufacturer: STATE.manufacturer, application: STATE.application,
         houseType: STATE.houseType, constructionType: STATE.constructionType,
         impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-        liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
+        liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+        liftUpperWindows: STATE.liftUpperWindows != null ? String(STATE.liftUpperWindows) : "",
+        includeBucking: STATE.includeBucking,
         permitEnabled: STATE.permitEnabled,
         swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
         ...floorPersistFields(),
@@ -20599,7 +20766,9 @@ function saveAsNewVersion() {
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    liftUpperWindows: STATE.liftUpperWindows != null ? String(STATE.liftUpperWindows) : "",
+    includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     ...floorPersistFields(),
@@ -20721,7 +20890,9 @@ function writeDraftJob(r) {
     manufacturer: STATE.manufacturer, application: STATE.application,
     houseType: STATE.houseType, constructionType: STATE.constructionType,
     impact: STATE.impact, stories: STATE.stories, windowCount: r.wc,
-    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays, includeBucking: STATE.includeBucking,
+    liftEnabled: STATE.liftEnabled, liftDays: STATE.liftDays,
+    liftUpperWindows: STATE.liftUpperWindows != null ? String(STATE.liftUpperWindows) : "",
+    includeBucking: STATE.includeBucking,
     permitEnabled: STATE.permitEnabled,
     swingDoors: clone(normalizeSwingDoors(STATE.swingDoors)),
     ...floorPersistFields(),
@@ -20829,6 +21000,7 @@ function applyJobToState(j) {
   }
   STATE.liftEnabled = j.liftEnabled || false;
   STATE.liftDays = j.liftDays || "1";
+  STATE.liftUpperWindows = (j.liftUpperWindows != null && j.liftUpperWindows !== "") ? String(j.liftUpperWindows) : "";
   STATE.permitEnabled = j.permitEnabled || false;
   STATE.includeBucking = j.includeBucking !== false;   // default ON for jobs saved before this toggle
   STATE.blockSealerEnabled = !!j.blockSealerEnabled;   // default OFF
@@ -22716,7 +22888,7 @@ function jobFingerprint() {
   const s = STATE || {};
   return [s.manufacturer, s.application, s.houseType, s.constructionType,
     s.impact, s.stories, s.totalLF, s.windowCount,
-    s.liftEnabled, s.liftDays, s.permitEnabled,
+    s.liftEnabled, s.liftDays, s.liftUpperWindows, s.permitEnabled,
     JSON.stringify(s.variants || {})].join("|");
 }
 function currentQuoteId() {
