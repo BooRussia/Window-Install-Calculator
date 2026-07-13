@@ -11981,7 +11981,7 @@ function liftInstallHrPerLF() {
 }
 
 // Lift calendar from upper-floor openings only:
-//   days ≈ (upperWindows × avgLF × hr/LF + setup) ÷ (8h × crew parallel)
+//   days ≈ (upperWindows × avgLF × hr/LF + setup) ÷ 8h workday
 function estimateLiftDaysFromUpperOpenings(upperCount) {
   const n = Math.max(0, parseInt(upperCount, 10) || 0);
   if (n <= 0) return null;
@@ -11992,11 +11992,9 @@ function estimateLiftDaysFromUpperOpenings(upperCount) {
   const setupMin = resolveSetupMinPerOpening();
   const hrs = upperLF * hrPerLF + n * setupMin / 60;
   if (!(hrs > 0)) return null;
-  const crew = resolveJobCrewCost();
-  const baseline = 2;
-  const crewSize = Math.max(1, Number(crew.crewSize) || baseline);
-  const parallel = Math.max(1, crewSize / baseline);
-  const days = Math.max(1, Math.ceil(hrs / (8 * parallel)));
+  // One working day = 8 hours on site (not a 24h clock, and not scaled by
+  // crew size — larger crews are already reflected in how fast the rates assume).
+  const days = Math.max(1, Math.ceil(hrs / 8));
   return {
     days,
     upperWindows: n,
@@ -12005,7 +12003,6 @@ function estimateLiftDaysFromUpperOpenings(upperCount) {
     hrs,
     hrPerLF,
     setupMin,
-    crewSize,
     inferred: !(STATE.liftUpperWindows != null && String(STATE.liftUpperWindows).trim() !== ""),
   };
 }
