@@ -1444,29 +1444,55 @@
      big centered title when open (clear separation), compact title-left +
      summary-right when minimized. ------- */
   .rcard-head {
-    position: relative; width: 100%; display: flex; align-items: center; gap: 12px;
-    padding: 16px 46px; background: transparent; border: 0; cursor: pointer;
+    position: relative; width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 16px 46px 16px 20px; background: transparent; border: 0; cursor: pointer;
     -webkit-tap-highlight-color: transparent; color: inherit;
   }
-  .rcard-title { font-weight: 700; letter-spacing: -0.01em; color: #f1f5f9; }
-  .rcard-sum { font-weight: 700; color: #dbe3ee; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rcard-title {
+    font-weight: 700; letter-spacing: -0.01em; color: #f1f5f9;
+    min-width: 0; flex: 1 1 auto;
+  }
+  .rcard-sum {
+    font-weight: 700; color: #dbe3ee; font-variant-numeric: tabular-nums;
+    white-space: nowrap; flex: 0 1 auto; min-width: 0;
+  }
   .rcard-chev { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); color: #64748b; transition: transform .25s ease, color .2s ease; flex-shrink: 0; }
   .rcard-head:hover .rcard-chev { color: #c9a558; }
-  /* Expanded: title centered + big, chevron pinned right, summary hidden */
-  .rcard:not(.collapsed) .rcard-title { width: 100%; text-align: center; font-size: 21px; }
-  .rcard:not(.collapsed) .rcard-sum { display: none; }
-  /* Collapsed: title left, summary right, chevron points right, body hidden */
-  .rcard.collapsed .rcard-head { padding: 15px 44px 15px 20px; }
-  .rcard.collapsed .rcard-title { font-size: 17px; }
-  .rcard.collapsed .rcard-sum { margin-left: auto; font-size: 15px; }
+  /* Expanded: title centered + big, chevron pinned right, summary hidden.
+     Use head justify (not width:100% on the title) so "Labor Detail" + badge
+     don't wrap into a stacked mess on narrow phones. */
+  .rcard:not(.collapsed) .rcard-head { justify-content: center; }
+  .rcard:not(.collapsed) .rcard-title {
+    flex: 0 1 auto; width: auto; max-width: 100%;
+    text-align: center; font-size: 21px; white-space: nowrap;
+  }
+  .rcard:not(.collapsed) .rcard-sum { display: none !important; }
+  /* Collapsed: title left (ellipsis), summary right (never clipped mid-label). */
+  .rcard.collapsed .rcard-head { padding: 15px 44px 15px 20px; justify-content: flex-start; }
+  .rcard.collapsed .rcard-title {
+    flex: 1 1 0; font-size: 16px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .rcard.collapsed .rcard-sum {
+    flex: 0 0 auto; margin-left: auto; font-size: 13px; max-width: 58%;
+    overflow: hidden; text-overflow: ellipsis;
+  }
   /* Stacked summary (Labor): crew hours on top, job cost beneath — right-aligned. */
-  .rcard.collapsed .rcard-sum-stack { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.18; }
-  .rcard-sum-sub { font-size: 12.5px; font-weight: 600; color: #9fb0c4; }
+  .rcard.collapsed .rcard-sum-stack {
+    display: flex; flex-direction: column; align-items: flex-end; line-height: 1.18;
+    max-width: 58%; overflow: hidden;
+  }
+  .rcard-sum-sub { font-size: 12px; font-weight: 600; color: #9fb0c4; white-space: nowrap; }
   [data-theme="light"] .rcard-sum-sub { color: #64748b; }
   .rcard.collapsed .rcard-chev { transform: translateY(-50%) rotate(-90deg); }
   .rcard.collapsed > :not(.rcard-head) { display: none; }
   [data-theme="light"] .rcard-title { color: #0f172a; }
   [data-theme="light"] .rcard-sum { color: #1e293b; }
+  @media (max-width: 390px) {
+    .rcard:not(.collapsed) .rcard-title { font-size: 18px; }
+    .rcard.collapsed .rcard-title { font-size: 15px; }
+    .rcard.collapsed .rcard-sum { font-size: 12px; max-width: 54%; }
+  }
   /* Job Files: compact icon row shown when the card is minimized; each icon
      reveals a popover (hover on desktop, tap on mobile) of file actions. */
   .jf-icons { display: none; align-items: center; gap: 6px; margin-left: auto; }
@@ -14095,7 +14121,7 @@ function render() {
   document.getElementById("perLfBadge").textContent = `${formatMoney(r.perLfCost)} / LF`;
   document.getElementById("perLfFooter").textContent = formatMoney(r.perLfCost);
   document.getElementById("grandTotalFooter").textContent = formatMoney(r.totalCost);
-  { const _bs = document.getElementById("breakdownSummary"); if (_bs) _bs.textContent = "Total Cost: " + formatMoney(r.totalCost); }
+  { const _bs = document.getElementById("breakdownSummary"); if (_bs) _bs.textContent = formatMoney(r.totalCost); }
 
   const body = document.getElementById("breakdownBody");
   body.innerHTML = r.rows.map(row => {
@@ -14275,7 +14301,7 @@ function render() {
 
       document.getElementById("laborBreakdownRows").innerHTML = rowsHtml + crewHtml;
       document.getElementById("laborCostTotal").textContent = formatMoney(lb.laborCost);
-      { const _ls = document.getElementById("laborSummary"); if (_ls) _ls.innerHTML = `<span>Crew Hours: ${lb.totalHrs.toFixed(1)}</span><span class="rcard-sum-sub">Total Crew Cost: ${formatMoney(lb.laborCost)}</span>`; }
+      { const _ls = document.getElementById("laborSummary"); if (_ls) _ls.innerHTML = `<span>${lb.totalHrs.toFixed(1)} hrs</span><span class="rcard-sum-sub">${formatMoney(lb.laborCost)}</span>`; }
       const rateEl = document.getElementById("laborCostRate");
       if (rateEl) {
         if (lb.crewMode === "roster") {
