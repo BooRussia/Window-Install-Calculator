@@ -12323,10 +12323,10 @@ function getUnitPrice(item) {
 function getBlockSealerJobQty(totalLF) {
   if (STATE.houseType !== "Block Framed") return 0;
   if (totalLF <= 0) return 0;
-  // 5 gallons per 300 LF, pro-rated to this job's LF and rounded up to a
+  // 5 gallons per 450 LF, pro-rated to this job's LF and rounded up to a
   // whole gallon (never under-orders coverage).
-  //   300 LF → 5 · 600 → 10 · 923.7 → 16 · etc.
-  return Math.max(1, Math.ceil((totalLF * 5) / 300));
+  //   450 LF → 5 · 900 → 10 · 923.7 → 11 · etc.
+  return Math.max(1, Math.ceil((totalLF * 5) / 450));
 }
 // Recommended schedule, or a manual gallon override when the toggle is on.
 function resolveBlockSealerQty(totalLF) {
@@ -12701,7 +12701,7 @@ function calculate() {
         rows.push({ id: item.id, name: itemDisplayName(item),
           rateLabel: manual
             ? `${qty} ${item.unit} entered`
-            : `${qty} ${item.unit} · 5 gal / 300 LF`,
+            : `${qty} ${item.unit} · 5 gal / 450 LF`,
           ratePerLF: lf > 0 ? cost / lf : 0, quantity: qty, unit: item.unit, totalCost: cost, isFixed: true,
           recommendedQty: rec });
         totalCost += cost;
@@ -14767,7 +14767,7 @@ function renderMaterialsToggle() {
       const shown = manual ? STATE.blockSealerGallons : (rec || "");
       const showSuggest = on && manual && Number(STATE.blockSealerGallons) !== rec && rec > 0;
       return `<div>
-        <button type="button" data-sealer-toggle role="switch" aria-checked="${on}" class="buck-switch ${on ? "on" : ""}" title="Block sealer coating — off by default. Turn on when the job needs it; gallons follow 5 gal per 300 LF pro-rated to job LF (or enter your own).">
+        <button type="button" data-sealer-toggle role="switch" aria-checked="${on}" class="buck-switch ${on ? "on" : ""}" title="Block sealer coating — off by default. Turn on when the job needs it; gallons follow 5 gal per 450 LF pro-rated to job LF (or enter your own).">
           <span class="buck-switch-main">
             <span class="buck-switch-name">${escHtml(item.name)}</span>
             <span class="buck-switch-state">${on ? "In quote" : "Not included — tap to add"}</span>
@@ -14779,8 +14779,8 @@ function renderMaterialsToggle() {
             <span class="lbl">Gallons</span>
             <input id="blockSealerGallonsInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="${escHtml(String(shown))}" placeholder="${rec || 0}" style="width:52px;text-align:right;-moz-appearance:textfield;" class="num-input" />
           </label>
-          <button type="button" data-sealer-suggest class="sug-chip ${showSuggest ? "" : "hidden"}" title="Recommended from job LF — 5 gal per 300 LF, pro-rated">Suggest: ${rec}g</button>
-          <div class="sealer-hint">Schedule: 5 gal per 300 LF${rec ? ` → ${rec} gal for this job's LF` : ""}. Override if only sealing part of the openings.</div>
+          <button type="button" data-sealer-suggest class="sug-chip ${showSuggest ? "" : "hidden"}" title="Recommended from job LF — 5 gal per 450 LF, pro-rated">Suggest: ${rec}g</button>
+          <div class="sealer-hint">Schedule: 5 gal per 450 LF${rec ? ` → ${rec} gal for this job's LF` : ""}. Override if only sealing part of the openings.</div>
         </div>` : ""}
       </div>`;
     }
