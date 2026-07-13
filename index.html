@@ -3935,6 +3935,11 @@
   [data-theme="light"] .dash-add-chip { background: #fff; border-color: #d6dae1; color: #475569; }
   .dash-launch-cell.editing { position: relative; }
   #dashLaunchpad.editing .dash-launch-card { pointer-events: none; border-style: dashed; opacity: 0.96; }
+  /* In edit mode a press-drag must move a card, never select its text or pop the
+     iOS long-press callout — without this, grabbing the handle just highlights
+     text (native drag-and-drop used to suppress selection for us; pointer drag
+     doesn't). Scoped to edit mode so normal card text stays selectable. */
+  #dashLaunchpad.editing, #dashLaunchpad.editing * { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .dash-launch-cell.editing { cursor: grab; }
   .dash-launch-cell.editing.dragging { opacity: 0.4; cursor: grabbing; }
   .dash-edit-controls { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 8; display: flex; align-items: center; gap: 4px; }
@@ -18420,6 +18425,10 @@ function wireDashboard() {
       const cell = e.target.closest(".dash-launch-cell.editing"); if (!cell) return;
       // Touch/pen must grab the handle; a mouse can grab the whole card.
       if (e.pointerType !== "mouse" && !e.target.closest(".dec-handle")) return;
+      // Suppress the browser's default press behavior (text selection / caret)
+      // so a drag doesn't start highlighting card text. Only reached once we've
+      // committed to a drag candidate — the ↑ ↓ × buttons returned above.
+      e.preventDefault();
       _dashPtr = { id: e.pointerId, cell, key: cell.dataset.cardKey, sx: e.clientX, sy: e.clientY, started: false };
       try { launchpad.setPointerCapture(e.pointerId); } catch (_) {}
     });
