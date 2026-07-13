@@ -3935,10 +3935,16 @@
   [data-theme="light"] .dash-add-chip { background: #fff; border-color: #d6dae1; color: #475569; }
   .dash-launch-cell.editing { position: relative; }
   #dashLaunchpad.editing .dash-launch-card { pointer-events: none; border-style: dashed; opacity: 0.96; }
-  .dash-launch-cell.editing[draggable] { cursor: grab; }
-  .dash-launch-cell.editing.dragging { opacity: 0.4; }
+  .dash-launch-cell.editing { cursor: grab; }
+  .dash-launch-cell.editing.dragging { opacity: 0.4; cursor: grabbing; }
   .dash-edit-controls { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 8; display: flex; align-items: center; gap: 4px; }
-  .dec-handle { cursor: grab; color: #64748b; display: inline-flex; padding: 4px; }
+  /* Grab handle drives touch reordering. touch-action:none lets a finger-drag
+     that STARTS here move the card instead of scrolling the dashboard; the rest
+     of the card keeps default touch-action so it still scrolls. Sized as a real
+     ~40px touch target (negative margin keeps the controls row height). */
+  .dec-handle { cursor: grab; color: #64748b; display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; margin: -5px 0; padding: 4px; border-radius: 8px; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .dec-handle:hover, .dec-handle:active { color: #c9a558; }
+  .dash-launch-cell.editing.dragging .dec-handle { cursor: grabbing; }
   .dec-spacer { flex: 1; }
   .dec-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid rgba(148,163,184,0.35); background: rgba(15,23,42,0.85); color: #cbd5e1; cursor: pointer; font-size: 15px; line-height: 1; }
   .dec-btn:hover { border-color: #c9a558; color: #fff; }
@@ -15807,7 +15813,7 @@ function renderDashLaunchpad(jobs) {
     const body = dashCardBody(c.key, ctx, jobs) || "";
     if (editing) {
       return `
-      <div class="dash-launch-cell editing" data-card-key="${c.key}" draggable="true">
+      <div class="dash-launch-cell editing" data-card-key="${c.key}">
         <div class="dash-edit-controls">
           <span class="dec-handle" aria-hidden="true" title="Drag to reorder"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
           <span class="dec-spacer"></span>
@@ -18371,31 +18377,76 @@ function wireDashboard() {
       const cell = e.target.closest(".dash-launch-cell");
       if (cell) positionDashTip(cell);
     });
-    // Edit mode: drag-to-reorder (pointer). Touch users use the ↑ ↓ buttons.
-    launchpad.addEventListener("dragstart", (e) => {
-      if (!_dashEditMode) return;
-      const cell = e.target.closest(".dash-launch-cell"); if (!cell) return;
-      _dashDragKey = cell.dataset.cardKey;
-      cell.classList.add("dragging");
-      if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", _dashDragKey); } catch (_) {} }
+    // Edit mode: drag-to-reorder via Pointer Events so it works with BOTH mouse
+    // and touch. (It used to use native HTML5 drag-and-drop, which never fires on
+    // mobile — that's why dragging was desktop-only and touch users were left with
+    // just the ↑ ↓ buttons.) Touch/pen starts a drag only from the ⋮⋮ grab handle
+    // (which sets touch-action:none) so the rest of the card still scrolls the
+    // dashboard; a mouse can grab anywhere on the card.
+    let _dashPtr = null;                 // active drag: {id, cell, key, sx, sy, started}
+    let _dashLastX = 0, _dashLastY = 0;  // latest pointer pos (for edge auto-scroll)
+    let _dashAutoRAF = null, _dashAutoDir = 0;
+    const dashScrollEl = () => document.getElementById("dashScroll");
+    function dashDragReorder(x, y) {
+      if (!_dashPtr || !_dashPtr.started) return;
+      const dragging = _dashPtr.cell;
+      let target = null;
+      launchpad.querySelectorAll(".dash-launch-cell").forEach(c => {
+        if (target || c === dragging) return;
+        const r = c.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) target = c;
+      });
+      if (!target) return;
+      const r = target.getBoundingClientRect();
+      const after = (y - r.top) > r.height / 2 || (x - r.left) > r.width / 2;
+      if (after) target.after(dragging); else target.before(dragging);
+    }
+    function dashAutoTick() {
+      if (!_dashAutoDir) { _dashAutoRAF = null; return; }
+      const sc = dashScrollEl();
+      if (sc) { sc.scrollTop += _dashAutoDir * 12; dashDragReorder(_dashLastX, _dashLastY); }
+      _dashAutoRAF = requestAnimationFrame(dashAutoTick);
+    }
+    function dashDragAutoScroll(y) {
+      const sc = dashScrollEl(); if (!sc) return;
+      const r = sc.getBoundingClientRect(), edge = 64;
+      _dashAutoDir = y < r.top + edge ? -1 : (y > r.bottom - edge ? 1 : 0);
+      if (_dashAutoDir && !_dashAutoRAF) _dashAutoRAF = requestAnimationFrame(dashAutoTick);
+    }
+    function dashDragStopScroll() { _dashAutoDir = 0; if (_dashAutoRAF) { cancelAnimationFrame(_dashAutoRAF); _dashAutoRAF = null; } }
+    launchpad.addEventListener("pointerdown", (e) => {
+      if (!_dashEditMode || !e.isPrimary) return;
+      if (e.target.closest(".dec-btn")) return;               // ↑ ↓ × keep working
+      const cell = e.target.closest(".dash-launch-cell.editing"); if (!cell) return;
+      // Touch/pen must grab the handle; a mouse can grab the whole card.
+      if (e.pointerType !== "mouse" && !e.target.closest(".dec-handle")) return;
+      _dashPtr = { id: e.pointerId, cell, key: cell.dataset.cardKey, sx: e.clientX, sy: e.clientY, started: false };
+      try { launchpad.setPointerCapture(e.pointerId); } catch (_) {}
     });
-    launchpad.addEventListener("dragover", (e) => {
-      if (!_dashEditMode || !_dashDragKey) return;
+    launchpad.addEventListener("pointermove", (e) => {
+      if (!_dashPtr || e.pointerId !== _dashPtr.id) return;
+      if (!_dashPtr.started) {
+        if (Math.abs(e.clientX - _dashPtr.sx) < 5 && Math.abs(e.clientY - _dashPtr.sy) < 5) return;
+        _dashPtr.started = true; _dashDragKey = _dashPtr.key;
+        _dashPtr.cell.classList.add("dragging");
+        try { closeAllDashTips(); } catch (_) {}
+      }
       e.preventDefault();
-      const dragging = launchpad.querySelector(".dash-launch-cell.dragging");
-      const cell = e.target.closest(".dash-launch-cell");
-      if (!dragging || !cell || cell === dragging) return;
-      const r = cell.getBoundingClientRect();
-      const after = (e.clientY - r.top) > r.height / 2 || (e.clientX - r.left) > r.width / 2;
-      if (after) cell.after(dragging); else cell.before(dragging);
+      _dashLastX = e.clientX; _dashLastY = e.clientY;
+      dashDragReorder(e.clientX, e.clientY);
+      dashDragAutoScroll(e.clientY);
     });
-    launchpad.addEventListener("drop", (e) => { if (_dashEditMode) e.preventDefault(); });
-    launchpad.addEventListener("dragend", () => {
-      const dragging = launchpad.querySelector(".dash-launch-cell.dragging");
-      if (dragging) dragging.classList.remove("dragging");
-      if (_dashEditMode && _dashDragKey) persistDashOrderFromDOM();
-      _dashDragKey = null;
-    });
+    const _dashPtrEnd = (e) => {
+      if (!_dashPtr || e.pointerId !== _dashPtr.id) return;
+      try { launchpad.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (_dashPtr.started) {
+        _dashPtr.cell.classList.remove("dragging");
+        if (_dashDragKey) persistDashOrderFromDOM();
+      }
+      _dashDragKey = null; _dashPtr = null; dashDragStopScroll();
+    };
+    launchpad.addEventListener("pointerup", _dashPtrEnd);
+    launchpad.addEventListener("pointercancel", _dashPtrEnd);
     // Global dismiss for an open (mobile-tapped) tip.
     document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".dash-launch-cell.tip-open")) closeAllDashTips(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllDashTips(); });
