@@ -20422,6 +20422,7 @@ function openAdmin() {
   wireSettingsSearch();
   _setSearchIdx = null; _setSearchHits = []; _setSearchActive = -1;
   { const si = document.getElementById("settingsSearch"); if (si) si.value = ""; }
+  { const rf = document.getElementById("adminRatesFilter"); if (rf) rf.value = ""; }   // don't reopen into a stale material filter
   renderSettingsSearch();
   applyStaticCollapseState();
   adminModal.classList.remove("hidden");
@@ -29249,8 +29250,7 @@ function init() {
   document.getElementById("adminRatesBody").addEventListener("click", e => {
     // Per-material "Reset to default" — restore this one material's consumption rate +
     // brand variants from DEFAULT_DATA (previously the only undo was the nuke-everything
-    // Restore Defaults). Mutate DATA then re-render; no commitAdmin (it would read the
-    // pre-reset DOM and clobber the restored values).
+    // Restore Defaults).
     const rst = e.target.closest("[data-reset-cat]");
     if (rst) {
       const catId = rst.getAttribute("data-reset-cat");
@@ -29258,6 +29258,11 @@ function init() {
       const def = (DEFAULT_DATA.costItems || []).find(c => c.id === catId);
       if (!item || !def) return;
       if (!confirm(`Reset ${item.name} to its default consumption rate and brand variants?\n\nYour other materials are unchanged.`)) return;
+      // FLUSH FIRST: commit any pending DOM edits (e.g. a just-added variant on another
+      // card that autosave hasn't picked up yet) into DATA, so the buildAdminUI() rebuild
+      // below doesn't wipe them — that would break the dialog's "other materials
+      // unchanged" promise. THEN overwrite only this material with its defaults.
+      try { commitAdmin(); } catch (_) {}
       item.rates = clone(def.rates);
       item.variants = clone(def.variants || []);
       item.defaultVariant = def.defaultVariant;
