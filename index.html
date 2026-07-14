@@ -950,9 +950,10 @@
       will-change: transform;
     }
     .sheet-on-mobile.sheet-drawer > .card {
-      /* Gap under status/browser chrome so the grab row isn’t clipped. */
-      max-height: calc(100svh - 48px);
-      height: calc(100svh - 48px);
+      /* Resting gap under the status bar — same “pulled down” lip the handle
+         needs so it isn’t clipped or lost against the top edge. */
+      max-height: calc(100svh - 72px);
+      height: calc(100svh - 72px);
       border-radius: 20px 20px 0 0;
       overflow: hidden;
       display: flex;
@@ -968,34 +969,65 @@
     }
     .sheet-on-mobile > .card.sheet-dragging { animation: none !important; transition: none !important; }
     .sheet-on-mobile > .card.sheet-settling { animation: none !important; }
-    /* Dedicated grab row — taller hit area + brighter pill so it reads on glass */
-    .sheet-on-mobile > .card > .sheet-grab,
-    .sheet-on-mobile .jd-grab .sheet-grab {
+    /* Fixed lip ABOVE the scroller — handle always visible at rest, not only
+       while dragging (sticky-in-scroll was getting lost under glass/clip). */
+    .sheet-on-mobile.sheet-drawer > .card > .jd-sheet-lip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      height: 28px;
+      padding-top: 4px;
+      position: relative;
+      z-index: 20;
+      background: rgba(8, 13, 24, 0.97);
+    }
+    .sheet-on-mobile.sheet-drawer > .card > .jd-sheet-lip > .sheet-grab {
+      display: block !important;
+      position: relative;
+      width: 52px;
+      height: 5px;
+      margin: 0;
+      border-radius: 999px;
+      background: #e2e8f0;
+      opacity: 0.9;
+      touch-action: none;
+      cursor: grab;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    }
+    .sheet-on-mobile.sheet-drawer > .card > .jd-sheet-lip > .sheet-grab::before {
+      content: "";
+      position: absolute;
+      left: -60px; right: -60px; top: -16px; bottom: -16px;
+    }
+    .sheet-on-mobile > .card > .sheet-grab {
       display: block !important;
       position: relative;
       z-index: 8;
       width: 48px; height: 5px;
-      margin: 0 auto;
+      margin: 10px auto 0;
       border-radius: 999px;
       background: rgba(241, 245, 249, 0.72);
       touch-action: none; cursor: grab; flex-shrink: 0;
-      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
     }
-    .sheet-on-mobile > .card > .sheet-grab {
-      margin: 10px auto 0;
-      flex-shrink: 0;
-    }
-    .sheet-on-mobile > .card > .sheet-grab::before,
-    .sheet-on-mobile .jd-grab .sheet-grab::before {
+    .sheet-on-mobile > .card > .sheet-grab::before {
       content: ""; position: absolute; left: -56px; right: -56px; top: -14px; bottom: -14px;
     }
   }
   .sheet-grab { display: none; }
+  .jd-sheet-lip { display: none; }
+  /* No glass sheen overlay on the job drawer — it washed out the resting handle. */
+  .sheet-drawer > .card.liquid-glass::after,
+  .sheet-drawer > .modal-backdrop + .card::after { display: none !important; }
   /* While Job Details drawer is open, hide app chrome that would show through
      the translucent glass at the bottom of the screen. */
   body.jd-open .app-tabbar,
   body.jd-open #mtotalPeek,
-  body.jd-open #mtotalBar { visibility: hidden !important; pointer-events: none !important; }
+  body.jd-open #mtotalBar {
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+  }
   @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   @keyframes sheetDown {
     from { transform: translateY(0); opacity: 1; }
@@ -4446,27 +4478,17 @@
   /* Job card body (click → details) + Job Details modal */
   .dash-card-body { cursor: pointer; transition: background .15s ease; }
   .dash-card-body:hover { background: rgba(30,41,59,0.4); }
-  /* Sticky drawer chrome: grab affordance + compact title bar. Opaque enough
-     that content doesn’t bleed through while scrolling. */
+  /* Sticky title bar under the fixed grab lip. Opaque so content doesn’t bleed. */
   .jd-top {
     position: sticky; top: 0; z-index: 12;
-    background: rgba(8, 13, 24, 0.94);
+    background: rgba(8, 13, 24, 0.96);
     -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
     border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  }
-  .jd-grab {
-    display: none;
-    padding: 10px 0 6px;
-  }
-  @media (max-width: 639px) {
-    .sheet-drawer .jd-grab { display: block; }
-    /* Grab lives in the sticky chrome on phones; hide the shell duplicate. */
-    .sheet-drawer > .card > .sheet-grab { display: none !important; }
   }
   .jd-head {
     background: transparent;
     display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-    padding: 4px 16px 12px;
+    padding: 10px 16px 12px;
   }
   @media (min-width: 640px) {
     .jd-head { padding: 14px 20px 14px; }
@@ -9047,8 +9069,10 @@
 <div id="jobDetailsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[78] sheet-on-mobile sheet-drawer">
   <div class="absolute inset-0 modal-backdrop" data-close-jd></div>
   <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-label="Job details">
-    <!-- Grab handle is rendered inside the sticky .jd-top chrome (see renderJobDetails)
-         so it stays visible with the title bar while scrolling. -->
+    <!-- Fixed lip outside the scroller — handle stays visible at rest (not only while dragging). -->
+    <div class="jd-sheet-lip" aria-hidden="true">
+      <div class="sheet-grab" title="Drag down to close"></div>
+    </div>
     <div id="jobDetailsBody" class="sheet-scroll overflow-y-auto"></div>
   </div>
 </div>
@@ -19675,9 +19699,6 @@ function renderJobDetails(job) {
   }
   body.innerHTML = `
     <div class="jd-top">
-      <div class="jd-grab" aria-hidden="true">
-        <div class="sheet-grab" title="Drag down to close"></div>
-      </div>
       <div class="jd-head">
         <div class="min-w-0 flex-1">
           <div class="jd-head-title">${escHtml(title)}</div>
@@ -33187,8 +33208,7 @@ function init() {
     else closeFL();
   });
 
-  // Job Details drawer — grab handle + pull-down-at-top dismiss on phones.
-  // Grab is rendered inside sticky .jd-top on open (allowLateGrab).
+  // Job Details drawer — grab lives in the fixed .jd-sheet-lip (always visible).
   // canClose owns the dirty confirm; the closeFn below skips a second prompt.
   { const jd = document.getElementById("jobDetailsModal");
     if (jd) {
@@ -33199,7 +33219,6 @@ function init() {
           scheduleSaveNav();
         } else closeJobDetails();
       }, {
-        allowLateGrab: true,
         scrollEl: document.getElementById("jobDetailsBody"),
         canClose: () => {
           if (!jdDetailsDirty()) return true;
