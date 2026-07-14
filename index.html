@@ -32,16 +32,26 @@
   // Apply saved theme before first paint (no flash). Dark is the default.
   try { if (localStorage.getItem("anchor_theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) {}
   // Liquid Glass transparency (0 frosted → 100 clear) before first paint.
+  // Keep in sync with applyGlassTransparency().
   try {
     var _gt = parseInt(localStorage.getItem("anchor_glass_transparency"), 10);
     if (!isNaN(_gt)) {
       _gt = Math.max(0, Math.min(100, _gt));
       var _s = document.documentElement.style;
-      _s.setProperty("--glass-alpha", (0.90 - _gt * 0.0062).toFixed(3));
-      _s.setProperty("--glass-blur", (12 + _gt * 0.32).toFixed(1) + "px");
-      _s.setProperty("--glass-sat", (1.25 + _gt * 0.01).toFixed(2));
-      _s.setProperty("--glass-sheen", (0.25 + _gt * 0.005).toFixed(2));
+      var _a = (0.82 - _gt * 0.0076);                 // 0.82 → 0.06
+      var _sh = _gt > 40 ? (0.35 + (_gt - 40) * 0.008) : 0;
+      var _sh2 = _gt > 40 ? (0.22 + (_gt - 40) * 0.006) : 0;
+      _s.setProperty("--glass-alpha", _a.toFixed(3));
+      _s.setProperty("--glass-blur", (10 + _gt * 0.34).toFixed(1) + "px");
+      _s.setProperty("--glass-sat", (1.45 + _gt * 0.012).toFixed(2));
+      _s.setProperty("--glass-sheen", (0.12 + _gt * 0.0035).toFixed(2));
+      _s.setProperty("--glass-iri", (0.4 + _gt * 0.006).toFixed(2));
       _s.setProperty("--glass-t", String(_gt));
+      _s.setProperty("--glass-ink", "#f8fafc");
+      _s.setProperty("--glass-muted", "rgba(226,232,240," + (0.58 + _gt * 0.0038).toFixed(2) + ")");
+      _s.setProperty("--glass-ink-shadow", _gt > 40
+        ? ("0 1px 2px rgba(0,0,0," + _sh.toFixed(2) + "), 0 0 20px rgba(0,0,0," + _sh2.toFixed(2) + ")")
+        : "none");
     }
   } catch (e) {}
 </script>
@@ -127,13 +137,17 @@
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --tabbar-h: 60px;
-    /* Liquid Glass (iOS 26-inspired) — tint alpha + blur driven by Settings
-       “Glass transparency”. Defaults ≈ mid clarity. */
+    /* Liquid Glass (iOS 26-inspired) — tint / blur / iridescence / ink driven
+       by Settings “Glass transparency”. Defaults ≈ mid clarity. */
     --glass-t: 58;
-    --glass-alpha: 0.54;
-    --glass-blur: 30.6px;
-    --glass-sat: 1.83;
-    --glass-sheen: 0.54;
+    --glass-alpha: 0.38;
+    --glass-blur: 29.7px;
+    --glass-sat: 2.15;
+    --glass-sheen: 0.32;
+    --glass-iri: 0.75;
+    --glass-ink: #f8fafc;
+    --glass-muted: rgba(226, 232, 240, 0.80);
+    --glass-ink-shadow: 0 1px 2px rgba(0,0,0,0.45), 0 0 18px rgba(0,0,0,0.30);
   }
   html, body { background: #020617; }
   body {
@@ -1907,35 +1921,54 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }
-  /* Liquid Glass popups — translucent, refractive, specular edge (Apple’s
-     Liquid Glass material, adapted for web). Scoped to modal panels + the
-     account menu so calculator cards stay solid/readable. Auth nests its
-     dialog card one level under the backdrop sibling wrapper. */
+  /* Liquid Glass — clear see-through tint + iridescent rim (Apple-like).
+     Scoped to modal panels + account menu. Tint alpha goes near-zero at
+     max transparency so the page really reads through. */
   .modal-backdrop + .card,
   #authScreen .card[role="dialog"],
   #pfpMenu.card,
   .liquid-glass {
     isolation: isolate;
-    background-image:
-      linear-gradient(115deg,
-        rgba(255,255,255, calc(var(--glass-sheen) * 0.55)) 0%,
-        rgba(255,255,255, 0) 30%,
-        rgba(255,255,255, 0) 68%,
-        rgba(255,255,255, calc(var(--glass-sheen) * 0.22)) 100%),
-      linear-gradient(165deg,
-        rgba(148, 163, 184, calc(var(--glass-alpha) * 0.38)) 0%,
-        rgba(15, 23, 42, var(--glass-alpha)) 42%,
-        rgba(2, 6, 23, calc(var(--glass-alpha) + 0.08)) 100%);
-    background-color: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.06);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.06);
+    /* Shorthand overrides .card’s opaque gradient so clear glass can show through. */
+    background:
+      linear-gradient(160deg,
+        rgba(255,255,255, calc(var(--glass-sheen) * 0.28)) 0%,
+        rgba(255,255,255, 0) 36%),
+      rgba(15, 23, 42, var(--glass-alpha));
+    border: 1px solid transparent;
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.08);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.08);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.42),
-      inset 0 -12px 28px -18px rgba(255, 255, 255, 0.08),
-      0 28px 64px -24px rgba(0, 0, 0, 0.62),
-      0 0 0 0.5px rgba(201, 165, 88, 0.18);
+      inset 0 1px 0 rgba(255, 255, 255, calc(0.25 + var(--glass-sheen) * 0.55)),
+      inset 0 -1px 0 rgba(180, 220, 255, calc(var(--glass-iri) * 0.18)),
+      0 28px 64px -24px rgba(0, 0, 0, 0.55);
   }
+  /* Iridescent edge ring — white → gold → cyan → violet, rim only */
+  .modal-backdrop + .card::before,
+  #authScreen .card[role="dialog"]::before,
+  #pfpMenu.card::before,
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    pointer-events: none;
+    z-index: 4;
+    background: linear-gradient(
+      125deg,
+      rgba(255,255,255, calc(var(--glass-iri) * 0.95)) 0%,
+      rgba(201,165,88, calc(var(--glass-iri) * 0.85)) 18%,
+      rgba(120,210,255, calc(var(--glass-iri) * 0.75)) 42%,
+      rgba(210,150,255, calc(var(--glass-iri) * 0.7)) 68%,
+      rgba(255,255,255, calc(var(--glass-iri) * 0.4)) 100%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: 0.95;
+  }
+  /* Soft specular highlight — kept light so it doesn’t wash out top-left text */
   .modal-backdrop + .card::after,
   #authScreen .card[role="dialog"]::after,
   #pfpMenu.card::after,
@@ -1946,10 +1979,10 @@
     border-radius: inherit;
     pointer-events: none;
     z-index: 1;
-    background: radial-gradient(120% 80% at 12% 0%,
-      rgba(255,255,255, calc(var(--glass-sheen) * 0.35)) 0%,
-      transparent 42%);
-    opacity: 0.85;
+    background: linear-gradient(180deg,
+      rgba(255,255,255, calc(var(--glass-sheen) * 0.18)) 0%,
+      transparent 28%);
+    opacity: 1;
   }
   .modal-backdrop + .card > *,
   #authScreen .card[role="dialog"] > *,
@@ -1963,7 +1996,9 @@
       --glass-alpha: 0.92;
       --glass-blur: 8px;
       --glass-sat: 1.1;
-      --glass-sheen: 0.2;
+      --glass-sheen: 0.15;
+      --glass-iri: 0.25;
+      --glass-ink-shadow: none;
     }
   }
   .glass-range {
@@ -3642,18 +3677,40 @@
     display: flex; align-items: center; gap: 9px;
     width: 100%; text-align: left;
     padding: 8px 12px; font-size: 13px; font-weight: 600;
-    color: #cbd5e1; background: transparent; border: 0; cursor: pointer;
+    color: var(--glass-ink, #cbd5e1);
+    text-shadow: var(--glass-ink-shadow, none);
+    background: transparent; border: 0; cursor: pointer;
     transition: background .12s ease, color .12s ease;
   }
-  .pfp-item:hover { background: rgba(30,41,59,0.7); color: #ffffff; }
+  .pfp-item:hover {
+    background: rgba(255,255,255, calc(0.06 + (var(--glass-t) * 0.0005)));
+    color: #ffffff;
+  }
   /* Small grouping label inside the account menu */
   .pfp-label {
     padding: 7px 12px 3px; font-size: 9.5px; font-weight: 800;
-    letter-spacing: 0.13em; text-transform: uppercase; color: #64748b;
+    letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--glass-muted, #64748b);
+    text-shadow: var(--glass-ink-shadow, none);
   }
-  .pfp-sep { height: 1px; background: rgba(51,65,85,0.6); margin: 5px 0; }
-  [data-theme="light"] .pfp-label { color: #94a3b8; }
-  [data-theme="light"] .pfp-sep { background: #e2e8f0; }
+  .pfp-sep { height: 1px; background: rgba(148,163,184,0.22); margin: 5px 0; }
+  .pfp-account {
+    padding: 10px 12px 9px;
+    border-bottom: 1px solid rgba(148,163,184,0.18);
+  }
+  .pfp-account-label {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--glass-muted, #94a3b8);
+    text-shadow: var(--glass-ink-shadow, none);
+  }
+  .pfp-account-email {
+    margin-top: 3px; font-size: 12px; font-weight: 700; word-break: break-all;
+    color: var(--glass-ink, #e2e8f0);
+    text-shadow: var(--glass-ink-shadow, none);
+  }
+  [data-theme="light"] .pfp-item:hover { background: rgba(15,23,42,0.06); color: #0f172a; }
+  [data-theme="light"] .pfp-sep { background: rgba(15,23,42,0.1); }
+  [data-theme="light"] .pfp-account { border-bottom-color: rgba(15,23,42,0.1); }
   /* Header theme-toggle buttons: dark defaults (slate-400 icon / slate-700 ring)
      fail on a light nav, so mirror the established light icon-button token. */
   [data-theme="light"] [data-theme-toggle] { color: #64748b; border-color: #d6dae1; }
@@ -3868,24 +3925,22 @@
   [data-theme="light"] #authScreen .card[role="dialog"],
   [data-theme="light"] #pfpMenu.card,
   [data-theme="light"] .liquid-glass {
-    background-image:
-      linear-gradient(115deg,
-        rgba(255,255,255, calc(0.55 + var(--glass-sheen) * 0.4)) 0%,
-        rgba(255,255,255, 0) 32%,
-        rgba(255,255,255, 0) 70%,
-        rgba(255,255,255, calc(0.2 + var(--glass-sheen) * 0.2)) 100%),
-      linear-gradient(165deg,
-        rgba(255,255,255, calc(0.42 + var(--glass-alpha) * 0.4)) 0%,
-        rgba(248,250,252, calc(0.55 + var(--glass-alpha) * 0.28)) 100%);
-    background-color: transparent;
-    border: 1px solid rgba(255,255,255,0.72);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.08);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.08);
+    background:
+      linear-gradient(160deg,
+        rgba(255,255,255, calc(0.35 + var(--glass-sheen) * 0.35)) 0%,
+        rgba(255,255,255, 0) 40%),
+      rgba(255, 255, 255, calc(0.22 + var(--glass-alpha) * 0.55));
+    border: 1px solid transparent;
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.1);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(1.1);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.95),
-      inset 0 -10px 22px -16px rgba(255,255,255,0.55),
-      0 24px 50px -22px rgba(15,23,42,0.28),
-      0 0 0 0.5px rgba(181,143,74,0.2);
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      0 24px 50px -22px rgba(15,23,42,0.22);
+  }
+  [data-theme="light"] {
+    --glass-ink: #0f172a;
+    --glass-muted: rgba(51, 65, 85, 0.85);
+    --glass-ink-shadow: none;
   }
   [data-theme="light"] .glass-range { background: rgba(15,23,42,0.12); }
   [data-theme="light"] .glass-range::-webkit-slider-thumb { border-color: #fff; }
@@ -8033,9 +8088,9 @@
            app-header avatar OR the dashboard avatar — togglePfpMenu() positions
            it under whichever trigger was clicked. -->
       <div id="pfpMenu" class="hidden fixed w-60 card rounded-xl py-1.5 z-[85]" style="max-height: calc(100vh - 84px); max-height: calc(100dvh - 84px); overflow-y: auto;">
-        <div class="px-3 py-2 border-b border-slate-800">
-          <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Signed in as</div>
-          <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
+        <div class="pfp-account">
+          <div class="pfp-account-label">Signed in as</div>
+          <div id="acctEmail" class="pfp-account-email">—</div>
         </div>
 
         <div class="pfp-label">Tools</div>
@@ -14145,16 +14200,29 @@ function applyGlassTransparency(t, opts) {
   n = Math.max(0, Math.min(100, n));
   // System “Reduce Transparency” → force frosted (mirrors iOS accessibility).
   const effective = reduced ? Math.min(n, 18) : n;
-  const alpha = 0.90 - (effective * 0.0062);
-  const blur = 12 + (effective * 0.32);
-  const sat = 1.25 + (effective * 0.01);
-  const sheen = 0.25 + (effective * 0.005);
+  // Clear end must actually read through the panel (near-zero tint).
+  const alpha = 0.82 - (effective * 0.0076);          // 0.82 → 0.06
+  const blur = 10 + (effective * 0.34);               // 10 → 44
+  const sat = 1.45 + (effective * 0.012);             // punchier when clear
+  const sheen = 0.12 + (effective * 0.0035);          // soft specular, not a wash
+  const iri = 0.4 + (effective * 0.006);              // iridescent rim strength
+  // Text: brighter muted labels + shadow as glass clears so “Signed in as” stays legible.
+  const mutedA = 0.58 + (effective * 0.0038);
+  const inkShadow = effective > 40
+    ? `0 1px 2px rgba(0,0,0,${(0.35 + (effective - 40) * 0.008).toFixed(2)}), 0 0 20px rgba(0,0,0,${(0.22 + (effective - 40) * 0.006).toFixed(2)})`
+    : "none";
   const root = document.documentElement.style;
   root.setProperty("--glass-alpha", alpha.toFixed(3));
   root.setProperty("--glass-blur", blur.toFixed(1) + "px");
   root.setProperty("--glass-sat", sat.toFixed(2));
   root.setProperty("--glass-sheen", sheen.toFixed(2));
+  root.setProperty("--glass-iri", iri.toFixed(2));
   root.setProperty("--glass-t", String(Math.round(effective)));
+  root.setProperty("--glass-ink", isLightTheme() ? "#0f172a" : "#f8fafc");
+  root.setProperty("--glass-muted", isLightTheme()
+    ? `rgba(51,65,85,${(0.7 + effective * 0.002).toFixed(2)})`
+    : `rgba(226,232,240,${mutedA.toFixed(2)})`);
+  root.setProperty("--glass-ink-shadow", isLightTheme() ? "none" : inkShadow);
   const input = document.getElementById("glassTransparency");
   const val = document.getElementById("glassTransparencyVal");
   if (input) {
