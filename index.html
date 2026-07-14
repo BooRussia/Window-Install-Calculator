@@ -936,7 +936,8 @@
 
   /* Scoped modals → bottom sheet on phones (mobile-patterns §4, components.md §2).
      Add `sheet-on-mobile` to the overlay; the panel is its `.card` child. Desktop
-     keeps the centered dialog. Real `.sheet-grab` handle dismisses via drag. */
+     keeps the centered dialog. Real `.sheet-grab` handle dismisses via drag.
+     `sheet-drawer` = near-full-height job-style drawer (no floating side margins). */
   @media (max-width: 639px) {
     .sheet-on-mobile { align-items: flex-end !important; padding: 0 !important; }
     .sheet-on-mobile > .card {
@@ -948,23 +949,50 @@
       overscroll-behavior: contain;
       will-change: transform;
     }
+    .sheet-on-mobile.sheet-drawer > .card {
+      max-height: 96svh;
+      height: 96svh;
+      border-radius: 18px 18px 0 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .sheet-on-mobile.sheet-drawer > .card > .sheet-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
     .sheet-on-mobile > .card.sheet-dragging { animation: none !important; transition: none !important; }
     .sheet-on-mobile > .card.sheet-settling { animation: none !important; }
     .sheet-on-mobile .sheet-grab {
-      display: block; position: sticky; top: 0; z-index: 6;
-      width: 40px; height: 4px; margin: 8px auto 6px;
-      border-radius: 999px; background: rgba(148,163,184,0.45);
+      display: block; position: relative; z-index: 6;
+      width: 40px; height: 4px; margin: 10px auto 8px;
+      border-radius: 999px; background: rgba(148,163,184,0.5);
       touch-action: none; cursor: grab; flex-shrink: 0;
     }
-    /* Expanded hit target around the sticky pill */
+    /* Expanded hit target around the pill — blocks browser pull-to-refresh */
     .sheet-on-mobile .sheet-grab::before {
       content: ""; position: absolute; left: -48px; right: -48px; top: -16px; bottom: -16px;
     }
-    .sheet-on-mobile > .card > .sheet-grab { position: sticky; }
+    .sheet-on-mobile > .card > .sheet-grab { flex-shrink: 0; }
   }
   .sheet-grab { display: none; }
   @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  @media (prefers-reduced-motion: reduce) { .sheet-on-mobile > .card { animation: none; } }
+  @keyframes sheetDown {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(108%); opacity: 0.98; }
+  }
+  @media (max-width: 639px) {
+    .sheet-on-mobile > .card.tv-off {
+      animation: sheetDown .32s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sheet-on-mobile > .card,
+    .sheet-on-mobile > .card.tv-off { animation: none !important; }
+  }
 
   #jobRail {
     position: fixed; top: 3.5rem; bottom: 0; left: 0;
@@ -7849,7 +7877,7 @@
       <!-- Account menu. position:fixed so the SAME menu can be opened from the
            app-header avatar OR the dashboard avatar — togglePfpMenu() positions
            it under whichever trigger was clicked. -->
-      <div id="pfpMenu" class="hidden fixed w-60 card rounded-xl py-1.5 z-[85]" style="box-shadow:0 24px 48px -12px rgba(0,0,0,0.7); max-height: calc(100vh - 84px); max-height: calc(100dvh - 84px); overflow-y: auto;">
+      <div id="pfpMenu" class="hidden fixed w-60 card rounded-xl py-1.5 z-[85]" style="max-height: calc(100vh - 84px); max-height: calc(100dvh - 84px); overflow-y: auto;">
         <div class="px-3 py-2 border-b border-slate-800">
           <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Signed in as</div>
           <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
@@ -8875,12 +8903,14 @@
   </div>
 </div>
 
-<!-- Job Details modal — full job view from the dashboard: contact, notes,
-     specs, pricing, documents, and actions. Body is rendered dynamically. -->
-<div id="jobDetailsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[78]">
+<!-- Job Details — desktop: centered dialog; phone: full-bleed bottom drawer
+     with grab handle + pull-down dismiss (so the gesture closes the sheet
+     instead of triggering browser pull-to-refresh). -->
+<div id="jobDetailsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[78] sheet-on-mobile sheet-drawer">
   <div class="absolute inset-0 modal-backdrop" data-close-jd></div>
   <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-label="Job details">
-    <div id="jobDetailsBody" class="overflow-y-auto"></div>
+    <div class="sheet-grab" aria-hidden="true" title="Drag down to close"></div>
+    <div id="jobDetailsBody" class="sheet-scroll overflow-y-auto"></div>
   </div>
 </div>
 
@@ -19318,11 +19348,28 @@ function jdDetailsDirty() {
       || tagNow        !== normalizeCustomerTag(j.customerTag)
       || nameNow        !== s(j.name);
 }
-function closeJobDetails() {
-  if (jdDetailsDirty() && !confirm("Discard your unsaved changes to this job's details?")) return;
+function closeJobDetails(opts) {
+  if (jdDetailsDirty() && !confirm("Discard your unsaved changes to this job's details?")) return false;
   _jdJobId = null;
-  tvDismiss(document.getElementById("jobDetailsModal"));
+  const m = document.getElementById("jobDetailsModal");
+  if (opts && opts.fromDrag) closeJobDetailsInstant();
+  else tvDismiss(m);
   scheduleSaveNav();
+  return true;
+}
+// Instant hide after a drag-dismiss already slid the drawer off-screen.
+function closeJobDetailsInstant() {
+  const m = document.getElementById("jobDetailsModal");
+  if (!m) return;
+  if (m._tvCloseTimer) { clearTimeout(m._tvCloseTimer); m._tvCloseTimer = 0; }
+  const card = m.querySelector(".modal-backdrop + div, :scope > .card");
+  if (card) {
+    card.classList.remove("tv-off", "sheet-dragging", "sheet-settling");
+    card.style.transform = ""; card.style.transition = "";
+  }
+  m.classList.add("hidden");
+  m.classList.remove("flex", "modal-closing");
+  try { releaseDialog(m); } catch (_) {}
 }
 
 function saveJobDetailsEdits(id, silent) {
@@ -24096,38 +24143,65 @@ function closeFL() { tvDismiss(flModal); scheduleSaveNav(); }
 
 // Drag the sheet grab handle down to dismiss (mobile sheet-on-mobile).
 // Same settle pattern as the price-bar sheet — no bounce from sheetUp replay.
-function wireMobileSheetDismiss(overlayEl, closeFn) {
+// opts.canClose() → return false to abort dismiss (sheet snaps back).
+// opts.scrollEl → when scrolled to top, a downward pull on the body also
+// starts a dismiss drag (steals the gesture from browser pull-to-refresh).
+function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
   if (!overlayEl || overlayEl._sheetDragWired) return;
   const card = overlayEl.querySelector(":scope > .card");
   const grab = card && card.querySelector(".sheet-grab");
   if (!card || !grab) return;
   overlayEl._sheetDragWired = true;
-  let startY = 0, dy = 0, dragging = false;
+  const canClose = opts && typeof opts.canClose === "function" ? opts.canClose : null;
+  const scrollEl = (opts && opts.scrollEl) || card.querySelector(".sheet-scroll") || null;
+  let startY = 0, dy = 0, dragging = false, armed = false, pendingScroll = false;
   function pt(e) { return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; }
-  function begin(e) {
+  function resetDragFlags() { dy = 0; dragging = false; armed = false; pendingScroll = false; }
+  function beginGrab(e) {
     if (window.matchMedia("(min-width: 640px)").matches) return;
     if (overlayEl.classList.contains("hidden")) return;
     const p = pt(e); if (!p) return;
-    startY = p.clientY; dy = 0; dragging = true;
+    startY = p.clientY; dy = 0; dragging = true; armed = true; pendingScroll = false;
     card.classList.add("sheet-dragging");
     card.classList.remove("sheet-settling");
   }
   function move(e) {
-    if (!dragging) return;
     const p = pt(e); if (!p) return;
-    dy = Math.max(0, p.clientY - startY);
+    const raw = p.clientY - startY;
+    // Content at top: arm dismiss only after a clear downward pull (so taps /
+    // upward scroll still work, and we steal the gesture from pull-to-refresh).
+    if (pendingScroll && !dragging) {
+      if (raw < 12) return;
+      if (scrollEl && scrollEl.scrollTop > 0) { pendingScroll = false; return; }
+      dragging = true; armed = true; pendingScroll = false;
+      card.classList.add("sheet-dragging");
+      card.classList.remove("sheet-settling");
+    }
+    if (!dragging) return;
+    dy = Math.max(0, raw);
     card.style.transform = `translateY(${dy}px)`;
-    if (e.cancelable) e.preventDefault();
+    if (armed && e.cancelable) e.preventDefault();
   }
   function end() {
+    if (pendingScroll && !dragging) { resetDragFlags(); return; }
     if (!dragging) return;
-    dragging = false;
-    const dismiss = dy > 90 || (dy > 56 && dy > card.getBoundingClientRect().height * 0.18);
+    const dismiss = armed && (dy > 90 || (dy > 56 && dy > card.getBoundingClientRect().height * 0.18));
     card.classList.add("sheet-settling");
     card.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
     card.classList.remove("sheet-dragging");
     void card.offsetWidth;
     if (dismiss) {
+      let ok = true;
+      try { if (canClose) ok = canClose() !== false; } catch (_) { ok = true; }
+      if (!ok) {
+        card.style.transform = "translateY(0)";
+        setTimeout(() => {
+          card.classList.remove("sheet-settling");
+          card.style.transition = ""; card.style.transform = "";
+        }, 300);
+        resetDragFlags();
+        return;
+      }
       card.style.transform = "translateY(110%)";
       setTimeout(() => {
         card.classList.remove("sheet-settling");
@@ -24141,12 +24215,23 @@ function wireMobileSheetDismiss(overlayEl, closeFn) {
         card.style.transition = ""; card.style.transform = "";
       }, 300);
     }
-    dy = 0;
+    resetDragFlags();
   }
-  grab.addEventListener("touchstart", begin, { passive: true });
+  grab.addEventListener("touchstart", beginGrab, { passive: true });
   grab.addEventListener("touchmove", move, { passive: false });
   grab.addEventListener("touchend", end);
   grab.addEventListener("touchcancel", end);
+  if (scrollEl) {
+    scrollEl.addEventListener("touchstart", (e) => {
+      if (window.matchMedia("(min-width: 640px)").matches) return;
+      if (scrollEl.scrollTop > 0) return;
+      const p = pt(e); if (!p) return;
+      startY = p.clientY; pendingScroll = true; dragging = false; armed = false; dy = 0;
+    }, { passive: true });
+    scrollEl.addEventListener("touchmove", move, { passive: false });
+    scrollEl.addEventListener("touchend", end);
+    scrollEl.addEventListener("touchcancel", end);
+  }
 }
 
 // Instant hide used after a drag-dismiss already animated the sheet off-screen
@@ -32939,6 +33024,26 @@ function init() {
     if (opts && opts.fromDrag) closeFLInstant();
     else closeFL();
   });
+
+  // Job Details drawer — grab handle + pull-down-at-top dismiss on phones.
+  // canClose owns the dirty confirm; the closeFn below skips a second prompt.
+  { const jd = document.getElementById("jobDetailsModal");
+    if (jd) {
+      wireMobileSheetDismiss(jd, (opts) => {
+        if (opts && opts.fromDrag) {
+          _jdJobId = null;
+          closeJobDetailsInstant();
+          scheduleSaveNav();
+        } else closeJobDetails();
+      }, {
+        scrollEl: document.getElementById("jobDetailsBody"),
+        canClose: () => {
+          if (!jdDetailsDirty()) return true;
+          return confirm("Discard your unsaved changes to this job's details?");
+        },
+      });
+    }
+  }
 
   // Manufacturer editor — add / remove cards (Settings + wizard share the markup)
   function wireMfrEditor(addId, bodyId) {
