@@ -6965,19 +6965,21 @@
        PLANS + TRIAL constants live next to wireLanding() so swapping
        prices in Phase 3 only requires editing one place.
        ============================================================ -->
-  <section id="lpPricing" class="scroll-mt-20 min-h-screen flex flex-col items-center justify-center px-5 sm:px-6 py-32">
+  <!-- Compact top padding so plan cards land above the fold (no giant
+       min-h-screen / justify-center spacer that forced a scroll to see tiers). -->
+  <section id="lpPricing" class="scroll-mt-20 px-5 sm:px-6 pt-8 sm:pt-10 pb-20">
     <div class="max-w-6xl mx-auto w-full">
       <!-- Header -->
       <div class="lp-reveal text-center">
         <span class="lp-eyebrow">Plans &amp; pricing</span>
-        <h2 class="text-3xl sm:text-5xl font-black tracking-tightest text-slate-100 mt-5">Quote like a pro. <span class="gold-glow">Pay like a pro.</span></h2>
-        <p class="text-slate-400 mt-4 max-w-xl mx-auto leading-relaxed">
+        <h2 class="text-3xl sm:text-5xl font-black tracking-tightest text-slate-100 mt-3 sm:mt-4">Quote like a pro. <span class="gold-glow">Pay like a pro.</span></h2>
+        <p id="lpPricingSubcopy" class="text-slate-400 mt-3 max-w-xl mx-auto leading-relaxed">
           Pick the plan that matches your volume. Cancel anytime. All plans include a <span id="lpPricingTrialDays" class="text-slate-200 font-semibold">14-day</span> free trial &mdash; no credit card required.
         </p>
       </div>
 
       <!-- Monthly / Annual toggle -->
-      <div class="lp-reveal mt-9 flex flex-col items-center gap-3">
+      <div class="lp-reveal mt-6 sm:mt-7 flex flex-col items-center gap-2.5">
         <div class="lp-bill-toggle" role="group" aria-label="Billing period">
           <button id="lpBillMonthly" class="lp-bill-opt active" aria-pressed="true" data-period="monthly">Monthly</button>
           <button id="lpBillAnnual"  class="lp-bill-opt" aria-pressed="false" data-period="annual">Annual <span class="lp-bill-save">Save 16%</span></button>
@@ -6986,13 +6988,13 @@
       </div>
 
       <!-- Subscription status banner (canceled / past-due) — populated by renderPlans() -->
-      <div id="lpPlanStatusBanner" class="hidden lp-reveal mt-10"></div>
+      <div id="lpPlanStatusBanner" class="hidden lp-reveal mt-6"></div>
 
       <!-- Plan cards -->
-      <div id="lpPlanGrid" class="lp-reveal mt-12 grid sm:grid-cols-3 gap-6 sm:gap-7 items-stretch"></div>
+      <div id="lpPlanGrid" class="lp-reveal mt-7 sm:mt-8 grid sm:grid-cols-3 gap-5 sm:gap-6 items-stretch"></div>
 
-      <!-- Trial nudge below cards -->
-      <p class="lp-reveal mt-8 text-center text-sm text-slate-400">
+      <!-- Trial nudge below cards (hidden for past/current paid subscribers) -->
+      <p id="lpPricingTrialNudge" class="lp-reveal mt-7 text-center text-sm text-slate-400">
         Not sure? <button id="lpPricingTrialCta" class="font-bold text-[#c9a558] hover:text-[#dfc07a] underline-offset-4 hover:underline">Start a <span class="lpTrialDays">14-day</span> free trial</button> &mdash; full Pro access, <span class="lpTrialQuotes">8</span> quotes, no card.
       </p>
 
@@ -7723,15 +7725,7 @@
           <div id="acctEmail" class="text-xs text-slate-300 font-semibold break-all mt-0.5">—</div>
         </div>
 
-        <div class="pfp-label">Navigate</div>
-        <button id="pfpHome" type="button" class="pfp-item">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>
-          Dashboard
-        </button>
-        <button id="pfpCalc" type="button" class="pfp-item">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="12" height="15" rx="1.6"/><line x1="7" y1="6" x2="13" y2="6"/><line x1="7" y1="10" x2="7.01" y2="10"/><line x1="10" y1="10" x2="10.01" y2="10"/><line x1="13" y1="10" x2="13.01" y2="10"/><line x1="7" y1="13.5" x2="7.01" y2="13.5"/><line x1="10" y1="13.5" x2="10.01" y2="13.5"/><line x1="13" y1="13.5" x2="13.01" y2="13.5"/></svg>
-          Open calculator
-        </button>
+        <div class="pfp-label">Tools</div>
         <button id="openFL" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
           FL Lookup
@@ -7739,12 +7733,7 @@
 
         <div class="pfp-sep"></div>
         <div class="pfp-label">Plan &amp; billing</div>
-        <button id="pfpMyPlan" type="button" class="pfp-item" title="View your current plan + usage">
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l2.5 1.5"/></svg>
-          <span class="flex-1">My plan</span>
-          <span id="pfpMyPlanTag" class="text-[10px] uppercase tracking-[0.12em] text-[#c9a558] font-bold">—</span>
-        </button>
-        <button id="pfpPricing" type="button" class="pfp-item">
+        <button id="pfpPricing" type="button" class="pfp-item" title="View plans, pricing, and your subscription">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h14M3 10h14M3 14.5h9"/><circle cx="15.5" cy="14.5" r="2.2"/></svg>
           Plans &amp; pricing
         </button>
@@ -29833,10 +29822,6 @@ function updateUsageBadge() {
   badge.classList.remove("hidden");
   badge.classList.add("inline-flex");
 
-  // Keep the PFP "My plan" suffix tag in sync (just shows the plan name)
-  const pfpTag = document.getElementById("pfpMyPlanTag");
-  if (pfpTag) pfpTag.textContent = _fmtPlanName();
-
   // Phase 3: show "Manage subscription" only for users with an active
   // Stripe subscription. Trial users haven't paid yet, so the portal would
   // 400 with "No Stripe customer for this user."
@@ -30232,6 +30217,10 @@ function showPricing(source) {
   ps.classList.remove("hidden");
   ps.scrollTop = 0;
   if (!pricingWired) { wirePricingScreen(); pricingWired = true; }
+  // Refresh trial/subscriber copy + force above-the-fold reveals so plan cards
+  // animate in on open (no scroll required).
+  try { if (typeof updatePricingTrialCopy === "function") updatePricingTrialCopy(); } catch (_) {}
+  try { kickPricingReveals(); } catch (_) {}
   // Update URL hash so the page is shareable / bookmarkable.
   // Skip the hash write if it's already #/pricing to avoid extra history entries.
   if (window.location.hash !== "#/pricing") {
@@ -30241,6 +30230,49 @@ function showPricing(source) {
     _pricingViewedTracked = true;
     window.track("pricing_viewed", { source: source || "direct" });
   }
+}
+// Past/current paid subscribers shouldn't see "14-day free trial" marketing —
+// they've already been through (or past) that offer. Trial-only users still do.
+function hasBeenPaidSubscriber() {
+  try {
+    if (!currentUser || typeof getEntitlements !== "function") return false;
+    const e = getEntitlements();
+    return !!(e && e.plan && e.plan !== "trial");
+  } catch (_) { return false; }
+}
+function updatePricingTrialCopy() {
+  const returning = hasBeenPaidSubscriber();
+  const sub = document.getElementById("lpPricingSubcopy");
+  if (sub) {
+    sub.innerHTML = returning
+      ? "Pick the plan that matches your volume. Cancel anytime."
+      : 'Pick the plan that matches your volume. Cancel anytime. All plans include a <span id="lpPricingTrialDays" class="text-slate-200 font-semibold">14-day</span> free trial &mdash; no credit card required.';
+  }
+  const nudge = document.getElementById("lpPricingTrialNudge");
+  if (nudge) nudge.classList.toggle("hidden", returning);
+  const finalCta = document.getElementById("lpPricingFinalCta");
+  if (finalCta && returning) {
+    finalCta.textContent = "Choose a plan →";
+  } else if (finalCta && !returning) {
+    finalCta.textContent = "Start your free trial →";
+  }
+}
+// Animate the first pricing blocks as soon as the screen opens. Below-fold
+// sections still use revealOnScroll.
+function kickPricingReveals() {
+  const ps = document.getElementById("pricingScreen");
+  if (!ps) return;
+  const nodes = ps.querySelectorAll("#lpPricing > .max-w-6xl > .lp-reveal");
+  nodes.forEach((el, i) => {
+    if (i > 4) return;   // header, toggle, banner, grid, trial nudge
+    el.style.setProperty("--lp-d", (i * 0.08) + "s");
+    // Retrigger: remove .in then re-add on next frame so reopen still animates.
+    el.classList.remove("in");
+    requestAnimationFrame(() => { el.classList.add("in"); });
+  });
+  // Also nudge the scroll-reveal pass for anything already in view.
+  requestAnimationFrame(() => { try { ps.dispatchEvent(new Event("scroll")); } catch (_) {} });
+  setTimeout(() => { try { ps.dispatchEvent(new Event("scroll")); } catch (_) {} }, 280);
 }
 function closePricing() {
   const ps = document.getElementById("pricingScreen");
@@ -30284,8 +30316,10 @@ function wirePricingScreen() {
   });
   // Reuse the existing pricing-section wiring (plan cards, billing toggle, CTAs, FAQ)
   wirePricing(ps);
-  // Scroll-reveal animations within the pricing screen
+  try { updatePricingTrialCopy(); } catch (_) {}
+  // Scroll-reveal for below-the-fold blocks; above-fold kicked by showPricing().
   revealOnScroll(ps);
+  kickPricingReveals();
 }
 // Hash routing — open the pricing page when the URL contains #/pricing
 function handlePricingHashRoute() {
@@ -31127,24 +31161,26 @@ function wirePricing(ls) {
         </div>`;
     }).join("");
 
-    // Status banner above the grid (canceled / past-due only)
+    // Status banner above the grid (canceled / past-due only). Keep `.in` so a
+    // re-render after open doesn't blank the banner until the user scrolls.
     const banner = document.getElementById("lpPlanStatusBanner");
     if (banner) {
       const planName = (PLANS.find(pp => pp.id === curPlan) || {}).name || "plan";
+      const revealed = "lp-reveal in mt-6";
       if (curPlan && curPlan !== "trial" && statusActive(curStatus) && curCancelPending) {
-        banner.className = "lp-reveal mt-10 lp-status-banner canceled";
+        banner.className = revealed + " lp-status-banner canceled";
         banner.innerHTML = `
           <div class="lp-status-main">Your <b>${planName}</b> plan is set to cancel on <b>${cancelDate}</b>.</div>
           <div class="lp-status-sub">You keep full access until then. Change your mind? Resume anytime before that date &mdash; nothing lapses.</div>
           <button class="lp-btn-gold lp-status-btn" data-pricing-manage="1">Resume subscription</button>`;
       } else if (curPlan && curPlan !== "trial" && statusCanceled(curStatus)) {
-        banner.className = "lp-reveal mt-10 lp-status-banner canceled";
+        banner.className = revealed + " lp-status-banner canceled";
         banner.innerHTML = `
           <div class="lp-status-main">Your <b>${planName}</b> plan was canceled.</div>
           <div class="lp-status-sub">Resubscribe to pick up right where you left off. Refunds, if any, are handled through Stripe.</div>
           <button class="lp-btn-gold lp-status-btn" data-pricing-resub="${curPlan}">Resubscribe to ${planName}</button>`;
       } else if (curPlan && curPlan !== "trial" && statusPastDue(curStatus)) {
-        banner.className = "lp-reveal mt-10 lp-status-banner pastdue";
+        banner.className = revealed + " lp-status-banner pastdue";
         banner.innerHTML = `
           <div class="lp-status-main">Your <b>${planName}</b> payment didn't go through.</div>
           <div class="lp-status-sub">Update your card to keep your plan active.</div>
@@ -31154,6 +31190,7 @@ function wirePricing(ls) {
         banner.innerHTML = "";
       }
     }
+    try { updatePricingTrialCopy(); } catch (_) {}
 
     // (Re)wire clicks — innerHTML wipes any prior listeners. Wire BOTH the grid
     // (cards) and the banner (its Resubscribe / Update-payment button).
@@ -32352,8 +32389,6 @@ function init() {
   });
   // Reposition / close the fixed menu if the viewport changes while it's open.
   window.addEventListener("resize", closePfpMenu);
-  // New account-menu entries
-  { const b = document.getElementById("pfpCalc"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { closeDashboard(); } catch (_) {} }); }
   // (Theme toggle is wired in setupThemeToggles so it works regardless of app init.)
   { const b = document.getElementById("pfpSendFeedback"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openFeedback(); } catch (_) {} }); }
   { const b = document.getElementById("pfpAdmin"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("admin"); } catch (_) {} }); }
@@ -32610,9 +32645,8 @@ function init() {
   });
 
   // FL product-approval lookup
-  document.getElementById("pfpHome").addEventListener("click", goHome);
   document.getElementById("openFL").addEventListener("click", openFL);
-  // Dashboard — header button (PFP "Dashboard" is wired via goHome above)
+  // Dashboard — header button (Home / Dashboard also live on the bottom tab bar)
   const _hdrDash = document.getElementById("headerDashboardBtn");
   // Wrap in an arrow fn: passing openDashboard directly leaks the MouseEvent as
   // its `opts` arg, and MouseEvent.view (the window) makes _dashView non-"home",
@@ -32824,15 +32858,6 @@ function init() {
     if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest("[data-aim-upgrade]")) {
       e.preventDefault(); showPricing("ai_reads_meter");
     }
-  });
-
-  // PFP menu → "My plan" — drops into the Subscription tab in Settings
-  const pfpMyPlanBtn = document.getElementById("pfpMyPlan");
-  if (pfpMyPlanBtn) pfpMyPlanBtn.addEventListener("click", () => {
-    closePfpMenu();
-    openAdmin();
-    showSettingsTab("account");
-    showAccountLeaf("plan");
   });
 
   // PFP menu → "Manage subscription" — Stripe Customer Portal
