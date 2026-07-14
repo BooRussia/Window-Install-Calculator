@@ -1514,6 +1514,46 @@
   .rcard.collapsed > :not(.rcard-head) { display: none; }
   [data-theme="light"] .rcard-title { color: #0f172a; }
   [data-theme="light"] .rcard-sum { color: #1e293b; }
+  /* One-shot “Tap to expand” cue when a quote loads with panels collapsed. */
+  .rcard.rcard-hint {
+    box-shadow: 0 0 0 1px rgba(181,143,74,0.42), 0 10px 28px -16px rgba(181,143,74,0.45);
+    animation: rcardHintGlow 1.5s ease-in-out 2;
+  }
+  .rcard.rcard-hint .rcard-chev {
+    color: #c9a558;
+    animation: rcardHintChev 0.85s ease-in-out 3;
+  }
+  .rcard-expand-hint {
+    position: absolute; left: 20px; bottom: 7px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #c9a558; white-space: nowrap; pointer-events: none;
+    opacity: 0; animation: rcardHintLabel 3.4s ease forwards;
+  }
+  .rcard.collapsed.rcard-hint .rcard-head { padding-bottom: 28px; }
+  [data-theme="light"] .rcard.rcard-hint {
+    box-shadow: 0 0 0 1px rgba(181,143,74,0.5), 0 10px 24px -14px rgba(181,143,74,0.35);
+  }
+  [data-theme="light"] .rcard-expand-hint { color: #9a7636; }
+  @keyframes rcardHintGlow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(181,143,74,0.28), 0 8px 20px -16px rgba(181,143,74,0.2); }
+    50% { box-shadow: 0 0 0 1px rgba(181,143,74,0.55), 0 12px 30px -14px rgba(181,143,74,0.5); }
+  }
+  @keyframes rcardHintChev {
+    0%, 100% { transform: translateY(-50%) rotate(-90deg); }
+    45% { transform: translateY(-50%) rotate(-90deg) translateX(4px); }
+    70% { transform: translateY(-50%) rotate(-90deg) translateX(-1px); }
+  }
+  @keyframes rcardHintLabel {
+    0% { opacity: 0; transform: translateY(4px); }
+    12% { opacity: 1; transform: translateY(0); }
+    72% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-2px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rcard.rcard-hint { animation: none; }
+    .rcard.rcard-hint .rcard-chev { animation: none; }
+    .rcard-expand-hint { animation: none; opacity: 1; }
+  }
   @media (max-width: 390px) {
     .rcard:not(.collapsed) .rcard-title { font-size: 18px; }
     .rcard.collapsed .rcard-title { font-size: 15px; }
@@ -14230,8 +14270,19 @@ function render() {
   const hasInput = hasQuoteInput(r);
   const results = document.getElementById("results");
   const empty = document.getElementById("emptyState");
+  const resultsWereHidden = results.classList.contains("hidden");
   results.classList.toggle("hidden", !hasInput);
   empty.classList.toggle("hidden", hasInput);
+  // First time a quote appears this session — soft “Tap to expand” cue on the
+  // detail panels (loadJob also cues via collapseResultCards({ hint: true })).
+  if (hasInput && resultsWereHidden) {
+    try {
+      if (!sessionStorage.getItem("rcardExpandHintShown")) {
+        sessionStorage.setItem("rcardExpandHintShown", "1");
+        requestAnimationFrame(() => { try { showResultExpandHint(); } catch (_) {} });
+      }
+    } catch (_) {}
+  }
   // Mobile sticky total bar mirrors results visibility (thumb-zone live price).
   { const _mbar = document.getElementById("mtotalBar");
     if (_mbar) {
@@ -21444,7 +21495,7 @@ function loadJob(id) {
   renderSlidingDoors();   // rebuild the SGD list DOM for this job
   renderBifoldDoors();    // rebuild the bifold list DOM for this job
   render();
-  try { collapseResultCards(); } catch (_) {}
+  try { collapseResultCards({ hint: true }); } catch (_) {}
   window.scrollTo({ top: 0, behavior: "smooth" });
   window.track("job_loaded");
   toast(j.isDraft ? "Draft loaded" : "Job loaded");
@@ -23901,19 +23952,53 @@ function closeFLInstant() {
 // Collapsible result cards (Full Breakdown / Labor / Materials / Approvals / Job Files):
 // start collapsed (summary row); tap the header to expand. Re-collapse on load/reset
 // so a freshly opened quote stays scannable until the user digs in.
-function collapseResultCards() {
+let _rcardHintTimer = 0;
+function clearResultExpandHint() {
+  clearTimeout(_rcardHintTimer); _rcardHintTimer = 0;
+  document.querySelectorAll(".rcard.rcard-hint").forEach(card => {
+    card.classList.remove("rcard-hint");
+    card.querySelectorAll(".rcard-expand-hint").forEach(el => el.remove());
+  });
+}
+function showResultExpandHint() {
+  clearResultExpandHint();
+  // First visible collapsed panel (skip hidden labor / approvals).
+  const target = Array.from(document.querySelectorAll(".rcard.collapsed[data-rcard]"))
+    .find(el => !el.classList.contains("hidden") && getComputedStyle(el).display !== "none");
+  if (!target) return;
+  const head = target.querySelector(".rcard-head");
+  if (!head) return;
+  target.classList.add("rcard-hint");
+  if (!head.querySelector(".rcard-expand-hint")) {
+    const tip = document.createElement("span");
+    tip.className = "rcard-expand-hint";
+    tip.setAttribute("aria-hidden", "true");
+    tip.textContent = "Tap to expand";
+    head.appendChild(tip);
+  }
+  try { sessionStorage.setItem("rcardExpandHintShown", "1"); } catch (_) {}
+  // Soft cue — clears itself; any header tap also clears (see click handler).
+  _rcardHintTimer = setTimeout(clearResultExpandHint, 3600);
+}
+function collapseResultCards(opts) {
+  clearResultExpandHint();
   document.querySelectorAll(".rcard[data-rcard]").forEach(card => {
     card.classList.add("collapsed");
     const head = card.querySelector(".rcard-head");
     if (head) head.setAttribute("aria-expanded", "false");
   });
   try { renderJobFileIcons(); } catch (_) {}
+  if (opts && opts.hint) {
+    // Wait a tick so layout/visibility (labor card, results shown) is settled.
+    requestAnimationFrame(() => { try { showResultExpandHint(); } catch (_) {} });
+  }
 }
 document.addEventListener("click", e => {
   const head = e.target.closest && e.target.closest(".rcard-head");
   if (!head) return;
   const card = head.closest(".rcard");
   if (!card) return;
+  clearResultExpandHint();
   card.classList.toggle("collapsed");
   head.setAttribute("aria-expanded", String(!card.classList.contains("collapsed")));   // OUT-12: expose disclosure state
   if (card.dataset.rcard === "files" && card.classList.contains("collapsed")) renderJobFileIcons();
