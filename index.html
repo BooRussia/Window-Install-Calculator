@@ -950,11 +950,10 @@
       will-change: transform;
     }
     .sheet-on-mobile.sheet-drawer > .card {
-      /* Leave a clear gap under the status/browser chrome so the grab handle
-         is always visible — 96svh was clipping it into the top safe area. */
-      max-height: calc(100svh - 56px);
-      height: calc(100svh - 56px);
-      border-radius: 18px 18px 0 0;
+      /* Gap under status/browser chrome so the grab row isn’t clipped. */
+      max-height: calc(100svh - 48px);
+      height: calc(100svh - 48px);
+      border-radius: 20px 20px 0 0;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -969,20 +968,34 @@
     }
     .sheet-on-mobile > .card.sheet-dragging { animation: none !important; transition: none !important; }
     .sheet-on-mobile > .card.sheet-settling { animation: none !important; }
-    .sheet-on-mobile .sheet-grab {
-      display: block; position: relative; z-index: 6;
-      width: 44px; height: 5px; margin: 12px auto 10px;
-      border-radius: 999px; background: rgba(226,232,240,0.55);
+    /* Dedicated grab row — taller hit area + brighter pill so it reads on glass */
+    .sheet-on-mobile > .card > .sheet-grab,
+    .sheet-on-mobile .jd-grab .sheet-grab {
+      display: block !important;
+      position: relative;
+      z-index: 8;
+      width: 48px; height: 5px;
+      margin: 0 auto;
+      border-radius: 999px;
+      background: rgba(241, 245, 249, 0.72);
       touch-action: none; cursor: grab; flex-shrink: 0;
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.35);
     }
-    /* Expanded hit target around the pill — blocks browser pull-to-refresh */
-    .sheet-on-mobile .sheet-grab::before {
-      content: ""; position: absolute; left: -48px; right: -48px; top: -18px; bottom: -18px;
+    .sheet-on-mobile > .card > .sheet-grab {
+      margin: 10px auto 0;
+      flex-shrink: 0;
     }
-    .sheet-on-mobile > .card > .sheet-grab { flex-shrink: 0; }
+    .sheet-on-mobile > .card > .sheet-grab::before,
+    .sheet-on-mobile .jd-grab .sheet-grab::before {
+      content: ""; position: absolute; left: -56px; right: -56px; top: -14px; bottom: -14px;
+    }
   }
   .sheet-grab { display: none; }
+  /* While Job Details drawer is open, hide app chrome that would show through
+     the translucent glass at the bottom of the screen. */
+  body.jd-open .app-tabbar,
+  body.jd-open #mtotalPeek,
+  body.jd-open #mtotalBar { visibility: hidden !important; pointer-events: none !important; }
   @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   @keyframes sheetDown {
     from { transform: translateY(0); opacity: 1; }
@@ -4433,7 +4446,58 @@
   /* Job card body (click → details) + Job Details modal */
   .dash-card-body { cursor: pointer; transition: background .15s ease; }
   .dash-card-body:hover { background: rgba(30,41,59,0.4); }
-  .jd-head { background: #0c1322; }
+  /* Sticky drawer chrome: grab affordance + compact title bar. Opaque enough
+     that content doesn’t bleed through while scrolling. */
+  .jd-top {
+    position: sticky; top: 0; z-index: 12;
+    background: rgba(8, 13, 24, 0.94);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  }
+  .jd-grab {
+    display: none;
+    padding: 10px 0 6px;
+  }
+  @media (max-width: 639px) {
+    .sheet-drawer .jd-grab { display: block; }
+    /* Grab lives in the sticky chrome on phones; hide the shell duplicate. */
+    .sheet-drawer > .card > .sheet-grab { display: none !important; }
+  }
+  .jd-head {
+    background: transparent;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    padding: 4px 16px 12px;
+  }
+  .jd-head-title {
+    font-size: 17px; font-weight: 800; letter-spacing: -0.02em;
+    color: #f8fafc; line-height: 1.2;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .jd-head-sub {
+    font-size: 11px; font-weight: 600; color: #94a3b8; margin-top: 3px;
+  }
+  .jd-head-tools {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-top: 1px;
+  }
+  /* Hero photo sits tight under the chrome — one composition, less dead air */
+  .jd-hero {
+    padding: 12px 16px 8px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .jd-hero .jd-photo { aspect-ratio: 16 / 10; border-radius: 16px; }
+  .jd-gen-thumb {
+    width: 100%; min-height: 40px; border-radius: 12px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
+    color: #c9a558;
+    background: rgba(181, 143, 74, 0.08);
+    border: 1px solid rgba(181, 143, 74, 0.38);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .jd-gen-thumb:hover {
+    background: rgba(181, 143, 74, 0.14);
+    border-color: rgba(181, 143, 74, 0.65);
+  }
   .jd-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #64748b; font-weight: 800; margin-bottom: 7px; }
   /* Job Details footer — one primary action, equal secondary pair, quiet delete.
      Stacked on all widths so buttons never wrap into an awkward staggered row. */
@@ -4759,7 +4823,15 @@
   [data-theme="light"] .dash-mat-table tr.dash-mat-top td { background: #fbf6ec; }
   [data-theme="light"] .dash-card-del { color: #94a3b8; }
   [data-theme="light"] .dash-card-body:hover { background: #f1f5f9; }
-  [data-theme="light"] .jd-head { background: #ffffff; }
+  [data-theme="light"] .jd-top {
+    background: rgba(255, 255, 255, 0.94);
+    border-bottom-color: #e6e8ec;
+  }
+  [data-theme="light"] .jd-head-title { color: #0f172a; }
+  [data-theme="light"] .jd-head-sub { color: #64748b; }
+  [data-theme="light"] .jd-gen-thumb {
+    color: #8a6a2e; background: rgba(181,143,74,0.08); border-color: rgba(181,143,74,0.4);
+  }
   [data-theme="light"] .jd-photo { background: #eef0f3; border-color: #e6e8ec; }
   [data-theme="light"] .jd-photo-empty { color: #94a3b8; }
   [data-theme="light"] .esign-row { background: #ffffff; border-color: #e6e8ec; }
@@ -8971,7 +9043,8 @@
 <div id="jobDetailsModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[78] sheet-on-mobile sheet-drawer">
   <div class="absolute inset-0 modal-backdrop" data-close-jd></div>
   <div class="relative card rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-label="Job details">
-    <div class="sheet-grab" aria-hidden="true" title="Drag down to close"></div>
+    <!-- Grab handle is rendered inside the sticky .jd-top chrome (see renderJobDetails)
+         so it stays visible with the title bar while scrolling. -->
     <div id="jobDetailsBody" class="sheet-scroll overflow-y-auto"></div>
   </div>
 </div>
@@ -19388,6 +19461,7 @@ function openJobDetails(id) {
   renderJobDetails(job);
   const m = document.getElementById("jobDetailsModal");
   m.classList.remove("hidden"); m.classList.add("flex");
+  try { document.body.classList.add("jd-open"); } catch (_) {}
   trapDialog(m, closeJobDetails);   // Phase 4c: focus trap + Esc + restore-on-close
   scheduleSaveNav();
 }
@@ -19415,7 +19489,7 @@ function closeJobDetails(opts) {
   _jdJobId = null;
   const m = document.getElementById("jobDetailsModal");
   if (opts && opts.fromDrag) closeJobDetailsInstant();
-  else tvDismiss(m);
+  else tvDismiss(m, () => { try { document.body.classList.remove("jd-open"); } catch (_) {} });
   scheduleSaveNav();
   return true;
 }
@@ -19431,6 +19505,7 @@ function closeJobDetailsInstant() {
   }
   m.classList.add("hidden");
   m.classList.remove("flex", "modal-closing");
+  try { document.body.classList.remove("jd-open"); } catch (_) {}
   try { releaseDialog(m); } catch (_) {}
 }
 
@@ -19595,21 +19670,28 @@ function renderJobDetails(job) {
     versionRow = `<div class="jd-ver-row" title="Every version of this job — ✓ marks a version the customer signed">Version ${_curV} of ${_maxV} <span class="jd-ver-list">${_links}</span></div>`;
   }
   body.innerHTML = `
-    <div class="jd-head px-6 py-4 border-b border-slate-800/80 flex items-center justify-between gap-3 sticky top-0 z-10">
-      <div class="min-w-0">
-        <div class="text-base font-bold text-slate-100 truncate">${escHtml(title)}</div>
-        <div class="text-[11px] text-slate-500 mt-0.5">${job.isDraft ? "Working draft" : "Saved job"}</div>
-        ${versionRow}
+    <div class="jd-top">
+      <div class="jd-grab" aria-hidden="true">
+        <div class="sheet-grab" title="Drag down to close"></div>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <select id="jdStatus" class="job-status-sel ${stCls}" title="Set deal status">${statusOpts}</select>
-        <button data-close-jd class="modal-close" aria-label="Close">×</button>
+      <div class="jd-head">
+        <div class="min-w-0 flex-1">
+          <div class="jd-head-title">${escHtml(title)}</div>
+          <div class="jd-head-sub">${job.isDraft ? "Working draft" : "Saved job"}</div>
+          ${versionRow}
+        </div>
+        <div class="jd-head-tools">
+          <select id="jdStatus" class="job-status-sel ${stCls}" title="Set deal status">${statusOpts}</select>
+          <button data-close-jd class="modal-close" aria-label="Close">×</button>
+        </div>
       </div>
     </div>
-    <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+    <div class="jd-hero">
+      <button type="button" id="jdPhoto" class="jd-photo" title="Upload a job photo">${photo}</button>
+      <button type="button" id="jdGenThumb" class="jd-gen-thumb">✨ Generate AI thumbnail</button>
+    </div>
+    <div class="px-4 sm:px-6 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
       <div class="space-y-4">
-        <button type="button" id="jdPhoto" class="jd-photo" title="Upload a job photo">${photo}</button>
-        <button type="button" id="jdGenThumb" class="btn w-full rounded-lg px-3 py-2 text-[11px] font-bold text-[#c9a558] border border-[#b58f4a]/40 bg-[#b58f4a]/[0.07] hover:bg-[#b58f4a]/[0.14] hover:border-[#b58f4a]/70 inline-flex items-center justify-center gap-1.5">✨ Generate AI thumbnail</button>
         <div class="jd-section">
           <div class="jd-section-title">Job &amp; customer</div>
           <div class="space-y-2.5">
@@ -24214,8 +24296,11 @@ function closeFL() { tvDismiss(flModal); scheduleSaveNav(); }
 function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
   if (!overlayEl || overlayEl._sheetDragWired) return;
   const card = overlayEl.querySelector(":scope > .card");
-  const grab = card && card.querySelector(".sheet-grab");
-  if (!card || !grab) return;
+  if (!card) return;
+  // Grab may be static (FL) or rendered later inside the scroll body (Job Details).
+  const hasGrabNow = !!card.querySelector(".sheet-grab");
+  const allowLate = !!(opts && opts.allowLateGrab);
+  if (!hasGrabNow && !allowLate) return;
   overlayEl._sheetDragWired = true;
   const canClose = opts && typeof opts.canClose === "function" ? opts.canClose : null;
   const scrollEl = (opts && opts.scrollEl) || card.querySelector(".sheet-scroll") || null;
@@ -24282,13 +24367,21 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
     }
     resetDragFlags();
   }
-  grab.addEventListener("touchstart", beginGrab, { passive: true });
-  grab.addEventListener("touchmove", move, { passive: false });
-  grab.addEventListener("touchend", end);
-  grab.addEventListener("touchcancel", end);
+  // Delegate so a grab rendered later (Job Details sticky chrome) still works.
+  card.addEventListener("touchstart", (e) => {
+    if (!e.target.closest || !e.target.closest(".sheet-grab")) return;
+    beginGrab(e);
+  }, { passive: true });
+  card.addEventListener("touchmove", (e) => {
+    if (!dragging) return;
+    move(e);
+  }, { passive: false });
+  card.addEventListener("touchend", end);
+  card.addEventListener("touchcancel", end);
   if (scrollEl) {
     scrollEl.addEventListener("touchstart", (e) => {
       if (window.matchMedia("(min-width: 640px)").matches) return;
+      if (e.target.closest && e.target.closest(".sheet-grab")) return; // card handler owns this
       if (scrollEl.scrollTop > 0) return;
       const p = pt(e); if (!p) return;
       startY = p.clientY; pendingScroll = true; dragging = false; armed = false; dy = 0;
@@ -33091,6 +33184,7 @@ function init() {
   });
 
   // Job Details drawer — grab handle + pull-down-at-top dismiss on phones.
+  // Grab is rendered inside sticky .jd-top on open (allowLateGrab).
   // canClose owns the dirty confirm; the closeFn below skips a second prompt.
   { const jd = document.getElementById("jobDetailsModal");
     if (jd) {
@@ -33101,6 +33195,7 @@ function init() {
           scheduleSaveNav();
         } else closeJobDetails();
       }, {
+        allowLateGrab: true,
         scrollEl: document.getElementById("jobDetailsBody"),
         canClose: () => {
           if (!jdDetailsDirty()) return true;
