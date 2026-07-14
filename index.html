@@ -19493,8 +19493,14 @@ function openJobDetails(id) {
   _jdJobId = id;
   renderJobDetails(job);
   const m = document.getElementById("jobDetailsModal");
+  const body = document.getElementById("jobDetailsBody");
+  // Always start a newly opened job at the top — switching jobs used to keep
+  // the previous drawer scroll position.
+  if (body) body.scrollTop = 0;
   m.classList.remove("hidden"); m.classList.add("flex");
   try { document.body.classList.add("jd-open"); } catch (_) {}
+  if (body) body.scrollTop = 0;
+  requestAnimationFrame(() => { try { if (body) body.scrollTop = 0; } catch (_) {} });
   trapDialog(m, closeJobDetails);   // Phase 4c: focus trap + Esc + restore-on-close
   scheduleSaveNav();
 }
