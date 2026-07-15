@@ -8247,6 +8247,10 @@
         </div>
 
         <div class="pfp-label">Tools</div>
+        <button id="openChangeOrder" type="button" class="pfp-item">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12M4 10h8M4 14.5h10"/><path d="M14.5 9.5l3 3-3 3"/></svg>
+          Change order
+        </button>
         <button id="openFL" type="button" class="pfp-item">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
           FL Lookup
@@ -10225,6 +10229,82 @@
       <p class="text-base font-semibold text-slate-100">Thanks — we got it.</p>
       <p class="text-xs text-slate-500 mt-1">Your note is on its way to the team. We read every one.</p>
       <button id="feedbackDone" type="button" class="btn mt-5 rounded-full px-5 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CHANGE ORDER QUOTE BUILDER
+     T&M / back-charge helper: hours × this job’s crew $/hr + markup.
+     ============================================================ -->
+<div id="changeOrderModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[79] sheet-on-mobile">
+  <div class="absolute inset-0 modal-backdrop" data-close-co></div>
+  <div class="relative card rounded-3xl w-full max-w-md max-h-[88vh] overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-labelledby="coTitle">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <div class="px-6 pt-4 pb-3 border-b border-slate-800 flex items-start justify-between gap-3">
+      <div>
+        <h3 id="coTitle" class="text-base font-semibold text-slate-100">Change order</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Price a fix, back-charge, or T&amp;M from this job’s crew rate.</p>
+      </div>
+      <button class="modal-close" data-close-co aria-label="Close">×</button>
+    </div>
+    <div class="overflow-y-auto flex-1 px-6 py-4 space-y-3.5">
+      <div>
+        <label for="coJob" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Job</label>
+        <select id="coJob" class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100"></select>
+        <p id="coCrewHint" class="text-[11px] text-slate-500 mt-1.5 leading-snug">Select a job to use its crew $/hr.</p>
+      </div>
+      <div>
+        <label for="coParty" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Bill to / party</label>
+        <input id="coParty" type="text" autocomplete="organization" placeholder="e.g. supplier who shipped wrong"
+          class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+      </div>
+      <div>
+        <label for="coDesc" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">What happened</label>
+        <textarea id="coDesc" rows="2" maxlength="800" placeholder="Wrong size, damaged unit, missed opening…"
+          class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" style="resize:vertical;min-height:64px;"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="coHours" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Hours to fix</label>
+          <input id="coHours" type="number" inputmode="decimal" min="0" step="0.25" placeholder="0"
+            class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+        </div>
+        <div>
+          <label for="coExtra" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Extra costs</label>
+          <input id="coExtra" type="number" inputmode="decimal" min="0" step="1" placeholder="0"
+            class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+          <p class="text-[10px] text-slate-600 mt-1">Materials, trips, etc.</p>
+        </div>
+      </div>
+      <div id="coResult" class="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3.5 space-y-2">
+        <div class="flex items-center justify-between gap-3 text-xs text-slate-400">
+          <span>Labor</span>
+          <span id="coLaborLine" class="text-slate-300 tabular-nums">—</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 text-xs text-slate-400">
+          <span>Extra costs</span>
+          <span id="coExtraLine" class="text-slate-300 tabular-nums">$0.00</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 text-xs text-slate-400">
+          <span>Markup</span>
+          <span id="coMarginLine" class="text-slate-300 tabular-nums">—</span>
+        </div>
+        <div class="pt-2 mt-1 border-t border-slate-800 flex items-end justify-between gap-3">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">Suggested charge</div>
+            <div id="coQuote" class="text-2xl font-black tracking-tight text-[#c9a558] tabular-nums leading-tight mt-0.5">$0.00</div>
+          </div>
+          <div class="text-right text-[11px] text-slate-500 leading-snug">
+            <div>Cost <span id="coCostLine" class="text-slate-400 tabular-nums">$0.00</span></div>
+            <div>Profit <span id="coProfitLine" class="text-slate-400 tabular-nums">$0.00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 py-3 border-t border-slate-800 flex items-center gap-2 flex-shrink-0">
+      <button id="coCopyAmt" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Copy amount</button>
+      <button id="coCopySummary" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Copy summary</button>
     </div>
   </div>
 </div>
@@ -21080,6 +21160,7 @@ function isOnCalculator() {
   if (!hidden("saveJobModal")) return false;
   if (!hidden("readPlanModal")) return false;
   if (!hidden("flModal")) return false;
+  if (!hidden("changeOrderModal")) return false;
   if (!hidden("buckModal")) return false;
   return true;
 }
@@ -24568,6 +24649,149 @@ async function flQueueResolve(ids) {
    FL PRODUCT APPROVAL LOOKUP
    ============================================================ */
 const flModal = document.getElementById("flModal");
+const changeOrderModal = document.getElementById("changeOrderModal");
+let _coLast = { quote: 0, cost: 0, profit: 0, hours: 0, rate: 0, margin: 0, jobName: "", party: "", desc: "", extra: 0 };
+
+/** Crew $/hr for a saved job (job laborOverride.crew if set, else account Settings). */
+function resolveCrewCostForJob(job) {
+  const prev = STATE.laborOverride;
+  try {
+    STATE.laborOverride = normalizeLaborOverride(job && job.laborOverride) || emptyLaborOverride();
+    return resolveJobCrewCost();
+  } finally {
+    STATE.laborOverride = prev;
+  }
+}
+function resolveMarginForJob(job) {
+  if (job && job.marginOverride != null && job.marginOverride !== "" && isFinite(Number(job.marginOverride))) {
+    return Math.max(0, Number(job.marginOverride));
+  }
+  return (DATA.config && DATA.config.defaultMargin != null) ? Number(DATA.config.defaultMargin) : 35;
+}
+function populateChangeOrderJobs() {
+  const sel = document.getElementById("coJob");
+  if (!sel) return;
+  const jobs = loadJobs().filter(j => j && !j.isDraft);
+  jobs.sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+  const cur = STATE.currentJobId;
+  const opts = ['<option value="">Account crew rate (no job)</option>'];
+  for (const j of jobs) {
+    const label = (j.name || "Untitled").trim() || "Untitled";
+    const cust = (j.customerName || "").trim();
+    const text = cust ? `${label} — ${cust}` : label;
+    opts.push(`<option value="${escHtml(j.id)}"${j.id === cur ? " selected" : ""}>${escHtml(text)}</option>`);
+  }
+  sel.innerHTML = opts.join("");
+  if (cur && !jobs.some(j => j.id === cur)) sel.value = "";
+}
+function updateChangeOrderQuote() {
+  const jobId = (document.getElementById("coJob") && document.getElementById("coJob").value) || "";
+  const job = jobId ? loadJobs().find(j => j.id === jobId && !j.isDraft) : null;
+  const crew = resolveCrewCostForJob(job);
+  const rate = Math.max(0, Number(crew.crewCostPerHr) || 0);
+  const hours = Math.max(0, Number(document.getElementById("coHours") && document.getElementById("coHours").value) || 0);
+  const extra = Math.max(0, Number(document.getElementById("coExtra") && document.getElementById("coExtra").value) || 0);
+  const margin = resolveMarginForJob(job);
+  const laborCost = hours * rate;
+  const totalCost = laborCost + extra;
+  const quote = totalCost * (1 + margin / 100);
+  const profit = quote - totalCost;
+  const party = ((document.getElementById("coParty") && document.getElementById("coParty").value) || "").trim();
+  const desc = ((document.getElementById("coDesc") && document.getElementById("coDesc").value) || "").trim();
+
+  const modeLabel = crew.mode === "roster"
+    ? `${crew.crewSize} crew · roster`
+    : `${crew.crewSize} crew · $${formatMoneyRaw(crew.crewPayPerHrEach)}/hr ea`;
+  const hint = document.getElementById("coCrewHint");
+  if (hint) {
+    hint.textContent = job
+      ? `${job.name || "Job"} · ${modeLabel} · ${formatMoney(rate)}/hr loaded`
+      : `Using account Settings crew · ${modeLabel} · ${formatMoney(rate)}/hr loaded`;
+  }
+  const laborEl = document.getElementById("coLaborLine");
+  if (laborEl) laborEl.textContent = `${hours || 0} hrs × ${formatMoney(rate)}/hr = ${formatMoney(laborCost)}`;
+  const extraEl = document.getElementById("coExtraLine");
+  if (extraEl) extraEl.textContent = formatMoney(extra);
+  const marginEl = document.getElementById("coMarginLine");
+  if (marginEl) marginEl.textContent = `${formatMoneyRaw(margin)}%${job && job.marginOverride != null ? " · this job" : " · account default"}`;
+  const quoteEl = document.getElementById("coQuote");
+  if (quoteEl) quoteEl.textContent = formatMoney(quote);
+  const costEl = document.getElementById("coCostLine");
+  if (costEl) costEl.textContent = formatMoney(totalCost);
+  const profitEl = document.getElementById("coProfitLine");
+  if (profitEl) profitEl.textContent = formatMoney(profit);
+
+  _coLast = {
+    quote, cost: totalCost, profit, hours, rate, margin, extra,
+    jobName: job ? (job.name || "Untitled") : "Account crew",
+    party, desc,
+  };
+}
+function openChangeOrder() {
+  try { closePfpMenu(); } catch (_) {}
+  if (!changeOrderModal) return;
+  populateChangeOrderJobs();
+  const hrs = document.getElementById("coHours");
+  const extra = document.getElementById("coExtra");
+  const party = document.getElementById("coParty");
+  const desc = document.getElementById("coDesc");
+  if (hrs) hrs.value = "";
+  if (extra) extra.value = "";
+  if (party) party.value = "";
+  if (desc) desc.value = "";
+  updateChangeOrderQuote();
+  changeOrderModal.classList.remove("hidden");
+  changeOrderModal.classList.add("flex");
+  trapDialog(changeOrderModal, closeChangeOrder);
+  setTimeout(() => {
+    const focusEl = document.getElementById("coParty") || document.getElementById("coHours");
+    try { if (focusEl) focusEl.focus(); } catch (_) {}
+  }, 50);
+  try { window.track("change_order_opened"); } catch (_) {}
+}
+function closeChangeOrder() {
+  tvDismiss(changeOrderModal);
+}
+function closeChangeOrderInstant() {
+  if (!changeOrderModal) return;
+  if (changeOrderModal._tvCloseTimer) { clearTimeout(changeOrderModal._tvCloseTimer); changeOrderModal._tvCloseTimer = 0; }
+  const card = changeOrderModal.querySelector(".modal-backdrop + div, :scope > .card");
+  if (card) { card.classList.remove("tv-off"); card.style.transform = ""; card.style.opacity = ""; }
+  changeOrderModal.classList.add("hidden");
+  changeOrderModal.classList.remove("flex", "modal-closing");
+  try { releaseDialog(changeOrderModal); } catch (_) {}
+}
+async function copyChangeOrderAmount() {
+  updateChangeOrderQuote();
+  const text = formatMoneyRaw(_coLast.quote);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Copied ${formatMoney(_coLast.quote)}`);
+  } catch (_) {
+    toast("Couldn’t copy — select the amount manually");
+  }
+}
+async function copyChangeOrderSummary() {
+  updateChangeOrderQuote();
+  const L = _coLast;
+  const lines = [
+    "Change order",
+    L.jobName ? `Job: ${L.jobName}` : null,
+    L.party ? `Bill to: ${L.party}` : null,
+    L.desc ? `Notes: ${L.desc}` : null,
+    `Labor: ${L.hours} hrs × $${formatMoneyRaw(L.rate)}/hr = $${formatMoneyRaw(L.hours * L.rate)}`,
+    L.extra ? `Extra costs: $${formatMoneyRaw(L.extra)}` : null,
+    `Cost: $${formatMoneyRaw(L.cost)}`,
+    `Markup: ${formatMoneyRaw(L.margin)}%`,
+    `Suggested charge: $${formatMoneyRaw(L.quote)}`,
+  ].filter(Boolean);
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    toast("Summary copied");
+  } catch (_) {
+    toast("Couldn’t copy summary");
+  }
+}
 function escHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -33423,6 +33647,29 @@ function init() {
     }
   });
 
+  // Change order quote builder (Tools → Change order)
+  { const openCo = document.getElementById("openChangeOrder");
+    if (openCo) openCo.addEventListener("click", openChangeOrder);
+    if (changeOrderModal) {
+      changeOrderModal.addEventListener("click", e => {
+        if (e.target.dataset.closeCo !== undefined) { closeChangeOrder(); return; }
+      });
+      ["coJob", "coHours", "coExtra", "coParty", "coDesc"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("input", updateChangeOrderQuote);
+        el.addEventListener("change", updateChangeOrderQuote);
+      });
+      const copyAmt = document.getElementById("coCopyAmt");
+      if (copyAmt) copyAmt.addEventListener("click", copyChangeOrderAmount);
+      const copySum = document.getElementById("coCopySummary");
+      if (copySum) copySum.addEventListener("click", copyChangeOrderSummary);
+      wireMobileSheetDismiss(changeOrderModal, (opts) => {
+        if (opts && opts.fromDrag) closeChangeOrderInstant();
+        else closeChangeOrder();
+      });
+    }
+  }
   // FL product-approval lookup
   document.getElementById("openFL").addEventListener("click", openFL);
   // Dashboard — header button (Home / Dashboard also live on the bottom tab bar)
@@ -34166,7 +34413,7 @@ function init() {
       // covers MOB-10's newly-Esc-able modals (jobDetails/customerStats/upsell/
       // pdfPreview/lightbox), which are all trapped.
       if (_dlgStack.length) { const top = _dlgStack[_dlgStack.length - 1]; if (top && top._dlgClose) top._dlgClose(); return; }
-      closePfpMenu(); closeAuth(); closeAdmin(); closeFL(); closeJobRail(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal();
+      closePfpMenu(); closeAuth(); closeAdmin(); closeChangeOrder(); closeFL(); closeJobRail(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal();
     }
   });
 
