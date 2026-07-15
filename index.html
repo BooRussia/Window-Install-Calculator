@@ -10302,9 +10302,12 @@
         </div>
       </div>
     </div>
-    <div class="px-6 py-3 border-t border-slate-800 flex items-center gap-2 flex-shrink-0">
-      <button id="coCopyAmt" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Copy amount</button>
-      <button id="coCopySummary" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Copy summary</button>
+    <div class="px-6 py-3 border-t border-slate-800 flex flex-col gap-2 flex-shrink-0">
+      <button id="coPdf" type="button" class="btn rounded-full w-full px-4 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Generate PDF</button>
+      <div class="flex items-center gap-2">
+        <button id="coCopyAmt" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Copy amount</button>
+        <button id="coCopySummary" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Copy summary</button>
+      </div>
     </div>
   </div>
 </div>
@@ -24792,6 +24795,206 @@ async function copyChangeOrderSummary() {
     toast("Couldn’t copy summary");
   }
 }
+/** Customer-facing Change Order PDF — same brand header/footer as the calculator quote. */
+function exportChangeOrderPDF(mode, force) {
+  updateChangeOrderQuote();
+  const L = _coLast;
+  if (!(L.hours > 0 || L.extra > 0 || L.quote > 0)) {
+    toast("Enter hours or extra costs first");
+    return;
+  }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    toast("PDF library still loading — try again in a moment");
+    return;
+  }
+  // Same demo-brand/demo-rates gate as customer quotes (force resumes past the modal).
+  if (!force && demoExportBlocked(() => exportChangeOrderPDF(mode, true))) return;
+  try { window.track("change_order_pdf"); } catch (_) {}
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const M = 56;
+  const ensure = (need) => { if (y + need > pageH - 70) { doc.addPage(); y = M; } };
+  const brand = DATA.config.brand || {};
+  let y;
+  let logoDrawn = false;
+
+  // ---------- Header (mirrors exportCustomerPDF) ----------
+  if (brand.logo && /^data:image\//i.test(brand.logo)) {
+    try {
+      const props = doc.getImageProperties(brand.logo);
+      const maxH = 54, maxW = 240;
+      const scale = Math.min(maxW / props.width, maxH / props.height, 1);
+      const w = props.width * scale, h = props.height * scale;
+      doc.addImage(brand.logo, props.fileType || "PNG", M, M - 6, w, h);
+      y = M - 6 + h + 16;
+      logoDrawn = true;
+    } catch (e) { /* fall through to text */ }
+  } else if (brand.logo) {
+    try {
+      const props = doc.getImageProperties(brand.logo);
+      const maxH = 54, maxW = 240;
+      const scale = Math.min(maxW / props.width, maxH / props.height, 1);
+      const w = props.width * scale, h = props.height * scale;
+      doc.addImage(brand.logo, "PNG", M, M - 6, w, h);
+      y = M - 6 + h + 16;
+      logoDrawn = true;
+    } catch (e) { /* fall through */ }
+  }
+  if (logoDrawn) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(20, 20, 20);
+    doc.text(brand.companyName || "", M, y);
+    y += 10;
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(20, 20, 20);
+    doc.text((brand.companyName || "CHANGE ORDER").toUpperCase(), M, M + 12);
+    y = M + 26;
+  }
+  doc.setDrawColor(181, 143, 74);
+  doc.setLineWidth(1.5);
+  doc.line(M, y, M + 96, y);
+  y += 22;
+
+  if (brand.tagline) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.setTextColor(120, 120, 120);
+    doc.text(brand.tagline, M, y);
+    y += 16;
+  }
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(110, 110, 110);
+  doc.text("CHANGE ORDER", M, y);
+  y += 18;
+
+  const issuedAt = Date.now();
+  const coNo = "CO-" + issuedAt.toString(36).toUpperCase().slice(-6);
+  doc.setFontSize(9);
+  doc.setTextColor(90, 90, 90);
+  doc.text(`Date: ${new Date(issuedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, M, y);
+  doc.text(`Change Order No. ${coNo}`, pageW - M, y, { align: "right" });
+  y += 14;
+
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 28;
+
+  // ---------- Bill to ----------
+  if (L.party) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("BILL TO", M, y);
+    y += 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(20, 20, 20);
+    doc.text(L.party, M, y);
+    y += 20;
+  }
+
+  // ---------- Details ----------
+  const billRate = L.rate * (1 + L.margin / 100);
+  const laborCharge = L.hours * billRate;
+  const extraCharge = L.extra * (1 + L.margin / 100);
+  const detailRows = [];
+  if (L.jobName && L.jobName !== "Account crew") detailRows.push(["Related job", L.jobName]);
+  if (L.desc) detailRows.push(["Description", L.desc]);
+  detailRows.push(["Hours", `${formatMoneyRaw(L.hours)} hrs`]);
+  if (L.hours > 0) detailRows.push(["Labor", `${formatMoneyRaw(L.hours)} hrs × ${formatMoney(billRate)}/hr`]);
+  if (L.extra > 0) detailRows.push(["Materials & other", formatMoney(extraCharge)]);
+
+  const labelX = M, valueX = M + 130;
+  const valueW = pageW - M - valueX;
+  detailRows.forEach(([label, value]) => {
+    const lines = doc.splitTextToSize(String(value), valueW);
+    ensure(14 * Math.max(1, lines.length) + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(110, 110, 110);
+    doc.text(label, labelX, y);
+    doc.setTextColor(20, 20, 20);
+    lines.forEach((line, i) => {
+      doc.text(line, valueX, y + i * 13);
+    });
+    y += 14 * Math.max(1, lines.length);
+  });
+  y += 18;
+
+  // ---------- Price hero ----------
+  ensure(150);
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 44;
+
+  const priceSize = 34;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(140, 140, 140);
+  doc.text("CHANGE ORDER AMOUNT", pageW / 2, y, { align: "center" });
+  y += priceSize + 4;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(priceSize);
+  doc.setTextColor(20, 20, 20);
+  doc.text(formatMoney(L.quote), pageW / 2, y, { align: "center" });
+  y += 22;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  const sub = L.hours > 0 && L.extra > 0
+    ? `Labor ${formatMoney(laborCharge)}  ·  Additional ${formatMoney(extraCharge)}`
+    : (L.hours > 0 ? "Time & materials — labor" : "Additional costs");
+  doc.text(sub, pageW / 2, y, { align: "center" });
+  y += 36;
+
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, pageW - M, y);
+  y += 22;
+
+  ensure(40);
+  doc.setFontSize(9);
+  doc.setTextColor(110, 110, 110);
+  doc.text("This change order covers the work described above.", M, y);
+  y += 13;
+  doc.text("Payment due upon receipt unless otherwise agreed in writing.", M, y);
+
+  // ---------- Footer on every page ----------
+  const footerLine = brandFooterLine(true);
+  const contactLine = brandContactLine();
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    if (contactLine) {
+      doc.text(footerLine, pageW / 2, pageH - 42, { align: "center" });
+      doc.setFontSize(7);
+      doc.text(contactLine, pageW / 2, pageH - 28, { align: "center" });
+    } else {
+      doc.text(footerLine, pageW / 2, pageH - 36, { align: "center" });
+    }
+  }
+
+  const safeName = (L.party || L.jobName || "ChangeOrder").replace(/[^a-z0-9-_]+/gi, "-").substring(0, 30);
+  outputPDF(doc, `ChangeOrder-${safeName}-${Date.now()}.pdf`, mode || "view", {
+    title: "Change Order",
+    kind: "change_order",
+  });
+}
 function escHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -33664,6 +33867,8 @@ function init() {
       if (copyAmt) copyAmt.addEventListener("click", copyChangeOrderAmount);
       const copySum = document.getElementById("coCopySummary");
       if (copySum) copySum.addEventListener("click", copyChangeOrderSummary);
+      const pdfBtn = document.getElementById("coPdf");
+      if (pdfBtn) pdfBtn.addEventListener("click", () => exportChangeOrderPDF("view"));
       wireMobileSheetDismiss(changeOrderModal, (opts) => {
         if (opts && opts.fromDrag) closeChangeOrderInstant();
         else closeChangeOrder();
