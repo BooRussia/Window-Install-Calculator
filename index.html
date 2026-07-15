@@ -31,7 +31,7 @@
   window.__PUBLIC_SIGN_ROUTE = /^#\/sign\//.test(window.location.hash || "");
   // Apply saved theme before first paint (no flash). Dark is the default.
   try { if (localStorage.getItem("anchor_theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) {}
-  // Liquid Glass (Apple Regular ↔ Clear) before first paint.
+  // Liquid Glass (Apple Regular ↔ Clear) before first paint — neutral, not blue.
   // Keep in sync with applyGlassTransparency().
   try {
     var _gt = parseInt(localStorage.getItem("anchor_glass_transparency"), 10);
@@ -39,23 +39,23 @@
       _gt = Math.max(0, Math.min(100, _gt));
       var _c = _gt / 100;                              // 0 Regular → 1 Clear
       var _s = document.documentElement.style;
-      var _dim = Math.max(0, (_c - 0.35) / 0.65) * 0.55;
-      _s.setProperty("--glass-tint-a", (0.50 - _c * 0.44).toFixed(3)); // 0.50 → 0.06
-      _s.setProperty("--glass-alpha", (0.50 - _c * 0.44).toFixed(3));  // alias
-      _s.setProperty("--glass-blur", (18 + _c * 30).toFixed(1) + "px");
-      _s.setProperty("--glass-sat", (1.55 + _c * 0.9).toFixed(2));
-      _s.setProperty("--glass-bright", (1.04 + _c * 0.08).toFixed(2));
-      _s.setProperty("--glass-contrast", (1.02 + _c * 0.08).toFixed(2));
-      _s.setProperty("--glass-specular", (0.28 + _c * 0.4).toFixed(2));
-      _s.setProperty("--glass-scatter", (0.22 + _c * 0.35).toFixed(2));
+      var _dim = Math.max(0, (_c - 0.3) / 0.7) * 0.42;
+      _s.setProperty("--glass-tint-a", (0.42 - _c * 0.34).toFixed(3)); // 0.42 → 0.08
+      _s.setProperty("--glass-alpha", (0.42 - _c * 0.34).toFixed(3));
+      _s.setProperty("--glass-blur", (22 + _c * 28).toFixed(1) + "px");
+      _s.setProperty("--glass-sat", (1.25 + _c * 0.35).toFixed(2));    // restrained
+      _s.setProperty("--glass-bright", (1.02 + _c * 0.04).toFixed(2));
+      _s.setProperty("--glass-contrast", (1.01 + _c * 0.04).toFixed(2));
+      _s.setProperty("--glass-specular", (0.22 + _c * 0.28).toFixed(2));
+      _s.setProperty("--glass-scatter", (0.12 + _c * 0.2).toFixed(2));
       _s.setProperty("--glass-dim", _dim.toFixed(3));
-      _s.setProperty("--glass-sheen", (0.28 + _c * 0.4).toFixed(2));   // alias → specular
-      _s.setProperty("--glass-iri", (0.35 + _c * 0.55).toFixed(2));
+      _s.setProperty("--glass-sheen", (0.22 + _c * 0.28).toFixed(2));
+      _s.setProperty("--glass-iri", (0.2 + _c * 0.25).toFixed(2));      // soft silver rim
       _s.setProperty("--glass-t", String(_gt));
-      _s.setProperty("--glass-ink", "#f8fafc");
-      _s.setProperty("--glass-muted", "rgba(226,232,240," + (0.72 + _c * 0.2).toFixed(2) + ")");
+      _s.setProperty("--glass-ink", "#f5f5f7");
+      _s.setProperty("--glass-muted", "rgba(235,235,245," + (0.68 + _c * 0.18).toFixed(2) + ")");
       _s.setProperty("--glass-ink-shadow", _dim > 0.08
-        ? ("0 1px 2px rgba(0,0,0," + (0.25 + _dim * 0.5).toFixed(2) + ")")
+        ? ("0 1px 1px rgba(0,0,0," + (0.22 + _dim * 0.4).toFixed(2) + ")")
         : "none");
     }
   } catch (e) {}
@@ -141,25 +141,23 @@
     --hairline: rgba(148, 163, 184, 0.16);
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-    --tabbar-h: 64px;
-    /* Liquid Glass — Apple Regular ↔ Clear (WWDC25 Meet Liquid Glass).
-       Lensing via blur/sat/contrast + edge refraction; Clear uses localized
-       dimming for label legibility instead of an opaque paint fill. */
-    --glass-t: 58;
-    --glass-tint-a: 0.245;
-    --glass-alpha: 0.245;          /* alias of tint-a for older overrides */
-    --glass-blur: 35.4px;
-    --glass-sat: 2.07;
-    --glass-bright: 1.09;
-    --glass-contrast: 1.07;
-    --glass-specular: 0.51;
-    --glass-scatter: 0.42;
-    --glass-dim: 0.194;
-    --glass-sheen: 0.51;           /* alias → specular */
-    --glass-iri: 0.67;
-    --glass-ink: #f8fafc;
-    --glass-muted: rgba(226, 232, 240, 0.84);
-    --glass-ink-shadow: 0 1px 2px rgba(0,0,0,0.35);
+    --tabbar-h: 56px;
+    /* Liquid Glass — Apple Regular ↔ Clear. Neutral frost (no blue/rainbow). */
+    --glass-t: 50;
+    --glass-tint-a: 0.25;
+    --glass-alpha: 0.25;
+    --glass-blur: 36px;
+    --glass-sat: 1.42;
+    --glass-bright: 1.04;
+    --glass-contrast: 1.03;
+    --glass-specular: 0.36;
+    --glass-scatter: 0.22;
+    --glass-dim: 0.12;
+    --glass-sheen: 0.36;
+    --glass-iri: 0.32;
+    --glass-ink: #f5f5f7;
+    --glass-muted: rgba(235, 235, 245, 0.78);
+    --glass-ink-shadow: none;
   }
   html, body { background: #020617; }
   body {
@@ -775,96 +773,80 @@
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
 
   /* ── Mobile bottom tab bar (UI refresh P1) ──────────────────────────────────
-     Fintech-style app nav: Home · Jobs · [⊕ New quote] · Shopping · More.
-     z-55: above tucked peeks/toasts-adjacent chrome, UNDER modals/sheets (z-70+).
-     Dashboard screen (z-74) keeps its own cloned bar. Mobile-only via body.tabbar-on. */
+     Home · Jobs · [⊕] · Shopping · More.
+     Hit model: fixed 56px icon row, THEN safe-area padding below (never center
+     icons into the home-indicator band — that made taps feel “above” the glyphs).
+     Dash scroll stops above the bar so it can’t steal touches. */
   .app-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; display: none; }
   body.tabbar-on .app-tabbar {
-    display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
-    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
-    background: rgba(7,12,24,0.94);
+    display: grid; grid-template-columns: repeat(5, 1fr); align-items: start;
+    padding: 0 2px env(safe-area-inset-bottom);
+    background: rgba(7,12,24,0.96);
     -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
     border-top: 1px solid var(--hairline);
-    /* Keep raised center FAB tappable outside the bar’s padding box */
     overflow: visible;
   }
   @media (min-width: 1024px) { .app-tabbar { display: none !important; } }
   .app-tab {
     position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    background: none; border: 0; padding: 8px 2px; min-width: 0; min-height: 52px;
-    width: 100%; height: 100%; border-radius: 12px;
+    background: none; border: 0; margin: 0; min-width: 0;
+    /* Fixed tap slab — matches --tabbar-h; safe-area is padding on the bar only */
+    height: var(--tabbar-h); min-height: var(--tabbar-h); max-height: var(--tabbar-h);
+    width: 100%; padding: 6px 2px 4px; border-radius: 0;
     color: #7a8699; font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
     cursor: pointer; -webkit-tap-highlight-color: transparent;
-    transition: color .18s ease, transform .12s ease;
     touch-action: manipulation;
   }
-  /* Stretch the hit target to the full grid cell (incl. gutters). */
-  .app-tab:not(.app-tab-center)::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-  }
-  .app-tab svg { display: block; position: relative; z-index: 1; }
-  .app-tab > span { position: relative; z-index: 1; }
-  .app-tab:active { transform: scale(0.94); }
+  .app-tab svg { display: block; flex-shrink: 0; }
+  .app-tab:active { opacity: 0.75; }
   .app-tab.active { color: var(--gold-hi); }
-  .app-tab:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: -2px; }
-  /* Center action: raised gold circle floating out of the bar (their swap FAB) */
+  .app-tab:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: -4px; }
+  /* Center action: raise the whole <button> so the gold circle stays inside
+     its hit box (negative margin on the child alone left the top untappable). */
   .app-tab-center {
     overflow: visible;
     z-index: 2;
-  }
-  /* Invisible hit pad covering the raised circle (margin-top escapes the bar). */
-  .app-tab-center::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: -30px;
-    width: 56px;
-    height: 56px;
-    transform: translateX(-50%);
-    border-radius: 50%;
+    height: calc(var(--tabbar-h) + 22px);
+    min-height: calc(var(--tabbar-h) + 22px);
+    max-height: none;
+    margin-top: -22px;
+    padding-top: 22px;
+    padding-bottom: 4px;
   }
   .app-fab-circle {
-    position: relative; z-index: 1;
-    width: 48px; height: 48px; margin-top: -26px; border-radius: 9999px;
+    width: 48px; height: 48px; margin-top: 0; border-radius: 9999px;
     display: flex; align-items: center; justify-content: center;
     background: linear-gradient(180deg, #c9a558, #b58f4a); color: #0b1120;
-    box-shadow: 0 10px 26px -8px var(--gold-glow), 0 0 0 6px rgba(7,12,24,0.94);
-    transition: transform .15s var(--ease-out);
-    pointer-events: none; /* clicks hit the <button> / ::before pad */
+    box-shadow: 0 10px 26px -8px var(--gold-glow), 0 0 0 6px rgba(7,12,24,0.96);
+    pointer-events: none;
   }
   .app-fab-circle .fab-ico.hidden { display: none; }
-  .app-tab:active .app-fab-circle { transform: scale(0.94); }
-  /* Calculator mode: center tab opens the job-specs rail (no floating FAB). */
+  .app-tab:active .app-fab-circle { opacity: 0.9; }
   body.tabbar-calc .app-fab-circle .fab-ico-plus { display: none; }
   body.tabbar-calc .app-fab-circle .fab-ico-calc { display: block; }
-  body.tabbar-calc .app-tab-center { /* keep raised circle */ }
   #jobSpecsFab { display: none !important; }
   [data-theme="light"] body.tabbar-on .app-tabbar { background: rgba(255,255,255,0.96); border-top-color: #e2e6ec; }
   [data-theme="light"] .app-tab { color: #64748b; }
   [data-theme="light"] .app-tab.active { color: #9a7636; }
   [data-theme="light"] .app-fab-circle { color: #ffffff; box-shadow: 0 10px 26px -8px rgba(154,118,54,0.5), 0 0 0 6px rgba(255,255,255,0.96); }
 
-  /* Bottom-chrome offsets: one var feeds every element that must clear the bar.
-     Scoped to body.tabbar-on so behavior with the bar off stays byte-identical. */
-  /* Dashboard scroll shell: content scrolls here; the cloned tab bar is a sibling
-     pinned with position:absolute so it stays locked on mobile (fixed-inside-
-     overflow:auto scrolls away on iOS/Android). */
+  /* Dashboard scroll shell stops ABOVE the tab bar so the scroller never sits
+     over the buttons and eats taps. Cloned bar is a sibling, pinned absolute. */
   #dashboardScreen .dash-scroll {
-    position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto;
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    overflow-x: hidden; overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
   @media (max-width: 1023px) {
     body.tabbar-on { --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
-    /* Body-level #appTabBar stays hidden on the dashboard — it sits at z-45 under
-       the overlay (z-74) and would clip the raised FAB. */
-    body.tabbar-on #dashScroll { padding-bottom: var(--chrome-b); }
+    body.tabbar-on #dashScroll {
+      bottom: var(--chrome-b);
+      padding-bottom: 12px; /* was chrome-b; bar is outside the scroller now */
+    }
     body.tabbar-on:has(#dashboardScreen:not(.hidden)) #appTabBar { display: none !important; }
     #dashboardScreen .app-tabbar {
-      position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 60;
     }
     body.tabbar-on #compareBar { bottom: calc(var(--chrome-b) + 14px); }
     body.tabbar-on #appBody { padding-bottom: var(--chrome-b); }
@@ -1968,29 +1950,20 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }
-  /* Liquid Glass — web approximation of Apple’s Regular / Clear material
-     (WWDC25 “Meet Liquid Glass” + Adopting Liquid Glass).
-     • Lensing: blur + saturate + contrast bend/shape light (not opaque paint).
-     • Regular (low slider): more tint, adaptive legibility, mild dimming.
-     • Clear (high slider): near-transparent fill + localized dimming under labels.
-     • Larger panels (menus/modals) use thicker-glass shadows + stronger edge refraction.
-     Scoped to modal panels + account menu + preview swatch. */
+  /* Liquid Glass — premium neutral (Apple Regular / Clear).
+     No blue wash, no rainbow rim. Soft white specular + charcoal frost. */
   .modal-backdrop + .card,
   #authScreen .card[role="dialog"],
   #pfpMenu.card,
   .liquid-glass {
     isolation: isolate;
-    /* Tint stays light so Clear actually reads through; dimming is ::after. */
     background:
-      linear-gradient(165deg,
-        rgba(255,255,255, calc(var(--glass-specular) * 0.5)) 0%,
-        rgba(255,255,255, 0) 34%),
-      radial-gradient(120% 90% at 50% -28%,
-        rgba(255,255,255, calc(var(--glass-scatter) * 0.2)),
-        transparent 56%),
-      rgba(160, 190, 230, calc(var(--glass-tint-a) * 0.14)),
-      rgba(8, 14, 28, var(--glass-tint-a));
-    border: 1px solid rgba(255,255,255, calc(0.1 + var(--glass-specular) * 0.18));
+      linear-gradient(180deg,
+        rgba(255,255,255, calc(var(--glass-specular) * 0.22)) 0%,
+        rgba(255,255,255, calc(var(--glass-specular) * 0.04)) 28%,
+        rgba(255,255,255, 0) 55%),
+      rgba(22, 22, 24, var(--glass-tint-a));
+    border: 1px solid rgba(255,255,255, calc(0.14 + var(--glass-specular) * 0.12));
     backdrop-filter:
       blur(var(--glass-blur))
       saturate(var(--glass-sat))
@@ -2002,15 +1975,12 @@
       brightness(var(--glass-bright))
       contrast(var(--glass-contrast));
     box-shadow:
-      /* Thicker glass for large menus — deeper shadow + soft scatter (Apple). */
-      0 40px 90px -30px rgba(0, 0, 0, 0.72),
-      0 16px 36px -18px rgba(0, 0, 0, 0.48),
-      inset 0 1px 0 rgba(255, 255, 255, calc(0.38 + var(--glass-specular) * 0.4)),
-      inset 0 -22px 42px -30px rgba(255, 255, 255, calc(var(--glass-scatter) * 0.14)),
-      inset 0 -1px 0 rgba(180, 220, 255, calc(var(--glass-iri) * 0.14));
+      0 28px 64px -24px rgba(0, 0, 0, 0.55),
+      0 10px 24px -14px rgba(0, 0, 0, 0.35),
+      inset 0 0.5px 0 rgba(255, 255, 255, calc(0.28 + var(--glass-specular) * 0.35)),
+      inset 0 -0.5px 0 rgba(255, 255, 255, calc(var(--glass-iri) * 0.1));
   }
-  /* Containing block for glass ::before/::after — NEVER apply to #pfpMenu
-     (it must stay position:fixed; relative was dumping the menu bottom-left). */
+  /* Containing block for glass ::before/::after — NEVER relative on #pfpMenu. */
   .modal-backdrop + .card,
   #authScreen .card[role="dialog"],
   .liquid-glass {
@@ -2018,8 +1988,10 @@
   }
   #pfpMenu.card {
     position: fixed;
+    /* Keep Sign out clear of the bottom hairline / rim */
+    padding-bottom: 6px;
   }
-  /* Edge refraction / lensing silhouette — chromatic rim only */
+  /* Soft silver edge — no cyan / gold / violet */
   .modal-backdrop + .card::before,
   #authScreen .card[role="dialog"]::before,
   #pfpMenu.card::before,
@@ -2028,24 +2000,22 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    padding: 1.25px;
+    padding: 1px;
     pointer-events: none;
     z-index: 4;
     background: linear-gradient(
-      125deg,
-      rgba(255,255,255, calc(var(--glass-iri) * 0.95)) 0%,
-      rgba(201,165,88, calc(var(--glass-iri) * 0.7)) 20%,
-      rgba(120,210,255, calc(var(--glass-iri) * 0.8)) 48%,
-      rgba(210,150,255, calc(var(--glass-iri) * 0.65)) 72%,
-      rgba(255,255,255, calc(var(--glass-iri) * 0.35)) 100%
+      160deg,
+      rgba(255,255,255, calc(0.45 + var(--glass-iri) * 0.35)) 0%,
+      rgba(255,255,255, calc(var(--glass-iri) * 0.12)) 42%,
+      rgba(255,255,255, calc(var(--glass-iri) * 0.08)) 58%,
+      rgba(255,255,255, calc(0.22 + var(--glass-iri) * 0.2)) 100%
     );
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
             mask-composite: exclude;
-    opacity: 0.9;
+    opacity: 0.85;
   }
-  /* Clear variant dimming layer (Apple: Clear needs dimming for label legibility).
-     Localized vignette keeps the rim more see-through than a full opaque wash. */
+  /* Clear dimming — neutral black vignette for label legibility */
   .modal-backdrop + .card::after,
   #authScreen .card[role="dialog"]::after,
   #pfpMenu.card::after,
@@ -2057,13 +2027,10 @@
     pointer-events: none;
     z-index: 1;
     background:
-      radial-gradient(ellipse 88% 78% at 50% 42%,
-        rgba(2, 6, 23, var(--glass-dim)) 0%,
-        rgba(2, 6, 23, calc(var(--glass-dim) * 0.42)) 58%,
-        transparent 80%),
-      linear-gradient(180deg,
-        rgba(255,255,255, calc(var(--glass-specular) * 0.12)) 0%,
-        transparent 26%);
+      radial-gradient(ellipse 90% 80% at 50% 40%,
+        rgba(0, 0, 0, var(--glass-dim)) 0%,
+        rgba(0, 0, 0, calc(var(--glass-dim) * 0.35)) 60%,
+        transparent 82%);
     opacity: 1;
   }
   .modal-backdrop + .card > *,
@@ -2075,17 +2042,17 @@
     #authScreen .card[role="dialog"],
     #pfpMenu.card,
     .liquid-glass {
-      --glass-tint-a: 0.9;
-      --glass-alpha: 0.9;
-      --glass-blur: 10px;
-      --glass-sat: 1.15;
+      --glass-tint-a: 0.92;
+      --glass-alpha: 0.92;
+      --glass-blur: 8px;
+      --glass-sat: 1.05;
       --glass-bright: 1;
       --glass-contrast: 1;
-      --glass-specular: 0.18;
-      --glass-scatter: 0.1;
+      --glass-specular: 0.12;
+      --glass-scatter: 0.08;
       --glass-dim: 0;
-      --glass-sheen: 0.18;
-      --glass-iri: 0.2;
+      --glass-sheen: 0.12;
+      --glass-iri: 0.15;
       --glass-ink-shadow: none;
     }
   }
@@ -3784,7 +3751,12 @@
     color: var(--glass-muted, #64748b);
     text-shadow: var(--glass-ink-shadow, none);
   }
-  .pfp-sep { height: 1px; background: rgba(148,163,184,0.22); margin: 5px 0; }
+  /* Inset hairline — avoids stacking with the glass bottom rim under Sign out */
+  .pfp-sep {
+    height: 1px; margin: 6px 12px;
+    background: rgba(255,255,255,0.1);
+    border: 0; box-shadow: none;
+  }
   .pfp-account {
     padding: 10px 12px 9px;
     border-bottom: 1px solid rgba(148,163,184,0.18);
@@ -3800,7 +3772,6 @@
     text-shadow: var(--glass-ink-shadow, none);
   }
   [data-theme="light"] .pfp-item:hover { background: rgba(15,23,42,0.06); color: #0f172a; }
-  [data-theme="light"] .pfp-sep { background: rgba(15,23,42,0.1); }
   [data-theme="light"] .pfp-account { border-bottom-color: rgba(15,23,42,0.1); }
   /* Header theme-toggle buttons: dark defaults (slate-400 icon / slate-700 ring)
      fail on a light nav, so mirror the established light icon-button token. */
@@ -4017,14 +3988,12 @@
   [data-theme="light"] #pfpMenu.card,
   [data-theme="light"] .liquid-glass {
     background:
-      linear-gradient(165deg,
-        rgba(255,255,255, calc(0.55 + var(--glass-specular) * 0.35)) 0%,
-        rgba(255,255,255, 0) 38%),
-      radial-gradient(120% 90% at 50% -28%,
-        rgba(255,255,255, calc(0.35 + var(--glass-scatter) * 0.25)),
-        transparent 55%),
-      rgba(255, 255, 255, calc(0.18 + var(--glass-tint-a) * 0.55));
-    border: 1px solid rgba(255,255,255, calc(0.45 + var(--glass-specular) * 0.3));
+      linear-gradient(180deg,
+        rgba(255,255,255, calc(0.55 + var(--glass-specular) * 0.3)) 0%,
+        rgba(255,255,255, calc(0.2 + var(--glass-specular) * 0.1)) 40%,
+        rgba(255,255,255, 0.08) 100%),
+      rgba(245, 245, 247, calc(0.35 + var(--glass-tint-a) * 0.4));
+    border: 1px solid rgba(255,255,255, calc(0.55 + var(--glass-specular) * 0.25));
     backdrop-filter:
       blur(var(--glass-blur))
       saturate(var(--glass-sat))
@@ -4036,29 +4005,39 @@
       brightness(var(--glass-bright))
       contrast(var(--glass-contrast));
     box-shadow:
-      0 32px 70px -28px rgba(15,23,42,0.28),
-      0 12px 28px -16px rgba(15,23,42,0.16),
-      inset 0 1px 0 rgba(255,255,255,0.92),
-      inset 0 -18px 36px -28px rgba(255,255,255,0.55);
+      0 24px 56px -22px rgba(0,0,0,0.18),
+      0 8px 20px -12px rgba(0,0,0,0.1),
+      inset 0 0.5px 0 rgba(255,255,255,0.95),
+      inset 0 -0.5px 0 rgba(0,0,0,0.04);
+  }
+  [data-theme="light"] .modal-backdrop + .card::before,
+  [data-theme="light"] #authScreen .card[role="dialog"]::before,
+  [data-theme="light"] #pfpMenu.card::before,
+  [data-theme="light"] .liquid-glass::before {
+    background: linear-gradient(
+      160deg,
+      rgba(255,255,255,0.95) 0%,
+      rgba(255,255,255,0.25) 45%,
+      rgba(255,255,255,0.2) 55%,
+      rgba(255,255,255,0.7) 100%
+    );
   }
   [data-theme="light"] .modal-backdrop + .card::after,
   [data-theme="light"] #authScreen .card[role="dialog"]::after,
   [data-theme="light"] #pfpMenu.card::after,
   [data-theme="light"] .liquid-glass::after {
     background:
-      radial-gradient(ellipse 88% 78% at 50% 42%,
-        rgba(15, 23, 42, calc(var(--glass-dim) * 0.35)) 0%,
-        rgba(15, 23, 42, calc(var(--glass-dim) * 0.12)) 58%,
-        transparent 80%),
-      linear-gradient(180deg,
-        rgba(255,255,255, calc(var(--glass-specular) * 0.2)) 0%,
-        transparent 28%);
+      radial-gradient(ellipse 90% 80% at 50% 40%,
+        rgba(0, 0, 0, calc(var(--glass-dim) * 0.18)) 0%,
+        rgba(0, 0, 0, calc(var(--glass-dim) * 0.06)) 60%,
+        transparent 82%);
   }
   [data-theme="light"] {
-    --glass-ink: #0f172a;
-    --glass-muted: rgba(51, 65, 85, 0.88);
+    --glass-ink: #1d1d1f;
+    --glass-muted: rgba(60, 60, 67, 0.72);
     --glass-ink-shadow: none;
   }
+  [data-theme="light"] .pfp-sep { background: rgba(60, 60, 67, 0.12); }
   [data-theme="light"] .glass-range { background: rgba(15,23,42,0.12); }
   [data-theme="light"] .glass-range::-webkit-slider-thumb { border-color: #fff; }
   [data-theme="light"] .glass-range::-moz-range-thumb { border-color: #fff; }
@@ -10091,8 +10070,8 @@
                   <label class="set-label" for="glassTransparency">Glass style</label>
                   <span id="glassTransparencyVal" class="text-xs font-bold text-[#c9a558]">Regular → Clear</span>
                 </div>
-                <input id="glassTransparency" class="glass-range" type="range" min="0" max="100" step="1" value="58"
-                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="58" aria-describedby="glassTransparencyHint">
+                <input id="glassTransparency" class="glass-range" type="range" min="0" max="100" step="1" value="50"
+                  aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-describedby="glassTransparencyHint">
                 <div class="flex justify-between text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 mt-1">
                   <span>Regular</span>
                   <span>Clear</span>
@@ -14302,7 +14281,7 @@ function toggleTheme() {
 }
 // ── Liquid Glass transparency (popup panels) ────────────────────────────────
 const GLASS_T_KEY = "anchor_glass_transparency";
-const GLASS_T_DEFAULT = 58;
+const GLASS_T_DEFAULT = 50;
 function getGlassTransparency() {
   try {
     const v = parseInt(localStorage.getItem(GLASS_T_KEY), 10);
@@ -14319,25 +14298,24 @@ function applyGlassTransparency(t, opts) {
   // System “Reduce Transparency” → force Regular (mirrors iOS accessibility).
   const effective = reduced ? Math.min(n, 18) : n;
   // Apple model: 0 = Regular (adaptive frost), 100 = Clear (see-through + dimming).
+  // Neutral charcoal/silver — no blue tint, no rainbow edge.
   const clear = effective / 100;
-  const tintA = 0.50 - clear * 0.44;                   // 0.50 → 0.06 (not opaque paint)
-  const blur = 18 + clear * 30;                        // 18 → 48 (lensing scatter)
-  const sat = 1.55 + clear * 0.9;                      // richer refraction when Clear
-  const bright = 1.04 + clear * 0.08;
-  const contrast = 1.02 + clear * 0.08;
-  const specular = 0.28 + clear * 0.4;                 // highlight layer
-  const scatter = 0.22 + clear * 0.35;                 // soft light scatter (thicker feel)
-  // Clear needs a dimming layer for label/icon legibility (Apple HIG / WWDC25).
-  const dim = Math.max(0, (clear - 0.35) / 0.65) * 0.55;
-  const iri = 0.35 + clear * 0.55;                     // edge refraction strength
-  // Vibrant foreground on glass (Apple: bold/bright above Clear).
-  const mutedA = 0.72 + clear * 0.2;
-  const inkShadow = (!isLightTheme() && dim > 0.08)
-    ? `0 1px 2px rgba(0,0,0,${(0.25 + dim * 0.5).toFixed(2)})`
+  const tintA = 0.42 - clear * 0.34;                   // 0.42 → 0.08
+  const blur = 22 + clear * 28;                        // 22 → 50
+  const sat = 1.25 + clear * 0.35;                     // restrained (was oversaturated)
+  const bright = 1.02 + clear * 0.04;
+  const contrast = 1.01 + clear * 0.04;
+  const specular = 0.22 + clear * 0.28;
+  const scatter = 0.12 + clear * 0.2;
+  const dim = Math.max(0, (clear - 0.3) / 0.7) * 0.42; // Clear dimming
+  const iri = 0.2 + clear * 0.25;                      // soft silver rim only
+  const mutedA = 0.68 + clear * 0.18;
+  const inkShadow = (!isLightTheme() && dim > 0.1)
+    ? `0 1px 1px rgba(0,0,0,${(0.2 + dim * 0.35).toFixed(2)})`
     : "none";
   const root = document.documentElement.style;
   root.setProperty("--glass-tint-a", tintA.toFixed(3));
-  root.setProperty("--glass-alpha", tintA.toFixed(3)); // alias for sheet overrides
+  root.setProperty("--glass-alpha", tintA.toFixed(3));
   root.setProperty("--glass-blur", blur.toFixed(1) + "px");
   root.setProperty("--glass-sat", sat.toFixed(2));
   root.setProperty("--glass-bright", bright.toFixed(2));
@@ -14348,10 +14326,10 @@ function applyGlassTransparency(t, opts) {
   root.setProperty("--glass-sheen", specular.toFixed(2));
   root.setProperty("--glass-iri", iri.toFixed(2));
   root.setProperty("--glass-t", String(Math.round(effective)));
-  root.setProperty("--glass-ink", isLightTheme() ? "#0f172a" : "#f8fafc");
+  root.setProperty("--glass-ink", isLightTheme() ? "#1d1d1f" : "#f5f5f7");
   root.setProperty("--glass-muted", isLightTheme()
-    ? `rgba(51,65,85,${(0.78 + clear * 0.12).toFixed(2)})`
-    : `rgba(226,232,240,${mutedA.toFixed(2)})`);
+    ? `rgba(60,60,67,${(0.65 + clear * 0.1).toFixed(2)})`
+    : `rgba(235,235,245,${mutedA.toFixed(2)})`);
   root.setProperty("--glass-ink-shadow", isLightTheme() ? "none" : inkShadow);
   const input = document.getElementById("glassTransparency");
   const val = document.getElementById("glassTransparencyVal");
