@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,interactive-widget=resizes-content" />
 <meta name="theme-color" content="#020617" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black" />
@@ -145,6 +145,8 @@
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --tabbar-h: 60px;
+    /* Safari/Chrome mobile bottom browser chrome overlap (visualViewport). */
+    --vv-bottom-gap: 0px;
     /* Liquid Glass — slider 0 frosted → 100 near-transparent. Defaults mid. */
     --glass-t: 55;
     --glass-tint-a: 0.261;
@@ -714,9 +716,11 @@
     transition: transform .32s cubic-bezier(0.16,1,0.3,1);
     /* Own the vertical gesture — don't let the page scroll steal the first frames. */
     touch-action: none;
+    /* Off-screen bar must never eat taps (iOS can still hit-test translated nodes). */
+    pointer-events: none;
   }
-  #mtotalBar.show { transform: translateY(0); }
-  #mtotalBar.show.tucked { transform: translateY(calc(100% + 12px)); }
+  #mtotalBar.show { transform: translateY(0); pointer-events: auto; }
+  #mtotalBar.show.tucked { transform: translateY(calc(100% + 12px)); pointer-events: none; }
   #mtotalBar.dragging { transition: none !important; }
   #mtotalBtn {
     width: 100%; min-height: 56px;
@@ -744,8 +748,9 @@
     -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
     -webkit-tap-highlight-color: transparent; cursor: pointer;
     touch-action: none;
+    pointer-events: none;
   }
-  body.mtotal-on.mtotal-tucked #mtotalPeek { display: inline-flex; }
+  body.mtotal-on.mtotal-tucked #mtotalPeek { display: inline-flex; pointer-events: auto; }
   #mtotalPeek svg { color: var(--gold-hi); flex-shrink: 0; }
   @media (min-width: 1024px) { #mtotalBar, #mtotalPeek { display: none !important; } }
   /* When the bar is up (mobile only), clear the drawer's bottom controls and
@@ -774,17 +779,24 @@
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
 
   /* ── Mobile bottom tab bar (UI refresh P1) ──────────────────────────────────
-     Same geometry as main. ::after extends each tab’s hit box through the
-     safe-area padding so a slightly-low finger still lands on the control
-     (icons sit above that band; without this, taps on the dark bar miss). */
-  .app-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: none; }
+     z-75 sits ABOVE the dashboard overlay (z-74) and BELOW job/modals (z-78+),
+     so one fixed #appTabBar handles taps on every surface. The in-dashboard
+     clone (#dashTabBar) is disabled — it lived under the scroll layer and
+     felt like an invisible barrier over the icons. */
+  .app-tabbar {
+    position: fixed; left: 0; right: 0;
+    bottom: var(--vv-bottom-gap, 0px);
+    z-index: 75; display: none;
+  }
   body.tabbar-on .app-tabbar {
     display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
     padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
     background: rgba(7,12,24,0.94);
     -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
     border-top: 1px solid var(--hairline);
+    pointer-events: auto;
   }
+  #dashTabBar { display: none !important; }
   @media (min-width: 1024px) { .app-tabbar { display: none !important; } }
   .app-tab {
     position: relative;
@@ -795,15 +807,6 @@
     transition: color .18s ease, transform .12s ease;
     touch-action: manipulation;
   }
-  /* Grow the tap slab down through the bar’s bottom padding + home indicator. */
-  .app-tab::after {
-    content: "";
-    position: absolute;
-    left: 0; right: 0; top: 0;
-    bottom: calc(-7px - env(safe-area-inset-bottom, 0px));
-  }
-  .app-tab svg,
-  .app-tab > span { position: relative; z-index: 1; }
   .app-tab svg { display: block; }
   .app-tab:active { transform: scale(0.94); }
   .app-tab.active { color: var(--gold-hi); }
@@ -834,24 +837,19 @@
      pinned with position:absolute so it stays locked on mobile (fixed-inside-
      overflow:auto scrolls away on iOS/Android). */
   #dashboardScreen .dash-scroll {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    overflow-x: hidden; overflow-y: auto;
+    position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
+  /* Drop the open animation’s sticky transform so it can’t create an iOS
+     touch-offset containing block over the fixed tab bar. */
+  #dashboardScreen.dash-anim-done { animation: none !important; transform: none !important; }
   @media (max-width: 1023px) {
-    body.tabbar-on { --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
-    /* End the scroller ABOVE the tab bar so iOS can’t deliver icon-row taps to
-       the overflow layer. Small padding only for last-card breathing room. */
-    body.tabbar-on #dashScroll {
-      bottom: var(--chrome-b);
-      padding-bottom: 16px;
+    body.tabbar-on {
+      --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--vv-bottom-gap, 0px));
     }
-    body.tabbar-on:has(#dashboardScreen:not(.hidden)) #appTabBar,
-    body.tabbar-on #appTabBar.is-under-dash { display: none !important; }
-    #dashboardScreen .app-tabbar {
-      position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
-      pointer-events: auto;
-    }
+    /* Body #appTabBar (z-75) stays visible on the dashboard — do NOT hide it.
+       #dashTabBar clone is display:none (see above). */
+    body.tabbar-on #dashScroll { padding-bottom: var(--chrome-b); }
     body.tabbar-on #compareBar { bottom: calc(var(--chrome-b) + 14px); }
     body.tabbar-on #appBody { padding-bottom: var(--chrome-b); }
     body.tabbar-on #mtotalBar { bottom: var(--chrome-b); }
@@ -16020,6 +16018,20 @@ function openDashboard(opts) {
   const wasHidden = d.classList.contains("hidden");
   wireDashboard();
   d.classList.remove("hidden");
+  d.classList.remove("dash-anim-done");
+  // After the enter animation, clear it so a lingering `transform` can’t create
+  // an iOS touch-offset containing block over the fixed tab bar.
+  if (wasHidden) {
+    const clearAnim = (e) => {
+      if (e && e.target !== d) return;
+      d.classList.add("dash-anim-done");
+      d.removeEventListener("animationend", clearAnim);
+    };
+    d.addEventListener("animationend", clearAnim);
+    setTimeout(() => { try { d.classList.add("dash-anim-done"); } catch (_) {} }, 400);
+  } else {
+    d.classList.add("dash-anim-done");
+  }
   // Keep drill-in if caller is just switching tabs while already on the dashboard;
   // only reset chrome when freshly opening from the calculator / elsewhere.
   if (wasHidden) {
@@ -16048,7 +16060,10 @@ function openDashboard(opts) {
 }
 function closeDashboard(opts) {
   const d = document.getElementById("dashboardScreen");
-  if (d) d.classList.add("hidden");
+  if (d) {
+    d.classList.add("hidden");
+    d.classList.remove("dash-anim-done");
+  }
   // If we opened via a pushed history entry and this close is programmatic
   // (Calculator →, Load job, etc.), pop that entry so Back doesn't re-open dash.
   if (_dashHistPushed && !(opts && (opts.fromPopstate || opts.skipHist))) {
@@ -16089,6 +16104,11 @@ function updateTabBar() {
   if (!show) { document.body.classList.remove("tabbar-calc"); return; }
   const dashOpen = !hiddenEl("dashboardScreen");
   document.body.classList.toggle("tabbar-calc", !dashOpen);
+  // Never leave Job Details chrome-lock stuck on a dashboard/calc surface.
+  if (!document.getElementById("jobDetailsModal") || document.getElementById("jobDetailsModal").classList.contains("hidden")) {
+    try { document.body.classList.remove("jd-open"); } catch (_) {}
+  }
+  try { syncVisualViewportBottom(); } catch (_) {}
   const view = (typeof _dashView !== "undefined") ? _dashView : "home";
   const active = dashOpen ? (view === "home" || view === "jobs" || view === "shopping" ? view : "") : "";
   bars.forEach(bar => {
@@ -16113,22 +16133,45 @@ function updateTabBar() {
     }
   });
 }
+function syncVisualViewportBottom() {
+  // Lift the fixed tab bar above mobile browser chrome (Safari bottom bar, etc.)
+  // so icon hit targets aren’t covered by an invisible system layer.
+  try {
+    const vv = window.visualViewport;
+    let gap = 0;
+    if (vv) gap = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    document.documentElement.style.setProperty("--vv-bottom-gap", gap + "px");
+  } catch (_) {}
+}
+function wireVisualViewportBottom() {
+  if (wireVisualViewportBottom._wired) return;
+  wireVisualViewportBottom._wired = true;
+  const sync = () => { try { syncVisualViewportBottom(); } catch (_) {} };
+  sync();
+  try {
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", sync);
+      window.visualViewport.addEventListener("scroll", sync);
+    }
+  } catch (_) {}
+  window.addEventListener("resize", sync);
+  window.addEventListener("orientationchange", sync);
+}
 function wireTabBar() {
   const src = document.getElementById("appTabBar");
   if (!src) return;
-  // The dashboard screen (fixed, z-74) needs its OWN bar instance inside its
-  // stacking context: the body-level bar sits at z-45 (under modals/sheets),
-  // so on the dashboard it painted underneath the screen's edge and the FAB's
-  // raised circle lost its top. Append as a SIBLING of #dashScroll (not inside
-  // the scroll container) so position:absolute keeps it locked to the bottom
-  // while the dashboard content scrolls — fixed-inside-overflow breaks on mobile.
+  try { wireVisualViewportBottom(); } catch (_) {}
+  // #appTabBar is z-75 (above dashboard). Keep a hidden clone only for back-compat;
+  // it must not receive taps (#dashTabBar { display:none }).
   const dash = document.getElementById("dashboardScreen");
   if (dash && !document.getElementById("dashTabBar")) {
     const clone = src.cloneNode(true);
     clone.id = "dashTabBar";
+    clone.setAttribute("aria-hidden", "true");
     dash.appendChild(clone);
   }
   document.querySelectorAll(".app-tabbar").forEach(bar => {
+    if (bar.id === "dashTabBar") return; // never wire the disabled clone
     if (bar._wired) return;
     bar._wired = true;
     bar.addEventListener("click", (e) => {
