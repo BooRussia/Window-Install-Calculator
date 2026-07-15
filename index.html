@@ -774,24 +774,36 @@
   @media (prefers-reduced-motion: reduce) { #mtotalBar { transition: none; } }
 
   /* ── Mobile bottom tab bar (UI refresh P1) ──────────────────────────────────
-     Restored to main’s layout — PR hit-target experiments made taps feel offset. */
+     Same geometry as main. ::after extends each tab’s hit box through the
+     safe-area padding so a slightly-low finger still lands on the control
+     (icons sit above that band; without this, taps on the dark bar miss). */
   .app-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: none; }
   body.tabbar-on .app-tabbar {
     display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
-    /* Sit a bit lower toward the home-indicator band (hit targets move with icons). */
-    padding: 2px 8px calc(12px + env(safe-area-inset-bottom));
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
     background: rgba(7,12,24,0.94);
     -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
     border-top: 1px solid var(--hairline);
   }
   @media (min-width: 1024px) { .app-tabbar { display: none !important; } }
   .app-tab {
+    position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    background: none; border: 0; padding: 7px 0 0; min-width: 0; border-radius: 12px;
+    background: none; border: 0; padding: 3px 0; min-width: 0; border-radius: 12px;
     color: #7a8699; font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
     cursor: pointer; -webkit-tap-highlight-color: transparent;
     transition: color .18s ease, transform .12s ease;
+    touch-action: manipulation;
   }
+  /* Grow the tap slab down through the bar’s bottom padding + home indicator. */
+  .app-tab::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    bottom: calc(-7px - env(safe-area-inset-bottom, 0px));
+  }
+  .app-tab svg,
+  .app-tab > span { position: relative; z-index: 1; }
   .app-tab svg { display: block; }
   .app-tab:active { transform: scale(0.94); }
   .app-tab.active { color: var(--gold-hi); }
@@ -822,17 +834,23 @@
      pinned with position:absolute so it stays locked on mobile (fixed-inside-
      overflow:auto scrolls away on iOS/Android). */
   #dashboardScreen .dash-scroll {
-    position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto;
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    overflow-x: hidden; overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
   @media (max-width: 1023px) {
     body.tabbar-on { --chrome-b: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
-    /* Body-level #appTabBar stays hidden on the dashboard — it sits at z-45 under
-       the overlay (z-74) and would clip the raised FAB. */
-    body.tabbar-on #dashScroll { padding-bottom: var(--chrome-b); }
-    body.tabbar-on:has(#dashboardScreen:not(.hidden)) #appTabBar { display: none !important; }
+    /* End the scroller ABOVE the tab bar so iOS can’t deliver icon-row taps to
+       the overflow layer. Small padding only for last-card breathing room. */
+    body.tabbar-on #dashScroll {
+      bottom: var(--chrome-b);
+      padding-bottom: 16px;
+    }
+    body.tabbar-on:has(#dashboardScreen:not(.hidden)) #appTabBar,
+    body.tabbar-on #appTabBar.is-under-dash { display: none !important; }
     #dashboardScreen .app-tabbar {
       position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
+      pointer-events: auto;
     }
     body.tabbar-on #compareBar { bottom: calc(var(--chrome-b) + 14px); }
     body.tabbar-on #appBody { padding-bottom: var(--chrome-b); }
