@@ -3598,15 +3598,23 @@
   }
   /* settings inputs ride >=16px to stop iOS zoom-on-focus + keep one size */
   .set-field input, .set-field select, .set-field textarea { font-size: 16px; }
-  /* Rates leaf sub-navigation (redesign: split Rates into focused leaves) */
-  .rleaf-nav { display: flex; gap: 6px; margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  /* Rates / Setup / Account leaf sub-navigation.
+     overflow-x:auto forces overflow-y to compute to auto too, which clips the
+     1px bottom border + radius of the pills (esp. with min-height:44 on touch).
+     Keep a few px of vertical padding inside the scrollport so bottoms stay visible. */
+  .rleaf-nav {
+    display: flex; align-items: center; gap: 6px;
+    margin: 0 0 16px; padding: 3px 2px 5px;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
   .rleaf-nav::-webkit-scrollbar { display: none; }
   /* Edge-fade the horizontally-scrolling tab strips on mobile so it's visible that
      more tabs continue off-screen (paired with scroll-active-into-view in the JS). */
   @media (max-width: 639px) {
     #settingsNav, .rleaf-nav { -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); }
   }
-  .rleaf-btn { flex: 0 0 auto; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
+  .rleaf-btn { flex: 0 0 auto; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; box-sizing: border-box; }
   .rleaf-btn:hover { color: #e2e8f0; border-color: #475569; }
   .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
 
@@ -3714,7 +3722,11 @@
      content panel gets the full screen width instead of being crammed into a
      narrow column beside the rail. */
   @media (max-width: 639px) {
-    #settingsNav { white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    #settingsNav {
+      white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      /* Same overflow-x clip issue as .rleaf-nav — pad so active inset ring isn’t cut. */
+      padding-top: 4px; padding-bottom: 6px; align-items: center;
+    }
     #settingsNav::-webkit-scrollbar { display: none; }
     #settingsNav .set-tab { width: auto; flex: 0 0 auto; padding: 8px 13px; font-size: 12.5px; }
   }
