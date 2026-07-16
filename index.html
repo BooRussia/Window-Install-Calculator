@@ -4866,12 +4866,44 @@
      gallery fan renders prev/next arrows + a counter, never dot nodes. Removed. */
   .jd-fan-counter { font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.04em; min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
 
-  /* ---- Full-photo lightbox (click a card to expand; landscape shown whole) ---- */
-  #jdgLightbox { position: fixed; inset: 0; z-index: 120; display: none; align-items: center; justify-content: center; background: rgba(2,6,23,0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  /* ---- Full-photo lightbox (click a card to expand; pinch/drag to zoom) ---- */
+  #jdgLightbox {
+    position: fixed; inset: 0; z-index: 120; display: none;
+    align-items: center; justify-content: center;
+    background: #020617;
+    touch-action: none; overflow: hidden;
+    overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+  }
   #jdgLightbox.open { display: flex; }
-  /* Stage paints under chrome — prev was DOM-before-stage so a 94vw image covered the back arrow. */
-  .jdg-stage { position: relative; z-index: 1; max-width: 86vw; max-height: 86vh; display: flex; align-items: center; justify-content: center; }
-  .jdg-img { max-width: 86vw; max-height: 86vh; width: auto; height: auto; object-fit: contain; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,0.7); background: #0b1120; }
+  /* Blur sits on a sibling layer — Safari can blank transformed <img>s when
+     backdrop-filter is on the same element as the zoomed photo. */
+  #jdgLightbox::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: rgba(2,6,23,0.88);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  /* Stage fills the viewport so pinch-zoom/pan never clips the photo away. */
+  .jdg-stage {
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; touch-action: none; -webkit-tap-highlight-color: transparent;
+  }
+  .jdg-img {
+    max-width: min(92vw, 100%); max-height: min(86vh, 100%);
+    width: auto; height: auto; object-fit: contain;
+    border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,0.7);
+    background: #0b1120;
+    transform-origin: center center;
+    will-change: transform;
+    -webkit-user-drag: none; user-select: none;
+    transition: opacity .15s ease;
+  }
+  #jdgLightbox.lb-zoomed .jdg-img { border-radius: 0; cursor: grab; }
+  #jdgLightbox.lb-zooming .jdg-img,
+  #jdgLightbox.lb-panning .jdg-img { transition: none; }
+  #jdgLightbox.lb-zoomed .jdg-nav,
+  #jdgLightbox.lb-zoomed .jdg-del,
+  #jdgLightbox.lb-zoomed .jdg-count { opacity: 0.35; pointer-events: none; }
   .jdg-btn { position: absolute; z-index: 3; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(2,6,23,0.6); border: 1.5px solid rgba(255,255,255,0.18); color: #fff; cursor: pointer; backdrop-filter: blur(8px); transition: all .2s ease; }
   .jdg-btn:hover { background: rgba(2,6,23,0.85); border-color: rgba(255,255,255,0.4); }
   .jdg-nav { width: 46px; height: 46px; top: 50%; transform: translateY(-50%); }
@@ -4885,7 +4917,7 @@
     .jdg-nav { width: 44px; height: 44px; }
     .jdg-prev { left: max(8px, env(safe-area-inset-left, 0px)); }
     .jdg-next { right: max(8px, env(safe-area-inset-right, 0px)); }
-    .jdg-stage, .jdg-img { max-width: 78vw; }
+    .jdg-img { max-width: min(94vw, 100%); max-height: min(82vh, 100%); }
   }
 
   /* ---- Installation-photo grid view (all thumbs; opens over Job Details) ---- */
@@ -19293,6 +19325,216 @@ function wireJobGallery(job) {
 
 /* ----- Full-photo lightbox (expand a card to the whole photo) ----- */
 let _lbJobId = null, _lbIdx = 0;
+let _lbZoom = 1, _lbTx = 0, _lbTy = 0;
+let _lbSuppressClose = false;
+
+function lightboxPhotos() { const j = loadJobs().find(x => x.id === _lbJobId); return j ? jobGalleryList(j) : []; }
+
+function applyLightboxTransform() {
+  const lb = document.getElementById("jdgLightbox");
+  if (!lb) return;
+  const img = lb.querySelector(".jdg-img");
+  if (!img) return;
+  img.style.transform = `translate(${_lbTx.toFixed(2)}px, ${_lbTy.toFixed(2)}px) scale(${_lbZoom.toFixed(4)})`;
+  lb.classList.toggle("lb-zoomed", _lbZoom > 1.01);
+}
+
+function clampLightboxPan() {
+  const lb = document.getElementById("jdgLightbox");
+  if (!lb) return;
+  const img = lb.querySelector(".jdg-img");
+  if (!img || _lbZoom <= 1.01) { _lbTx = 0; _lbTy = 0; return; }
+  // offsetWidth/Height ignore CSS transforms — use the fit-to-view layout size.
+  const w = img.offsetWidth || 1;
+  const h = img.offsetHeight || 1;
+  const vw = lb.clientWidth || window.innerWidth;
+  const vh = lb.clientHeight || window.innerHeight;
+  const maxX = Math.max(0, (w * _lbZoom - vw) / 2);
+  const maxY = Math.max(0, (h * _lbZoom - vh) / 2);
+  _lbTx = Math.max(-maxX, Math.min(maxX, _lbTx));
+  _lbTy = Math.max(-maxY, Math.min(maxY, _lbTy));
+}
+
+function resetLightboxZoom() {
+  _lbZoom = 1; _lbTx = 0; _lbTy = 0;
+  const lb = document.getElementById("jdgLightbox");
+  if (lb) lb.classList.remove("lb-zoomed", "lb-zooming", "lb-panning");
+  applyLightboxTransform();
+}
+
+/** Pinch / double-tap / drag zoom for the installation-photo lightbox. */
+function wireGalleryLightboxZoom(lb) {
+  if (!lb || lb._zoomWired) return;
+  lb._zoomWired = true;
+  const stage = lb.querySelector(".jdg-stage");
+  const img = lb.querySelector(".jdg-img");
+  if (!stage || !img) return;
+
+  const MIN_Z = 1, MAX_Z = 4, DBL_Z = 2.4;
+  let pointers = new Map(); // pointerId → {x,y}
+  let mode = null; // null | 'pan' | 'pinch'
+  let panLastX = 0, panLastY = 0;
+  let pinchStartDist = 0, pinchStartZoom = 1, pinchStartTx = 0, pinchStartTy = 0;
+  let pinchOriginX = 0, pinchOriginY = 0;
+  let moved = false;
+  let lastTapT = 0, lastTapX = 0, lastTapY = 0;
+
+  const distOf = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  const midOf = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const pts = () => Array.from(pointers.values());
+
+  const setZoomAt = (nextZoom, cx, cy, { clamp = true } = {}) => {
+    const z0 = Math.max(_lbZoom, 0.0001);
+    const z1 = Math.max(MIN_Z, Math.min(MAX_Z, nextZoom));
+    if (z1 <= MIN_Z + 0.001) { _lbZoom = 1; _lbTx = 0; _lbTy = 0; return; }
+    // Keep the content under (cx,cy) stable while scaling.
+    const lbR = lb.getBoundingClientRect();
+    const ox = cx - (lbR.left + lbR.width / 2);
+    const oy = cy - (lbR.top + lbR.height / 2);
+    const ratio = z1 / z0;
+    _lbTx = ox - (ox - _lbTx) * ratio;
+    _lbTy = oy - (oy - _lbTy) * ratio;
+    _lbZoom = z1;
+    if (clamp) clampLightboxPan();
+  };
+
+  const endGesture = () => {
+    mode = null;
+    lb.classList.remove("lb-zooming", "lb-panning");
+    if (_lbZoom < 1.05) { _lbZoom = 1; _lbTx = 0; _lbTy = 0; }
+    else clampLightboxPan();
+    applyLightboxTransform();
+    if (moved) {
+      _lbSuppressClose = true;
+      setTimeout(() => { _lbSuppressClose = false; }, 80);
+    }
+    moved = false;
+  };
+
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (e.target.closest && e.target.closest(".jdg-btn")) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    moved = false;
+    if (pointers.size === 2) {
+      mode = "pinch";
+      const [a, b] = pts();
+      pinchStartDist = distOf(a, b);
+      pinchStartZoom = _lbZoom;
+      pinchStartTx = _lbTx; pinchStartTy = _lbTy;
+      const m = midOf(a, b);
+      pinchOriginX = m.x; pinchOriginY = m.y;
+      lb.classList.add("lb-zooming");
+      lb.classList.remove("lb-panning");
+    } else if (pointers.size === 1 && _lbZoom > 1.01) {
+      mode = "pan";
+      panLastX = e.clientX; panLastY = e.clientY;
+      lb.classList.add("lb-panning");
+    } else {
+      mode = null;
+    }
+  });
+
+  stage.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      if (mode !== "pinch") {
+        mode = "pinch";
+        const [a, b] = pts();
+        pinchStartDist = distOf(a, b);
+        pinchStartZoom = _lbZoom;
+        pinchStartTx = _lbTx; pinchStartTy = _lbTy;
+        const m = midOf(a, b);
+        pinchOriginX = m.x; pinchOriginY = m.y;
+        lb.classList.add("lb-zooming");
+      }
+      const [a, b] = pts();
+      const m = midOf(a, b);
+      const factor = distOf(a, b) / Math.max(1, pinchStartDist);
+      _lbZoom = pinchStartZoom;
+      _lbTx = pinchStartTx; _lbTy = pinchStartTy;
+      setZoomAt(pinchStartZoom * factor, pinchOriginX, pinchOriginY, { clamp: false });
+      // Follow the pinch midpoint as it drifts.
+      _lbTx += m.x - pinchOriginX;
+      _lbTy += m.y - pinchOriginY;
+      clampLightboxPan();
+      applyLightboxTransform();
+      moved = true;
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
+    if (mode === "pan" && _lbZoom > 1.01) {
+      const dx = e.clientX - panLastX, dy = e.clientY - panLastY;
+      panLastX = e.clientX; panLastY = e.clientY;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) moved = true;
+      _lbTx += dx; _lbTy += dy;
+      clampLightboxPan();
+      applyLightboxTransform();
+      if (e.cancelable) e.preventDefault();
+    }
+  }, { passive: false });
+
+  const onUp = (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (pointers.size < 2 && mode === "pinch") {
+      // Dropping a finger ends the pinch; remaining finger can pan if zoomed.
+      if (pointers.size === 1 && _lbZoom > 1.01) {
+        const p = pts()[0];
+        mode = "pan";
+        panLastX = p.x; panLastY = p.y;
+        lb.classList.remove("lb-zooming");
+        lb.classList.add("lb-panning");
+      } else {
+        endGesture();
+      }
+      return;
+    }
+    if (pointers.size === 0) {
+      const wasPanOrPinch = mode === "pan" || mode === "pinch" || moved;
+      const x = e.clientX, y = e.clientY;
+      endGesture();
+      if (wasPanOrPinch) return;
+      // Double-tap toggles zoom at the tap point.
+      const now = performance.now();
+      if (now - lastTapT < 320 && Math.hypot(x - lastTapX, y - lastTapY) < 36) {
+        lastTapT = 0;
+        _lbSuppressClose = true;
+        setTimeout(() => { _lbSuppressClose = false; }, 80);
+        if (_lbZoom > 1.05) resetLightboxZoom();
+        else { setZoomAt(DBL_Z, x, y); applyLightboxTransform(); }
+        return;
+      }
+      lastTapT = now; lastTapX = x; lastTapY = y;
+    }
+  };
+  stage.addEventListener("pointerup", onUp);
+  stage.addEventListener("pointercancel", onUp);
+  stage.addEventListener("lostpointercapture", (e) => {
+    if (pointers.has(e.pointerId)) onUp(e);
+  });
+
+  // Desktop: trackpad/mouse wheel zooms toward the cursor.
+  stage.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * 0.0015);
+    setZoomAt(_lbZoom * factor, e.clientX, e.clientY);
+    applyLightboxTransform();
+    _lbSuppressClose = true;
+    setTimeout(() => { _lbSuppressClose = false; }, 80);
+  }, { passive: false });
+
+  // Block iOS Safari page-zoom gestures inside the lightbox.
+  ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
+    lb.addEventListener(type, (e) => { e.preventDefault(); }, { passive: false });
+  });
+  lb.addEventListener("touchmove", (e) => {
+    if (e.touches.length > 1 && e.cancelable) e.preventDefault();
+  }, { passive: false });
+}
 
 function ensureGalleryLightbox() {
   let lb = document.getElementById("jdgLightbox");
@@ -19306,7 +19548,7 @@ function ensureGalleryLightbox() {
     `<button class="jdg-btn jdg-del" data-jdg-del aria-label="Delete photo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Delete</button>
      <button class="jdg-btn jdg-close" data-jdg-close aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
      <button class="jdg-btn jdg-nav jdg-prev" data-jdg-lb-prev aria-label="Previous"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-     <div class="jdg-stage"><img class="jdg-img" alt="Installation photo"></div>
+     <div class="jdg-stage"><img class="jdg-img" alt="Installation photo" draggable="false"></div>
      <button class="jdg-btn jdg-nav jdg-next" data-jdg-lb-next aria-label="Next"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
      <div class="jdg-count"></div>`;
   document.body.appendChild(lb);
@@ -19314,13 +19556,19 @@ function ensureGalleryLightbox() {
   lb.querySelector("[data-jdg-lb-prev]").addEventListener("click", () => stepLightbox(-1));
   lb.querySelector("[data-jdg-lb-next]").addEventListener("click", () => stepLightbox(1));
   lb.querySelector("[data-jdg-del]").addEventListener("click", lightboxDelete);
-  lb.addEventListener("click", (e) => { if (e.target === lb || (e.target.classList && e.target.classList.contains("jdg-stage"))) closeGalleryLightbox(); });
+  lb.addEventListener("click", (e) => {
+    if (_lbSuppressClose || _lbZoom > 1.01) return;
+    if (e.target === lb || (e.target.classList && e.target.classList.contains("jdg-stage"))) {
+      closeGalleryLightbox();
+    }
+  });
+  wireGalleryLightboxZoom(lb);
   return lb;
 }
-function lightboxPhotos() { const j = loadJobs().find(x => x.id === _lbJobId); return j ? jobGalleryList(j) : []; }
 function openGalleryLightbox(jobId, idx) {
   _lbJobId = jobId; _lbIdx = idx || 0;
   const lb = ensureGalleryLightbox();
+  resetLightboxZoom();
   lb.classList.add("open");
   // Phase 4c: the lightbox stacks OVER the trapped Job Details modal — trap it too
   // so Tab/Esc act on the top-most dialog, not the one behind it.
@@ -19332,6 +19580,7 @@ function closeGalleryLightbox() {
   const lb = document.getElementById("jdgLightbox");
   if (lb) { lb.classList.remove("open"); releaseDialog(lb); }
   document.removeEventListener("keydown", lightboxKey);
+  resetLightboxZoom();
   _lbJobId = null;
 }
 function lightboxKey(e) {
@@ -19344,6 +19593,7 @@ function stepLightbox(dir) {
   const photos = lightboxPhotos();
   if (photos.length < 2) return;
   _lbIdx = (_lbIdx + dir + photos.length) % photos.length;
+  resetLightboxZoom();
   showLightboxPhoto();
 }
 async function showLightboxPhoto() {
@@ -19360,6 +19610,12 @@ async function showLightboxPhoto() {
   lb.querySelectorAll(".jdg-nav").forEach(n => n.style.display = multi ? "flex" : "none");
   cnt.style.display = multi ? "block" : "none";
   cnt.textContent = `${_lbIdx + 1} / ${photos.length}`;
+  // Keep any in-progress pan/zoom only while the same photo stays on screen;
+  // a fresh load always starts fit-to-view so a bad transform can’t blank it.
+  if (!lb.classList.contains("lb-zooming") && !lb.classList.contains("lb-panning")) {
+    /* zoom state is reset by open/step; just re-apply in case src swap cleared it */
+    applyLightboxTransform();
+  }
   img.style.opacity = "0.3";
   const src = /^data:/.test(entry) ? entry : await resolveSignedPhotoURL(entry);
   // Guard on the live entry identity (not the numeric index): a delete can keep
