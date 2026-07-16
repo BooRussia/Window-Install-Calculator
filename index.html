@@ -4804,8 +4804,14 @@
 
   /* ---- Installation-photo fan carousel (job profile) ---- */
   .jd-fan { position: relative; width: 100%; }
-  /* Layout height hugs the card so we don’t leave a tall empty band above/below. */
-  .jd-fan-layout { position: relative; height: 300px; width: 100%; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+  /* touch-action:none — this strip owns the gesture so iOS doesn’t steal it for
+     page scroll. Vertical scrolling still works from the chrome above/below. */
+  .jd-fan-layout {
+    position: relative; height: 300px; width: 100%;
+    touch-action: none; cursor: grab;
+    user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
   .jd-fan-layout.dragging { cursor: grabbing; }
   @media (min-width: 640px) { .jd-fan-layout { height: 380px; } }
   .fan-card {
@@ -4814,11 +4820,13 @@
     width: 200px; height: 284px; padding: 0; margin: 0; border: 0; background: transparent;
     opacity: 0; transform: translate(-50%, -50%) scale(0.6); transform-origin: center center;
     cursor: pointer; will-change: transform, opacity;
-    transition: transform .42s cubic-bezier(.22,1,.36,1), opacity .28s ease;
+    transition: transform .38s cubic-bezier(.22,1,.36,1), opacity .22s ease;
   }
   @media (min-width: 640px) { .fan-card { width: 240px; height: 350px; } }
-  /* While finger-scrubbing, drop the spring so cards track the swipe immediately. */
-  .jd-fan.jd-fan-scrubbing .fan-card { transition: transform .05s linear, opacity .05s linear; }
+  /* Finger scrub: zero transition so cards stick 1:1 to the finger. */
+  .jd-fan.jd-fan-scrubbing .fan-card { transition: none !important; }
+  /* Inertia coast: short ease, no spring overshoot (overshoot feels jumpy on phones). */
+  .jd-fan.jd-fan-coasting .fan-card { transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .2s ease; }
   .fan-card:hover { z-index: 30 !important; }
   .fan-card-inner {
     width: 100%; height: 100%; border-radius: 14px; overflow: hidden; display: block;
@@ -19142,14 +19150,35 @@ function wireJobGallery(job) {
   if (!fan) return;
   let center = parseInt(fan.dataset.jdgCenter || "0", 10) || 0;
   const total = jobGalleryList(job).length;
-  const relayout = (c) => layoutJobFan(fan, c == null ? center : c);
+  let floatPos = center;           // live scrub position (fractional)
+  let rafId = 0, pendingPos = null;
+  const paint = (c) => layoutJobFan(fan, c);
+  // Coalesce layout to one paint per frame — pointermove can fire faster than refresh.
+  const relayout = (c) => {
+    if (c == null) c = center;
+    pendingPos = c;
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      const p = pendingPos; pendingPos = null;
+      paint(p == null ? center : p);
+    });
+  };
+  const snapTo = (idx) => {
+    center = ((Math.round(idx) % total) + total) % total;
+    floatPos = center;
+    fan.dataset.jdgCenter = String(center);
+    fan.classList.remove("jd-fan-scrubbing");
+    fan.classList.add("jd-fan-coasting");
+    paint(center);
+    clearTimeout(fan._coastTimer);
+    fan._coastTimer = setTimeout(() => fan.classList.remove("jd-fan-coasting"), 340);
+  };
   // Lay out once the modal is actually on screen (cards need a real width).
-  requestAnimationFrame(() => requestAnimationFrame(() => relayout()));
+  requestAnimationFrame(() => requestAnimationFrame(() => paint(center)));
   const stepFan = (dir) => {
     if (total <= 1) return;
-    center = (center + dir + total) % total;
-    fan.dataset.jdgCenter = String(center);
-    relayout();
+    snapTo(center + dir);
   };
   fan.querySelector("[data-jdg-prev]")?.addEventListener("click", () => stepFan(-1));
   fan.querySelector("[data-jdg-next]")?.addEventListener("click", () => stepFan(1));
@@ -19162,56 +19191,83 @@ function wireJobGallery(job) {
       openGalleryLightbox(job.id, parseInt(c.dataset.jdgIdx, 10) || 0);
     }));
 
-  // Continuous finger scrub: cards track drag offset in real time, then snap
-  // to the nearest photo on release (with a small velocity flick).
+  // Mobile-first continuous scrub. touch-action:none on the layout means we own
+  // the gesture; vertical page scroll happens from outside the fan strip.
   const layoutEl = fan.querySelector(".jd-fan-layout");
   if (layoutEl && total > 1) {
-    const MOVE_TOL = 8;
-    let down = false, dragging = false, downX = 0, downY = 0;
-    let lastMoveX = 0, lastMoveT = 0, velX = 0, pxPerCard = 56;
-    layoutEl.addEventListener("pointerdown", (e) => {
-      down = true; dragging = false; suppressClick = false; velX = 0;
-      downX = lastMoveX = e.clientX; downY = e.clientY;
-      lastMoveT = performance.now();
+    const LOCK_PX = 6;
+    let down = false, dragging = false, pointerId = null;
+    let downX = 0, downY = 0, lastX = 0, lastT = 0, velX = 0, pxPerCard = 70;
+    const samples = []; // recent move samples for a stabler flick velocity
+
+    const onDown = (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      down = true; dragging = false; suppressClick = false;
+      pointerId = e.pointerId;
+      downX = lastX = e.clientX; downY = e.clientY;
+      lastT = performance.now(); velX = 0; samples.length = 0;
+      floatPos = center;
       const card = fan.querySelector(".fan-card");
-      pxPerCard = Math.max(42, (card && card.offsetWidth) ? card.offsetWidth * 0.52 : 56);
-    });
-    layoutEl.addEventListener("pointermove", (e) => {
-      if (!down) return;
+      // Slightly sensitive so a short swipe advances ~one card without a long drag.
+      pxPerCard = Math.max(48, (card && card.offsetWidth) ? card.offsetWidth * 0.38 : 70);
+      fan.classList.remove("jd-fan-coasting");
+      try { layoutEl.setPointerCapture(e.pointerId); } catch (_) {}
+    };
+    const onMove = (e) => {
+      if (!down || (pointerId != null && e.pointerId !== pointerId)) return;
       const dx = e.clientX - downX, dy = e.clientY - downY;
       if (!dragging) {
-        if (Math.abs(dx) < MOVE_TOL) return;
-        if (Math.abs(dx) < Math.abs(dy)) { down = false; return; }   // vertical intent → let the modal scroll
+        if (Math.abs(dx) < LOCK_PX && Math.abs(dy) < LOCK_PX) return;
+        // Prefer horizontal once either axis clearly wins — don't abandon the gesture.
+        if (Math.abs(dy) > Math.abs(dx) * 1.35) {
+          // Clear vertical intent: release capture and let the sheet scroll.
+          down = false;
+          try { layoutEl.releasePointerCapture(e.pointerId); } catch (_) {}
+          return;
+        }
         dragging = true; suppressClick = true;
         layoutEl.classList.add("dragging");
         fan.classList.add("jd-fan-scrubbing");
-        try { layoutEl.setPointerCapture(e.pointerId); } catch (_) {}
       }
+      try { e.preventDefault(); } catch (_) {}
       const now = performance.now();
-      const dt = Math.max(1, now - lastMoveT);
-      velX = (e.clientX - lastMoveX) / dt;
-      lastMoveX = e.clientX; lastMoveT = now;
-      // Finger left → next photo (center increases).
-      const dragCards = (downX - e.clientX) / pxPerCard;
-      relayout(center + dragCards);
-    });
-    const endDrag = () => {
-      if (!down) return;
-      down = false;
+      samples.push({ x: e.clientX, t: now });
+      while (samples.length > 5) samples.shift();
+      if (samples.length >= 2) {
+        const a = samples[0], b = samples[samples.length - 1];
+        const dt = Math.max(1, b.t - a.t);
+        velX = (b.x - a.x) / dt; // px/ms
+      }
+      lastX = e.clientX; lastT = now;
+      // Finger left → next photo (floatPos increases).
+      floatPos = center + (downX - e.clientX) / pxPerCard;
+      relayout(floatPos);
+    };
+    const onUp = (e) => {
+      if (!down || (pointerId != null && e.pointerId !== pointerId)) return;
+      down = false; pointerId = null;
       layoutEl.classList.remove("dragging");
-      fan.classList.remove("jd-fan-scrubbing");
-      if (dragging) {
-        const dragCards = (downX - lastMoveX) / pxPerCard;
-        // Project a little from velocity so a flick lands on the next card.
-        const projected = center + dragCards - (velX * 140) / pxPerCard;
-        center = ((Math.round(projected) % total) + total) % total;
-        fan.dataset.jdgCenter = String(center);
-        relayout();
+      if (!dragging) {
+        fan.classList.remove("jd-fan-scrubbing");
+        return;
       }
       dragging = false;
+      // Project from velocity so a flick coasts to the next card.
+      const projected = floatPos - (velX * 160) / pxPerCard;
+      let target = Math.round(projected);
+      // Tiny tap-drags: if they moved less than ~15% of a card and slow, stay put.
+      if (Math.abs(floatPos - center) < 0.15 && Math.abs(velX) < 0.25) target = center;
+      snapTo(target);
     };
-    layoutEl.addEventListener("pointerup", endDrag);
-    layoutEl.addEventListener("pointercancel", endDrag);
+
+    layoutEl.addEventListener("pointerdown", onDown, { passive: true });
+    layoutEl.addEventListener("pointermove", onMove, { passive: false });
+    layoutEl.addEventListener("pointerup", onUp);
+    layoutEl.addEventListener("pointercancel", onUp);
+    // iOS sometimes delivers touch events without a matching pointerup after capture loss.
+    layoutEl.addEventListener("lostpointercapture", () => {
+      if (down) onUp({ pointerId });
+    });
   }
   if (!window._jdFanResizeBound) {
     window._jdFanResizeBound = true;
