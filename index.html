@@ -4810,7 +4810,7 @@
     position: relative; height: 300px; width: 100%;
     touch-action: none; cursor: grab;
     user-select: none; -webkit-user-select: none;
-    -webkit-touch-callout: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
   }
   .jd-fan-layout.dragging { cursor: grabbing; }
   @media (min-width: 640px) { .jd-fan-layout { height: 380px; } }
@@ -4819,31 +4819,33 @@
     /* ~fill the layout — only a few px of gutter around the center photo */
     width: 200px; height: 284px; padding: 0; margin: 0; border: 0; background: transparent;
     opacity: 0; transform: translate(-50%, -50%) scale(0.6); transform-origin: center center;
-    cursor: pointer; will-change: transform, opacity;
+    /* Cards are visual only — .jd-fan-layout owns every touch so pressing the
+       center photo can’t steal the gesture (hover/highlight blocked scrubbing). */
+    pointer-events: none !important; touch-action: none;
+    cursor: grab; will-change: transform, opacity;
     transition: transform .38s cubic-bezier(.22,1,.36,1), opacity .22s ease;
   }
   @media (min-width: 640px) { .fan-card { width: 240px; height: 350px; } }
-  /* Finger scrub: zero transition so cards stick 1:1 to the finger.
-     Kill card hit-testing while scrubbing so a press-and-drag on a photo
-     can’t turn into a click mid-swipe. */
-  .jd-fan.jd-fan-scrubbing .fan-card {
-    transition: none !important;
-    pointer-events: none !important;
-  }
+  /* Finger scrub: zero transition so cards stick 1:1 to the finger. */
+  .jd-fan.jd-fan-scrubbing .fan-card { transition: none !important; }
   /* Inertia coast: short ease, no spring overshoot (overshoot feels jumpy on phones). */
   .jd-fan.jd-fan-coasting .fan-card { transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .2s ease; }
-  .fan-card { touch-action: none; }
-  .fan-card:hover { z-index: 30 !important; }
   .fan-card-inner {
     width: 100%; height: 100%; border-radius: 14px; overflow: hidden; display: block;
     background: rgba(2,6,23,0.7); border: 1px solid rgba(181,143,74,0.35);
     box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-    transition: transform .4s cubic-bezier(.34,1.4,.5,1), box-shadow .3s ease, border-color .3s ease;
   }
-  .fan-card:hover .fan-card-inner { transform: translateY(-4px) scale(1.02); border-color: rgba(201,165,88,0.7); box-shadow: 0 18px 44px rgba(0,0,0,0.6); }
   .fan-card-img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0b1120; -webkit-user-drag: none; user-select: none; pointer-events: none; }
-  .fan-card-zoom { position: absolute; right: 6px; bottom: 6px; width: 22px; height: 22px; border-radius: 999px; background: rgba(2,6,23,0.65); color: #e2cf9a; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .25s ease; pointer-events: none; }
-  .fan-card:hover .fan-card-zoom { opacity: 1; }
+  /* Expand affordance — shown on the active center card via .is-front (not :hover,
+     which sticks on iOS touch and blocked swipes). */
+  .fan-card-zoom {
+    position: absolute; right: 6px; bottom: 6px; width: 22px; height: 22px; border-radius: 999px;
+    background: rgba(2,6,23,0.65); color: #e2cf9a;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .2s ease; pointer-events: none;
+  }
+  .fan-card.is-front .fan-card-zoom { opacity: 1; }
+  .jd-fan.jd-fan-scrubbing .fan-card-zoom { opacity: 0 !important; }
   /* PHOTO-9: the empty state is now a tappable drop-zone button */
   .jd-fan-empty { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; text-align: center; color: #64748b; font-size: 12px; font-weight: 600; padding: 22px 12px; border: 1px dashed #334155; border-radius: 14px; background: transparent; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease; }
   .jd-fan-empty:hover { border-color: rgba(201,165,88,0.5); color: #c9a558; background: rgba(181,143,74,0.05); }
@@ -19051,11 +19053,13 @@ function jobGalleryHTML(job) {
   const cards = photos.map((entry, i) => {
     const isData = /^data:/.test(entry);
     const imgAttr = isData ? `src="${escHtml(entry)}"` : `data-photo-path="${escHtml(entry)}"`;
-    return `<button type="button" class="fan-card" data-jdg-idx="${i}" aria-label="View installation photo ${i + 1}"><span class="fan-card-inner"><img ${imgAttr} class="fan-card-img" alt="Installation photo ${i + 1}" loading="lazy"><span class="fan-card-zoom"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></span></button>`;
+    // Visual-only card (div, not button) — layout owns taps/swipes so the center
+    // photo never steals the gesture the way a focused <button> did on iOS.
+    return `<div class="fan-card" data-jdg-idx="${i}" aria-hidden="true"><span class="fan-card-inner"><img ${imgAttr} class="fan-card-img" alt="" loading="lazy"><span class="fan-card-zoom" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></span></div>`;
   }).join("");
   const carousel = photos.length
     ? `<div class="jd-fan" data-jdg-center="${photos.length >> 1}">
-         <div class="jd-fan-layout">${cards}</div>
+         <div class="jd-fan-layout" role="group" aria-label="Installation photos — swipe to browse, tap to expand">${cards}</div>
          <div class="jd-fan-controls${photos.length > 1 ? "" : " hidden"}">
            <button type="button" class="jd-fan-arrow" data-jdg-prev aria-label="Previous">${chev("left")}</button>
            <div class="jd-fan-counter"><span data-jdg-cur>${(photos.length >> 1) + 1}</span> / ${photos.length}</div>
@@ -19116,8 +19120,9 @@ function layoutJobFan(fan, center) {
   cards.forEach((card, i) => {
     const d = _fanWrapDelta(i, c, N);
     if (Math.abs(d) > maxDist) {
-      card.style.opacity = "0"; card.style.pointerEvents = "none"; card.style.zIndex = "0";
+      card.style.opacity = "0"; card.style.zIndex = "0";
       card.style.transform = "translate(-50%,-50%) scale(0.5)";
+      card.classList.remove("is-front");
       return;
     }
     // Continuous slot = center slot (3) + delta; interpolate fan geometry between integers.
@@ -19133,9 +19138,9 @@ function layoutJobFan(fan, center) {
     const x = factor * cardW * xScale;
     const nearest = Math.abs(d) < 0.45;
     card.style.opacity = "1";
-    card.style.pointerEvents = nearest ? "auto" : "none";
     card.style.zIndex = String(Math.max(1, z));
     card.style.transform = `translate(-50%,-50%) translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+    card.classList.toggle("is-front", nearest);
   });
   const cur = fan.querySelector("[data-jdg-cur]");
   if (cur) {
@@ -19189,37 +19194,29 @@ function wireJobGallery(job) {
   fan.querySelector("[data-jdg-prev]")?.addEventListener("click", () => stepFan(-1));
   fan.querySelector("[data-jdg-next]")?.addEventListener("click", () => stepFan(1));
 
-  // Click a card to expand — never if this pointer moved (slow swipe ≠ tap).
-  let suppressClick = false;
-  fan.querySelectorAll("[data-jdg-idx]").forEach((c) =>
-    c.addEventListener("click", (e) => {
-      if (suppressClick) { e.preventDefault(); e.stopPropagation(); return; }
-      openGalleryLightbox(job.id, parseInt(c.dataset.jdgIdx, 10) || 0);
-    }));
-
-  // Press-and-drag scrub: once the finger moves horizontally at all, we own it —
-  // even a slow drag on a photo must scroll, not open the lightbox.
+  // Layout owns all input (cards are pointer-events:none). Tap → open center
+  // photo; horizontal drag → scrub. Starting on the middle photo works the same
+  // as starting on the sides.
   const layoutEl = fan.querySelector(".jd-fan-layout");
-  if (layoutEl && total > 1) {
-    const H_LOCK = 3;          // px horizontal → start scrub (very low so slow swipes count)
-    const V_CANCEL = 18;       // px vertical needed before we yield to page scroll
-    const CLICK_SLOP = 7;      // any movement past this kills the tap
-    let down = false, dragging = false, pointerId = null, axis = null; // null | 'h' | 'v'
+  if (layoutEl) {
+    const H_LOCK = 3;
+    const V_CANCEL = 18;
+    const TAP_SLOP = 8;
+    let down = false, dragging = false, pointerId = null, axis = null;
     let downX = 0, downY = 0, lastX = 0, lastY = 0, velX = 0, pxPerCard = 70;
     const samples = [];
 
     const beginScrub = (e) => {
-      if (dragging) return;
+      if (dragging || total <= 1) return;
       dragging = true;
       axis = "h";
-      suppressClick = true;
       layoutEl.classList.add("dragging");
       fan.classList.add("jd-fan-scrubbing");
       try { layoutEl.setPointerCapture(e.pointerId); } catch (_) {}
     };
     const onDown = (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      down = true; dragging = false; axis = null; suppressClick = false;
+      down = true; dragging = false; axis = null;
       pointerId = e.pointerId;
       downX = lastX = e.clientX; downY = lastY = e.clientY;
       velX = 0; samples.length = 0;
@@ -19230,29 +19227,18 @@ function wireJobGallery(job) {
     };
     const onMove = (e) => {
       if (!down || (pointerId != null && e.pointerId !== pointerId)) return;
+      if (total <= 1) return;
       const dx = e.clientX - downX, dy = e.clientY - downY;
       const adx = Math.abs(dx), ady = Math.abs(dy);
 
       if (!dragging) {
-        // Any real movement means this isn't a clean tap.
-        if (adx > CLICK_SLOP || ady > CLICK_SLOP) suppressClick = true;
-
         if (axis == null) {
-          // Bias hard toward horizontal — slow swipes are often a bit diagonal.
-          if (adx >= H_LOCK && adx >= ady * 0.55) {
-            axis = "h";
-          } else if (ady >= V_CANCEL && ady > adx * 1.6) {
-            axis = "v";
-          } else if (adx >= H_LOCK && adx > ady) {
-            axis = "h";
-          } else {
-            return; // still deciding
-          }
+          if (adx >= H_LOCK && adx >= ady * 0.55) axis = "h";
+          else if (ady >= V_CANCEL && ady > adx * 1.6) axis = "v";
+          else if (adx >= H_LOCK && adx > ady) axis = "h";
+          else return;
         }
-        if (axis === "v") {
-          down = false; // yield — Job Details sheet can scroll
-          return;
-        }
+        if (axis === "v") { down = false; return; }
         beginScrub(e);
       }
 
@@ -19270,12 +19256,14 @@ function wireJobGallery(job) {
     };
     const onUp = (e) => {
       if (!down || (pointerId != null && e.pointerId !== pointerId)) return;
-      const moved = Math.hypot((e.clientX ?? lastX) - downX, (e.clientY ?? lastY) - downY);
-      if (moved > CLICK_SLOP || dragging) suppressClick = true;
+      const upX = e.clientX ?? lastX, upY = e.clientY ?? lastY;
+      const moved = Math.hypot(upX - downX, upY - downY);
       down = false; pointerId = null; axis = null;
       layoutEl.classList.remove("dragging");
       if (!dragging) {
         fan.classList.remove("jd-fan-scrubbing");
+        // Clean tap on the fan (including dead-center on the photo) → lightbox.
+        if (moved <= TAP_SLOP) openGalleryLightbox(job.id, center);
         return;
       }
       dragging = false;
@@ -19283,8 +19271,6 @@ function wireJobGallery(job) {
       let target = Math.round(projected);
       if (Math.abs(floatPos - center) < 0.12 && Math.abs(velX) < 0.2) target = center;
       snapTo(target);
-      // Keep suppressClick through the synthetic click that iOS fires after pointerup.
-      setTimeout(() => { suppressClick = false; }, 80);
     };
 
     layoutEl.addEventListener("pointerdown", onDown, { passive: true });
