@@ -4896,8 +4896,16 @@
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 14px 16px; border-bottom: 1px solid #1e293b; flex-shrink: 0;
   }
-  .jdg-grid-title { font-size: 14px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.01em; }
+  .jdg-grid-title { font-size: 14px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.01em; min-width: 0; }
   .jdg-grid-title span { color: #64748b; font-weight: 600; }
+  .jdg-grid-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .jdg-grid-select {
+    min-height: 36px; padding: 0 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    background: transparent; border: 1px solid #334155; color: #c9a558;
+  }
+  .jdg-grid-select:hover { border-color: rgba(201,165,88,0.55); background: rgba(181,143,74,0.08); }
+  #jdgGrid.selecting .jdg-grid-select { color: #e2e8f0; border-color: #475569; }
   .jdg-grid-close {
     width: 40px; height: 40px; border-radius: 999px; flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center;
@@ -4906,23 +4914,55 @@
   .jdg-grid-close:hover { color: #f1f5f9; border-color: #64748b; }
   .jdg-grid-cells {
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
-    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 16px 12px;
     overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto; min-height: 0;
   }
+  #jdgGrid:not(.selecting) .jdg-grid-cells { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
   @media (min-width: 640px) { .jdg-grid-cells { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; } }
   .jdg-grid-cell {
+    position: relative;
     aspect-ratio: 1; padding: 0; margin: 0; border: 0; border-radius: 10px; overflow: hidden;
     background: #020617; border: 1px solid rgba(51, 65, 85, 0.7); cursor: pointer;
-    transition: border-color .15s ease, transform .15s ease;
+    transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
   }
   .jdg-grid-cell:hover { border-color: rgba(201, 165, 88, 0.55); transform: translateY(-1px); }
   .jdg-grid-cell img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0b1120; pointer-events: none; }
+  .jdg-grid-check {
+    position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 999px;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(2,6,23,0.55); border: 1.5px solid rgba(226,232,240,0.55); color: #0b1120;
+    pointer-events: none;
+  }
+  #jdgGrid.selecting .jdg-grid-check { display: inline-flex; }
+  .jdg-grid-cell.selected { border-color: rgba(201,165,88,0.85); box-shadow: 0 0 0 2px rgba(201,165,88,0.35); }
+  .jdg-grid-cell.selected .jdg-grid-check {
+    background: #c9a558; border-color: #c9a558; color: #0b1120;
+  }
   .jdg-grid-empty { grid-column: 1 / -1; text-align: center; color: #64748b; font-size: 12px; font-weight: 600; padding: 28px 12px; }
+  .jdg-grid-bar {
+    display: none; gap: 8px; align-items: center;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid #1e293b; flex-shrink: 0; background: #0b1120;
+  }
+  #jdgGrid.selecting .jdg-grid-bar { display: flex; }
+  .jdg-grid-bar-count { flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 700; color: #94a3b8; }
+  .jdg-grid-bar-count b { color: #e2e8f0; }
+  .jdg-grid-bar-btn {
+    min-height: 40px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;
+    border: 1px solid #334155; background: transparent; color: #e2e8f0;
+  }
+  .jdg-grid-bar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .jdg-grid-bar-btn.dl { color: #c9a558; border-color: rgba(181,143,74,0.45); }
+  .jdg-grid-bar-btn.dl:hover:not(:disabled) { background: rgba(181,143,74,0.1); }
+  .jdg-grid-bar-btn.del { color: #fda4af; border-color: rgba(244,63,94,0.4); }
+  .jdg-grid-bar-btn.del:hover:not(:disabled) { background: rgba(244,63,94,0.12); }
   [data-theme="light"] .jdg-grid-sheet { background: #ffffff; border-color: #e2e8f0; }
-  [data-theme="light"] .jdg-grid-head { border-bottom-color: #e2e8f0; }
+  [data-theme="light"] .jdg-grid-head, [data-theme="light"] .jdg-grid-bar { border-color: #e2e8f0; background: #ffffff; }
   [data-theme="light"] .jdg-grid-title { color: #0f172a; }
   [data-theme="light"] .jdg-grid-close { border-color: #d6dae1; color: #64748b; }
   [data-theme="light"] .jdg-grid-cell { background: #f1f5f9; border-color: #d6dae1; }
+  [data-theme="light"] .jdg-grid-bar-count { color: #64748b; }
+  [data-theme="light"] .jdg-grid-bar-count b { color: #0f172a; }
   @media (pointer: coarse) { #jdGridView { min-height: 44px; padding-left: 6px; padding-right: 6px; } }
 
   .jd-doc-btn { font-size: 12px; font-weight: 700; border-radius: 10px; padding: 9px 8px; cursor: pointer; background: rgba(181,143,74,0.1); color: #c9a558; border: 1px solid rgba(181,143,74,0.4); transition: all .15s ease; }
@@ -18961,18 +19001,33 @@ async function addJobGalleryPhotos(id, dataUrls) {
 }
 
 async function removeJobGalleryPhoto(id, idx) {
+  return removeJobGalleryPhotos(id, [idx]);
+}
+/** Remove one or more gallery photos by index (descending splice, one save). */
+async function removeJobGalleryPhotos(id, idxs) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
-  if (!j || !Array.isArray(j.photos) || idx < 0 || idx >= j.photos.length) return;
-  const entry = j.photos.splice(idx, 1)[0];
-  if (entry && !/^data:/.test(entry) && sb && sb.storage) {
-    try { sb.storage.from(PHOTO_BUCKET).remove([entry]); delete _photoUrlCache[entry]; } catch (_) {}
+  if (!j || !Array.isArray(j.photos)) return 0;
+  const unique = [...new Set((idxs || []).map(n => Number(n)).filter(n => Number.isInteger(n) && n >= 0 && n < j.photos.length))]
+    .sort((a, b) => b - a);
+  if (!unique.length) return 0;
+  const removedPaths = [];
+  for (const idx of unique) {
+    const entry = j.photos.splice(idx, 1)[0];
+    if (entry && !/^data:/.test(entry)) {
+      removedPaths.push(entry);
+      try { delete _photoUrlCache[entry]; } catch (_) {}
+    }
+  }
+  if (removedPaths.length && sb && sb.storage) {
+    try { sb.storage.from(PHOTO_BUCKET).remove(removedPaths); } catch (_) {}
   }
   saveJobs(jobs);
   if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
   renderDashboard();
   if (_jdJobId === id) renderJobDetails(j);
   refreshGalleryGridIfOpen();
+  return unique.length;
 }
 
 // Section markup for the Job Details modal.
@@ -19022,40 +19077,57 @@ const _FAN = {
   y:      [4, 2, 1, 0, 1, 2, 4],
   z:      [1, 2, 3, 10, 3, 2, 1],
 };
-
+function _fanLerp(a, b, t) { return a + (b - a) * t; }
+function _fanWrapDelta(i, center, N) {
+  let d = i - center;
+  while (d > N / 2) d -= N;
+  while (d <= -N / 2) d += N;
+  return d;
+}
+/** Layout fan cards. `center` may be fractional during a finger scrub for smooth scroll. */
 function layoutJobFan(fan, center) {
   const cards = Array.from(fan.querySelectorAll(".fan-card"));
   const N = cards.length;
   if (!N) return;
   const cardW = cards[0].offsetWidth || 120;
-  // Clamp the fan spread so the outermost (rotated) cards never overflow the
-  // container — keeps it inside the modal on narrow phones.
   const avail = fan.clientWidth || fan.offsetWidth || 320;
   const maxFactor = Math.max(..._FAN.factor.map(Math.abs));
   const widest = maxFactor * cardW + cardW / 2;
   const xScale = widest > avail / 2 && widest > 0 ? (avail / 2) / widest : 1;
-  // Center-based rotating window: the `center` card sits at the front slot (3)
-  // and up to 7 cards fan out around it (wrapping). For <=7 photos every card
-  // shows; for more, the window scrolls as `center` changes (drag / arrows).
-  const V = Math.min(N, 7);
-  const loSlot = 3 - Math.floor((V - 1) / 2);
-  const hiSlot = 3 + Math.ceil((V - 1) / 2);
-  const slotOf = new Map();
-  for (let s = loSlot; s <= hiSlot; s++) slotOf.set(((center + (s - 3)) % N + N) % N, s);
+  // Normalize into a continuous [0, N) so wrapping stays smooth while scrubbing.
+  let c = Number(center);
+  if (!isFinite(c)) c = 0;
+  c = ((c % N) + N) % N;
+  const maxDist = Math.min(3.35, (N - 0.01) / 2);
   cards.forEach((card, i) => {
-    const slot = slotOf.get(i);
-    if (slot === undefined) {
+    const d = _fanWrapDelta(i, c, N);
+    if (Math.abs(d) > maxDist) {
       card.style.opacity = "0"; card.style.pointerEvents = "none"; card.style.zIndex = "0";
       card.style.transform = "translate(-50%,-50%) scale(0.5)";
       return;
     }
-    const x = _FAN.factor[slot] * cardW * xScale;
-    card.style.opacity = "1"; card.style.pointerEvents = "auto";
-    card.style.zIndex = String(_FAN.z[slot]);
-    card.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px, ${_FAN.y[slot]}px) rotate(${_FAN.rot[slot]}deg) scale(${_FAN.scale[slot]})`;
+    // Continuous slot = center slot (3) + delta; interpolate fan geometry between integers.
+    const slotF = 3 + d;
+    const s0 = Math.max(0, Math.min(6, Math.floor(slotF)));
+    const s1 = Math.max(0, Math.min(6, Math.ceil(slotF)));
+    const u = slotF - Math.floor(slotF);
+    const factor = _fanLerp(_FAN.factor[s0], _FAN.factor[s1], u);
+    const rot = _fanLerp(_FAN.rot[s0], _FAN.rot[s1], u);
+    const scale = _fanLerp(_FAN.scale[s0], _FAN.scale[s1], u);
+    const y = _fanLerp(_FAN.y[s0], _FAN.y[s1], u);
+    const z = Math.round(_fanLerp(_FAN.z[s0], _FAN.z[s1], u));
+    const x = factor * cardW * xScale;
+    const nearest = Math.abs(d) < 0.45;
+    card.style.opacity = "1";
+    card.style.pointerEvents = nearest ? "auto" : "none";
+    card.style.zIndex = String(Math.max(1, z));
+    card.style.transform = `translate(-50%,-50%) translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
   });
   const cur = fan.querySelector("[data-jdg-cur]");
-  if (cur) cur.textContent = String(center + 1);
+  if (cur) {
+    const nearest = ((Math.round(c) % N) + N) % N;
+    cur.textContent = String(nearest + 1);
+  }
 }
 
 function wireJobGallery(job) {
@@ -19070,10 +19142,15 @@ function wireJobGallery(job) {
   if (!fan) return;
   let center = parseInt(fan.dataset.jdgCenter || "0", 10) || 0;
   const total = jobGalleryList(job).length;
-  const relayout = () => layoutJobFan(fan, center);
+  const relayout = (c) => layoutJobFan(fan, c == null ? center : c);
   // Lay out once the modal is actually on screen (cards need a real width).
-  requestAnimationFrame(() => requestAnimationFrame(relayout));
-  const stepFan = (dir) => { if (total <= 1) return; center = (center + dir + total) % total; fan.dataset.jdgCenter = String(center); relayout(); };
+  requestAnimationFrame(() => requestAnimationFrame(() => relayout()));
+  const stepFan = (dir) => {
+    if (total <= 1) return;
+    center = (center + dir + total) % total;
+    fan.dataset.jdgCenter = String(center);
+    relayout();
+  };
   fan.querySelector("[data-jdg-prev]")?.addEventListener("click", () => stepFan(-1));
   fan.querySelector("[data-jdg-next]")?.addEventListener("click", () => stepFan(1));
 
@@ -19085,19 +19162,19 @@ function wireJobGallery(job) {
       openGalleryLightbox(job.id, parseInt(c.dataset.jdgIdx, 10) || 0);
     }));
 
-  // Drag / swipe to scroll the fan. Pointer events unify desktop click-drag and
-  // mobile touch-swipe; CSS touch-action:pan-y lets vertical page scroll pass
-  // through while we own horizontal drags. Scrubbing advances one card every
-  // STEP_PX; a flick on release advances one more when velocity is high.
+  // Continuous finger scrub: cards track drag offset in real time, then snap
+  // to the nearest photo on release (with a small velocity flick).
   const layoutEl = fan.querySelector(".jd-fan-layout");
   if (layoutEl && total > 1) {
-    const STEP_PX = 34, MOVE_TOL = 8, FLICK_VX = 0.35; // px/ms
-    let down = false, dragging = false, downX = 0, downY = 0, lastStepX = 0;
-    let lastMoveX = 0, lastMoveT = 0, velX = 0, movedSteps = 0;
+    const MOVE_TOL = 8, FLICK_VX = 0.4; // px/ms
+    let down = false, dragging = false, downX = 0, downY = 0;
+    let lastMoveX = 0, lastMoveT = 0, velX = 0, pxPerCard = 56;
     layoutEl.addEventListener("pointerdown", (e) => {
-      down = true; dragging = false; suppressClick = false; movedSteps = 0; velX = 0;
-      downX = lastStepX = lastMoveX = e.clientX; downY = e.clientY;
+      down = true; dragging = false; suppressClick = false; velX = 0;
+      downX = lastMoveX = e.clientX; downY = e.clientY;
       lastMoveT = performance.now();
+      const card = fan.querySelector(".fan-card");
+      pxPerCard = Math.max(42, (card && card.offsetWidth) ? card.offsetWidth * 0.52 : 56);
     });
     layoutEl.addEventListener("pointermove", (e) => {
       if (!down) return;
@@ -19114,22 +19191,22 @@ function wireJobGallery(job) {
       const dt = Math.max(1, now - lastMoveT);
       velX = (e.clientX - lastMoveX) / dt;
       lastMoveX = e.clientX; lastMoveT = now;
-      while (e.clientX <= lastStepX - STEP_PX) { stepFan(1); lastStepX -= STEP_PX; movedSteps++; }
-      while (e.clientX >= lastStepX + STEP_PX) { stepFan(-1); lastStepX += STEP_PX; movedSteps++; }
+      // Finger left → next photo (center increases).
+      const dragCards = (downX - e.clientX) / pxPerCard;
+      relayout(center + dragCards);
     });
     const endDrag = () => {
       if (!down) return;
       down = false;
       layoutEl.classList.remove("dragging");
       fan.classList.remove("jd-fan-scrubbing");
-      // Flick: if they released with speed and haven't already scrubbed far, advance once.
-      if (dragging && movedSteps === 0) {
-        if (velX <= -FLICK_VX) stepFan(1);
-        else if (velX >= FLICK_VX) stepFan(-1);
-        else if (Math.abs(lastMoveX - downX) > 28) stepFan(lastMoveX < downX ? 1 : -1);
-      } else if (dragging && movedSteps > 0 && Math.abs(velX) >= FLICK_VX * 1.4) {
-        if (velX <= -FLICK_VX) stepFan(1);
-        else if (velX >= FLICK_VX) stepFan(-1);
+      if (dragging) {
+        const dragCards = (downX - lastMoveX) / pxPerCard;
+        // Project a little from velocity so a flick lands on the next card.
+        const projected = center + dragCards - (velX * 140) / pxPerCard;
+        center = ((Math.round(projected) % total) + total) % total;
+        fan.dataset.jdgCenter = String(center);
+        relayout();
       }
       dragging = false;
     };
@@ -19261,6 +19338,8 @@ async function lightboxDelete() {
 
 /* ----- All-photos grid view (alternative to the fan carousel) ----- */
 let _gridJobId = null;
+let _gridSelectMode = false;
+const _gridSelected = new Set(); // indices into job.photos
 
 function ensureGalleryGrid() {
   let g = document.getElementById("jdgGrid");
@@ -19274,27 +19353,79 @@ function ensureGalleryGrid() {
     `<div class="jdg-grid-sheet">
        <div class="jdg-grid-head">
          <div class="jdg-grid-title" id="jdgGridTitle">All photos</div>
-         <button type="button" class="jdg-grid-close" data-jdg-grid-close aria-label="Close grid view">
-           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-         </button>
+         <div class="jdg-grid-head-actions">
+           <button type="button" class="jdg-grid-select" id="jdgGridSelect" aria-pressed="false">Select</button>
+           <button type="button" class="jdg-grid-close" data-jdg-grid-close aria-label="Close grid view">
+             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+           </button>
+         </div>
        </div>
        <div class="jdg-grid-cells" id="jdgGridCells"></div>
+       <div class="jdg-grid-bar" id="jdgGridBar">
+         <div class="jdg-grid-bar-count" id="jdgGridBarCount"><b>0</b> selected</div>
+         <button type="button" class="jdg-grid-bar-btn dl" id="jdgGridDownload" disabled>Download</button>
+         <button type="button" class="jdg-grid-bar-btn del" id="jdgGridDelete" disabled>Delete</button>
+       </div>
      </div>`;
   document.body.appendChild(g);
   g.querySelector("[data-jdg-grid-close]").addEventListener("click", closeGalleryGrid);
   g.addEventListener("click", (e) => { if (e.target === g) closeGalleryGrid(); });
+  g.querySelector("#jdgGridSelect").addEventListener("click", () => setGalleryGridSelectMode(!_gridSelectMode));
+  g.querySelector("#jdgGridDownload").addEventListener("click", () => downloadSelectedGalleryPhotos());
+  g.querySelector("#jdgGridDelete").addEventListener("click", () => deleteSelectedGalleryPhotos());
   g.querySelector("#jdgGridCells").addEventListener("click", (e) => {
     const cell = e.target.closest("[data-jdg-grid-idx]");
     if (!cell || _gridJobId == null) return;
     const idx = parseInt(cell.dataset.jdgGridIdx, 10) || 0;
+    if (_gridSelectMode) {
+      toggleGalleryGridSelection(idx, cell);
+      return;
+    }
     openGalleryLightbox(_gridJobId, idx);
   });
   return g;
+}
+function setGalleryGridSelectMode(on) {
+  _gridSelectMode = !!on;
+  if (!_gridSelectMode) _gridSelected.clear();
+  const g = document.getElementById("jdgGrid");
+  if (!g) return;
+  g.classList.toggle("selecting", _gridSelectMode);
+  const btn = g.querySelector("#jdgGridSelect");
+  if (btn) {
+    btn.textContent = _gridSelectMode ? "Cancel" : "Select";
+    btn.setAttribute("aria-pressed", _gridSelectMode ? "true" : "false");
+  }
+  syncGalleryGridSelectionUI();
+}
+function toggleGalleryGridSelection(idx, cellEl) {
+  if (_gridSelected.has(idx)) _gridSelected.delete(idx);
+  else _gridSelected.add(idx);
+  if (cellEl) cellEl.classList.toggle("selected", _gridSelected.has(idx));
+  syncGalleryGridSelectionUI();
+}
+function syncGalleryGridSelectionUI() {
+  const g = document.getElementById("jdgGrid");
+  if (!g) return;
+  const n = _gridSelected.size;
+  const count = g.querySelector("#jdgGridBarCount");
+  if (count) count.innerHTML = `<b>${n}</b> selected`;
+  const dl = g.querySelector("#jdgGridDownload");
+  const del = g.querySelector("#jdgGridDelete");
+  if (dl) dl.disabled = n === 0;
+  if (del) del.disabled = n === 0;
+  g.querySelectorAll("[data-jdg-grid-idx]").forEach((cell) => {
+    const idx = parseInt(cell.dataset.jdgGridIdx, 10);
+    cell.classList.toggle("selected", _gridSelected.has(idx));
+    cell.setAttribute("aria-pressed", _gridSelectMode && _gridSelected.has(idx) ? "true" : "false");
+  });
 }
 function fillGalleryGrid(jobId) {
   const g = ensureGalleryGrid();
   const job = loadJobs().find(x => x.id === jobId);
   const photos = job ? jobGalleryList(job) : [];
+  // Drop selections that no longer exist after a delete.
+  [..._gridSelected].forEach((i) => { if (i < 0 || i >= photos.length) _gridSelected.delete(i); });
   const title = g.querySelector("#jdgGridTitle");
   if (title) title.innerHTML = photos.length
     ? `All photos <span>· ${photos.length}</span>`
@@ -19303,17 +19434,22 @@ function fillGalleryGrid(jobId) {
   if (!cells) return;
   if (!photos.length) {
     cells.innerHTML = `<div class="jdg-grid-empty">No installation photos yet.</div>`;
+    setGalleryGridSelectMode(false);
     return;
   }
+  const checkSvg = `<span class="jdg-grid-check" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>`;
   cells.innerHTML = photos.map((entry, i) => {
     const isData = /^data:/.test(entry);
     const imgAttr = isData ? `src="${escHtml(entry)}"` : `data-photo-path="${escHtml(entry)}"`;
-    return `<button type="button" class="jdg-grid-cell" data-jdg-grid-idx="${i}" aria-label="View installation photo ${i + 1}"><img ${imgAttr} alt="Installation photo ${i + 1}" loading="lazy"></button>`;
+    const sel = _gridSelected.has(i) ? " selected" : "";
+    return `<button type="button" class="jdg-grid-cell${sel}" data-jdg-grid-idx="${i}" aria-label="Installation photo ${i + 1}" aria-pressed="${_gridSelectMode && _gridSelected.has(i) ? "true" : "false}"><img ${imgAttr} alt="Installation photo ${i + 1}" loading="lazy">${checkSvg}</button>`;
   }).join("");
   hydratePhotoThumbs(cells);
+  syncGalleryGridSelectionUI();
 }
 function openGalleryGrid(jobId) {
   _gridJobId = jobId;
+  setGalleryGridSelectMode(false);
   const g = ensureGalleryGrid();
   fillGalleryGrid(jobId);
   const photos = jobGalleryList(loadJobs().find(x => x.id === jobId) || {});
@@ -19324,8 +19460,10 @@ function openGalleryGrid(jobId) {
 }
 function closeGalleryGrid() {
   const g = document.getElementById("jdgGrid");
-  if (g) { g.classList.remove("open"); releaseDialog(g); }
+  if (g) { g.classList.remove("open", "selecting"); releaseDialog(g); }
   _gridJobId = null;
+  _gridSelectMode = false;
+  _gridSelected.clear();
 }
 function refreshGalleryGridIfOpen() {
   const g = document.getElementById("jdgGrid");
@@ -19333,6 +19471,60 @@ function refreshGalleryGridIfOpen() {
   const photos = jobGalleryList(loadJobs().find(x => x.id === _gridJobId) || {});
   if (!photos.length) { closeGalleryGrid(); return; }
   fillGalleryGrid(_gridJobId);
+}
+async function galleryPhotoToBlob(entry) {
+  if (!entry) return null;
+  if (/^data:/.test(entry)) return dataURLToBlob(entry);
+  const url = await resolveSignedPhotoURL(entry);
+  if (!url) return null;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  return await res.blob();
+}
+async function downloadSelectedGalleryPhotos() {
+  if (_gridJobId == null || !_gridSelected.size) return;
+  const job = loadJobs().find(x => x.id === _gridJobId);
+  const photos = job ? jobGalleryList(job) : [];
+  const idxs = [..._gridSelected].sort((a, b) => a - b);
+  const files = [];
+  for (const i of idxs) {
+    const blob = await galleryPhotoToBlob(photos[i]);
+    if (!blob) continue;
+    const ext = (blob.type && blob.type.includes("png")) ? "png" : "jpg";
+    files.push(new File([blob], `install-photo-${i + 1}.${ext}`, { type: blob.type || "image/jpeg" }));
+  }
+  if (!files.length) { toast("Couldn't download those photos"); return; }
+  try {
+    if (navigator.canShare && navigator.canShare({ files })) {
+      await navigator.share({ files, title: "Installation photos" });
+      try { window.track("job_photos_shared", { count: files.length }); } catch (_) {}
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+  }
+  // Desktop / browsers without file share: trigger downloads one by one.
+  for (let i = 0; i < files.length; i++) {
+    const url = URL.createObjectURL(files[i]);
+    const a = document.createElement("a");
+    a.href = url; a.download = files[i].name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    if (i < files.length - 1) await new Promise(r => setTimeout(r, 250));
+  }
+  toast(files.length === 1 ? "Photo downloaded" : `${files.length} photos downloaded`);
+  try { window.track("job_photos_downloaded", { count: files.length }); } catch (_) {}
+}
+async function deleteSelectedGalleryPhotos() {
+  if (_gridJobId == null || !_gridSelected.size) return;
+  const n = _gridSelected.size;
+  if (!confirm(n === 1 ? "Remove this photo? This can't be undone." : `Remove ${n} photos? This can't be undone.`)) return;
+  const idxs = [..._gridSelected];
+  const jobId = _gridJobId;
+  _gridSelected.clear();
+  await removeJobGalleryPhotos(jobId, idxs);
+  toast(n === 1 ? "Photo removed" : `${n} photos removed`);
+  try { window.track("job_photos_bulk_deleted", { count: n }); } catch (_) {}
 }
 
 /* ============================================================
