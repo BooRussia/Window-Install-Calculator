@@ -4804,17 +4804,19 @@
 
   /* ---- Installation-photo fan carousel (job profile) ---- */
   .jd-fan { position: relative; width: 100%; }
-  .jd-fan-layout { position: relative; height: 300px; width: 100%; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+  .jd-fan-layout { position: relative; height: 280px; width: 100%; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
   .jd-fan-layout.dragging { cursor: grabbing; }
-  @media (min-width: 640px) { .jd-fan-layout { height: 384px; } }
+  @media (min-width: 640px) { .jd-fan-layout { height: 360px; } }
   .fan-card {
     position: absolute; top: 50%; left: 50%;
-    width: 138px; height: 194px; padding: 0; margin: 0; border: 0; background: transparent;
+    width: 172px; height: 242px; padding: 0; margin: 0; border: 0; background: transparent;
     opacity: 0; transform: translate(-50%, -50%) scale(0.6); transform-origin: center center;
     cursor: pointer; will-change: transform, opacity;
-    transition: transform .55s cubic-bezier(.34,1.4,.5,1), opacity .4s ease;
+    transition: transform .42s cubic-bezier(.22,1,.36,1), opacity .28s ease;
   }
-  @media (min-width: 640px) { .fan-card { width: 178px; height: 248px; } }
+  @media (min-width: 640px) { .fan-card { width: 210px; height: 294px; } }
+  /* While finger-scrubbing, drop the spring so cards track the swipe immediately. */
+  .jd-fan.jd-fan-scrubbing .fan-card { transition: transform .05s linear, opacity .05s linear; }
   .fan-card:hover { z-index: 30 !important; }
   .fan-card-inner {
     width: 100%; height: 100%; border-radius: 14px; overflow: hidden; display: block;
@@ -4822,7 +4824,7 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.45);
     transition: transform .4s cubic-bezier(.34,1.4,.5,1), box-shadow .3s ease, border-color .3s ease;
   }
-  .fan-card:hover .fan-card-inner { transform: translateY(-12px) scale(1.05); border-color: rgba(201,165,88,0.7); box-shadow: 0 18px 44px rgba(0,0,0,0.6); }
+  .fan-card:hover .fan-card-inner { transform: translateY(-8px) scale(1.03); border-color: rgba(201,165,88,0.7); box-shadow: 0 18px 44px rgba(0,0,0,0.6); }
   .fan-card-img { width: 100%; height: 100%; object-fit: cover; display: block; background: #0b1120; -webkit-user-drag: none; user-select: none; pointer-events: none; }
   .fan-card-zoom { position: absolute; right: 6px; bottom: 6px; width: 22px; height: 22px; border-radius: 999px; background: rgba(2,6,23,0.65); color: #e2cf9a; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .25s ease; pointer-events: none; }
   .fan-card:hover .fan-card-zoom { opacity: 1; }
@@ -4832,11 +4834,11 @@
   .jd-fan-empty svg { color: #94a3b8; margin-bottom: 3px; }
   .jd-fan-empty:hover svg { color: #c9a558; }
   .jd-fan-empty-sub { font-size: 10.5px; font-weight: 500; color: #64748b; }
-  .jd-gallery-hint { font-size: 10px; color: #64748b; margin: 0 0 8px; line-height: 1.4; }
+  .jd-gallery-hint { font-size: 10px; color: #64748b; margin: 0 0 6px; line-height: 1.4; }
   [data-theme="light"] .jd-fan-empty { color: #64748b; border-color: #d6dae1; }
   [data-theme="light"] .jd-fan-empty:hover { color: #8a6a2e; border-color: rgba(138,106,46,0.4); }
   @media (pointer: coarse) { #jdAddPhotos { min-height: 44px; padding-left: 6px; padding-right: 6px; } }
-  .jd-fan-controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px; }
+  .jd-fan-controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 6px; }
   .jd-fan-arrow { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 999px; border: 1.5px solid rgba(181,143,74,0.35); background: rgba(181,143,74,0.08); color: #c9a558; cursor: pointer; transition: all .2s ease; }
   .jd-fan-arrow:hover { border-color: #c9a558; background: rgba(181,143,74,0.16); }
   /* DS-7: the .jd-fan-dots / .jd-fan-dot carousel-dot rules were dead CSS — the
@@ -4846,18 +4848,24 @@
   /* ---- Full-photo lightbox (click a card to expand; landscape shown whole) ---- */
   #jdgLightbox { position: fixed; inset: 0; z-index: 120; display: none; align-items: center; justify-content: center; background: rgba(2,6,23,0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
   #jdgLightbox.open { display: flex; }
-  .jdg-stage { position: relative; max-width: 94vw; max-height: 86vh; display: flex; align-items: center; justify-content: center; }
-  .jdg-img { max-width: 94vw; max-height: 86vh; width: auto; height: auto; object-fit: contain; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,0.7); background: #0b1120; }
-  .jdg-btn { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(2,6,23,0.6); border: 1.5px solid rgba(255,255,255,0.18); color: #fff; cursor: pointer; backdrop-filter: blur(8px); transition: all .2s ease; }
+  /* Stage paints under chrome — prev was DOM-before-stage so a 94vw image covered the back arrow. */
+  .jdg-stage { position: relative; z-index: 1; max-width: 86vw; max-height: 86vh; display: flex; align-items: center; justify-content: center; }
+  .jdg-img { max-width: 86vw; max-height: 86vh; width: auto; height: auto; object-fit: contain; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,0.7); background: #0b1120; }
+  .jdg-btn { position: absolute; z-index: 3; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(2,6,23,0.6); border: 1.5px solid rgba(255,255,255,0.18); color: #fff; cursor: pointer; backdrop-filter: blur(8px); transition: all .2s ease; }
   .jdg-btn:hover { background: rgba(2,6,23,0.85); border-color: rgba(255,255,255,0.4); }
   .jdg-nav { width: 46px; height: 46px; top: 50%; transform: translateY(-50%); }
   .jdg-prev { left: 14px; } .jdg-next { right: 14px; }
   .jdg-close { width: 40px; height: 40px; top: 16px; right: 16px; }
   .jdg-del { top: 16px; left: 16px; width: auto; height: 36px; padding: 0 14px; gap: 6px; font-size: 12px; font-weight: 700; color: #fda4af; border-color: rgba(244,63,94,0.4); }
   .jdg-del:hover { background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.7); color: #fecdd3; }
-  .jdg-count { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.75); background: rgba(2,6,23,0.55); border-radius: 999px; padding: 4px 12px; }
+  .jdg-count { position: absolute; z-index: 3; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.75); background: rgba(2,6,23,0.55); border-radius: 999px; padding: 4px 12px; }
   /* PHOTO-8: keep the lightbox arrows at the 44px tap floor on phones (was 38px). */
-  @media (max-width: 640px) { .jdg-nav { width: 44px; height: 44px; } .jdg-prev { left: 6px; } .jdg-next { right: 6px; } }
+  @media (max-width: 640px) {
+    .jdg-nav { width: 44px; height: 44px; }
+    .jdg-prev { left: max(8px, env(safe-area-inset-left, 0px)); }
+    .jdg-next { right: max(8px, env(safe-area-inset-right, 0px)); }
+    .jdg-stage, .jdg-img { max-width: 78vw; }
+  }
 
   /* ---- Installation-photo grid view (all thumbs; opens over Job Details) ---- */
   #jdgGrid {
@@ -19001,11 +19009,12 @@ function jobGalleryHTML(job) {
 }
 
 // Fan slot geometry (center slot = index 3). x is a fraction of card width.
+// Tighter y/rot so larger cards still fit without huge vertical padding.
 const _FAN = {
-  factor: [-0.85, -0.58, -0.29, 0, 0.29, 0.58, 0.85],
-  rot:    [-21, -14, -7, 0, 7, 14, 21],
-  scale:  [0.78, 0.85, 0.93, 1, 0.93, 0.85, 0.78],
-  y:      [16, 9, 3, 0, 3, 9, 16],
+  factor: [-0.78, -0.52, -0.26, 0, 0.26, 0.52, 0.78],
+  rot:    [-16, -11, -5, 0, 5, 11, 16],
+  scale:  [0.8, 0.87, 0.94, 1, 0.94, 0.87, 0.8],
+  y:      [10, 6, 2, 0, 2, 6, 10],
   z:      [1, 2, 3, 10, 3, 2, 1],
 };
 
@@ -19073,15 +19082,17 @@ function wireJobGallery(job) {
 
   // Drag / swipe to scroll the fan. Pointer events unify desktop click-drag and
   // mobile touch-swipe; CSS touch-action:pan-y lets vertical page scroll pass
-  // through while we own horizontal drags. Each STEP_PX advances one card —
-  // drag/swipe left = next, right = previous.
+  // through while we own horizontal drags. Scrubbing advances one card every
+  // STEP_PX; a flick on release advances one more when velocity is high.
   const layoutEl = fan.querySelector(".jd-fan-layout");
   if (layoutEl && total > 1) {
-    const STEP_PX = 46, MOVE_TOL = 8;
+    const STEP_PX = 34, MOVE_TOL = 8, FLICK_VX = 0.35; // px/ms
     let down = false, dragging = false, downX = 0, downY = 0, lastStepX = 0;
+    let lastMoveX = 0, lastMoveT = 0, velX = 0, movedSteps = 0;
     layoutEl.addEventListener("pointerdown", (e) => {
-      down = true; dragging = false; suppressClick = false;
-      downX = lastStepX = e.clientX; downY = e.clientY;
+      down = true; dragging = false; suppressClick = false; movedSteps = 0; velX = 0;
+      downX = lastStepX = lastMoveX = e.clientX; downY = e.clientY;
+      lastMoveT = performance.now();
     });
     layoutEl.addEventListener("pointermove", (e) => {
       if (!down) return;
@@ -19089,13 +19100,34 @@ function wireJobGallery(job) {
       if (!dragging) {
         if (Math.abs(dx) < MOVE_TOL) return;
         if (Math.abs(dx) < Math.abs(dy)) { down = false; return; }   // vertical intent → let the modal scroll
-        dragging = true; suppressClick = true; layoutEl.classList.add("dragging");
+        dragging = true; suppressClick = true;
+        layoutEl.classList.add("dragging");
+        fan.classList.add("jd-fan-scrubbing");
         try { layoutEl.setPointerCapture(e.pointerId); } catch (_) {}
       }
-      while (e.clientX <= lastStepX - STEP_PX) { stepFan(1); lastStepX -= STEP_PX; }
-      while (e.clientX >= lastStepX + STEP_PX) { stepFan(-1); lastStepX += STEP_PX; }
+      const now = performance.now();
+      const dt = Math.max(1, now - lastMoveT);
+      velX = (e.clientX - lastMoveX) / dt;
+      lastMoveX = e.clientX; lastMoveT = now;
+      while (e.clientX <= lastStepX - STEP_PX) { stepFan(1); lastStepX -= STEP_PX; movedSteps++; }
+      while (e.clientX >= lastStepX + STEP_PX) { stepFan(-1); lastStepX += STEP_PX; movedSteps++; }
     });
-    const endDrag = () => { down = false; layoutEl.classList.remove("dragging"); };
+    const endDrag = () => {
+      if (!down) return;
+      down = false;
+      layoutEl.classList.remove("dragging");
+      fan.classList.remove("jd-fan-scrubbing");
+      // Flick: if they released with speed and haven't already scrubbed far, advance once.
+      if (dragging && movedSteps === 0) {
+        if (velX <= -FLICK_VX) stepFan(1);
+        else if (velX >= FLICK_VX) stepFan(-1);
+        else if (Math.abs(lastMoveX - downX) > 28) stepFan(lastMoveX < downX ? 1 : -1);
+      } else if (dragging && movedSteps > 0 && Math.abs(velX) >= FLICK_VX * 1.4) {
+        if (velX <= -FLICK_VX) stepFan(1);
+        else if (velX >= FLICK_VX) stepFan(-1);
+      }
+      dragging = false;
+    };
     layoutEl.addEventListener("pointerup", endDrag);
     layoutEl.addEventListener("pointercancel", endDrag);
   }
@@ -20019,6 +20051,8 @@ function jdDetailsDirty() {
 function closeJobDetails(opts) {
   if (jdDetailsDirty() && !confirm("Discard your unsaved changes to this job's details?")) return false;
   _jdJobId = null;
+  try { closeGalleryLightbox(); } catch (_) {}
+  try { closeGalleryGrid(); } catch (_) {}
   const m = document.getElementById("jobDetailsModal");
   if (opts && opts.fromDrag) closeJobDetailsInstant();
   else tvDismiss(m, () => { try { document.body.classList.remove("jd-open"); } catch (_) {} });
@@ -20029,6 +20063,8 @@ function closeJobDetails(opts) {
 function closeJobDetailsInstant() {
   const m = document.getElementById("jobDetailsModal");
   if (!m) return;
+  try { closeGalleryLightbox(); } catch (_) {}
+  try { closeGalleryGrid(); } catch (_) {}
   if (m._tvCloseTimer) { clearTimeout(m._tvCloseTimer); m._tvCloseTimer = 0; }
   const card = m.querySelector(".modal-backdrop + div, :scope > .card");
   if (card) {
