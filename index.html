@@ -4823,10 +4823,16 @@
     transition: transform .38s cubic-bezier(.22,1,.36,1), opacity .22s ease;
   }
   @media (min-width: 640px) { .fan-card { width: 240px; height: 350px; } }
-  /* Finger scrub: zero transition so cards stick 1:1 to the finger. */
-  .jd-fan.jd-fan-scrubbing .fan-card { transition: none !important; }
+  /* Finger scrub: zero transition so cards stick 1:1 to the finger.
+     Kill card hit-testing while scrubbing so a press-and-drag on a photo
+     can’t turn into a click mid-swipe. */
+  .jd-fan.jd-fan-scrubbing .fan-card {
+    transition: none !important;
+    pointer-events: none !important;
+  }
   /* Inertia coast: short ease, no spring overshoot (overshoot feels jumpy on phones). */
   .jd-fan.jd-fan-coasting .fan-card { transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .2s ease; }
+  .fan-card { touch-action: none; }
   .fan-card:hover { z-index: 30 !important; }
   .fan-card-inner {
     width: 100%; height: 100%; border-radius: 14px; overflow: hidden; display: block;
@@ -19183,90 +19189,110 @@ function wireJobGallery(job) {
   fan.querySelector("[data-jdg-prev]")?.addEventListener("click", () => stepFan(-1));
   fan.querySelector("[data-jdg-next]")?.addEventListener("click", () => stepFan(1));
 
-  // Click a card to expand — unless the pointer was dragging (swipe / scrub).
+  // Click a card to expand — never if this pointer moved (slow swipe ≠ tap).
   let suppressClick = false;
   fan.querySelectorAll("[data-jdg-idx]").forEach((c) =>
     c.addEventListener("click", (e) => {
-      if (suppressClick) { suppressClick = false; e.preventDefault(); e.stopPropagation(); return; }
+      if (suppressClick) { e.preventDefault(); e.stopPropagation(); return; }
       openGalleryLightbox(job.id, parseInt(c.dataset.jdgIdx, 10) || 0);
     }));
 
-  // Mobile-first continuous scrub. touch-action:none on the layout means we own
-  // the gesture; vertical page scroll happens from outside the fan strip.
+  // Press-and-drag scrub: once the finger moves horizontally at all, we own it —
+  // even a slow drag on a photo must scroll, not open the lightbox.
   const layoutEl = fan.querySelector(".jd-fan-layout");
   if (layoutEl && total > 1) {
-    const LOCK_PX = 6;
-    let down = false, dragging = false, pointerId = null;
-    let downX = 0, downY = 0, lastX = 0, lastT = 0, velX = 0, pxPerCard = 70;
-    const samples = []; // recent move samples for a stabler flick velocity
+    const H_LOCK = 3;          // px horizontal → start scrub (very low so slow swipes count)
+    const V_CANCEL = 18;       // px vertical needed before we yield to page scroll
+    const CLICK_SLOP = 7;      // any movement past this kills the tap
+    let down = false, dragging = false, pointerId = null, axis = null; // null | 'h' | 'v'
+    let downX = 0, downY = 0, lastX = 0, lastY = 0, velX = 0, pxPerCard = 70;
+    const samples = [];
 
+    const beginScrub = (e) => {
+      if (dragging) return;
+      dragging = true;
+      axis = "h";
+      suppressClick = true;
+      layoutEl.classList.add("dragging");
+      fan.classList.add("jd-fan-scrubbing");
+      try { layoutEl.setPointerCapture(e.pointerId); } catch (_) {}
+    };
     const onDown = (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      down = true; dragging = false; suppressClick = false;
+      down = true; dragging = false; axis = null; suppressClick = false;
       pointerId = e.pointerId;
-      downX = lastX = e.clientX; downY = e.clientY;
-      lastT = performance.now(); velX = 0; samples.length = 0;
+      downX = lastX = e.clientX; downY = lastY = e.clientY;
+      velX = 0; samples.length = 0;
       floatPos = center;
       const card = fan.querySelector(".fan-card");
-      // Slightly sensitive so a short swipe advances ~one card without a long drag.
       pxPerCard = Math.max(48, (card && card.offsetWidth) ? card.offsetWidth * 0.38 : 70);
       fan.classList.remove("jd-fan-coasting");
-      // Don't capture yet — wait until the gesture locks horizontal so a
-      // downward flick can still scroll the Job Details sheet.
     };
     const onMove = (e) => {
       if (!down || (pointerId != null && e.pointerId !== pointerId)) return;
       const dx = e.clientX - downX, dy = e.clientY - downY;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+
       if (!dragging) {
-        if (Math.abs(dx) < LOCK_PX && Math.abs(dy) < LOCK_PX) return;
-        // Vertical wins → drop the gesture; sheet scroll keeps the touch.
-        if (Math.abs(dy) > Math.abs(dx) * 1.25) {
-          down = false;
+        // Any real movement means this isn't a clean tap.
+        if (adx > CLICK_SLOP || ady > CLICK_SLOP) suppressClick = true;
+
+        if (axis == null) {
+          // Bias hard toward horizontal — slow swipes are often a bit diagonal.
+          if (adx >= H_LOCK && adx >= ady * 0.55) {
+            axis = "h";
+          } else if (ady >= V_CANCEL && ady > adx * 1.6) {
+            axis = "v";
+          } else if (adx >= H_LOCK && adx > ady) {
+            axis = "h";
+          } else {
+            return; // still deciding
+          }
+        }
+        if (axis === "v") {
+          down = false; // yield — Job Details sheet can scroll
           return;
         }
-        dragging = true; suppressClick = true;
-        layoutEl.classList.add("dragging");
-        fan.classList.add("jd-fan-scrubbing");
-        try { layoutEl.setPointerCapture(e.pointerId); } catch (_) {}
+        beginScrub(e);
       }
+
       try { e.preventDefault(); } catch (_) {}
       const now = performance.now();
       samples.push({ x: e.clientX, t: now });
       while (samples.length > 5) samples.shift();
       if (samples.length >= 2) {
         const a = samples[0], b = samples[samples.length - 1];
-        const dt = Math.max(1, b.t - a.t);
-        velX = (b.x - a.x) / dt; // px/ms
+        velX = (b.x - a.x) / Math.max(1, b.t - a.t);
       }
-      lastX = e.clientX; lastT = now;
-      // Finger left → next photo (floatPos increases).
+      lastX = e.clientX; lastY = e.clientY;
       floatPos = center + (downX - e.clientX) / pxPerCard;
       relayout(floatPos);
     };
     const onUp = (e) => {
       if (!down || (pointerId != null && e.pointerId !== pointerId)) return;
-      down = false; pointerId = null;
+      const moved = Math.hypot((e.clientX ?? lastX) - downX, (e.clientY ?? lastY) - downY);
+      if (moved > CLICK_SLOP || dragging) suppressClick = true;
+      down = false; pointerId = null; axis = null;
       layoutEl.classList.remove("dragging");
       if (!dragging) {
         fan.classList.remove("jd-fan-scrubbing");
         return;
       }
       dragging = false;
-      // Project from velocity so a flick coasts to the next card.
       const projected = floatPos - (velX * 160) / pxPerCard;
       let target = Math.round(projected);
-      // Tiny tap-drags: if they moved less than ~15% of a card and slow, stay put.
-      if (Math.abs(floatPos - center) < 0.15 && Math.abs(velX) < 0.25) target = center;
+      if (Math.abs(floatPos - center) < 0.12 && Math.abs(velX) < 0.2) target = center;
       snapTo(target);
+      // Keep suppressClick through the synthetic click that iOS fires after pointerup.
+      setTimeout(() => { suppressClick = false; }, 80);
     };
 
     layoutEl.addEventListener("pointerdown", onDown, { passive: true });
     layoutEl.addEventListener("pointermove", onMove, { passive: false });
     layoutEl.addEventListener("pointerup", onUp);
     layoutEl.addEventListener("pointercancel", onUp);
-    // iOS sometimes delivers touch events without a matching pointerup after capture loss.
     layoutEl.addEventListener("lostpointercapture", () => {
-      if (down) onUp({ pointerId });
+      if (down) onUp({ pointerId, clientX: lastX, clientY: lastY });
     });
   }
   if (!window._jdFanResizeBound) {
