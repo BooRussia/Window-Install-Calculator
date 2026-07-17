@@ -976,6 +976,24 @@
     box-shadow: 0 8px 22px rgba(0,0,0,0.35);
   }
   .addr-map-locate:disabled { opacity: 0.5; cursor: wait; }
+  .addr-map-layers {
+    position: absolute; left: 12px; bottom: 12px; z-index: 6;
+    display: inline-flex; align-items: stretch;
+    border-radius: 999px; overflow: hidden;
+    border: 1px solid rgba(181,143,74,0.45);
+    background: rgba(8,13,24,0.92);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+  }
+  .addr-map-layers button {
+    appearance: none; border: 0; background: transparent; color: #94a3b8;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+    padding: 0 12px; min-height: 44px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .addr-map-layers button + button { border-left: 1px solid rgba(148,163,184,0.22); }
+  .addr-map-layers button[aria-pressed="true"] {
+    background: rgba(181,143,74,0.22); color: #e2cf9a;
+  }
   .addr-map-foot {
     flex: 0 0 auto;
     padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
@@ -23030,6 +23048,8 @@ let _addrMap = null;
 let _addrMapReady = null;
 let _addrMapGeocodeTimer = 0;
 let _addrMapLast = { lat: null, lng: null, label: "", ok: false };
+let _addrMapLayers = { street: null, satellite: null };
+let _addrMapLayerMode = "street"; // "street" | "satellite"
 
 function ensureLeaflet() {
   if (window.L) return Promise.resolve(window.L);
@@ -23079,6 +23099,10 @@ function ensureAddressMapModal() {
            <circle cx="18" cy="18" r="6.5" fill="#0b1120"/>
          </svg>
        </div>
+       <div class="addr-map-layers" id="addrMapLayers" role="group" aria-label="Map type">
+         <button type="button" data-addr-layer="street" aria-pressed="true">Map</button>
+         <button type="button" data-addr-layer="satellite" aria-pressed="false">Satellite</button>
+       </div>
        <button type="button" class="addr-map-locate" id="addrMapLocate" aria-label="Use my current location" title="My location">
          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
        </button>
@@ -23092,6 +23116,11 @@ function ensureAddressMapModal() {
   m.querySelector("[data-addr-map-close]").addEventListener("click", closeAddressMapPicker);
   m.querySelector("#addrMapDone").addEventListener("click", confirmAddressMapPicker);
   m.querySelector("#addrMapLocate").addEventListener("click", () => centerAddressMapOnDevice({ force: true }));
+  m.querySelector("#addrMapLayers")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-addr-layer]");
+    if (!btn) return;
+    setAddressMapLayer(btn.getAttribute("data-addr-layer"));
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && m.classList.contains("open")) closeAddressMapPicker();
   });
@@ -23207,6 +23236,31 @@ function centerAddressMapOnDevice(opts) {
   );
 }
 
+function syncAddressMapLayerUI() {
+  const root = document.getElementById("addrMapLayers");
+  if (!root) return;
+  root.querySelectorAll("[data-addr-layer]").forEach((b) => {
+    const on = b.getAttribute("data-addr-layer") === _addrMapLayerMode;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+function setAddressMapLayer(mode) {
+  if (mode !== "street" && mode !== "satellite") return;
+  if (!_addrMap || !_addrMapLayers.street || !_addrMapLayers.satellite) {
+    _addrMapLayerMode = mode;
+    syncAddressMapLayerUI();
+    return;
+  }
+  if (_addrMapLayerMode === mode) { syncAddressMapLayerUI(); return; }
+  const next = mode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street;
+  const prev = mode === "satellite" ? _addrMapLayers.street : _addrMapLayers.satellite;
+  try { if (_addrMap.hasLayer(prev)) _addrMap.removeLayer(prev); } catch (_) {}
+  try { if (!_addrMap.hasLayer(next)) next.addTo(_addrMap); } catch (_) {}
+  _addrMapLayerMode = mode;
+  syncAddressMapLayerUI();
+}
+
 async function openAddressMapPicker(inputId) {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -23225,10 +23279,17 @@ async function openAddressMapPicker(inputId) {
         attributionControl: true,
         maxZoom: 19,
       }).setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      _addrMapLayers.street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(_addrMap);
+      });
+      // Esri World Imagery — free satellite basemap (no API key).
+      _addrMapLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics',
+      });
+      (_addrMapLayerMode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street).addTo(_addrMap);
+      syncAddressMapLayerUI();
       _addrMap.on("movestart zoomstart", () => { if (pin) pin.classList.add("is-lifted"); });
       _addrMap.on("moveend zoomend", () => {
         if (pin) pin.classList.remove("is-lifted");
@@ -23236,8 +23297,10 @@ async function openAddressMapPicker(inputId) {
       });
     } else {
       // Re-opened — make sure size is correct after display:none.
+      setAddressMapLayer(_addrMapLayerMode);
       setTimeout(() => { try { _addrMap.invalidateSize(); } catch (_) {} }, 40);
     }
+    syncAddressMapLayerUI();
     requestAnimationFrame(() => {
       try { _addrMap.invalidateSize(); } catch (_) {}
       centerAddressMapOnDevice({ force: false });
