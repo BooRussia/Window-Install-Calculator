@@ -2273,6 +2273,35 @@
   .modal-backdrop + div { animation: aTvOn .4s cubic-bezier(0.2, 0.8, 0.25, 1) both; transform-origin: center center; }
   .modal-closing .modal-backdrop { animation: aFadeOut .3s ease forwards; }
   .modal-backdrop + div.tv-off { animation: aTvOff .34s cubic-bezier(0.5, 0, 0.7, 0.35) forwards; transform-origin: center center; }
+  /* Bottom sheets must NOT use the CRT aTvOn open — it leaves a scaleY fill
+     that snaps on the first dismiss-drag frame (the hitch users felt). */
+  @media (max-width: 639px) {
+    .sheet-on-mobile > .modal-backdrop + div,
+    .sheet-on-mobile > .card {
+      animation: sheetUp .34s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+      transform-origin: center bottom;
+      will-change: transform;
+    }
+    .sheet-on-mobile > .card.sheet-dragging {
+      animation: none !important;
+      transition: none !important;
+      will-change: transform;
+    }
+    .sheet-on-mobile > .card.sheet-settling {
+      animation: none !important;
+      will-change: transform;
+    }
+    /* Blur on sticky chrome is expensive while the whole drawer translates. */
+    .sheet-on-mobile > .card.sheet-dragging .jd-top,
+    .sheet-on-mobile > .card.sheet-settling .jd-top {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      background: rgba(8, 13, 24, 1) !important;
+    }
+    .sheet-on-mobile.sheet-drag-active > .modal-backdrop {
+      transition: opacity .08s linear;
+    }
+  }
   /* Page changes: the overlay screens ease in when shown. */
   #dashboardScreen:not(.hidden), #learnScreen:not(.hidden),
   #pricingScreen:not(.hidden), #setupScreen:not(.hidden) { animation: aScreenIn .32s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
@@ -26307,16 +26336,44 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
   overlayEl._sheetDragWired = true;
   const canClose = opts && typeof opts.canClose === "function" ? opts.canClose : null;
   const scrollEl = (opts && opts.scrollEl) || card.querySelector(".sheet-scroll") || null;
+  const backdrop = overlayEl.querySelector(":scope > .modal-backdrop");
   let startY = 0, dy = 0, dragging = false, armed = false, pendingScroll = false;
+  let velY = 0, lastY = 0, lastT = 0, raf = 0, pendingY = 0;
   function pt(e) { return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; }
-  function resetDragFlags() { dy = 0; dragging = false; armed = false; pendingScroll = false; }
+  function resetDragFlags() {
+    dy = 0; dragging = false; armed = false; pendingScroll = false;
+    velY = 0; lastY = 0; lastT = 0; pendingY = 0;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  }
+  function paintDrag(y) {
+    card.style.transform = `translate3d(0, ${y}px, 0)`;
+    if (backdrop) {
+      const h = card.offsetHeight || window.innerHeight || 1;
+      const p = Math.min(1, y / Math.max(160, h * 0.35));
+      backdrop.style.opacity = String(Math.max(0.15, 1 - p * 0.75));
+    }
+  }
+  function clearBackdropFade() {
+    if (backdrop) { backdrop.style.opacity = ""; backdrop.style.transition = ""; }
+    overlayEl.classList.remove("sheet-drag-active");
+  }
+  function armDragLayer() {
+    // Kill open-animation fill WITHOUT a one-frame snap: pin transform at rest
+    // first, then disable animation on the next frame.
+    card.style.transition = "none";
+    card.style.transform = "translate3d(0, 0, 0)";
+    card.classList.add("sheet-dragging");
+    card.classList.remove("sheet-settling");
+    overlayEl.classList.add("sheet-drag-active");
+    if (backdrop) backdrop.style.transition = "none";
+  }
   function beginGrab(e) {
     if (window.matchMedia("(min-width: 640px)").matches) return;
     if (overlayEl.classList.contains("hidden")) return;
     const p = pt(e); if (!p) return;
-    startY = p.clientY; dy = 0; dragging = true; armed = true; pendingScroll = false;
-    card.classList.add("sheet-dragging");
-    card.classList.remove("sheet-settling");
+    startY = lastY = p.clientY; lastT = performance.now();
+    dy = 0; velY = 0; dragging = true; armed = true; pendingScroll = false;
+    armDragLayer();
   }
   function move(e) {
     const p = pt(e); if (!p) return;
@@ -26327,47 +26384,73 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
       if (raw < 12) return;
       if (scrollEl && scrollEl.scrollTop > 0) { pendingScroll = false; return; }
       dragging = true; armed = true; pendingScroll = false;
-      card.classList.add("sheet-dragging");
-      card.classList.remove("sheet-settling");
+      armDragLayer();
     }
     if (!dragging) return;
+    const now = performance.now();
+    const y = p.clientY;
+    const dt = Math.max(1, now - lastT);
+    // EMA velocity (px/ms) so a flick dismisses without a hard distance gate.
+    const inst = (y - lastY) / dt;
+    velY = velY * 0.7 + inst * 0.3;
+    lastY = y; lastT = now;
     dy = Math.max(0, raw);
-    card.style.transform = `translateY(${dy}px)`;
+    pendingY = dy;
+    if (!raf) {
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (dragging) paintDrag(pendingY);
+      });
+    }
     if (armed && e.cancelable) e.preventDefault();
   }
   function end() {
     if (pendingScroll && !dragging) { resetDragFlags(); return; }
     if (!dragging) return;
-    const dismiss = armed && (dy > 90 || (dy > 56 && dy > card.getBoundingClientRect().height * 0.18));
+    if (raf) { cancelAnimationFrame(raf); raf = 0; paintDrag(dy); }
+    const h = card.getBoundingClientRect().height || window.innerHeight || 600;
+    const flick = velY > 0.55 && dy > 28;
+    const dismiss = armed && (flick || dy > 90 || (dy > 56 && dy > h * 0.18));
     card.classList.add("sheet-settling");
-    card.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
     card.classList.remove("sheet-dragging");
-    void card.offsetWidth;
-    if (dismiss) {
-      let ok = true;
-      try { if (canClose) ok = canClose() !== false; } catch (_) { ok = true; }
-      if (!ok) {
-        card.style.transform = "translateY(0)";
+    // Enable transition on the next frame from the exact release pose — avoids
+    // the old void-offsetWidth hitch between last drag paint and settle.
+    const releaseY = dy;
+    const finishMs = dismiss ? Math.max(220, Math.min(340, 320 - velY * 40)) : 280;
+    requestAnimationFrame(() => {
+      card.style.transition = `transform ${finishMs}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+      if (backdrop) backdrop.style.transition = `opacity ${finishMs}ms ease`;
+      if (dismiss) {
+        let ok = true;
+        try { if (canClose) ok = canClose() !== false; } catch (_) { ok = true; }
+        if (!ok) {
+          card.style.transform = "translate3d(0, 0, 0)";
+          if (backdrop) backdrop.style.opacity = "1";
+          setTimeout(() => {
+            card.classList.remove("sheet-settling");
+            card.style.transition = ""; card.style.transform = "";
+            clearBackdropFade();
+          }, finishMs + 20);
+          return;
+        }
+        card.style.transform = `translate3d(0, ${Math.max(h * 1.05, releaseY + h * 0.55)}px, 0)`;
+        if (backdrop) backdrop.style.opacity = "0";
         setTimeout(() => {
           card.classList.remove("sheet-settling");
           card.style.transition = ""; card.style.transform = "";
-        }, 300);
-        resetDragFlags();
-        return;
+          clearBackdropFade();
+          try { closeFn({ fromDrag: true }); } catch (_) { try { closeFn(); } catch (__) {} }
+        }, finishMs + 20);
+      } else {
+        card.style.transform = "translate3d(0, 0, 0)";
+        if (backdrop) backdrop.style.opacity = "1";
+        setTimeout(() => {
+          card.classList.remove("sheet-settling");
+          card.style.transition = ""; card.style.transform = "";
+          clearBackdropFade();
+        }, finishMs + 20);
       }
-      card.style.transform = "translateY(110%)";
-      setTimeout(() => {
-        card.classList.remove("sheet-settling");
-        card.style.transition = ""; card.style.transform = "";
-        try { closeFn({ fromDrag: true }); } catch (_) { try { closeFn(); } catch (__) {} }
-      }, 300);
-    } else {
-      card.style.transform = "translateY(0)";
-      setTimeout(() => {
-        card.classList.remove("sheet-settling");
-        card.style.transition = ""; card.style.transform = "";
-      }, 300);
-    }
+    });
     resetDragFlags();
   }
   // Delegate so a grab rendered later (Job Details sticky chrome) still works.
@@ -26387,7 +26470,8 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
       if (e.target.closest && e.target.closest(".sheet-grab")) return; // card handler owns this
       if (scrollEl.scrollTop > 0) return;
       const p = pt(e); if (!p) return;
-      startY = p.clientY; pendingScroll = true; dragging = false; armed = false; dy = 0;
+      startY = lastY = p.clientY; lastT = performance.now();
+      pendingScroll = true; dragging = false; armed = false; dy = 0; velY = 0;
     }, { passive: true });
     scrollEl.addEventListener("touchmove", move, { passive: false });
     scrollEl.addEventListener("touchend", end);
