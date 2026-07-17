@@ -4990,12 +4990,41 @@
   .jdg-del { top: 16px; left: 16px; width: auto; height: 36px; padding: 0 14px; gap: 6px; font-size: 12px; font-weight: 700; color: #fda4af; border-color: rgba(244,63,94,0.4); }
   .jdg-del:hover { background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.7); color: #fecdd3; }
   .jdg-count { position: absolute; z-index: 3; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.75); background: rgba(2,6,23,0.55); border-radius: 999px; padding: 4px 12px; }
+  /* HQ load indicator — sits on the photo so a fast swipe still feels alive. */
+  .jdg-loadbar {
+    position: absolute; z-index: 4; left: 50%; bottom: 52px;
+    width: min(46vw, 180px); height: 3px; border-radius: 999px;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.14);
+    overflow: hidden; opacity: 0; pointer-events: none;
+    transition: opacity .18s ease;
+  }
+  .jdg-loadbar.is-on { opacity: 1; }
+  .jdg-loadbar-fill {
+    display: block; height: 100%; width: 12%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #b58f4a, #e2cf9a);
+    transition: width .25s ease;
+  }
+  .jdg-loadbar.is-indeterminate .jdg-loadbar-fill {
+    width: 36%;
+    animation: jdgLoadSlide 1s ease-in-out infinite;
+  }
+  @keyframes jdgLoadSlide {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+  }
+  .jdg-img.is-lq { filter: blur(0.6px); }
+  #jdgLightbox.lb-swipe-anim .jdg-img {
+    transition: transform .22s cubic-bezier(.2,.8,.2,1), opacity .18s ease !important;
+  }
   /* PHOTO-8: keep the lightbox arrows at the 44px tap floor on phones (was 38px). */
   @media (max-width: 640px) {
     .jdg-nav { width: 44px; height: 44px; }
     .jdg-prev { left: max(8px, env(safe-area-inset-left, 0px)); }
     .jdg-next { right: max(8px, env(safe-area-inset-right, 0px)); }
     .jdg-img { max-width: min(94vw, 100%); max-height: min(82vh, 100%); }
+    .jdg-loadbar { bottom: 48px; width: min(52vw, 170px); }
   }
 
   /* ---- Installation-photo grid view (all thumbs; opens over Job Details) ---- */
@@ -19480,8 +19509,111 @@ let _lbZoom = 1, _lbTx = 0, _lbTy = 0;
 let _lbDismissX = 0, _lbDismissY = 0, _lbDismissScale = 1;
 let _lbSwipeX = 0;
 let _lbSuppressClose = false;
+let _lbShowGen = 0;
+const _lbDecoded = new Map(); // entry → HTMLImageElement (warm decode cache)
+let _lbPrefetchToken = 0;
 
 function lightboxPhotos() { const j = loadJobs().find(x => x.id === _lbJobId); return j ? jobGalleryList(j) : []; }
+
+/** Already-painted thumb from the fan/grid — instant LQ while HQ decodes. */
+function lightboxPreviewSrc(entry, idx) {
+  if (!entry) return "";
+  if (/^data:/.test(entry)) return entry;
+  const warm = _lbDecoded.get(entry);
+  if (warm && warm.complete && warm.naturalWidth) return warm.currentSrc || warm.src || "";
+  const root = document.getElementById("jobDetailsBody") || document;
+  const fan = root.querySelector(`.fan-card[data-jdg-idx="${idx}"] .fan-card-img`);
+  if (fan && (fan.currentSrc || fan.src) && fan.naturalWidth) return fan.currentSrc || fan.src;
+  const grid = document.querySelector(`#jdgGridCells [data-jdg-grid-idx="${idx}"] img`);
+  if (grid && (grid.currentSrc || grid.src) && grid.naturalWidth) return grid.currentSrc || grid.src;
+  let pathImg = null;
+  try {
+    if (typeof CSS !== "undefined" && CSS.escape) {
+      pathImg = document.querySelector(`img[data-photo-path="${CSS.escape(entry)}"]`);
+    }
+  } catch (_) { pathImg = null; }
+  if (!pathImg) {
+    pathImg = Array.from(document.querySelectorAll("img[data-photo-path]")).find((el) => el.dataset.photoPath === entry) || null;
+  }
+  if (pathImg && (pathImg.currentSrc || pathImg.src) && pathImg.naturalWidth) return pathImg.currentSrc || pathImg.src;
+  const cached = _photoUrlCache[entry];
+  if (cached && cached.url && cached.exp > Date.now()) return cached.url;
+  return "";
+}
+
+function warmLightboxImage(entry, url) {
+  if (!entry || !url || _lbDecoded.has(entry)) {
+    const existing = _lbDecoded.get(entry);
+    if (existing && existing.complete) return Promise.resolve(existing);
+  }
+  return new Promise((resolve) => {
+    const im = new Image();
+    im.decoding = "async";
+    im.onload = () => { _lbDecoded.set(entry, im); resolve(im); };
+    im.onerror = () => resolve(null);
+    im.src = url;
+  });
+}
+
+/** Resolve + decode every gallery photo; prioritize the open index and neighbors. */
+async function prefetchLightboxPhotos(jobId, centerIdx) {
+  const token = ++_lbPrefetchToken;
+  const j = loadJobs().find(x => x.id === jobId);
+  const photos = j ? jobGalleryList(j) : [];
+  if (!photos.length) return;
+  const N = photos.length;
+  const order = [];
+  const push = (i) => { const k = ((i % N) + N) % N; if (!order.includes(k)) order.push(k); };
+  push(centerIdx || 0);
+  push((centerIdx || 0) + 1);
+  push((centerIdx || 0) - 1);
+  for (let i = 0; i < N; i++) push(i);
+  for (const i of order) {
+    if (token !== _lbPrefetchToken) return;
+    const entry = photos[i];
+    if (!entry) continue;
+    try {
+      const url = /^data:/.test(entry) ? entry : await resolveSignedPhotoURL(entry);
+      if (token !== _lbPrefetchToken || !url) continue;
+      await warmLightboxImage(entry, url);
+    } catch (_) {}
+  }
+}
+
+function setLightboxLoadBar(on, pct) {
+  const lb = document.getElementById("jdgLightbox");
+  if (!lb) return;
+  const bar = lb.querySelector(".jdg-loadbar");
+  const fill = lb.querySelector(".jdg-loadbar-fill");
+  if (!bar || !fill) return;
+  if (!on) {
+    bar.classList.remove("is-on", "is-indeterminate");
+    fill.style.width = "12%";
+    return;
+  }
+  bar.classList.add("is-on");
+  if (pct == null || pct < 0) {
+    bar.classList.add("is-indeterminate");
+    fill.style.width = "";
+  } else {
+    bar.classList.remove("is-indeterminate");
+    fill.style.width = Math.max(8, Math.min(100, pct)) + "%";
+  }
+}
+
+/** Block the iOS ghost click that otherwise lands on #jdStatus after close. */
+function armLightboxClickShield(ms) {
+  const until = Date.now() + (ms || 450);
+  const shield = (e) => {
+    if (Date.now() > until) return;
+    try { e.preventDefault(); } catch (_) {}
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+  };
+  const types = ["click", "pointerup", "pointerdown", "touchend", "touchstart", "mouseup", "mousedown"];
+  types.forEach((t) => document.addEventListener(t, shield, true));
+  setTimeout(() => types.forEach((t) => document.removeEventListener(t, shield, true)), (ms || 450) + 30);
+}
 
 function applyLightboxTransform() {
   const lb = document.getElementById("jdgLightbox");
@@ -19764,14 +19896,25 @@ function wireGalleryLightboxZoom(lb) {
         // Finger left → next; finger right → previous (same as the arrows).
         const goNext = _lbSwipeX < -SWIPE_STEP || (_lbSwipeX < -36 && velX < -0.45);
         const goPrev = _lbSwipeX > SWIPE_STEP || (_lbSwipeX > 36 && velX > 0.45);
-        clearSwipe();
         if (goNext || goPrev) {
+          const dir = goNext ? 1 : -1;
+          const w = lb.clientWidth || window.innerWidth || 360;
           _lbSuppressClose = true;
           setTimeout(() => { _lbSuppressClose = false; }, 80);
-          stepLightbox(goNext ? 1 : -1);
+          // Fling the current photo off-screen, then slide the next one in.
+          lb.classList.add("lb-swipe-anim");
+          _lbSwipeX = dir > 0 ? -w * 0.55 : w * 0.55;
+          applyLightboxTransform();
+          const exitX = _lbSwipeX;
+          setTimeout(() => {
+            clearSwipe();
+            lb.classList.remove("lb-swipe-anim");
+            stepLightbox(dir, { fromSwipe: true, exitX });
+          }, 150);
           mode = null; moved = false; velSamples.length = 0;
           return;
         }
+        clearSwipe();
         endGesture();
         return;
       }
@@ -19829,7 +19972,10 @@ function ensureGalleryLightbox() {
     `<button class="jdg-btn jdg-del" data-jdg-del aria-label="Delete photo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Delete</button>
      <button class="jdg-btn jdg-close" data-jdg-close aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
      <button class="jdg-btn jdg-nav jdg-prev" data-jdg-lb-prev aria-label="Previous"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-     <div class="jdg-stage"><img class="jdg-img" alt="Installation photo" draggable="false"></div>
+     <div class="jdg-stage">
+       <img class="jdg-img" alt="Installation photo" draggable="false">
+       <div class="jdg-loadbar" aria-hidden="true"><span class="jdg-loadbar-fill"></span></div>
+     </div>
      <button class="jdg-btn jdg-nav jdg-next" data-jdg-lb-next aria-label="Next"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
      <div class="jdg-count"></div>`;
   document.body.appendChild(lb);
@@ -19867,14 +20013,17 @@ function openGalleryLightbox(jobId, idx) {
   // Cancel a pending close-shield hide if the user reopens quickly.
   clearTimeout(lb._closeTimer);
   lb._closing = false;
-  lb.classList.remove("lb-closing", "lb-dismiss-exit", "lb-dismiss-snap");
+  lb.classList.remove("lb-closing", "lb-dismiss-exit", "lb-dismiss-snap", "lb-swipe-anim");
   resetLightboxZoom();
+  setLightboxLoadBar(false);
   lb.classList.add("open");
   // Phase 4c: the lightbox stacks OVER the trapped Job Details modal — trap it too
   // so Tab/Esc act on the top-most dialog, not the one behind it.
   trapDialog(lb, closeGalleryLightbox);
   document.addEventListener("keydown", lightboxKey);
   showLightboxPhoto();
+  // Warm every photo in the background so L/R swipes stay buttery.
+  prefetchLightboxPhotos(jobId, _lbIdx);
 }
 function closeGalleryLightbox(opts) {
   const lb = document.getElementById("jdgLightbox");
@@ -19884,7 +20033,12 @@ function closeGalleryLightbox(opts) {
   const fromDismiss = !!(opts && opts.fromDismiss);
   const img = lb.querySelector(".jdg-img");
   _lbJobId = null;
-  try { releaseDialog(lb); } catch (_) {}
+  _lbPrefetchToken++; // cancel in-flight prefetch
+  setLightboxLoadBar(false);
+  // Don't restore focus onto #jdStatus — that plus the iOS ghost click opens
+  // Quoted/Approved/Finished/Lost on the first dismiss swipe.
+  try { lb._dlgPrevFocus = null; releaseDialog(lb); } catch (_) {}
+  armLightboxClickShield(fromDismiss ? 520 : 420);
 
   const eat = (e) => { try { e.preventDefault(); } catch (_) {} e.stopPropagation(); };
   lb.addEventListener("click", eat, true);
@@ -19896,8 +20050,9 @@ function closeGalleryLightbox(opts) {
   const finishHide = (ms) => {
     clearTimeout(lb._closeTimer);
     lb._closeTimer = setTimeout(() => {
-      lb.classList.remove("open", "lb-closing", "lb-dismiss-exit", "lb-dismissing", "lb-dismiss-snap");
+      lb.classList.remove("open", "lb-closing", "lb-dismiss-exit", "lb-dismissing", "lb-dismiss-snap", "lb-swipe-anim");
       resetLightboxZoom();
+      setLightboxLoadBar(false);
       lb.removeEventListener("click", eat, true);
       lb.removeEventListener("pointerup", eat, true);
       lb.removeEventListener("pointerdown", eat, true);
@@ -19943,14 +20098,16 @@ function lightboxKey(e) {
   if (e.key === "ArrowLeft") stepLightbox(-1);
   else if (e.key === "ArrowRight") stepLightbox(1);
 }
-function stepLightbox(dir) {
+function stepLightbox(dir, opts) {
   const photos = lightboxPhotos();
   if (photos.length < 2) return;
   _lbIdx = (_lbIdx + dir + photos.length) % photos.length;
   resetLightboxZoom();
-  showLightboxPhoto();
+  showLightboxPhoto({ fromSwipe: !!(opts && opts.fromSwipe), dir: dir || 0 });
+  // Keep neighbors warm as the user pages through.
+  if (_lbJobId) prefetchLightboxPhotos(_lbJobId, _lbIdx);
 }
-async function showLightboxPhoto() {
+async function showLightboxPhoto(opts) {
   const lb = document.getElementById("jdgLightbox");
   if (!lb) return;
   const photos = lightboxPhotos();
@@ -19961,47 +20118,106 @@ async function showLightboxPhoto() {
   const img = lb.querySelector(".jdg-img");
   const cnt = lb.querySelector(".jdg-count");
   const multi = photos.length > 1;
+  const gen = ++_lbShowGen;
+  const fromSwipe = !!(opts && opts.fromSwipe);
+  const dir = (opts && opts.dir) || 0;
   lb.querySelectorAll(".jdg-nav").forEach(n => n.style.display = multi ? "flex" : "none");
   cnt.style.display = multi ? "block" : "none";
   cnt.textContent = `${_lbIdx + 1} / ${photos.length}`;
-  // Keep any in-progress pan/zoom only while the same photo stays on screen;
-  // a fresh load always starts fit-to-view so a bad transform can’t blank it.
-  if (!lb.classList.contains("lb-zooming") && !lb.classList.contains("lb-panning")) {
-    /* zoom state is reset by open/step; just re-apply in case src swap cleared it */
+
+  // Instant paint from fan/grid/prefetch so a fast swipe never waits on the network.
+  const preview = lightboxPreviewSrc(entry, _lbIdx);
+  const warm = _lbDecoded.get(entry);
+  const warmReady = !!(warm && warm.complete && warm.naturalWidth);
+  img.classList.toggle("is-lq", !!(preview && !warmReady));
+  img.onload = null;
+  img.onerror = null;
+
+  if (fromSwipe && dir) {
+    const w = lb.clientWidth || window.innerWidth || 360;
+    lb.classList.remove("lb-swipe-anim");
+    _lbSwipeX = dir > 0 ? w * 0.3 : -w * 0.3;
+    applyLightboxTransform();
+  } else if (!lb.classList.contains("lb-zooming") && !lb.classList.contains("lb-panning")) {
     applyLightboxTransform();
   }
-  img.style.opacity = "0.3";
-  const src = /^data:/.test(entry) ? entry : await resolveSignedPhotoURL(entry);
-  // Guard on the live entry identity (not the numeric index): a delete can keep
-  // _lbIdx but shift what it points at, so an index check alone would let a
-  // stale resolve overwrite the wrong photo.
+
+  if (preview) {
+    img.style.opacity = "1";
+    if (img.getAttribute("src") !== preview) img.src = preview;
+    setLightboxLoadBar(!warmReady, warmReady ? 100 : null);
+  } else {
+    img.style.opacity = "0.35";
+    setLightboxLoadBar(true, null);
+  }
+
+  if (fromSwipe && dir) {
+    requestAnimationFrame(() => {
+      if (gen !== _lbShowGen) return;
+      lb.classList.add("lb-swipe-anim");
+      _lbSwipeX = 0;
+      applyLightboxTransform();
+      clearTimeout(lb._swipeAnimTimer);
+      lb._swipeAnimTimer = setTimeout(() => lb.classList.remove("lb-swipe-anim"), 240);
+    });
+  }
+
+  // Resolve HQ (signed URL) without blocking the swipe transition.
+  let hq = "";
+  try {
+    hq = /^data:/.test(entry) ? entry : await resolveSignedPhotoURL(entry);
+  } catch (_) { hq = ""; }
+  if (gen !== _lbShowGen || !lb.classList.contains("open") || _lbJobId == null) return;
   const now = lightboxPhotos();
-  if (!lb.classList.contains("open") || _lbJobId == null || now[_lbIdx] !== entry) return;
-  const next = src || "";
-  img.onload = () => { img.style.opacity = "1"; };
-  img.onerror = () => {
-    // PHOTO-7: a dead/expired signed URL used to paint the broken-image glyph as success.
-    // The load can error long after a close/navigate, so guard on liveness (mirrors the
-    // resolve-race guard above) before blanking the stage or toasting.
-    const cur = lightboxPhotos();
-    if (!lb.classList.contains("open") || _lbJobId == null || cur[_lbIdx] !== entry) return;
-    img.removeAttribute("src"); img.style.opacity = "1";
-    if (!/^data:/.test(entry)) delete _photoUrlCache[entry];
-    toast("Couldn't load that photo — reopen to retry.");
-  };
-  if (!next && !/^data:/.test(entry)) {
-    // PHOTO-7: the signed-URL resolve failed (offline/expired) — don't leave a blank stage silently.
+  if (now[_lbIdx] !== entry) return;
+
+  if (!hq && !preview) {
     if (entry) delete _photoUrlCache[entry];
-    img.removeAttribute("src"); img.style.opacity = "1";
+    img.removeAttribute("src");
+    img.style.opacity = "1";
+    img.classList.remove("is-lq");
+    setLightboxLoadBar(false);
     toast("Couldn't load that photo — check your connection, then reopen.");
     return;
   }
-  if (img.getAttribute("src") === next) {
-    img.style.opacity = "1";   // identical src: the browser won't refire load
-  } else {
-    img.src = next;
-    if (!next || (img.complete && img.naturalWidth)) img.style.opacity = "1";
+  if (!hq) return; // keep LQ + bar; prefetch may still land
+
+  const finishHQ = () => {
+    if (gen !== _lbShowGen) return;
+    img.classList.remove("is-lq");
+    img.style.opacity = "1";
+    setLightboxLoadBar(true, 100);
+    setTimeout(() => { if (gen === _lbShowGen) setLightboxLoadBar(false); }, 160);
+    warmLightboxImage(entry, hq);
+  };
+  img.onerror = () => {
+    if (gen !== _lbShowGen) return;
+    if (!/^data:/.test(entry)) delete _photoUrlCache[entry];
+    // Keep the LQ preview if we have one — don't blank the stage.
+    if (!preview) {
+      img.removeAttribute("src");
+      toast("Couldn't load that photo — reopen to retry.");
+    }
+    img.classList.remove("is-lq");
+    setLightboxLoadBar(false);
+  };
+
+  // Already decoded (prefetch / same URL as the fan thumb) — no spinner flash.
+  if ((img.getAttribute("src") === hq && img.complete && img.naturalWidth) || warmReady) {
+    if (img.getAttribute("src") !== hq) {
+      img.onload = finishHQ;
+      img.src = hq;
+      if (img.complete && img.naturalWidth) finishHQ();
+    } else {
+      finishHQ();
+    }
+    return;
   }
+
+  setLightboxLoadBar(true, 55);
+  img.onload = finishHQ;
+  img.src = hq;
+  if (img.complete && img.naturalWidth) finishHQ();
 }
 async function lightboxDelete() {
   if (_lbJobId == null) return;
