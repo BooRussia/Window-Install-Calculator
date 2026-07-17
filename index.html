@@ -80,17 +80,18 @@
      guarantee byte-stable output.) -->
 <script src="https://cdn.tailwindcss.com/3.4.16"></script>
 <script>
-  // Only the public viewer is rendered on #/q/ — jspdf and supabase
-  // are pure dead weight there (no PDF, no auth). Use document.write
-  // while we're still parsing the head so the scripts are treated as
-  // parser-inserted (block DOMContentLoaded, execute in order).
-  // All three are exact-version-pinned with Subresource Integrity: a
-  // compromised or swapped CDN file refuses to execute in our auth context.
+  // Supabase (auth + cloud sync) is needed at boot, so keep it here — but as a
+  // parser-inserted DEFER script: it downloads in parallel instead of blocking the
+  // parser, yet still executes before DOMContentLoaded, so boot() finds window.supabase.
+  // The public quote/sign viewer needs no auth, so skip it there.
+  //
+  // jsPDF + jspdf-autotable (~400KB) were REMOVED from the boot path — they're only
+  // needed when a PDF is exported/previewed, so they now lazy-load on first export via
+  // loadJsPdf() (mirrors the existing loadPdfJs pattern). Version-pinned + SRI is
+  // carried onto the dynamic <script> there, same as here.
   if (!window.__PUBLIC_QUOTE_ROUTE && !window.__PUBLIC_SIGN_ROUTE) {
     document.write(
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"><\/script>' +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" integrity="sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" crossorigin="anonymous"><\/script>' +
-      '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.0/dist/umd/supabase.min.js" integrity="sha384-p3ppjAbdEPObbT9B8J3Jc/6aBp2Gl54cFACgyZjDVLaR3+KwIc+eeU9V6vqHa/Ml" crossorigin="anonymous"><\/script>'
+      '<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.0/dist/umd/supabase.min.js" integrity="sha384-p3ppjAbdEPObbT9B8J3Jc/6aBp2Gl54cFACgyZjDVLaR3+KwIc+eeU9V6vqHa/Ml" crossorigin="anonymous"><\/script>'
     );
   }
 </script>
@@ -126,7 +127,12 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<!-- Non-blocking font load: media="print" lets the stylesheet download without blocking
+     first paint, then onload swaps it to all. Safe here — the app re-runs its text-fitting
+     on document.fonts.ready (fitAll / layoutStrike / layoutRail), and display=swap covers
+     the brief system-ui→Inter flash. <noscript> keeps it blocking when JS is off. -->
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"></noscript>
 
 <script>
   tailwind.config = {
@@ -7313,8 +7319,12 @@
       <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
     </svg>
   </span>
-  <!-- MOB-11: revealed after ~1s of a slow sync so a stall isn't a silent spinner. -->
-  <p id="bootCaption" class="hidden text-[13px] text-slate-400" role="status" aria-live="polite">Syncing your jobs…</p>
+  <!-- Rotating themed loading phrases — revealed after ~1s of a slow sync so a stall
+       isn't a silent spinner (and it's a little fun). aria-hidden: it's decorative, so
+       the sr-only status below carries one stable announcement instead of a screen
+       reader re-reading every phrase swap. -->
+  <p id="bootCaption" class="hidden text-[13px] text-slate-400" aria-hidden="true">Dropping the anchor…</p>
+  <span id="bootCaptionSr" class="sr-only" role="status" aria-live="polite"></span>
 </div>
 
 <!-- ============================================================
@@ -21259,11 +21269,16 @@ let _jdSignExclude = new Set();    // scope:LABEL / item:LABEL keys to hide from
 
 // Generate a saved job's PDF from the dashboard without navigating: snapshot
 // the working STATE, apply the job's values, export, then restore.
-function dashGenerateDoc(id, kind, mode) {
+async function dashGenerateDoc(id, kind, mode) {
   mode = mode || "download";
   const job = loadJobs().find(x => x.id === id);
   if (!job) { toast("Job not found"); return; }
   if (kind === "buck" && !job.buckList) { toast("No buck cut list on this job"); return; }
+  // Ensure jsPDF is loaded BEFORE snapshotting/mutating STATE — the export below is
+  // synchronous, so with jsPDF ready it builds the doc (with this job's applied STATE)
+  // and returns before the finally restores STATE. If jsPDF weren't loaded, the export's
+  // own guard would defer the build past the restore and emit the WRONG job's data.
+  try { await loadJsPdf(); } catch (_) { toast("Couldn't load the PDF engine — check your connection"); return; }
   const snap = clone(STATE);
   try {
     applyJobToState(job);
@@ -24613,6 +24628,9 @@ function ensureQuoteIssue(jobId) {
 }
 
 function exportCustomerPDF(mode, force) {
+  // MUST be first — before any side effect (ensureQuoteIssue/logQuoteEvent/markFirstQuoteSent) —
+  // so a load-then-retry fires them exactly once, on the invocation that passes.
+  if (!jsPdfReady()) { loadJsPdf().then(() => exportCustomerPDF(mode, force)).catch(() => toast("Couldn't load the PDF engine — check your connection")); return; }
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!requireSavedJobForExport(() => exportCustomerPDF(mode, force))) return;
@@ -25262,7 +25280,7 @@ async function createSignLink(jobId, detailLevel, opts) {
    for the installer's records. Owner reads the row directly (RLS).
    ============================================================ */
 async function exportSignedQuotePDF(jobId) {
-  if (!window.jspdf) { toast("PDF engine still loading — try again"); return; }
+  try { await loadJsPdf(); } catch (_) { toast("Couldn't load the PDF engine — check your connection"); return; }
   if (!sb || !currentUser) { toast("Sign in to download the signed quote"); return; }
   const job = loadJobs().find(x => x.id === jobId);
 
@@ -25289,7 +25307,7 @@ async function exportSignedQuotePDF(jobId) {
 // PDF. Used by the dashboard e-signatures panel — the owner can read the full
 // row (including the signature blob) directly under RLS.
 async function exportSignedQuoteById(quoteId) {
-  if (!window.jspdf) { toast("PDF engine still loading — try again"); return; }
+  try { await loadJsPdf(); } catch (_) { toast("Couldn't load the PDF engine — check your connection"); return; }
   if (!sb || !currentUser) { toast("Sign in to download the signed quote"); return; }
   let row = null;
   try {
@@ -25455,6 +25473,7 @@ function renderSignedQuotePDF(row) {
 }
 
 function exportPDF(mode) {
+  if (!jsPdfReady()) { loadJsPdf().then(() => exportPDF(mode)).catch(() => toast("Couldn't load the PDF engine — check your connection")); return; }
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!requireSavedJobForExport(() => exportPDF(mode))) return;
@@ -25678,6 +25697,7 @@ function hasEstimatedBucking(rows) {
 
 // Clean, cost-free shopping list for whoever does the supply run.
 function exportMaterialsPDF(mode) {
+  if (!jsPdfReady()) { loadJsPdf().then(() => exportMaterialsPDF(mode)).catch(() => toast("Couldn't load the PDF engine — check your connection")); return; }
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!requireSavedJobForExport(() => exportMaterialsPDF(mode))) return;
@@ -29991,6 +30011,43 @@ function loadPdfJs() {
   return _pdfjsPromise;
 }
 
+// jsPDF + jspdf-autotable, lazy-loaded off the boot critical path (they used to block
+// DOMContentLoaded via document.write, ~400KB, but are only needed to build a PDF).
+// Memoized; loads jspdf THEN autotable (autotable extends jsPDF's prototype, so order
+// matters). SRI + version pins carried from the old eager tags. enterApp() warm-prefetches
+// it once on idle; export functions gate on jsPdfReady() and retry through this.
+let _jspdfPromise = null;
+// "Ready" means BOTH pieces are present. autotable is a SEPARATE second script that adds
+// .autoTable to jsPDF's prototype — so window.jspdf.jsPDF can be truthy while doc.autoTable
+// is still undefined (mid-load, or if only the autotable request fails). Every consumer must
+// gate on this, never on window.jspdf alone, or exportPDF/exportComparisonPDF (the two that
+// call doc.autoTable) throw "doc.autoTable is not a function" with no toast.
+function jsPdfReady() {
+  return !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API
+    && typeof window.jspdf.jsPDF.API.autoTable === "function");
+}
+function loadJsPdf() {
+  if (jsPdfReady()) return Promise.resolve(window.jspdf);
+  if (_jspdfPromise) return _jspdfPromise;
+  const load = (src, integrity) => new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src; s.integrity = integrity; s.crossOrigin = "anonymous";
+    s.onload = resolve; s.onerror = () => reject(new Error("Couldn't load the PDF engine"));
+    document.head.appendChild(s);
+  });
+  const haveCore = !!(window.jspdf && window.jspdf.jsPDF);   // skip re-downloading core on an autotable-only retry
+  _jspdfPromise = (haveCore
+      ? Promise.resolve()
+      : load("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk"))
+    .then(() => load("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js", "sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3"))
+    // Reject (rather than resolve a not-actually-ready lib) if autotable loaded but didn't
+    // attach — otherwise the guards' retry-on-not-ready would hot-loop. A reject surfaces as
+    // a clean toast and lets a later click retry.
+    .then(() => { if (!jsPdfReady()) throw new Error("PDF engine incomplete"); return window.jspdf; });
+  _jspdfPromise.catch(() => { _jspdfPromise = null; });   // let a later export retry after a failed load
+  return _jspdfPromise;
+}
+
 // Render up to 8 pages of a PDF to JPEG base64 (no data: prefix). ~1700px wide
 // is enough resolution for Grok to read a dense schedule table.
 async function pdfToImages(file, budget) {
@@ -31332,6 +31389,7 @@ function updateJobFilesUI() {
 
 /* ---------- Printable PDF ---------- */
 function exportCutListPDF(mode) {
+  if (!jsPdfReady()) { loadJsPdf().then(() => exportCutListPDF(mode)).catch(() => toast("Couldn't load the PDF engine — check your connection")); return; }
   const bl = STATE.buckList;
   if (!bl || !bl.boards || !bl.boards.length) { toast("Generate a cut list first"); return; }
   if (!requireSavedJobForExport(() => exportCutListPDF(mode))) return;
@@ -31607,6 +31665,7 @@ function renderComparisonModal(jobs) {
 }
 
 function exportComparisonPDF(mode) {
+  if (!jsPdfReady()) { loadJsPdf().then(() => exportComparisonPDF(mode)).catch(() => toast("Couldn't load the PDF engine — check your connection")); return; }
   const modal = document.getElementById("compareModal");
   const jobs = modal._jobs;
   if (!jobs || jobs.length < 2) return;
@@ -34545,12 +34604,40 @@ async function boot() {
   handleLearnHashRoute();
 }
 
+// Themed loading phrases, shown (rotating) while the boot sync runs long. The user's
+// own examples plus a few more — window/door install shop-talk + the Anchor brand.
+const BOOT_PHRASES = [
+  "Dropping the anchor…",
+  "Measuring for fitment…",
+  "Reading the plans…",
+  "Squaring the opening…",
+  "Snapping a chalk line…",
+  "Setting the header…",
+  "Shimming it level…",
+  "Checking for plumb…",
+  "Bedding the sill…",
+  "Caulking the seams…",
+  "Polishing the glass…",
+  "Torquing the anchors…",
+  "Flashing the rough opening…",
+  "Making it fit…",
+  "Reeling in your jobs…",
+  "Tightening the last screw…",
+];
+
 async function enterApp() {
-  // MOB-11: reveal the "Syncing your jobs…" caption if the sync runs long, and hard-
-  // cap the wait so a hung connection can't leave the boot splash spinning forever.
+  // MOB-11: if the sync runs long (>~1s), reveal a rotating themed caption so a stall
+  // isn't a silent spinner; hard-cap the wait so a hung connection can't spin forever.
+  let _capInt = null;
   const _capT = setTimeout(() => {
     const cap = document.getElementById("bootCaption"), sp = document.getElementById("bootSplash");
-    if (cap && sp && !sp.classList.contains("hidden")) cap.classList.remove("hidden");
+    if (!cap || !sp || sp.classList.contains("hidden")) return;
+    const sr = document.getElementById("bootCaptionSr"); if (sr) sr.textContent = "Loading your jobs…";
+    // Start on a random phrase so refreshes vary, then advance sequentially.
+    let i = Math.floor(Math.random() * BOOT_PHRASES.length);
+    cap.textContent = BOOT_PHRASES[i];
+    cap.classList.remove("hidden");
+    _capInt = setInterval(() => { i = (i + 1) % BOOT_PHRASES.length; cap.textContent = BOOT_PHRASES[i]; }, 1400);
   }, 1000);
   try {
     await Promise.race([
@@ -34562,6 +34649,7 @@ async function enterApp() {
     toast("Offline — using local data");
   } finally {
     clearTimeout(_capT);
+    if (_capInt) clearInterval(_capInt);
   }
   // Re-read now that localStorage reflects the cloud
   DATA = loadData();
@@ -34574,6 +34662,10 @@ async function enterApp() {
   closeAuth();
   document.getElementById("landingScreen").classList.add("hidden");
   document.getElementById("bootSplash").classList.add("hidden");
+  // Warm-prefetch jsPDF on idle, off the boot critical path, so the first PDF export is
+  // instant (it no longer blocks load). Non-blocking; a failure is retried on demand by
+  // the export guards.
+  try { (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => { loadJsPdf().catch(() => {}); }); } catch (_) {}
   // Onboarding/setup are now opt-in — the user lands in the calculator with
   // demo data and is nudged (via #setupNudge + the PFP menu) to finish setup
   // when they're ready. This kills the forced 14-field wall at signup.
@@ -35185,6 +35277,7 @@ const CHECKLIST_ITEMS = [
 
 // Printable blank checklist — fill in supplier pricing, then enter in Settings
 function exportPricingChecklistPDF(mode) {
+  if (!jsPdfReady()) { loadJsPdf().then(() => exportPricingChecklistPDF(mode)).catch(() => toast("Couldn't load the PDF engine — check your connection")); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
