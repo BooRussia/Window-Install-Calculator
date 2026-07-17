@@ -4875,6 +4875,13 @@
     overscroll-behavior: none; -webkit-user-select: none; user-select: none;
   }
   #jdgLightbox.open { display: flex; }
+  /* Keep the overlay on-screen (invisible) briefly after close so the iOS
+     synthetic click after tapping X can’t fall through onto #jdStatus
+     (Quoted / Approved / Finished / Lost) in the Job Details header. */
+  #jdgLightbox.lb-closing {
+    opacity: 0; pointer-events: auto !important;
+    transition: opacity .1s ease;
+  }
   /* Blur sits on a sibling layer — Safari can blank transformed <img>s when
      backdrop-filter is on the same element as the zoomed photo. */
   #jdgLightbox::before {
@@ -19552,13 +19559,28 @@ function ensureGalleryLightbox() {
      <button class="jdg-btn jdg-nav jdg-next" data-jdg-lb-next aria-label="Next"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
      <div class="jdg-count"></div>`;
   document.body.appendChild(lb);
-  lb.querySelector("[data-jdg-close]").addEventListener("click", closeGalleryLightbox);
-  lb.querySelector("[data-jdg-lb-prev]").addEventListener("click", () => stepLightbox(-1));
-  lb.querySelector("[data-jdg-lb-next]").addEventListener("click", () => stepLightbox(1));
-  lb.querySelector("[data-jdg-del]").addEventListener("click", lightboxDelete);
+  const stopAnd = (fn) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fn(e);
+  };
+  lb.querySelector("[data-jdg-close]").addEventListener("click", stopAnd(closeGalleryLightbox));
+  lb.querySelector("[data-jdg-lb-prev]").addEventListener("click", stopAnd(() => stepLightbox(-1)));
+  lb.querySelector("[data-jdg-lb-next]").addEventListener("click", stopAnd(() => stepLightbox(1)));
+  lb.querySelector("[data-jdg-del]").addEventListener("click", stopAnd(lightboxDelete));
+  // Prefer pointerup for close chrome — swallow the touch before iOS can
+  // retarget a leftover click onto the status select underneath.
+  lb.querySelector("[data-jdg-close]").addEventListener("pointerup", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeGalleryLightbox();
+  });
   lb.addEventListener("click", (e) => {
-    if (_lbSuppressClose || _lbZoom > 1.01) return;
+    if (_lbSuppressClose || _lbZoom > 1.01 || lb.classList.contains("lb-closing")) return;
     if (e.target === lb || (e.target.classList && e.target.classList.contains("jdg-stage"))) {
+      e.preventDefault();
+      e.stopPropagation();
       closeGalleryLightbox();
     }
   });
@@ -19568,6 +19590,10 @@ function ensureGalleryLightbox() {
 function openGalleryLightbox(jobId, idx) {
   _lbJobId = jobId; _lbIdx = idx || 0;
   const lb = ensureGalleryLightbox();
+  // Cancel a pending close-shield hide if the user reopens quickly.
+  clearTimeout(lb._closeTimer);
+  lb._closing = false;
+  lb.classList.remove("lb-closing");
   resetLightboxZoom();
   lb.classList.add("open");
   // Phase 4c: the lightbox stacks OVER the trapped Job Details modal — trap it too
@@ -19578,10 +19604,30 @@ function openGalleryLightbox(jobId, idx) {
 }
 function closeGalleryLightbox() {
   const lb = document.getElementById("jdgLightbox");
-  if (lb) { lb.classList.remove("open"); releaseDialog(lb); }
+  if (!lb || !lb.classList.contains("open") || lb._closing) return;
+  lb._closing = true;
   document.removeEventListener("keydown", lightboxKey);
   resetLightboxZoom();
   _lbJobId = null;
+  try { releaseDialog(lb); } catch (_) {}
+  // Stay mounted (and hit-testable) long enough to eat the iOS ghost click.
+  lb.classList.add("lb-closing");
+  const eat = (e) => { try { e.preventDefault(); } catch (_) {} e.stopPropagation(); };
+  lb.addEventListener("click", eat, true);
+  lb.addEventListener("pointerup", eat, true);
+  lb.addEventListener("pointerdown", eat, true);
+  lb.addEventListener("touchend", eat, true);
+  lb.addEventListener("touchstart", eat, true);
+  clearTimeout(lb._closeTimer);
+  lb._closeTimer = setTimeout(() => {
+    lb.classList.remove("open", "lb-closing");
+    lb.removeEventListener("click", eat, true);
+    lb.removeEventListener("pointerup", eat, true);
+    lb.removeEventListener("pointerdown", eat, true);
+    lb.removeEventListener("touchend", eat, true);
+    lb.removeEventListener("touchstart", eat, true);
+    lb._closing = false;
+  }, 380);
 }
 function lightboxKey(e) {
   // Esc is owned by the stack-aware global handler (the lightbox is a trapped dialog);
