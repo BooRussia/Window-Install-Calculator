@@ -21167,13 +21167,20 @@ function wireDashboard() {
     if (!file || !id) return;
     if (file.size > 12 * 1024 * 1024) { toast("That image is too large (max ~12MB)."); return; }
     try {
-      // PHOTO-1: store the user's REAL photo (just compressed) — do not bake a blur +
-      // job title into it. Baking discarded the original and left a stale title after a
-      // rename; the job name already shows in the card text beside the thumbnail, so the
-      // overlay was redundant. (AI-generated thumbnails still composite — they're
-      // stylized art with no original to protect.)
+      // Brand uploaded covers like AI thumbnails: blurred bg + job title overlay so
+      // every Jobs-list tile matches. Commit open Job Details edits first so the
+      // baked title uses what the user just typed. Half blur (radius 3 vs AI's 6)
+      // keeps a real install photo recognizable; fall back to the raw photo if
+      // compositing fails.
+      commitOpenJobDetailsEdits(id);
       const dataUrl = await compressJobPhoto(file);
-      await saveJobPhoto(id, dataUrl);
+      const job = loadJobs().find(x => x.id === id);
+      const title = (job && (job.name || job.customerName)) || "Window Job";
+      const cust = (job && job.customerName && job.customerName !== title) ? job.customerName : "";
+      const subtitle = cust || ((job && job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "");
+      let thumb = dataUrl;
+      try { thumb = await composeJobThumbnail(dataUrl, title, subtitle, 3); } catch (_) {}
+      await saveJobPhoto(id, thumb);
       toast("Photo added");
     }
     catch (_) { toast("Couldn't read that image"); }
