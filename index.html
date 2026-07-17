@@ -19463,6 +19463,7 @@ function wireJobGallery(job) {
 let _lbJobId = null, _lbIdx = 0;
 let _lbZoom = 1, _lbTx = 0, _lbTy = 0;
 let _lbDismissX = 0, _lbDismissY = 0, _lbDismissScale = 1;
+let _lbSwipeX = 0;
 let _lbSuppressClose = false;
 
 function lightboxPhotos() { const j = loadJobs().find(x => x.id === _lbJobId); return j ? jobGalleryList(j) : []; }
@@ -19472,12 +19473,13 @@ function applyLightboxTransform() {
   if (!lb) return;
   const img = lb.querySelector(".jdg-img");
   if (!img) return;
-  const tx = _lbTx + _lbDismissX;
+  const tx = _lbTx + _lbDismissX + _lbSwipeX;
   const ty = _lbTy + _lbDismissY;
   const sc = _lbZoom * _lbDismissScale;
   img.style.transform = `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${sc.toFixed(4)})`;
   lb.classList.toggle("lb-zoomed", _lbZoom > 1.01);
-  const dismissing = Math.abs(_lbDismissY) > 0.5 || Math.abs(_lbDismissX) > 0.5;
+  // Only vertical dismiss dims the chrome — horizontal swipe keeps controls visible.
+  const dismissing = Math.abs(_lbDismissY) > 0.5;
   lb.classList.toggle("lb-dismissing", dismissing);
   if (dismissing) {
     const p = Math.min(1, Math.abs(_lbDismissY) / 280);
@@ -19485,6 +19487,7 @@ function applyLightboxTransform() {
   } else {
     lb.style.removeProperty("--lb-dim");
   }
+  if (img) img.style.opacity = Math.abs(_lbSwipeX) > 8 ? String(Math.max(0.35, 1 - Math.abs(_lbSwipeX) / 520)) : "";
 }
 
 function clampLightboxPan() {
@@ -19506,15 +19509,18 @@ function clampLightboxPan() {
 function resetLightboxZoom() {
   _lbZoom = 1; _lbTx = 0; _lbTy = 0;
   _lbDismissX = 0; _lbDismissY = 0; _lbDismissScale = 1;
+  _lbSwipeX = 0;
   const lb = document.getElementById("jdgLightbox");
   if (lb) {
-    lb.classList.remove("lb-zoomed", "lb-zooming", "lb-panning", "lb-dismissing");
+    lb.classList.remove("lb-zoomed", "lb-zooming", "lb-panning", "lb-dismissing", "lb-swiping");
     lb.style.removeProperty("--lb-dim");
+    const img = lb.querySelector(".jdg-img");
+    if (img) img.style.opacity = "";
   }
   applyLightboxTransform();
 }
 
-/** Pinch / double-tap / drag zoom + iOS-style swipe-down dismiss. */
+/** Pinch / double-tap / drag zoom, swipe L/R between photos, swipe-down dismiss. */
 function wireGalleryLightboxZoom(lb) {
   if (!lb || lb._zoomWired) return;
   lb._zoomWired = true;
@@ -19523,10 +19529,11 @@ function wireGalleryLightboxZoom(lb) {
   if (!stage || !img) return;
 
   const MIN_Z = 1, MAX_Z = 4, DBL_Z = 2.4;
-  const DISMISS_LOCK = 12;     // px vertical before we own the dismiss swipe
+  const AXIS_LOCK = 12;        // px before we commit to dismiss or swipe
   const DISMISS_CLOSE = 120;   // px release distance → close
+  const SWIPE_STEP = 72;       // px / velocity → next/prev photo
   let pointers = new Map(); // pointerId → {x,y}
-  let mode = null; // null | 'pan' | 'pinch' | 'dismiss'
+  let mode = null; // null | 'pan' | 'pinch' | 'dismiss' | 'swipe'
   let panLastX = 0, panLastY = 0;
   let downX = 0, downY = 0;
   let pinchStartDist = 0, pinchStartZoom = 1, pinchStartTx = 0, pinchStartTy = 0;
@@ -19559,10 +19566,15 @@ function wireGalleryLightboxZoom(lb) {
     lb.classList.remove("lb-dismissing");
     lb.style.removeProperty("--lb-dim");
   };
+  const clearSwipe = () => {
+    _lbSwipeX = 0;
+    lb.classList.remove("lb-swiping");
+    if (img) img.style.opacity = "";
+  };
 
   const endGesture = () => {
     mode = null;
-    lb.classList.remove("lb-zooming", "lb-panning");
+    lb.classList.remove("lb-zooming", "lb-panning", "lb-swiping");
     if (_lbZoom < 1.05) { _lbZoom = 1; _lbTx = 0; _lbTy = 0; }
     else clampLightboxPan();
     applyLightboxTransform();
@@ -19582,8 +19594,9 @@ function wireGalleryLightboxZoom(lb) {
     velSamples.length = 0;
     if (pointers.size === 1) { downX = e.clientX; downY = e.clientY; }
     if (pointers.size === 2) {
-      // Second finger cancels a dismiss swipe and starts pinch.
+      // Second finger cancels dismiss/swipe and starts pinch.
       clearDismiss();
+      clearSwipe();
       mode = "pinch";
       const [a, b] = pts();
       pinchStartDist = distOf(a, b);
@@ -19592,7 +19605,7 @@ function wireGalleryLightboxZoom(lb) {
       const m = midOf(a, b);
       pinchOriginX = m.x; pinchOriginY = m.y;
       lb.classList.add("lb-zooming");
-      lb.classList.remove("lb-panning", "lb-dismissing");
+      lb.classList.remove("lb-panning", "lb-dismissing", "lb-swiping");
     } else if (pointers.size === 1 && _lbZoom > 1.01) {
       mode = "pan";
       panLastX = e.clientX; panLastY = e.clientY;
@@ -19608,6 +19621,7 @@ function wireGalleryLightboxZoom(lb) {
     if (pointers.size === 2) {
       if (mode !== "pinch") {
         clearDismiss();
+        clearSwipe();
         mode = "pinch";
         const [a, b] = pts();
         pinchStartDist = distOf(a, b);
@@ -19643,13 +19657,17 @@ function wireGalleryLightboxZoom(lb) {
       return;
     }
 
-    // Fit view: vertical drag dismisses like iOS Photos.
+    // Fit view: vertical → dismiss, horizontal → next/prev photo.
     if (_lbZoom <= 1.01 && pointers.size === 1) {
       const dx = e.clientX - downX, dy = e.clientY - downY;
       const adx = Math.abs(dx), ady = Math.abs(dy);
       if (mode == null) {
-        if (ady >= DISMISS_LOCK && ady >= adx * 1.15) mode = "dismiss";
-        else return;
+        if (ady >= AXIS_LOCK && ady >= adx * 1.15) mode = "dismiss";
+        else if (adx >= AXIS_LOCK && adx >= ady * 1.15) {
+          if (lightboxPhotos().length < 2) return;
+          mode = "swipe";
+          lb.classList.add("lb-swiping");
+        } else return;
       }
       if (mode === "dismiss") {
         // Prefer downward dismiss; upward still follows but needs more travel to close.
@@ -19657,7 +19675,16 @@ function wireGalleryLightboxZoom(lb) {
         _lbDismissY = dy;
         const p = Math.min(1, Math.abs(dy) / 280);
         _lbDismissScale = 1 - p * 0.08;
-        velSamples.push({ y: e.clientY, t: performance.now() });
+        velSamples.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+        while (velSamples.length > 5) velSamples.shift();
+        applyLightboxTransform();
+        moved = true;
+        if (e.cancelable) e.preventDefault();
+        return;
+      }
+      if (mode === "swipe") {
+        _lbSwipeX = dx;
+        velSamples.push({ x: e.clientX, y: e.clientY, t: performance.now() });
         while (velSamples.length > 5) velSamples.shift();
         applyLightboxTransform();
         moved = true;
@@ -19700,6 +19727,26 @@ function wireGalleryLightboxZoom(lb) {
           return;
         }
         clearDismiss();
+        endGesture();
+        return;
+      }
+      if (mode === "swipe") {
+        let velX = 0;
+        if (velSamples.length >= 2) {
+          const a = velSamples[0], b = velSamples[velSamples.length - 1];
+          velX = (b.x - a.x) / Math.max(1, b.t - a.t);
+        }
+        // Finger left → next; finger right → previous (same as the arrows).
+        const goNext = _lbSwipeX < -SWIPE_STEP || (_lbSwipeX < -36 && velX < -0.45);
+        const goPrev = _lbSwipeX > SWIPE_STEP || (_lbSwipeX > 36 && velX > 0.45);
+        clearSwipe();
+        if (goNext || goPrev) {
+          _lbSuppressClose = true;
+          setTimeout(() => { _lbSuppressClose = false; }, 80);
+          stepLightbox(goNext ? 1 : -1);
+          mode = null; moved = false; velSamples.length = 0;
+          return;
+        }
         endGesture();
         return;
       }
