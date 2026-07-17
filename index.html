@@ -918,6 +918,95 @@
   [data-theme="light"] .dash-chip:hover { color: #334155; }
   [data-theme="light"] .dash-chip.active { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
 
+  /* ── Address map picker (Job Address → Pick on map) ── */
+  .addr-map-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    border: 1px solid rgba(181,143,74,0.4); background: rgba(181,143,74,0.1);
+    color: #c9a558; border-radius: 999px; padding: 4px 10px;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    min-height: 28px; flex-shrink: 0;
+  }
+  .addr-map-btn:hover { border-color: rgba(201,165,88,0.7); background: rgba(181,143,74,0.18); color: #e2cf9a; }
+  .addr-map-btn:active { transform: scale(0.97); }
+  #addrMapModal {
+    position: fixed; inset: 0; z-index: 140; display: none;
+    align-items: stretch; justify-content: center;
+    background: #020617;
+  }
+  #addrMapModal.open { display: flex; flex-direction: column; }
+  .addr-map-head {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+    border-bottom: 1px solid rgba(51,65,85,0.55);
+    background: rgba(8,13,24,0.98);
+  }
+  .addr-map-title { font-size: 15px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.01em; }
+  .addr-map-close {
+    width: 40px; height: 40px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.25);
+    background: rgba(15,23,42,0.7); color: #e2e8f0; display: grid; place-items: center; cursor: pointer;
+  }
+  .addr-map-stage {
+    position: relative; flex: 1 1 auto; min-height: 0; background: #0b1220;
+  }
+  #addrMapCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+  /* Fixed center pin — map pans underneath for precise placement. */
+  .addr-map-pin {
+    position: absolute; left: 50%; top: 50%; z-index: 5;
+    width: 36px; height: 48px; margin: 0;
+    transform: translate(-50%, -92%);
+    pointer-events: none;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.45));
+    transition: transform .16s cubic-bezier(.2,.8,.2,1);
+  }
+  .addr-map-pin.is-lifted { transform: translate(-50%, -108%) scale(1.06); }
+  .addr-map-pin svg { width: 36px; height: 48px; display: block; }
+  .addr-map-cross {
+    position: absolute; left: 50%; top: 50%; z-index: 4;
+    width: 10px; height: 10px; margin: -1px 0 0 -1px;
+    border-radius: 999px; border: 2px solid rgba(201,165,88,0.85);
+    background: rgba(2,6,23,0.35); transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .addr-map-locate {
+    position: absolute; right: 12px; bottom: 12px; z-index: 6;
+    width: 44px; height: 44px; border-radius: 999px;
+    border: 1px solid rgba(181,143,74,0.45); background: rgba(8,13,24,0.92);
+    color: #c9a558; display: grid; place-items: center; cursor: pointer;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+  }
+  .addr-map-locate:disabled { opacity: 0.5; cursor: wait; }
+  .addr-map-foot {
+    flex: 0 0 auto;
+    padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(51,65,85,0.55);
+    background: rgba(8,13,24,0.98);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .addr-map-preview {
+    font-size: 13px; font-weight: 600; color: #e2e8f0; line-height: 1.35;
+    min-height: 2.6em;
+  }
+  .addr-map-preview.is-loading { color: #94a3b8; }
+  .addr-map-preview.is-error { color: #fda4af; }
+  .addr-map-coords { font-size: 10px; font-weight: 700; color: #64748b; font-variant-numeric: tabular-nums; }
+  .addr-map-done {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 48px; border: 0; border-radius: 999px;
+    background: #b58f4a; color: #0b1120; font-size: 14px; font-weight: 800;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .addr-map-done:disabled { opacity: 0.45; cursor: default; }
+  .addr-map-done:not(:disabled):active { transform: scale(0.99); }
+  /* Leaflet chrome tweaks inside our dark modal */
+  #addrMapModal .leaflet-control-zoom a {
+    background: rgba(8,13,24,0.92) !important; color: #e2e8f0 !important;
+    border-color: rgba(148,163,184,0.3) !important; width: 36px !important; height: 36px !important;
+    line-height: 36px !important; font-size: 18px !important;
+  }
+  #addrMapModal .leaflet-bar { border: 0 !important; box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important; }
+  [data-theme="light"] .addr-map-btn { color: #8a6a2e; border-color: rgba(138,106,46,0.4); background: rgba(181,143,74,0.1); }
+
   /* ── Expandable live-total sheet (UI refresh P5) ── tap the selling-price bar
      for an itemized peek (mobile-patterns §7: the collapsed bar expands into an
      honest, itemized total). Internal numbers carry .internal-only so Present
@@ -9449,7 +9538,13 @@
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
-        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job Address</label>
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <label for="saveJobAddress" class="text-xs uppercase tracking-[0.14em] text-slate-500">Job Address</label>
+          <button type="button" id="saveJobAddressMap" class="addr-map-btn" aria-label="Pick address on map">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            Map
+          </button>
+        </div>
         <input id="saveJobAddress" type="text" placeholder="123 Main St, City, ST" autocomplete="street-address" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
@@ -21404,8 +21499,16 @@ function renderJobDetails(job) {
               <input id="jdPhone" type="tel" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="(555) 123-4567" autocomplete="tel" value="${escHtml(job.customerPhone || "")}"></div>
             <div><label for="jdEmail" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Email</label>
               <input id="jdEmail" type="email" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="name@email.com" autocomplete="email" value="${escHtml(job.customerEmail || "")}"></div>
-            <div><label for="jdAddress" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Address</label>
-              <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="123 Main St, City, ST" autocomplete="street-address" value="${escHtml(job.customerAddress || "")}"></div>
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <label for="jdAddress" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">Address</label>
+                <button type="button" id="jdAddressMap" class="addr-map-btn" aria-label="Pick address on map">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                  Map
+                </button>
+              </div>
+              <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="123 Main St, City, ST" autocomplete="street-address" value="${escHtml(job.customerAddress || "")}">
+            </div>
           </div>
         </div>
         <div class="jd-section">
@@ -21492,6 +21595,8 @@ function renderJobDetails(job) {
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
   });
+  const jdAddrMap = document.getElementById("jdAddressMap");
+  if (jdAddrMap) jdAddrMap.addEventListener("click", () => openAddressMapPicker("jdAddress"));
   const save = document.getElementById("jdSave");
   if (save) save.addEventListener("click", () => saveJobDetailsEdits(job.id));
   const openCalc = document.getElementById("jdOpenCalc");
@@ -22757,7 +22862,16 @@ function custDetailHTML(c) {
           <div class="set-field"><label class="set-label">Customer name</label><input data-cust-field="name" type="text" value="${escHtml(c.name)}" class="${inp}"></div>
           <div class="set-field"><label class="set-label">Phone</label><input data-cust-field="phone" type="text" inputmode="tel" value="${escHtml(c.phone)}" class="${inp}"></div>
           <div class="set-field"><label class="set-label">Email</label><input data-cust-field="email" type="email" value="${escHtml(c.email)}" class="${inp}"></div>
-          <div class="set-field" style="grid-column:1 / -1"><label class="set-label">Address</label><input data-cust-field="address" type="text" value="${escHtml(c.address)}" class="${inp}"></div>
+          <div class="set-field" style="grid-column:1 / -1">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <label class="set-label" style="margin:0">Address</label>
+              <button type="button" id="custEditorAddressMap" class="addr-map-btn" aria-label="Pick address on map">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                Map
+              </button>
+            </div>
+            <input data-cust-field="address" id="custEditorAddress" type="text" value="${escHtml(c.address)}" class="${inp}">
+          </div>
           <div class="set-field" style="grid-column:1 / -1">
             <label class="set-label">Customer type</label>
             <div class="seg" data-cust-tag-seg role="radiogroup" aria-label="Customer type" style="max-width:none;">
@@ -22902,6 +23016,257 @@ function openManageCustomers() {
 function closeManageCustomers() {
   populateCustomerPicker();   // reflect any list changes back in the Save Job picker
   tvDismiss(document.getElementById("manageCustomersModal"));
+}
+
+/* ============================================================
+   ADDRESS MAP PICKER — “Map” next to Job Address opens a full-screen
+   Leaflet map, centers on the device location, keeps a floating pin
+   fixed at the viewport center while the user pans/zooms, reverse-
+   geocodes via Nominatim, and fills the address field on Done.
+   ============================================================ */
+const ADDR_MAP_FALLBACK = { lat: 28.5383, lng: -81.3792 }; // Orlando — FL-first default
+let _addrMapTargetId = null;   // input id to fill
+let _addrMap = null;
+let _addrMapReady = null;
+let _addrMapGeocodeTimer = 0;
+let _addrMapLast = { lat: null, lng: null, label: "", ok: false };
+
+function ensureLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (_addrMapReady) return _addrMapReady;
+  _addrMapReady = new Promise((resolve, reject) => {
+    const cssId = "leaflet-css";
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement("link");
+      link.id = cssId; link.rel = "stylesheet";
+      link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+      link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
+      link.crossOrigin = "";
+      document.head.appendChild(link);
+    }
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    s.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
+    s.crossOrigin = "";
+    s.onload = () => resolve(window.L);
+    s.onerror = () => reject(new Error("Couldn't load map"));
+    document.head.appendChild(s);
+  });
+  return _addrMapReady;
+}
+
+function ensureAddressMapModal() {
+  let m = document.getElementById("addrMapModal");
+  if (m) return m;
+  m = document.createElement("div");
+  m.id = "addrMapModal";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  m.setAttribute("aria-label", "Pick address on map");
+  m.innerHTML =
+    `<div class="addr-map-head">
+       <div class="addr-map-title">Pick location</div>
+       <button type="button" class="addr-map-close" data-addr-map-close aria-label="Close">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+       </button>
+     </div>
+     <div class="addr-map-stage">
+       <div id="addrMapCanvas" aria-label="Map"></div>
+       <div class="addr-map-cross" aria-hidden="true"></div>
+       <div class="addr-map-pin" id="addrMapPin" aria-hidden="true">
+         <svg viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+           <path d="M18 46s14-10.4 14-22a14 14 0 1 0-28 0c0 11.6 14 22 14 22z" fill="#b58f4a"/>
+           <circle cx="18" cy="18" r="6.5" fill="#0b1120"/>
+         </svg>
+       </div>
+       <button type="button" class="addr-map-locate" id="addrMapLocate" aria-label="Use my current location" title="My location">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+       </button>
+     </div>
+     <div class="addr-map-foot">
+       <div class="addr-map-preview is-loading" id="addrMapPreview">Finding address…</div>
+       <div class="addr-map-coords" id="addrMapCoords"></div>
+       <button type="button" class="addr-map-done" id="addrMapDone" disabled>Use this address</button>
+     </div>`;
+  document.body.appendChild(m);
+  m.querySelector("[data-addr-map-close]").addEventListener("click", closeAddressMapPicker);
+  m.querySelector("#addrMapDone").addEventListener("click", confirmAddressMapPicker);
+  m.querySelector("#addrMapLocate").addEventListener("click", () => centerAddressMapOnDevice({ force: true }));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && m.classList.contains("open")) closeAddressMapPicker();
+  });
+  return m;
+}
+
+function formatNominatimAddress(data) {
+  if (!data) return "";
+  const a = data.address || {};
+  const road = a.road || a.pedestrian || a.footway || a.path || a.residential || "";
+  const line1 = [a.house_number, road].filter(Boolean).join(" ").trim();
+  const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || "";
+  const state = a.state || "";
+  const postcode = a.postcode || "";
+  const parts = [];
+  if (line1) parts.push(line1);
+  else if (data.name && data.name !== city) parts.push(data.name);
+  const cityState = [city, state].filter(Boolean).join(", ");
+  if (cityState && postcode) parts.push(`${cityState} ${postcode}`);
+  else if (cityState) parts.push(cityState);
+  else if (postcode) parts.push(postcode);
+  return parts.join(", ") || data.display_name || "";
+}
+
+async function reverseGeocodeLatLng(lat, lng) {
+  const url = "https://nominatim.openstreetmap.org/reverse"
+    + `?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`
+    + "&format=jsonv2&addressdetails=1&zoom=18"
+    + "&email=support%40anchorquoting.com";
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error("geocode failed");
+  return res.json();
+}
+
+function setAddressMapPreview(state, text, coords) {
+  const prev = document.getElementById("addrMapPreview");
+  const coordEl = document.getElementById("addrMapCoords");
+  const done = document.getElementById("addrMapDone");
+  if (!prev || !done) return;
+  prev.classList.remove("is-loading", "is-error");
+  if (state === "loading") prev.classList.add("is-loading");
+  if (state === "error") prev.classList.add("is-error");
+  prev.textContent = text || "";
+  if (coordEl) coordEl.textContent = coords || "";
+  done.disabled = state !== "ok" || !text;
+  _addrMapLast.ok = state === "ok";
+  if (state === "ok") _addrMapLast.label = text;
+}
+
+function scheduleAddressMapGeocode() {
+  if (!_addrMap) return;
+  const c = _addrMap.getCenter();
+  const lat = c.lat, lng = c.lng;
+  _addrMapLast.lat = lat; _addrMapLast.lng = lng;
+  setAddressMapPreview("loading", "Finding address…", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  clearTimeout(_addrMapGeocodeTimer);
+  _addrMapGeocodeTimer = setTimeout(async () => {
+    try {
+      const data = await reverseGeocodeLatLng(lat, lng);
+      // Ignore stale responses if the map moved again.
+      const now = _addrMap && _addrMap.getCenter();
+      if (!now || Math.abs(now.lat - lat) > 0.00005 || Math.abs(now.lng - lng) > 0.00005) return;
+      const label = formatNominatimAddress(data);
+      if (!label) {
+        setAddressMapPreview("error", "No address found here — pan or zoom and try again.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        return;
+      }
+      setAddressMapPreview("ok", label, `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } catch (_) {
+      setAddressMapPreview("error", "Couldn't look up that spot — check your connection.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    }
+  }, 450);
+}
+
+function centerAddressMapOnDevice(opts) {
+  const force = !!(opts && opts.force);
+  const btn = document.getElementById("addrMapLocate");
+  if (!_addrMap) return;
+  if (!navigator.geolocation) {
+    if (force) toast("Location isn't available on this device.");
+    _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+    scheduleAddressMapGeocode();
+    return;
+  }
+  if (btn) btn.disabled = true;
+  setAddressMapPreview("loading", "Getting your location…", "");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      if (btn) btn.disabled = false;
+      if (!_addrMap) return;
+      const { latitude, longitude } = pos.coords;
+      _addrMap.setView([latitude, longitude], Math.max(_addrMap.getZoom(), 17));
+      scheduleAddressMapGeocode();
+    },
+    (err) => {
+      if (btn) btn.disabled = false;
+      if (!_addrMap) return;
+      if (force) {
+        const msg = err && err.code === 1
+          ? "Location permission denied — pan the map instead."
+          : "Couldn't get your location — pan the map instead.";
+        toast(msg);
+      }
+      // Keep current center if we already moved; otherwise fall back to FL.
+      if (!_addrMapLast.lat) {
+        _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+      }
+      scheduleAddressMapGeocode();
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+  );
+}
+
+async function openAddressMapPicker(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  _addrMapTargetId = inputId;
+  const modal = ensureAddressMapModal();
+  const pin = document.getElementById("addrMapPin");
+  modal.classList.add("open");
+  try { trapDialog(modal, closeAddressMapPicker); } catch (_) {}
+  setAddressMapPreview("loading", "Loading map…", "");
+  try {
+    const L = await ensureLeaflet();
+    const canvas = document.getElementById("addrMapCanvas");
+    if (!_addrMap) {
+      _addrMap = L.map(canvas, {
+        zoomControl: true,
+        attributionControl: true,
+        maxZoom: 19,
+      }).setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(_addrMap);
+      _addrMap.on("movestart zoomstart", () => { if (pin) pin.classList.add("is-lifted"); });
+      _addrMap.on("moveend zoomend", () => {
+        if (pin) pin.classList.remove("is-lifted");
+        scheduleAddressMapGeocode();
+      });
+    } else {
+      // Re-opened — make sure size is correct after display:none.
+      setTimeout(() => { try { _addrMap.invalidateSize(); } catch (_) {} }, 40);
+    }
+    requestAnimationFrame(() => {
+      try { _addrMap.invalidateSize(); } catch (_) {}
+      centerAddressMapOnDevice({ force: false });
+    });
+  } catch (_) {
+    setAddressMapPreview("error", "Couldn't load the map. Check your connection and try again.", "");
+    toast("Couldn't load the map.");
+  }
+}
+
+function closeAddressMapPicker() {
+  const modal = document.getElementById("addrMapModal");
+  if (!modal) return;
+  clearTimeout(_addrMapGeocodeTimer);
+  modal.classList.remove("open");
+  try { releaseDialog(modal); } catch (_) {}
+  _addrMapTargetId = null;
+}
+
+function confirmAddressMapPicker() {
+  if (!_addrMapLast.ok || !_addrMapLast.label || !_addrMapTargetId) return;
+  const input = document.getElementById(_addrMapTargetId);
+  if (input) {
+    input.value = _addrMapLast.label;
+    try { input.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+    try { input.focus(); } catch (_) {}
+  }
+  toast("Address filled from map");
+  closeAddressMapPicker();
 }
 
 // OUT-7/OUT-10: an action (export a doc, create a signing link) can be interrupted
@@ -34803,6 +35168,7 @@ function init() {
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
   // PHOTO-10: stage photos picked in the Save modal (compressed) until the job is saved.
   { const b = document.getElementById("saveJobAddPhotos"); if (b) b.addEventListener("click", () => document.getElementById("saveJobPhotoInput")?.click()); }
+  { const b = document.getElementById("saveJobAddressMap"); if (b) b.addEventListener("click", () => openAddressMapPicker("saveJobAddress")); }
   { const inp = document.getElementById("saveJobPhotoInput"); if (inp) inp.addEventListener("change", async (e) => {
       const files = Array.from(e.target.files || []); e.target.value = "";
       const label = document.getElementById("saveJobPhotoLabel");
@@ -34977,6 +35343,7 @@ function init() {
   const _custBody = document.getElementById("customersBody");
   if (_custBody && !_custBody._wired) {
     _custBody.addEventListener("click", e => {
+      if (e.target.closest("#custEditorAddressMap")) { openAddressMapPicker("custEditorAddress"); return; }
       const openBtn = e.target.closest("[data-cust-open]");
       if (openBtn) { _custDetailKey = openBtn.dataset.custOpen; renderCustomersSettings(); return; }
       if (e.target.closest("[data-cust-back]")) { try { commitCustDetailIfDirty(); } catch (_) {} _custDetailKey = null; renderCustomersSettings(); return; }
