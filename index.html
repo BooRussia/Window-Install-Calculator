@@ -21191,6 +21191,9 @@ function closeJobDetailsInstant() {
     card.classList.remove("tv-off", "sheet-dragging", "sheet-settling");
     card.style.transform = ""; card.style.transition = "";
   }
+  const bd = m.querySelector(":scope > .modal-backdrop");
+  if (bd) { bd.style.opacity = ""; bd.style.transition = ""; }
+  m.classList.remove("sheet-drag-active");
   m.classList.add("hidden");
   m.classList.remove("flex", "modal-closing");
   try { document.body.classList.remove("jd-open"); } catch (_) {}
@@ -26410,7 +26413,13 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
     if (raf) { cancelAnimationFrame(raf); raf = 0; paintDrag(dy); }
     const h = card.getBoundingClientRect().height || window.innerHeight || 600;
     const flick = velY > 0.55 && dy > 28;
-    const dismiss = armed && (flick || dy > 90 || (dy > 56 && dy > h * 0.18));
+    let dismiss = armed && (flick || dy > 90 || (dy > 56 && dy > h * 0.18));
+    // Ask before animating out — confirm() must not land mid-fling.
+    if (dismiss && canClose) {
+      let ok = true;
+      try { ok = canClose() !== false; } catch (_) { ok = true; }
+      if (!ok) dismiss = false;
+    }
     card.classList.add("sheet-settling");
     card.classList.remove("sheet-dragging");
     // Enable transition on the next frame from the exact release pose — avoids
@@ -26421,18 +26430,6 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
       card.style.transition = `transform ${finishMs}ms cubic-bezier(0.22, 1, 0.36, 1)`;
       if (backdrop) backdrop.style.transition = `opacity ${finishMs}ms ease`;
       if (dismiss) {
-        let ok = true;
-        try { if (canClose) ok = canClose() !== false; } catch (_) { ok = true; }
-        if (!ok) {
-          card.style.transform = "translate3d(0, 0, 0)";
-          if (backdrop) backdrop.style.opacity = "1";
-          setTimeout(() => {
-            card.classList.remove("sheet-settling");
-            card.style.transition = ""; card.style.transform = "";
-            clearBackdropFade();
-          }, finishMs + 20);
-          return;
-        }
         card.style.transform = `translate3d(0, ${Math.max(h * 1.05, releaseY + h * 0.55)}px, 0)`;
         if (backdrop) backdrop.style.opacity = "0";
         setTimeout(() => {
