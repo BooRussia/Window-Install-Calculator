@@ -1016,9 +1016,21 @@
   }
   .addr-map-done:disabled { opacity: 0.45; cursor: default; }
   .addr-map-done:not(:disabled):active { transform: scale(0.99); }
-  /* Keep Google’s own zoom control; just lift our chrome above the map tiles. */
-  #addrMapModal .gm-style { font-family: inherit; }
-  #addrMapCanvas .gm-style-cc, #addrMapCanvas .gmnoprint a { display: none !important; }
+  /* MapLibre chrome inside our dark modal */
+  #addrMapModal .maplibregl-ctrl-group {
+    background: rgba(8,13,24,0.92) !important; border: 0 !important;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important;
+  }
+  #addrMapModal .maplibregl-ctrl-group button {
+    width: 36px !important; height: 36px !important;
+    background-color: transparent !important;
+  }
+  #addrMapModal .maplibregl-ctrl-attrib {
+    background: rgba(8,13,24,0.72) !important; color: #94a3b8 !important;
+    font-size: 10px !important;
+  }
+  #addrMapModal .maplibregl-ctrl-attrib a { color: #c9a558 !important; }
+  #addrMapModal .maplibregl-canvas { outline: none; }
   [data-theme="light"] .addr-map-btn { color: #8a6a2e; border-color: rgba(138,106,46,0.4); background: rgba(181,143,74,0.1); }
 
   /* ── Expandable live-total sheet (UI refresh P5) ── tap the selling-price bar
@@ -23077,82 +23089,58 @@ function closeManageCustomers() {
 }
 
 /* ============================================================
-   ADDRESS MAP PICKER — Google Maps (Hybrid satellite + landmarks by
-   default). Floating center pin; reverse-geocode fills the address field.
-   Requires a Maps JavaScript API key (referrer-restricted). Set via
-   window.__ANCHOR_GOOGLE_MAPS_KEY, GOOGLE_MAPS_API_KEY below, or the
-   maps-config edge function secret GOOGLE_MAPS_API_KEY.
+   ADDRESS MAP PICKER — free, no API key.
+   Map: OpenFreeMap “Liberty” (MapLibre vector tiles — clean streets + POIs).
+   Satellite: USGS ImageryTopo (free US aerial + labels; great for FL jobs).
+   Floating center pin; Nominatim reverse-geocode fills the address field.
    ============================================================ */
 const ADDR_MAP_FALLBACK = { lat: 28.5383, lng: -81.3792 }; // Orlando — FL-first default
-// Publishable browser key — restrict in Google Cloud to HTTP referrers:
-//   https://anchorquoting.com/*, https://*.netlify.app/*, http://localhost/*
-// Enable: Maps JavaScript API (+ Geocoding API for address lookup).
-const GOOGLE_MAPS_API_KEY = "";
+const ADDR_MAP_STYLE_STREET = "https://tiles.openfreemap.org/styles/liberty";
+const ADDR_MAP_STYLE_SATELLITE = {
+  version: 8,
+  name: "USGS Imagery Topo",
+  sources: {
+    usgs: {
+      type: "raster",
+      tiles: [
+        "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}",
+      ],
+      tileSize: 256,
+      maxzoom: 16,
+      attribution:
+        'Tiles courtesy of the <a href="https://usgs.gov/" target="_blank" rel="noopener">U.S. Geological Survey</a>',
+    },
+  },
+  layers: [{ id: "usgs", type: "raster", source: "usgs" }],
+};
 let _addrMapTargetId = null;
-let _addrMap = null;            // google.maps.Map
-let _addrMapReady = null;       // Promise<google>
+let _addrMap = null;            // maplibregl.Map
+let _addrMapReady = null;       // Promise<maplibregl>
 let _addrMapGeocodeTimer = 0;
-let _addrMapGeocoder = null;
 let _addrMapLast = { lat: null, lng: null, label: "", ok: false };
-let _addrMapLayerMode = "satellite"; // "street" | "satellite" (satellite = hybrid)
-let _addrMapIdleListener = null;
-let _addrMapDragListener = null;
-let _addrMapResolvedKey = "";
+let _addrMapLayerMode = "satellite"; // default aerial for building placement
+let _addrMapStyleToken = 0;
 
-function getGoogleMapsApiKeyLocal() {
-  return String((typeof window !== "undefined" && window.__ANCHOR_GOOGLE_MAPS_KEY) || GOOGLE_MAPS_API_KEY || "").trim();
-}
-
-async function resolveGoogleMapsApiKey() {
-  if (_addrMapResolvedKey) return _addrMapResolvedKey;
-  const local = getGoogleMapsApiKeyLocal();
-  if (local) { _addrMapResolvedKey = local; return local; }
-  // Optional: pull a referrer-restricted key from Supabase secrets (not committed).
-  try {
-    if (typeof SUPABASE_URL === "string" && SUPABASE_URL && typeof SUPABASE_ANON_KEY === "string") {
-      const res = await fetch(SUPABASE_URL + "/functions/v1/maps-config", {
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: "Bearer " + SUPABASE_ANON_KEY,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.ok && data.key) {
-          _addrMapResolvedKey = String(data.key).trim();
-          try { window.__ANCHOR_GOOGLE_MAPS_KEY = _addrMapResolvedKey; } catch (_) {}
-          return _addrMapResolvedKey;
-        }
-      }
-    }
-  } catch (_) {}
-  return "";
-}
-
-function ensureGoogleMaps() {
-  if (window.google && window.google.maps) return Promise.resolve(window.google);
+function ensureMapLibre() {
+  if (window.maplibregl) return Promise.resolve(window.maplibregl);
   if (_addrMapReady) return _addrMapReady;
-  _addrMapReady = (async () => {
-    const key = await resolveGoogleMapsApiKey();
-    if (!key) throw new Error("Maps API key missing");
-    await new Promise((resolve, reject) => {
-      const cb = "__anchorGoogleMapsReady";
-      const prev = window[cb];
-      window[cb] = () => {
-        try { if (prev) delete window[cb]; else delete window[cb]; } catch (_) {}
-        if (window.google && window.google.maps) resolve();
-        else reject(new Error("Google Maps failed to initialize"));
-      };
-      const s = document.createElement("script");
-      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key)
-        + "&v=weekly&callback=" + cb;
-      s.async = true;
-      s.defer = true;
-      s.onerror = () => reject(new Error("Couldn't load Google Maps"));
-      document.head.appendChild(s);
-    });
-    return window.google;
-  })();
+  _addrMapReady = new Promise((resolve, reject) => {
+    const cssId = "maplibre-css";
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement("link");
+      link.id = cssId; link.rel = "stylesheet";
+      link.href = "https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css";
+      document.head.appendChild(link);
+    }
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js";
+    s.onload = () => {
+      if (window.maplibregl) resolve(window.maplibregl);
+      else reject(new Error("MapLibre failed to initialize"));
+    };
+    s.onerror = () => reject(new Error("Couldn't load map"));
+    document.head.appendChild(s);
+  });
   _addrMapReady = _addrMapReady.catch((err) => { _addrMapReady = null; throw err; });
   return _addrMapReady;
 }
@@ -23209,46 +23197,32 @@ function ensureAddressMapModal() {
   return m;
 }
 
-function formatGoogleAddress(result) {
-  if (!result) return "";
-  const comps = result.address_components || [];
-  const get = (type) => {
-    const c = comps.find((x) => (x.types || []).includes(type));
-    return c ? (c.short_name || c.long_name || "") : "";
-  };
-  const getLong = (type) => {
-    const c = comps.find((x) => (x.types || []).includes(type));
-    return c ? (c.long_name || c.short_name || "") : "";
-  };
-  const line1 = [get("street_number"), getLong("route")].filter(Boolean).join(" ").trim();
-  const city = getLong("locality") || getLong("sublocality") || getLong("neighborhood")
-    || getLong("administrative_area_level_3") || getLong("postal_town") || "";
-  const state = get("administrative_area_level_1");
-  const postcode = get("postal_code");
+function formatNominatimAddress(data) {
+  if (!data) return "";
+  const a = data.address || {};
+  const road = a.road || a.pedestrian || a.footway || a.path || a.residential || "";
+  const line1 = [a.house_number, road].filter(Boolean).join(" ").trim();
+  const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || "";
+  const state = a.state || "";
+  const postcode = a.postcode || "";
   const parts = [];
   if (line1) parts.push(line1);
+  else if (data.name && data.name !== city) parts.push(data.name);
   const cityState = [city, state].filter(Boolean).join(", ");
   if (cityState && postcode) parts.push(cityState + " " + postcode);
   else if (cityState) parts.push(cityState);
   else if (postcode) parts.push(postcode);
-  if (parts.length) return parts.join(", ");
-  // Prefer a street-level formatted address over plus-codes when possible.
-  const formatted = result.formatted_address || "";
-  if (formatted && !/^\+[A-Z0-9]+/.test(formatted)) return formatted;
-  return formatted;
+  return parts.join(", ") || data.display_name || "";
 }
 
-function reverseGeocodeLatLng(lat, lng) {
-  return new Promise((resolve, reject) => {
-    if (!_addrMapGeocoder && window.google && window.google.maps) {
-      _addrMapGeocoder = new google.maps.Geocoder();
-    }
-    if (!_addrMapGeocoder) return reject(new Error("geocoder unavailable"));
-    _addrMapGeocoder.geocode({ location: { lat, lng } }, (results, status) => {
-      if (status === "OK" && results && results.length) resolve(results);
-      else reject(new Error(status || "geocode failed"));
-    });
-  });
+async function reverseGeocodeLatLng(lat, lng) {
+  const url = "https://nominatim.openstreetmap.org/reverse"
+    + "?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lng)
+    + "&format=jsonv2&addressdetails=1&zoom=18"
+    + "&email=support%40anchorquoting.com";
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error("geocode failed");
+  return res.json();
 }
 
 function setAddressMapPreview(state, text, coords) {
@@ -23270,7 +23244,7 @@ function addrMapCenter() {
   if (!_addrMap) return null;
   const c = _addrMap.getCenter();
   if (!c) return null;
-  return { lat: c.lat(), lng: c.lng() };
+  return { lat: c.lat, lng: c.lng };
 }
 
 function scheduleAddressMapGeocode() {
@@ -23282,17 +23256,10 @@ function scheduleAddressMapGeocode() {
   clearTimeout(_addrMapGeocodeTimer);
   _addrMapGeocodeTimer = setTimeout(async () => {
     try {
-      const results = await reverseGeocodeLatLng(lat, lng);
+      const data = await reverseGeocodeLatLng(lat, lng);
       const now = addrMapCenter();
       if (!now || Math.abs(now.lat - lat) > 0.00005 || Math.abs(now.lng - lng) > 0.00005) return;
-      // Prefer a result that has a street address.
-      let best = results[0];
-      for (const r of results) {
-        const types = r.types || [];
-        if (types.includes("street_address") || types.includes("premise")) { best = r; break; }
-        if (!best && types.includes("route")) best = r;
-      }
-      const label = formatGoogleAddress(best);
+      const label = formatNominatimAddress(data);
       if (!label) {
         setAddressMapPreview("error", "No address found here — pan or zoom and try again.", lat.toFixed(5) + ", " + lng.toFixed(5));
         return;
@@ -23310,7 +23277,7 @@ function centerAddressMapOnDevice(opts) {
   if (!_addrMap) return;
   if (!navigator.geolocation) {
     if (force) toast("Location isn't available on this device.");
-    _addrMap.setCenter(ADDR_MAP_FALLBACK);
+    _addrMap.setCenter([ADDR_MAP_FALLBACK.lng, ADDR_MAP_FALLBACK.lat]);
     _addrMap.setZoom(12);
     scheduleAddressMapGeocode();
     return;
@@ -23322,8 +23289,8 @@ function centerAddressMapOnDevice(opts) {
       if (btn) btn.disabled = false;
       if (!_addrMap) return;
       const { latitude, longitude } = pos.coords;
-      _addrMap.setCenter({ lat: latitude, lng: longitude });
-      _addrMap.setZoom(Math.max(_addrMap.getZoom() || 0, 18));
+      _addrMap.setCenter([longitude, latitude]);
+      _addrMap.setZoom(Math.max(_addrMap.getZoom() || 0, 17));
       scheduleAddressMapGeocode();
     },
     (err) => {
@@ -23336,7 +23303,7 @@ function centerAddressMapOnDevice(opts) {
         toast(msg);
       }
       if (!_addrMapLast.lat) {
-        _addrMap.setCenter(ADDR_MAP_FALLBACK);
+        _addrMap.setCenter([ADDR_MAP_FALLBACK.lng, ADDR_MAP_FALLBACK.lat]);
         _addrMap.setZoom(12);
       }
       scheduleAddressMapGeocode();
@@ -23354,20 +23321,30 @@ function syncAddressMapLayerUI() {
   });
 }
 
+function addrMapStyleForMode(mode) {
+  return mode === "satellite" ? ADDR_MAP_STYLE_SATELLITE : ADDR_MAP_STYLE_STREET;
+}
+
 function setAddressMapLayer(mode) {
   if (mode !== "street" && mode !== "satellite") return;
+  const prev = _addrMapLayerMode;
   _addrMapLayerMode = mode;
-  if (_addrMap && window.google && window.google.maps) {
-    // Hybrid = satellite imagery + road/landmark labels (what users expect from
-    // Google/Apple satellite for orientation). Plain "satellite" hides labels.
-    _addrMap.setMapTypeId(mode === "satellite" ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.ROADMAP);
-  }
   syncAddressMapLayerUI();
+  if (!_addrMap || prev === mode) return;
+  const token = ++_addrMapStyleToken;
+  const center = addrMapCenter();
+  const zoom = _addrMap.getZoom();
+  _addrMap.setStyle(addrMapStyleForMode(mode));
+  _addrMap.once("style.load", () => {
+    if (token !== _addrMapStyleToken || !_addrMap) return;
+    if (center) _addrMap.setCenter([center.lng, center.lat]);
+    if (zoom != null) _addrMap.setZoom(zoom);
+    scheduleAddressMapGeocode();
+  });
 }
 
 function resizeAddressMap() {
-  if (!_addrMap || !window.google || !window.google.maps) return;
-  try { google.maps.event.trigger(_addrMap, "resize"); } catch (_) {}
+  try { if (_addrMap) _addrMap.resize(); } catch (_) {}
 }
 
 async function openAddressMapPicker(inputId) {
@@ -23380,32 +23357,27 @@ async function openAddressMapPicker(inputId) {
   try { trapDialog(modal, closeAddressMapPicker); } catch (_) {}
   setAddressMapPreview("loading", "Loading map…", "");
   try {
-    await ensureGoogleMaps();
+    const maplibregl = await ensureMapLibre();
     const canvas = document.getElementById("addrMapCanvas");
     if (!_addrMap) {
-      _addrMap = new google.maps.Map(canvas, {
-        center: ADDR_MAP_FALLBACK,
+      _addrMap = new maplibregl.Map({
+        container: canvas,
+        style: addrMapStyleForMode(_addrMapLayerMode),
+        center: [ADDR_MAP_FALLBACK.lng, ADDR_MAP_FALLBACK.lat],
         zoom: 12,
-        mapTypeId: google.maps.MapTypeId.HYBRID,
-        disableDefaultUI: true,
-        zoomControl: true,
-        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP },
-        gestureHandling: "greedy",
-        clickableIcons: true,   // landmarks / POIs help orientation
-        keyboardShortcuts: false,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        rotateControl: false,
+        attributionControl: { compact: true },
+        pitchWithRotate: false,
+        dragRotate: false,
       });
-      _addrMapGeocoder = new google.maps.Geocoder();
-      _addrMapDragListener = _addrMap.addListener("dragstart", () => { if (pin) pin.classList.add("is-lifted"); });
-      _addrMapIdleListener = _addrMap.addListener("idle", () => {
+      _addrMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      _addrMap.on("dragstart", () => { if (pin) pin.classList.add("is-lifted"); });
+      _addrMap.on("zoomstart", () => { if (pin) pin.classList.add("is-lifted"); });
+      _addrMap.on("moveend", () => {
         if (pin) pin.classList.remove("is-lifted");
         scheduleAddressMapGeocode();
       });
     }
-    setAddressMapLayer(_addrMapLayerMode);
+    syncAddressMapLayerUI();
     requestAnimationFrame(() => {
       resizeAddressMap();
       setTimeout(() => {
@@ -23413,16 +23385,9 @@ async function openAddressMapPicker(inputId) {
         centerAddressMapOnDevice({ force: false });
       }, 60);
     });
-  } catch (err) {
-    const missing = /key missing/i.test(String(err && err.message || err || ""));
-    setAddressMapPreview(
-      "error",
-      missing
-        ? "Google Maps isn’t configured yet — add a Maps JavaScript API key to enable the picker."
-        : "Couldn't load Google Maps. Check your connection and try again.",
-      ""
-    );
-    toast(missing ? "Google Maps API key needed" : "Couldn't load the map.");
+  } catch (_) {
+    setAddressMapPreview("error", "Couldn't load the map. Check your connection and try again.", "");
+    toast("Couldn't load the map.");
   }
 }
 
