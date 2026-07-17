@@ -23345,9 +23345,106 @@ function _resetSaveJobPhotoUI() {
   if (l) l.textContent = "Add job photos";
 }
 
+// Persist Save Job form fields across the photo picker (iOS/Android often
+// background the page or fire a ghost click on the backdrop, which used to wipe
+// whatever the user had typed). Kept in STATE + sessionStorage.
+const SAVE_JOB_FORM_DRAFT_KEY = "aq_saveJobFormDraft";
+let _saveJobPhotoPicking = false;
+let _saveJobIgnoreCloseUntil = 0;
+
+function isSaveJobModalOpen() {
+  const m = document.getElementById("saveJobModal");
+  return !!(m && !m.classList.contains("hidden") && m.classList.contains("flex"));
+}
+
+function readSaveJobForm() {
+  return {
+    name: document.getElementById("saveJobName")?.value || "",
+    company: document.getElementById("saveJobCompany")?.value || "",
+    jobName: document.getElementById("saveJobJobName")?.value || "",
+    address: document.getElementById("saveJobAddress")?.value || "",
+    phone: document.getElementById("saveJobPhone")?.value || "",
+    email: document.getElementById("saveJobEmail")?.value || "",
+    notes: document.getElementById("saveJobNotes")?.value || "",
+    tag: typeof getSaveJobCustomerTag === "function" ? getSaveJobCustomerTag() : "",
+    recurring: !!document.getElementById("saveJobRecurring")?.checked,
+    customerPick: document.getElementById("saveJobCustomerPick")?.value || "",
+  };
+}
+
+function applySaveJobForm(d) {
+  if (!d) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+  set("saveJobName", d.name);
+  set("saveJobCompany", d.company);
+  set("saveJobJobName", d.jobName);
+  set("saveJobAddress", d.address);
+  set("saveJobPhone", d.phone);
+  set("saveJobEmail", d.email);
+  set("saveJobNotes", d.notes);
+  const rec = document.getElementById("saveJobRecurring");
+  if (rec && d.recurring != null) rec.checked = !!d.recurring;
+  if (d.tag !== undefined) syncSaveJobCustomerTagUI(d.tag);
+  const pick = document.getElementById("saveJobCustomerPick");
+  if (pick && d.customerPick != null) {
+    try { pick.value = d.customerPick; } catch (_) {}
+  }
+}
+
+function clearSaveJobFormDraft() {
+  try { sessionStorage.removeItem(SAVE_JOB_FORM_DRAFT_KEY); } catch (_) {}
+}
+
+function loadSaveJobFormDraft() {
+  try {
+    const raw = sessionStorage.getItem(SAVE_JOB_FORM_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || !d.t || (Date.now() - d.t) > 2 * 60 * 60 * 1000) return null;
+    return d;
+  } catch (_) { return null; }
+}
+
+function syncSaveJobFormToState() {
+  if (!isSaveJobModalOpen() && !_saveJobPhotoPicking) return null;
+  const d = readSaveJobForm();
+  STATE.customerName = (d.name || "").trim();
+  STATE.jobName = (d.jobName || "").trim();
+  STATE.customerAddress = (d.address || "").trim();
+  STATE.customerCompany = (d.company || "").trim();
+  STATE.customerPhone = (d.phone || "").trim();
+  STATE.customerEmail = (d.email || "").trim();
+  STATE.customerNotes = (d.notes || "").trim();
+  STATE.customerTag = normalizeCustomerTag(d.tag);
+  try {
+    sessionStorage.setItem(SAVE_JOB_FORM_DRAFT_KEY, JSON.stringify(Object.assign({}, d, { t: Date.now() })));
+  } catch (_) {}
+  return d;
+}
+
+function ensureSaveJobModalVisible() {
+  const modal = document.getElementById("saveJobModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function armSaveJobPickerShield(ms) {
+  _saveJobIgnoreCloseUntil = Date.now() + (ms || 700);
+  // Same iOS ghost-click pattern as the gallery lightbox: the synthetic click
+  // after the system picker closes often lands on the modal backdrop and would
+  // dismiss Save Job (wiping the form + staged photos).
+  if (typeof armLightboxClickShield === "function") {
+    try { armLightboxClickShield(ms || 700); } catch (_) {}
+  }
+}
+
 function openSaveJobModal() {
   _pendingAfterSave = null;   // a fresh open clears any stale pending; the gate re-sets it
-  _resetSaveJobPhotoUI();     // PHOTO-10: drop any photos staged from a previous open
+  const alreadyOpen = isSaveJobModalOpen();
+  // Keep staged photos + typed fields if the modal is already up (e.g. photo
+  // picker returned and something re-entered openSaveJobModal).
+  if (!alreadyOpen) _resetSaveJobPhotoUI();
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return false; }
   // OUT-4: surface the plan wall BEFORE the user fills the whole form. A fresh save
@@ -23358,46 +23455,57 @@ function openSaveJobModal() {
     const chk = canGenerate();
     if (!chk.allowed) { showUpsellModal(chk.reason); return false; }
   }
-  // Customer and job name are separate fields now: customer groups jobs, job name
-  // distinguishes them. Prefill both from STATE (a loaded job sets both).
-  document.getElementById("saveJobName").value = STATE.customerName || "";
-  { const _co = document.getElementById("saveJobCompany"); if (_co) _co.value = STATE.customerCompany || ""; }
-  { const _jn = document.getElementById("saveJobJobName"); if (_jn) _jn.value = STATE.jobName || ""; }
-  document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
-  { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
-  { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
-  document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
-  populateCustomerPicker();   // refresh the saved-customer dropdown each open
-  // Prefill customer type from STATE (loaded job / prior pick); clear for a fresh quote.
-  { let tag = normalizeCustomerTag(STATE.customerTag);
-    if (!tag && STATE.currentJobId) {
-      const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
-      if (_j) tag = normalizeCustomerTag(_j.customerTag);
-    }
-    syncSaveJobCustomerTagUI(tag);
-  }
-  // "Recurring customer" defaults ON. When re-saving an existing job, reflect
-  // that job's stored flag so a one-time client stays one-time.
-  { const _rec = document.getElementById("saveJobRecurring");
-    if (_rec) {
-      let on = true;
-      if (STATE.currentJobId) {
+  if (!alreadyOpen) {
+    // Customer and job name are separate fields now: customer groups jobs, job name
+    // distinguishes them. Prefill both from STATE (a loaded job sets both).
+    document.getElementById("saveJobName").value = STATE.customerName || "";
+    { const _co = document.getElementById("saveJobCompany"); if (_co) _co.value = STATE.customerCompany || ""; }
+    { const _jn = document.getElementById("saveJobJobName"); if (_jn) _jn.value = STATE.jobName || ""; }
+    document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
+    { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
+    { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
+    document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
+    populateCustomerPicker();   // refresh the saved-customer dropdown each open
+    // Prefill customer type from STATE (loaded job / prior pick); clear for a fresh quote.
+    { let tag = normalizeCustomerTag(STATE.customerTag);
+      if (!tag && STATE.currentJobId) {
         const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
-        if (_j) on = _j.customerRecurring !== false;
+        if (_j) tag = normalizeCustomerTag(_j.customerTag);
       }
-      _rec.checked = on;
-    } }
+      syncSaveJobCustomerTagUI(tag);
+    }
+    // "Recurring customer" defaults ON. When re-saving an existing job, reflect
+    // that job's stored flag so a one-time client stays one-time.
+    { const _rec = document.getElementById("saveJobRecurring");
+      if (_rec) {
+        let on = true;
+        if (STATE.currentJobId) {
+          const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
+          if (_j) on = _j.customerRecurring !== false;
+        }
+        _rec.checked = on;
+      } }
+    // Re-apply an in-progress draft (photo-picker background kill / accidental close).
+    const draft = loadSaveJobFormDraft();
+    if (draft && (draft.name || draft.jobName || draft.address || draft.phone || draft.email || draft.company || draft.notes)) {
+      applySaveJobForm(draft);
+    }
+  }
   const modal = document.getElementById("saveJobModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
   navPushOverlay(modal);   // Phase 4d (no-op unless HISTORY_NAV)
-  setTimeout(() => { try { document.getElementById("saveJobName").focus(); } catch {} }, 60);
+  if (!alreadyOpen) setTimeout(() => { try { document.getElementById("saveJobName").focus(); } catch {} }, 60);
   return true;
 }
 
 function closeSaveJobModal() {
+  // Ignore dismiss while the system photo picker is up / just closed — otherwise
+  // an iOS ghost click on the backdrop wipes the filled-in customer fields.
+  if (_saveJobPhotoPicking || Date.now() < _saveJobIgnoreCloseUntil) return;
   _pendingAfterSave = null;   // OUT-7: closing the save form abandons any interrupted action
   _pendingSaveJobPhotos = []; // PHOTO-10: abandon any staged (unsaved) photos
+  clearSaveJobFormDraft();
   const _m = document.getElementById("saveJobModal");
   navPopOverlay(_m);   // Phase 4d (no-op unless HISTORY_NAV)
   tvDismiss(_m);
@@ -23406,6 +23514,9 @@ function closeSaveJobModal() {
 // Save dispatcher: reads the form into STATE, then decides whether to update the
 // loaded job in place, overwrite a name+customer twin, or save fresh.
 function confirmSaveJob() {
+  _saveJobPhotoPicking = false;
+  _saveJobIgnoreCloseUntil = 0;
+  try { syncSaveJobFormToState(); } catch (_) {}
   const customer = document.getElementById("saveJobName").value.trim();   // "Customer" field
   const jobName = (document.getElementById("saveJobJobName")?.value || "").trim();   // "Job name" field
   STATE.customerName = customer;
@@ -35227,13 +35338,63 @@ function init() {
   // so it reopens after you pick. (Save button was double-bound the same way.)
   const saveModal = document.getElementById("saveJobModal");
   if (saveModal && !saveModal._wired) {
-  saveModal.addEventListener("click", e => { if (e.target.dataset.closeSave !== undefined) closeSaveJobModal(); });
+  saveModal.addEventListener("click", e => {
+    if (e.target.dataset.closeSave === undefined) return;
+    // Cancel / × always win. Backdrop clicks are ignored while the photo picker
+    // is up or for a short shield window (iOS ghost click after the picker).
+    const intentional = !!e.target.closest("button");
+    if (!intentional && (_saveJobPhotoPicking || Date.now() < _saveJobIgnoreCloseUntil)) return;
+    if (intentional) { _saveJobPhotoPicking = false; _saveJobIgnoreCloseUntil = 0; }
+    closeSaveJobModal();
+  });
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
+  // Keep typed customer/job fields alive while the modal is open (photo picker,
+  // backgrounding, accidental close → reopen).
+  saveModal.addEventListener("input", () => { try { syncSaveJobFormToState(); } catch (_) {} });
+  saveModal.addEventListener("change", () => { try { syncSaveJobFormToState(); } catch (_) {} });
   // PHOTO-10: stage photos picked in the Save modal (compressed) until the job is saved.
-  { const b = document.getElementById("saveJobAddPhotos"); if (b) b.addEventListener("click", () => document.getElementById("saveJobPhotoInput")?.click()); }
-  { const b = document.getElementById("saveJobAddressMap"); if (b) b.addEventListener("click", () => openAddressMapPicker("saveJobAddress")); }
+  { const b = document.getElementById("saveJobAddPhotos"); if (b) b.addEventListener("click", () => {
+      try { syncSaveJobFormToState(); } catch (_) {}
+      _saveJobPhotoPicking = true;
+      armSaveJobPickerShield(900);
+      document.getElementById("saveJobPhotoInput")?.click();
+      // If the user cancels the picker, clear the picking flag shortly after focus returns.
+      const clearPick = () => {
+        setTimeout(() => {
+          _saveJobPhotoPicking = false;
+          armSaveJobPickerShield(500);
+          try {
+            const draft = loadSaveJobFormDraft();
+            if (draft) applySaveJobForm(draft);
+            ensureSaveJobModalVisible();
+          } catch (_) {}
+        }, 0);
+        window.removeEventListener("focus", clearPick);
+        document.removeEventListener("visibilitychange", onVis);
+      };
+      const onVis = () => { if (document.visibilityState === "visible") clearPick(); };
+      window.addEventListener("focus", clearPick);
+      document.addEventListener("visibilitychange", onVis);
+    }); }
+  { const b = document.getElementById("saveJobAddressMap"); if (b) b.addEventListener("click", () => {
+      try { syncSaveJobFormToState(); } catch (_) {}
+      openAddressMapPicker("saveJobAddress");
+    }); }
   { const inp = document.getElementById("saveJobPhotoInput"); if (inp) inp.addEventListener("change", async (e) => {
       const files = Array.from(e.target.files || []); e.target.value = "";
+      _saveJobPhotoPicking = false;
+      armSaveJobPickerShield(700);
+      // Restore fields first — some WebViews wipe inputs when the camera returns.
+      try {
+        const draft = loadSaveJobFormDraft();
+        if (draft) applySaveJobForm(draft);
+        else applySaveJobForm({
+          name: STATE.customerName, company: STATE.customerCompany, jobName: STATE.jobName,
+          address: STATE.customerAddress, phone: STATE.customerPhone, email: STATE.customerEmail,
+          notes: STATE.customerNotes, tag: STATE.customerTag,
+        });
+        ensureSaveJobModalVisible();
+      } catch (_) {}
       const label = document.getElementById("saveJobPhotoLabel");
       // Count the target job's EXISTING gallery too (a re-save carries it forward), so we
       // never stage photos that would just be cap-dropped at attach time.
@@ -35256,9 +35417,25 @@ function init() {
         if (saveBtn) saveBtn.disabled = false;
         const n = _pendingSaveJobPhotos.length;
         if (label) label.textContent = n ? (n + " photo" + (n === 1 ? "" : "s") + " ready — tap to add more") : "Add job photos";
+        try {
+          const draft = loadSaveJobFormDraft();
+          if (draft) applySaveJobForm(draft);
+          ensureSaveJobModalVisible();
+          syncSaveJobFormToState();
+        } catch (_) {}
       }
     }); }
     saveModal._wired = true;
+  }
+  // Backgrounding for the camera/gallery — stash the form so a killed WebView
+  // can restore fields when Save Job is opened again.
+  if (!window._saveJobVisWired) {
+    window._saveJobVisWired = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden" && (isSaveJobModalOpen() || _saveJobPhotoPicking)) {
+        try { syncSaveJobFormToState(); } catch (_) {}
+      }
+    });
   }
   // Save-conflict prompt (overwrite existing vs save a new quote)
   const _conf = document.getElementById("saveConflictModal");
