@@ -4924,6 +4924,20 @@
     opacity: 0; pointer-events: auto !important;
     transition: opacity .1s ease;
   }
+  /* Swipe-down release: keep the shrunk/offset pose and fling it away —
+     never snap back to fullscreen before fading (that flash felt broken). */
+  #jdgLightbox.lb-closing.lb-dismiss-exit {
+    transition: opacity .28s ease;
+  }
+  #jdgLightbox.lb-dismiss-exit .jdg-img {
+    transition: transform .28s cubic-bezier(.2,.7,.2,1), opacity .28s ease !important;
+  }
+  #jdgLightbox.lb-dismiss-snap .jdg-img {
+    transition: transform .28s cubic-bezier(.2,.8,.2,1) !important;
+  }
+  #jdgLightbox.lb-dismiss-snap {
+    transition: background-color .28s ease;
+  }
   /* Blur sits on a sibling layer — Safari can blank transformed <img>s when
      backdrop-filter is on the same element as the zoomed photo. */
   #jdgLightbox::before {
@@ -4950,7 +4964,8 @@
   #jdgLightbox.lb-zoomed .jdg-img { border-radius: 0; cursor: grab; }
   #jdgLightbox.lb-zooming .jdg-img,
   #jdgLightbox.lb-panning .jdg-img,
-  #jdgLightbox.lb-dismissing .jdg-img { transition: none; }
+  #jdgLightbox.lb-dismissing .jdg-img,
+  #jdgLightbox.lb-swiping .jdg-img { transition: none; }
   #jdgLightbox.lb-zoomed .jdg-nav,
   #jdgLightbox.lb-zoomed .jdg-del,
   #jdgLightbox.lb-zoomed .jdg-count { opacity: 0.35; pointer-events: none; }
@@ -19487,7 +19502,10 @@ function applyLightboxTransform() {
   } else {
     lb.style.removeProperty("--lb-dim");
   }
-  if (img) img.style.opacity = Math.abs(_lbSwipeX) > 8 ? String(Math.max(0.35, 1 - Math.abs(_lbSwipeX) / 520)) : "";
+  // Only override opacity while mid-swipe — don't clobber the load fade in showLightboxPhoto.
+  if (Math.abs(_lbSwipeX) > 8) {
+    img.style.opacity = String(Math.max(0.35, 1 - Math.abs(_lbSwipeX) / 520));
+  }
 }
 
 function clampLightboxPan() {
@@ -19722,11 +19740,18 @@ function wireGalleryLightboxZoom(lb) {
         if (shouldClose) {
           _lbSuppressClose = true;
           setTimeout(() => { _lbSuppressClose = false; }, 80);
-          closeGalleryLightbox();
+          closeGalleryLightbox({ fromDismiss: true, velY });
           mode = null; moved = false; velSamples.length = 0;
           return;
         }
-        clearDismiss();
+        // Spring back to center from the current shrink/offset — no hard snap.
+        lb.classList.remove("lb-dismissing");
+        lb.classList.add("lb-dismiss-snap");
+        _lbDismissX = 0; _lbDismissY = 0; _lbDismissScale = 1;
+        lb.style.removeProperty("--lb-dim");
+        applyLightboxTransform();
+        clearTimeout(lb._dismissSnapTimer);
+        lb._dismissSnapTimer = setTimeout(() => lb.classList.remove("lb-dismiss-snap"), 300);
         endGesture();
         return;
       }
@@ -19842,7 +19867,7 @@ function openGalleryLightbox(jobId, idx) {
   // Cancel a pending close-shield hide if the user reopens quickly.
   clearTimeout(lb._closeTimer);
   lb._closing = false;
-  lb.classList.remove("lb-closing");
+  lb.classList.remove("lb-closing", "lb-dismiss-exit", "lb-dismiss-snap");
   resetLightboxZoom();
   lb.classList.add("open");
   // Phase 4c: the lightbox stacks OVER the trapped Job Details modal — trap it too
@@ -19851,32 +19876,66 @@ function openGalleryLightbox(jobId, idx) {
   document.addEventListener("keydown", lightboxKey);
   showLightboxPhoto();
 }
-function closeGalleryLightbox() {
+function closeGalleryLightbox(opts) {
   const lb = document.getElementById("jdgLightbox");
   if (!lb || !lb.classList.contains("open") || lb._closing) return;
   lb._closing = true;
   document.removeEventListener("keydown", lightboxKey);
-  resetLightboxZoom();
+  const fromDismiss = !!(opts && opts.fromDismiss);
+  const img = lb.querySelector(".jdg-img");
   _lbJobId = null;
   try { releaseDialog(lb); } catch (_) {}
-  // Stay mounted (and hit-testable) long enough to eat the iOS ghost click.
-  lb.classList.add("lb-closing");
+
   const eat = (e) => { try { e.preventDefault(); } catch (_) {} e.stopPropagation(); };
   lb.addEventListener("click", eat, true);
   lb.addEventListener("pointerup", eat, true);
   lb.addEventListener("pointerdown", eat, true);
   lb.addEventListener("touchend", eat, true);
   lb.addEventListener("touchstart", eat, true);
-  clearTimeout(lb._closeTimer);
-  lb._closeTimer = setTimeout(() => {
-    lb.classList.remove("open", "lb-closing");
-    lb.removeEventListener("click", eat, true);
-    lb.removeEventListener("pointerup", eat, true);
-    lb.removeEventListener("pointerdown", eat, true);
-    lb.removeEventListener("touchend", eat, true);
-    lb.removeEventListener("touchstart", eat, true);
-    lb._closing = false;
-  }, 380);
+
+  const finishHide = (ms) => {
+    clearTimeout(lb._closeTimer);
+    lb._closeTimer = setTimeout(() => {
+      lb.classList.remove("open", "lb-closing", "lb-dismiss-exit", "lb-dismissing", "lb-dismiss-snap");
+      resetLightboxZoom();
+      lb.removeEventListener("click", eat, true);
+      lb.removeEventListener("pointerup", eat, true);
+      lb.removeEventListener("pointerdown", eat, true);
+      lb.removeEventListener("touchend", eat, true);
+      lb.removeEventListener("touchstart", eat, true);
+      lb._closing = false;
+    }, ms);
+  };
+
+  if (fromDismiss) {
+    // Keep the release pose, turn transitions back on, then fling further away.
+    // Resetting to fullscreen first was the flash the user saw.
+    const dir = _lbDismissY >= 0 ? 1 : -1;
+    const fling = Math.max(240, (window.innerHeight || 640) * 0.42);
+    const boost = Math.min(220, Math.abs((opts && opts.velY) || 0) * 180);
+    const endY = _lbDismissY + dir * (fling + boost);
+    const endX = _lbDismissX * 1.2;
+    const endScale = Math.min(_lbDismissScale, 0.78) * 0.9;
+    lb.classList.remove("lb-zooming", "lb-panning");
+    lb.classList.add("lb-dismissing", "lb-dismiss-exit");
+    // Next frame so the browser commits the current transform before we animate.
+    requestAnimationFrame(() => {
+      _lbDismissY = endY;
+      _lbDismissX = endX;
+      _lbDismissScale = endScale;
+      lb.style.setProperty("--lb-dim", "0.06");
+      applyLightboxTransform();
+      if (img) img.style.opacity = "0";
+      lb.classList.add("lb-closing");
+    });
+    finishHide(340);
+    return;
+  }
+
+  resetLightboxZoom();
+  // Stay mounted (and hit-testable) long enough to eat the iOS ghost click.
+  lb.classList.add("lb-closing");
+  finishHide(380);
 }
 function lightboxKey(e) {
   // Esc is owned by the stack-aware global handler (the lightbox is a trapped dialog);
