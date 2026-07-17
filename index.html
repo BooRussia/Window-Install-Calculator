@@ -922,20 +922,38 @@
      for an itemized peek (mobile-patterns §7: the collapsed bar expands into an
      honest, itemized total). Internal numbers carry .internal-only so Present
      mode strips them; ≥1024px never shows it (the bar itself is mobile-only). */
-  #mtotalSheet { position: fixed; inset: 0; z-index: 49; display: none; }
+  /* Above the tab bar (z-75) while open so drawer scroll owns the gesture —
+     otherwise touches near the chin hit the tab bar / page behind. */
+  #mtotalSheet { position: fixed; inset: 0; z-index: 80; display: none; }
   #mtotalSheet.open { display: block; }
-  body.msheet-open { overscroll-behavior-y: none; }
-  .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  /* Lock the calculator page so a sheet scroll can’t chain into the background. */
+  html.msheet-open, body.msheet-open {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+    touch-action: none;
+  }
+  body.msheet-open #mtotalSheet { touch-action: auto; }
+  body.msheet-open .msheet-panel { touch-action: pan-y; }
+  body.msheet-open .msheet-grab { touch-action: none; }
+  .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); touch-action: none; }
   .msheet-panel {
     position: absolute; left: 0; right: 0; bottom: 0; max-height: 78svh;
-    overflow-y: auto; overscroll-behavior: contain;
+    overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     background: linear-gradient(180deg, #0d1426 0%, #060a16 100%);
     border-top: 1px solid rgba(181,143,74,0.35); border-radius: 20px 20px 0 0;
     padding: 8px 18px calc(18px + env(safe-area-inset-bottom));
     animation: sheetUp .34s cubic-bezier(0.16,1,0.3,1);
     will-change: transform;
   }
-  .msheet-panel.dragging { animation: none !important; transition: none !important; }
+  @media (max-width: 1023px) {
+    body.tabbar-on .msheet-panel {
+      /* Clear the tab bar so the last rows + CTA stay reachable while scrolling. */
+      max-height: calc(78svh - var(--chrome-b, 0px));
+      padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    }
+  }
+  .msheet-panel.dragging { animation: none !important; transition: none !important; touch-action: none; }
   /* Keep sheetUp from replaying while we settle a drag dismiss/snap-back —
      that replay was the bounce after finger-up. */
   .msheet-panel.settling { animation: none !important; }
@@ -35627,11 +35645,13 @@ function init() {
     _msheet.classList.remove("open");
     _msheet.setAttribute("aria-hidden", "true");
     document.body.classList.remove("msheet-open");
+    document.documentElement.classList.remove("msheet-open");
     const panel = _msheet.querySelector(".msheet-panel");
     if (panel) {
       panel.classList.remove("dragging", "settling");
       panel.style.transition = "";
       panel.style.transform = "";
+      try { panel.scrollTop = 0; } catch (_) {}
     }
   }
   function openMtotalSheet() {
@@ -35658,6 +35678,9 @@ function init() {
     _msheet.classList.add("open");
     _msheet.setAttribute("aria-hidden", "false");
     document.body.classList.add("msheet-open");
+    document.documentElement.classList.add("msheet-open");
+    const panel = _msheet.querySelector(".msheet-panel");
+    if (panel) try { panel.scrollTop = 0; } catch (_) {}
   }
   // Tap opens the sheet; a downward drag tucks the bar instead (no PTR).
   (function wireMtotalBarGestures() {
@@ -35808,59 +35831,83 @@ function init() {
       }
     });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMtotalSheet(); });
-    // Drag-to-dismiss: grab handle always; panel body when scrolled to top.
+    // Drag-to-dismiss: grab handle always; panel body only after a clear
+    // downward pull at scrollTop 0. Upward / content scrolls stay native so
+    // the calculator page behind never steals the gesture.
     (function wireSheetDrag() {
       const panel = _msheet.querySelector(".msheet-panel");
       const grab = _msheet.querySelector(".msheet-grab");
       if (!panel) return;
-      let startY = 0, dy = 0, dragging = false, fromGrab = false;
+      let startY = 0, dy = 0, dragging = false, fromGrab = false, pending = false;
       function pt(e) { return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; }
+      function armDismiss() {
+        dragging = true; pending = false;
+        panel.classList.add("dragging");
+        panel.classList.remove("settling");
+        panel.style.transition = "none";
+        panel.style.transform = "translate3d(0,0,0)";
+      }
       function begin(e, grabOnly) {
         if (!_msheet.classList.contains("open")) return;
         const p = pt(e); if (!p) return;
         fromGrab = !!grabOnly;
-        if (!fromGrab && panel.scrollTop > 0) return;
-        startY = p.clientY; dy = 0; dragging = true;
-        panel.classList.add("dragging");
+        startY = p.clientY; dy = 0; dragging = false; pending = false;
+        if (fromGrab) {
+          armDismiss();
+          return;
+        }
+        // Already scrolled — leave the gesture to native pan-y scrolling.
+        if (panel.scrollTop > 0) return;
+        pending = true;
       }
       function move(e) {
-        if (!dragging) return;
         const p = pt(e); if (!p) return;
-        dy = Math.max(0, p.clientY - startY);
-        // Once pulling down from top of sheet, lock scroll + block PTR
-        if (dy > 0 || fromGrab) {
-          panel.style.transform = `translateY(${dy}px)`;
-          if (e.cancelable) e.preventDefault();
+        const raw = p.clientY - startY;
+        if (pending && !dragging) {
+          // Finger up → user is scrolling the list; abandon dismiss tracking.
+          if (raw < -6) { pending = false; return; }
+          // Still deciding — don’t preventDefault (that killed panel scroll).
+          if (raw < 12) return;
+          // Content moved off top mid-gesture — let scroll win.
+          if (panel.scrollTop > 0) { pending = false; return; }
+          armDismiss();
         }
+        if (!dragging) return;
+        dy = Math.max(0, raw);
+        panel.style.transform = `translate3d(0, ${dy}px, 0)`;
+        if (e.cancelable) e.preventDefault();
       }
       function end() {
+        if (pending && !dragging) { pending = false; dy = 0; return; }
         if (!dragging) return;
-        dragging = false;
+        dragging = false; pending = false;
         const dismiss = dy > 90 || (dy > 56 && dy > panel.getBoundingClientRect().height * 0.18);
         // Same pattern as bar tuck: keep current finger offset, enable transition,
         // THEN set the settle target — never jump under transition:none, and
         // never let sheetUp replay (settling keeps animation:none).
         panel.classList.add("settling");
-        panel.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
         panel.classList.remove("dragging");
-        void panel.offsetWidth;
-        if (dismiss) {
-          panel.style.transform = "translateY(110%)";
-          const bd = _msheet.querySelector(".msheet-backdrop");
-          if (bd) { bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
-          setTimeout(() => {
-            closeMtotalSheet(true);
-            panel.classList.remove("settling");
-            panel.style.transition = ""; panel.style.transform = "";
-            if (bd) { bd.style.transition = ""; bd.style.opacity = ""; }
-          }, 300);
-        } else {
-          panel.style.transform = "translateY(0)";
-          setTimeout(() => {
-            panel.classList.remove("settling");
-            panel.style.transition = ""; panel.style.transform = "";
-          }, 300);
-        }
+        const releaseY = dy;
+        requestAnimationFrame(() => {
+          panel.style.transition = "transform .3s cubic-bezier(0.22, 1, 0.36, 1)";
+          if (dismiss) {
+            panel.style.transform = `translate3d(0, ${Math.max(releaseY + 120, panel.getBoundingClientRect().height * 1.05)}px, 0)`;
+            const bd = _msheet.querySelector(".msheet-backdrop");
+            if (bd) { bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
+            setTimeout(() => {
+              closeMtotalSheet(true);
+              panel.classList.remove("settling");
+              panel.style.transition = ""; panel.style.transform = "";
+              if (bd) { bd.style.transition = ""; bd.style.opacity = ""; }
+            }, 300);
+          } else {
+            panel.style.transform = "translate3d(0, 0, 0)";
+            setTimeout(() => {
+              panel.classList.remove("settling");
+              panel.style.transition = ""; panel.style.transform = "";
+            }, 300);
+          }
+        });
         dy = 0;
       }
       grab?.addEventListener("touchstart", (e) => begin(e, true), { passive: true });
