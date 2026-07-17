@@ -4847,17 +4847,57 @@
   .fan-card.is-front .fan-card-zoom { opacity: 1; }
   .jd-fan.jd-fan-scrubbing .fan-card-zoom { opacity: 0 !important; }
   /* PHOTO-9: the empty state is now a tappable drop-zone button */
-  .jd-fan-empty { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; text-align: center; color: #64748b; font-size: 12px; font-weight: 600; padding: 22px 12px; border: 1px dashed #334155; border-radius: 14px; background: transparent; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease; }
+  .jd-fan-empty { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; text-align: center; color: #64748b; font-size: 12px; font-weight: 600; padding: 22px 12px; border: 1px dashed #334155; border-radius: 14px; background: transparent; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease; position: relative; }
   .jd-fan-empty:hover { border-color: rgba(201,165,88,0.5); color: #c9a558; background: rgba(181,143,74,0.05); }
   .jd-fan-empty svg { color: #94a3b8; margin-bottom: 3px; }
   .jd-fan-empty:hover svg { color: #c9a558; }
   .jd-fan-empty-sub { font-size: 10.5px; font-weight: 500; color: #64748b; }
+  .jd-fan-empty.is-uploading {
+    border-color: rgba(201,165,88,0.55); color: #c9a558;
+    background: rgba(181,143,74,0.06); cursor: default; pointer-events: none;
+  }
+  .jd-fan-empty.is-uploading svg,
+  .jd-fan-empty.is-uploading > span:not(.jd-fan-empty-progress) { display: none; }
+  .jd-fan-empty-progress {
+    display: none; width: min(100%, 260px); flex-direction: column; align-items: stretch; gap: 8px;
+    padding: 4px 2px 2px; text-align: left;
+  }
+  .jd-fan-empty.is-uploading .jd-fan-empty-progress { display: flex; }
+  /* Progress strip under the section header (used when the fan already has photos). */
+  .jd-gallery-progress {
+    display: none; margin: 0 0 10px; padding: 10px 12px; border-radius: 12px;
+    border: 1px solid rgba(181,143,74,0.35); background: rgba(181,143,74,0.08);
+  }
+  .jd-gallery-progress.is-on { display: block; }
+  .jd-gallery-progress-label,
+  .jd-fan-empty-progress-label {
+    font-size: 11px; font-weight: 800; color: #c9a558; letter-spacing: 0.02em;
+  }
+  .jd-gallery-progress-row {
+    display: flex; align-items: center; gap: 10px; margin-top: 6px;
+  }
+  .jd-gallery-progress-track {
+    flex: 1 1 auto; height: 6px; border-radius: 999px; overflow: hidden;
+    background: rgba(15,23,42,0.55); border: 1px solid rgba(181,143,74,0.25);
+  }
+  .jd-gallery-progress-fill {
+    display: block; height: 100%; width: 0%;
+    border-radius: inherit; background: linear-gradient(90deg, #b58f4a, #e2cf9a);
+    transition: width .18s ease;
+  }
+  .jd-gallery-progress-count {
+    flex: 0 0 auto; min-width: 3.25rem; text-align: right;
+    font-size: 11px; font-weight: 800; color: #94a3b8; font-variant-numeric: tabular-nums;
+  }
   .jd-gallery-hint { font-size: 10px; color: #64748b; margin: 0 0 4px; line-height: 1.35; }
   @media (max-width: 639px) {
     .jd-gallery-hint { display: none; } /* reclaim vertical space for bigger photos on phone */
   }
   [data-theme="light"] .jd-fan-empty { color: #64748b; border-color: #d6dae1; }
   [data-theme="light"] .jd-fan-empty:hover { color: #8a6a2e; border-color: rgba(138,106,46,0.4); }
+  [data-theme="light"] .jd-fan-empty.is-uploading { color: #8a6a2e; border-color: rgba(138,106,46,0.45); background: rgba(181,143,74,0.08); }
+  [data-theme="light"] .jd-gallery-progress { background: rgba(181,143,74,0.1); border-color: rgba(138,106,46,0.35); }
+  [data-theme="light"] .jd-gallery-progress-track { background: rgba(226,232,240,0.9); }
   @media (pointer: coarse) { #jdAddPhotos { min-height: 44px; padding-left: 6px; padding-right: 6px; } }
   .jd-fan-controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 4px; }
   .jd-fan-arrow { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 999px; border: 1.5px solid rgba(181,143,74,0.35); background: rgba(181,143,74,0.08); color: #c9a558; cursor: pointer; transition: all .2s ease; }
@@ -4873,6 +4913,8 @@
     background: #020617;
     touch-action: none; overflow: hidden;
     overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+    --lb-dim: 0.88;
+    --lb-chrome: 1;
   }
   #jdgLightbox.open { display: flex; }
   /* Keep the overlay on-screen (invisible) briefly after close so the iOS
@@ -4907,10 +4949,24 @@
   }
   #jdgLightbox.lb-zoomed .jdg-img { border-radius: 0; cursor: grab; }
   #jdgLightbox.lb-zooming .jdg-img,
-  #jdgLightbox.lb-panning .jdg-img { transition: none; }
+  #jdgLightbox.lb-panning .jdg-img,
+  #jdgLightbox.lb-dismissing .jdg-img { transition: none; }
   #jdgLightbox.lb-zoomed .jdg-nav,
   #jdgLightbox.lb-zoomed .jdg-del,
   #jdgLightbox.lb-zoomed .jdg-count { opacity: 0.35; pointer-events: none; }
+  /* iOS Photos-style swipe-down dismiss: fade chrome + dim the backdrop. */
+  #jdgLightbox.lb-dismissing {
+    background: rgba(2, 6, 23, calc(var(--lb-dim) + 0.08));
+  }
+  #jdgLightbox.lb-dismissing::before {
+    background: rgba(2, 6, 23, var(--lb-dim));
+  }
+  #jdgLightbox.lb-dismissing .jdg-btn,
+  #jdgLightbox.lb-dismissing .jdg-count {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s ease;
+  }
   .jdg-btn { position: absolute; z-index: 3; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(2,6,23,0.6); border: 1.5px solid rgba(255,255,255,0.18); color: #fff; cursor: pointer; backdrop-filter: blur(8px); transition: all .2s ease; }
   .jdg-btn:hover { background: rgba(2,6,23,0.85); border-color: rgba(255,255,255,0.4); }
   .jdg-nav { width: 46px; height: 46px; top: 50%; transform: translateY(-50%); }
@@ -19105,7 +19161,7 @@ function jobGalleryHTML(job) {
            <button type="button" class="jd-fan-arrow" data-jdg-next aria-label="Next">${chev("right")}</button>
          </div>
        </div>`
-    : `<button type="button" id="jdEmptyAddPhotos" class="jd-fan-empty"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg><span>Add installation photos</span><span class="jd-fan-empty-sub">Document the install and keep records.</span></button>`;
+    : `<button type="button" id="jdEmptyAddPhotos" class="jd-fan-empty"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5L5 19"/></svg><span>Add installation photos</span><span class="jd-fan-empty-sub">Document the install and keep records.</span><span class="jd-fan-empty-progress" aria-hidden="true"><span class="jd-fan-empty-progress-label">Adding photos…</span><span class="jd-gallery-progress-row"><span class="jd-gallery-progress-track"><span class="jd-gallery-progress-fill" style="width:0%"></span></span><span class="jd-gallery-progress-count">0 / 0</span></span></span></button>`;
   const gridBtn = photos.length
     ? `<button type="button" id="jdGridView" class="text-[11px] font-bold text-slate-400 hover:text-[#c9a558] inline-flex items-center gap-1.5">
          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -19121,8 +19177,81 @@ function jobGalleryHTML(job) {
       </div>
     </div>
     <div class="jd-gallery-hint">Separate from the dashboard cover photo — add as many as you like (up to 24).</div>
+    <div class="jd-gallery-progress" id="jdGalleryProgress" hidden>
+      <div class="jd-gallery-progress-label">Adding photos…</div>
+      <div class="jd-gallery-progress-row">
+        <div class="jd-gallery-progress-track"><span class="jd-gallery-progress-fill" style="width:0%"></span></div>
+        <div class="jd-gallery-progress-count">0 / 0</div>
+      </div>
+    </div>
     ${carousel}
   </div>`;
+}
+
+/** Drive the Installation photos upload progress UI (empty drop-zone + header strip).
+ *  `done` = files finished; label shows the file currently being worked on. */
+function setGalleryUploadProgress(done, total) {
+  const t = Math.max(0, total | 0);
+  const d = Math.max(0, Math.min(t, done | 0));
+  const pct = t ? Math.round((d / t) * 100) : 0;
+  const current = t ? Math.min(t, Math.max(1, d + (d < t ? 1 : 0))) : 0;
+  const label = t ? (d >= t ? `Finishing ${t}…` : `Adding ${current} of ${t}…`) : "Adding photos…";
+  const count = t ? `${d} / ${t}` : "0 / 0";
+
+  const empty = document.getElementById("jdEmptyAddPhotos");
+  if (empty) {
+    empty.classList.add("is-uploading");
+    empty.setAttribute("aria-busy", "true");
+    const elabel = empty.querySelector(".jd-fan-empty-progress-label");
+    const efill = empty.querySelector(".jd-gallery-progress-fill");
+    const ecount = empty.querySelector(".jd-gallery-progress-count");
+    if (elabel) elabel.textContent = label;
+    if (efill) efill.style.width = pct + "%";
+    if (ecount) ecount.textContent = count;
+  }
+
+  const strip = document.getElementById("jdGalleryProgress");
+  if (strip) {
+    // Empty drop-zone already shows the bar; only use the strip when photos exist.
+    const showStrip = !empty;
+    strip.hidden = !showStrip;
+    strip.classList.toggle("is-on", showStrip);
+    if (showStrip) {
+      const slabel = strip.querySelector(".jd-gallery-progress-label");
+      const sfill = strip.querySelector(".jd-gallery-progress-fill");
+      const scount = strip.querySelector(".jd-gallery-progress-count");
+      if (slabel) slabel.textContent = label;
+      if (sfill) sfill.style.width = pct + "%";
+      if (scount) scount.textContent = count;
+    }
+  }
+
+  const addBtn = document.getElementById("jdAddPhotos");
+  if (addBtn) {
+    addBtn.disabled = true;
+    addBtn.textContent = t ? (d >= t ? `Finishing ${t}…` : `Adding ${current}/${t}…`) : "Adding…";
+  }
+}
+function clearGalleryUploadProgress() {
+  const empty = document.getElementById("jdEmptyAddPhotos");
+  if (empty) {
+    empty.classList.remove("is-uploading");
+    empty.removeAttribute("aria-busy");
+    const efill = empty.querySelector(".jd-gallery-progress-fill");
+    if (efill) efill.style.width = "0%";
+  }
+  const strip = document.getElementById("jdGalleryProgress");
+  if (strip) {
+    strip.hidden = true;
+    strip.classList.remove("is-on");
+    const sfill = strip.querySelector(".jd-gallery-progress-fill");
+    if (sfill) sfill.style.width = "0%";
+  }
+  const addBtn = document.getElementById("jdAddPhotos");
+  if (addBtn) {
+    addBtn.disabled = false;
+    addBtn.textContent = "+ Add photos";
+  }
 }
 
 // Fan slot geometry (center slot = index 3). x is a fraction of card width.
@@ -19333,6 +19462,7 @@ function wireJobGallery(job) {
 /* ----- Full-photo lightbox (expand a card to the whole photo) ----- */
 let _lbJobId = null, _lbIdx = 0;
 let _lbZoom = 1, _lbTx = 0, _lbTy = 0;
+let _lbDismissX = 0, _lbDismissY = 0, _lbDismissScale = 1;
 let _lbSuppressClose = false;
 
 function lightboxPhotos() { const j = loadJobs().find(x => x.id === _lbJobId); return j ? jobGalleryList(j) : []; }
@@ -19342,8 +19472,19 @@ function applyLightboxTransform() {
   if (!lb) return;
   const img = lb.querySelector(".jdg-img");
   if (!img) return;
-  img.style.transform = `translate(${_lbTx.toFixed(2)}px, ${_lbTy.toFixed(2)}px) scale(${_lbZoom.toFixed(4)})`;
+  const tx = _lbTx + _lbDismissX;
+  const ty = _lbTy + _lbDismissY;
+  const sc = _lbZoom * _lbDismissScale;
+  img.style.transform = `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${sc.toFixed(4)})`;
   lb.classList.toggle("lb-zoomed", _lbZoom > 1.01);
+  const dismissing = Math.abs(_lbDismissY) > 0.5 || Math.abs(_lbDismissX) > 0.5;
+  lb.classList.toggle("lb-dismissing", dismissing);
+  if (dismissing) {
+    const p = Math.min(1, Math.abs(_lbDismissY) / 280);
+    lb.style.setProperty("--lb-dim", String(Math.max(0.12, 0.88 * (1 - p * 0.9))));
+  } else {
+    lb.style.removeProperty("--lb-dim");
+  }
 }
 
 function clampLightboxPan() {
@@ -19364,12 +19505,16 @@ function clampLightboxPan() {
 
 function resetLightboxZoom() {
   _lbZoom = 1; _lbTx = 0; _lbTy = 0;
+  _lbDismissX = 0; _lbDismissY = 0; _lbDismissScale = 1;
   const lb = document.getElementById("jdgLightbox");
-  if (lb) lb.classList.remove("lb-zoomed", "lb-zooming", "lb-panning");
+  if (lb) {
+    lb.classList.remove("lb-zoomed", "lb-zooming", "lb-panning", "lb-dismissing");
+    lb.style.removeProperty("--lb-dim");
+  }
   applyLightboxTransform();
 }
 
-/** Pinch / double-tap / drag zoom for the installation-photo lightbox. */
+/** Pinch / double-tap / drag zoom + iOS-style swipe-down dismiss. */
 function wireGalleryLightboxZoom(lb) {
   if (!lb || lb._zoomWired) return;
   lb._zoomWired = true;
@@ -19378,13 +19523,17 @@ function wireGalleryLightboxZoom(lb) {
   if (!stage || !img) return;
 
   const MIN_Z = 1, MAX_Z = 4, DBL_Z = 2.4;
+  const DISMISS_LOCK = 12;     // px vertical before we own the dismiss swipe
+  const DISMISS_CLOSE = 120;   // px release distance → close
   let pointers = new Map(); // pointerId → {x,y}
-  let mode = null; // null | 'pan' | 'pinch'
+  let mode = null; // null | 'pan' | 'pinch' | 'dismiss'
   let panLastX = 0, panLastY = 0;
+  let downX = 0, downY = 0;
   let pinchStartDist = 0, pinchStartZoom = 1, pinchStartTx = 0, pinchStartTy = 0;
   let pinchOriginX = 0, pinchOriginY = 0;
   let moved = false;
   let lastTapT = 0, lastTapX = 0, lastTapY = 0;
+  const velSamples = [];
 
   const distOf = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) || 1;
   const midOf = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
@@ -19403,6 +19552,12 @@ function wireGalleryLightboxZoom(lb) {
     _lbTy = oy - (oy - _lbTy) * ratio;
     _lbZoom = z1;
     if (clamp) clampLightboxPan();
+  };
+
+  const clearDismiss = () => {
+    _lbDismissX = 0; _lbDismissY = 0; _lbDismissScale = 1;
+    lb.classList.remove("lb-dismissing");
+    lb.style.removeProperty("--lb-dim");
   };
 
   const endGesture = () => {
@@ -19424,7 +19579,11 @@ function wireGalleryLightboxZoom(lb) {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { stage.setPointerCapture(e.pointerId); } catch (_) {}
     moved = false;
+    velSamples.length = 0;
+    if (pointers.size === 1) { downX = e.clientX; downY = e.clientY; }
     if (pointers.size === 2) {
+      // Second finger cancels a dismiss swipe and starts pinch.
+      clearDismiss();
       mode = "pinch";
       const [a, b] = pts();
       pinchStartDist = distOf(a, b);
@@ -19433,7 +19592,7 @@ function wireGalleryLightboxZoom(lb) {
       const m = midOf(a, b);
       pinchOriginX = m.x; pinchOriginY = m.y;
       lb.classList.add("lb-zooming");
-      lb.classList.remove("lb-panning");
+      lb.classList.remove("lb-panning", "lb-dismissing");
     } else if (pointers.size === 1 && _lbZoom > 1.01) {
       mode = "pan";
       panLastX = e.clientX; panLastY = e.clientY;
@@ -19448,6 +19607,7 @@ function wireGalleryLightboxZoom(lb) {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 2) {
       if (mode !== "pinch") {
+        clearDismiss();
         mode = "pinch";
         const [a, b] = pts();
         pinchStartDist = distOf(a, b);
@@ -19480,6 +19640,29 @@ function wireGalleryLightboxZoom(lb) {
       clampLightboxPan();
       applyLightboxTransform();
       if (e.cancelable) e.preventDefault();
+      return;
+    }
+
+    // Fit view: vertical drag dismisses like iOS Photos.
+    if (_lbZoom <= 1.01 && pointers.size === 1) {
+      const dx = e.clientX - downX, dy = e.clientY - downY;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (mode == null) {
+        if (ady >= DISMISS_LOCK && ady >= adx * 1.15) mode = "dismiss";
+        else return;
+      }
+      if (mode === "dismiss") {
+        // Prefer downward dismiss; upward still follows but needs more travel to close.
+        _lbDismissX = dx * 0.35;
+        _lbDismissY = dy;
+        const p = Math.min(1, Math.abs(dy) / 280);
+        _lbDismissScale = 1 - p * 0.08;
+        velSamples.push({ y: e.clientY, t: performance.now() });
+        while (velSamples.length > 5) velSamples.shift();
+        applyLightboxTransform();
+        moved = true;
+        if (e.cancelable) e.preventDefault();
+      }
     }
   }, { passive: false });
 
@@ -19501,6 +19684,25 @@ function wireGalleryLightboxZoom(lb) {
       return;
     }
     if (pointers.size === 0) {
+      if (mode === "dismiss") {
+        let velY = 0;
+        if (velSamples.length >= 2) {
+          const a = velSamples[0], b = velSamples[velSamples.length - 1];
+          velY = (b.y - a.y) / Math.max(1, b.t - a.t);
+        }
+        const shouldClose = _lbDismissY > DISMISS_CLOSE || (_lbDismissY > 56 && velY > 0.55)
+          || _lbDismissY < -DISMISS_CLOSE * 1.35;
+        if (shouldClose) {
+          _lbSuppressClose = true;
+          setTimeout(() => { _lbSuppressClose = false; }, 80);
+          closeGalleryLightbox();
+          mode = null; moved = false; velSamples.length = 0;
+          return;
+        }
+        clearDismiss();
+        endGesture();
+        return;
+      }
       const wasPanOrPinch = mode === "pan" || mode === "pinch" || moved;
       const x = e.clientX, y = e.clientY;
       endGesture();
@@ -20513,16 +20715,15 @@ function wireDashboard() {
     const overCap = Math.max(0, okFiles.length - room);
     okFiles = okFiles.slice(0, room);
     if (!okFiles.length) { toast(room === 0 ? "Photo limit reached — up to 24 per job." : "Couldn't add those images."); return; }
-    const addBtn = document.getElementById("jdAddPhotos");
-    const addLabel = addBtn ? addBtn.textContent : "";
-    if (addBtn) addBtn.disabled = true;
     try {
       // PHOTO-3: show real progress while compressing (the slow part); PHOTO-11: count
       // per-file decode failures instead of dropping them silently.
       const dataUrls = []; let unreadable = 0;
+      setGalleryUploadProgress(0, okFiles.length);
       for (const f of okFiles) {
-        if (addBtn) addBtn.textContent = "Adding " + (dataUrls.length + unreadable + 1) + "/" + okFiles.length + "…";
+        setGalleryUploadProgress(dataUrls.length + unreadable, okFiles.length);
         try { dataUrls.push(await compressJobPhoto(f, 1400, 0.82)); } catch (_) { unreadable++; }
+        setGalleryUploadProgress(dataUrls.length + unreadable, okFiles.length);
       }
       if (!dataUrls.length) { toast("Couldn't read those images."); return; }
       const res = await addJobGalleryPhotos(id, dataUrls);   // { added, capped, saved }
@@ -20536,7 +20737,7 @@ function wireDashboard() {
       const local = (currentUser && isUuid(id)) ? "" : " (saved on this device)";
       toast((res.added === 1 ? "Photo added" : res.added + " photos added") + local + suffix);
     } finally {
-      if (addBtn) { addBtn.disabled = false; addBtn.textContent = addLabel; }
+      clearGalleryUploadProgress();
     }
   });
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
