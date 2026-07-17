@@ -918,6 +918,113 @@
   [data-theme="light"] .dash-chip:hover { color: #334155; }
   [data-theme="light"] .dash-chip.active { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
 
+  /* ── Address map picker (Job Address → Pick on map) ── */
+  .addr-map-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    border: 1px solid rgba(181,143,74,0.4); background: rgba(181,143,74,0.1);
+    color: #c9a558; border-radius: 999px; padding: 4px 10px;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    min-height: 28px; flex-shrink: 0;
+  }
+  .addr-map-btn:hover { border-color: rgba(201,165,88,0.7); background: rgba(181,143,74,0.18); color: #e2cf9a; }
+  .addr-map-btn:active { transform: scale(0.97); }
+  #addrMapModal {
+    position: fixed; inset: 0; z-index: 140; display: none;
+    align-items: stretch; justify-content: center;
+    background: #020617;
+  }
+  #addrMapModal.open { display: flex; flex-direction: column; }
+  .addr-map-head {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+    border-bottom: 1px solid rgba(51,65,85,0.55);
+    background: rgba(8,13,24,0.98);
+  }
+  .addr-map-title { font-size: 15px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.01em; }
+  .addr-map-close {
+    width: 40px; height: 40px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.25);
+    background: rgba(15,23,42,0.7); color: #e2e8f0; display: grid; place-items: center; cursor: pointer;
+  }
+  .addr-map-stage {
+    position: relative; flex: 1 1 auto; min-height: 0; background: #0b1220;
+  }
+  #addrMapCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+  /* Fixed center pin — map pans underneath for precise placement. */
+  .addr-map-pin {
+    position: absolute; left: 50%; top: 50%; z-index: 5;
+    width: 36px; height: 48px; margin: 0;
+    transform: translate(-50%, -92%);
+    pointer-events: none;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.45));
+    transition: transform .16s cubic-bezier(.2,.8,.2,1);
+  }
+  .addr-map-pin.is-lifted { transform: translate(-50%, -108%) scale(1.06); }
+  .addr-map-pin svg { width: 36px; height: 48px; display: block; }
+  .addr-map-cross {
+    position: absolute; left: 50%; top: 50%; z-index: 4;
+    width: 10px; height: 10px; margin: -1px 0 0 -1px;
+    border-radius: 999px; border: 2px solid rgba(201,165,88,0.85);
+    background: rgba(2,6,23,0.35); transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .addr-map-locate {
+    position: absolute; right: 12px; bottom: 12px; z-index: 6;
+    width: 44px; height: 44px; border-radius: 999px;
+    border: 1px solid rgba(181,143,74,0.45); background: rgba(8,13,24,0.92);
+    color: #c9a558; display: grid; place-items: center; cursor: pointer;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+  }
+  .addr-map-locate:disabled { opacity: 0.5; cursor: wait; }
+  .addr-map-layers {
+    position: absolute; left: 12px; bottom: 12px; z-index: 6;
+    display: inline-flex; align-items: stretch;
+    border-radius: 999px; overflow: hidden;
+    border: 1px solid rgba(181,143,74,0.45);
+    background: rgba(8,13,24,0.92);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+  }
+  .addr-map-layers button {
+    appearance: none; border: 0; background: transparent; color: #94a3b8;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+    padding: 0 12px; min-height: 44px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .addr-map-layers button + button { border-left: 1px solid rgba(148,163,184,0.22); }
+  .addr-map-layers button[aria-pressed="true"] {
+    background: rgba(181,143,74,0.22); color: #e2cf9a;
+  }
+  .addr-map-foot {
+    flex: 0 0 auto;
+    padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(51,65,85,0.55);
+    background: rgba(8,13,24,0.98);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .addr-map-preview {
+    font-size: 13px; font-weight: 600; color: #e2e8f0; line-height: 1.35;
+    min-height: 2.6em;
+  }
+  .addr-map-preview.is-loading { color: #94a3b8; }
+  .addr-map-preview.is-error { color: #fda4af; }
+  .addr-map-coords { font-size: 10px; font-weight: 700; color: #64748b; font-variant-numeric: tabular-nums; }
+  .addr-map-done {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 48px; border: 0; border-radius: 999px;
+    background: #b58f4a; color: #0b1120; font-size: 14px; font-weight: 800;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .addr-map-done:disabled { opacity: 0.45; cursor: default; }
+  .addr-map-done:not(:disabled):active { transform: scale(0.99); }
+  /* Leaflet chrome tweaks inside our dark modal */
+  #addrMapModal .leaflet-control-zoom a {
+    background: rgba(8,13,24,0.92) !important; color: #e2e8f0 !important;
+    border-color: rgba(148,163,184,0.3) !important; width: 36px !important; height: 36px !important;
+    line-height: 36px !important; font-size: 18px !important;
+  }
+  #addrMapModal .leaflet-bar { border: 0 !important; box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important; }
+  [data-theme="light"] .addr-map-btn { color: #8a6a2e; border-color: rgba(138,106,46,0.4); background: rgba(181,143,74,0.1); }
+
   /* ── Expandable live-total sheet (UI refresh P5) ── tap the selling-price bar
      for an itemized peek (mobile-patterns §7: the collapsed bar expands into an
      honest, itemized total). Internal numbers carry .internal-only so Present
@@ -9467,7 +9574,13 @@
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
       <div>
-        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job Address</label>
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <label for="saveJobAddress" class="text-xs uppercase tracking-[0.14em] text-slate-500">Job Address</label>
+          <button type="button" id="saveJobAddressMap" class="addr-map-btn" aria-label="Pick address on map">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            Map
+          </button>
+        </div>
         <input id="saveJobAddress" type="text" placeholder="123 Main St, City, ST" autocomplete="street-address" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
@@ -19073,7 +19186,17 @@ function jobPhotoImgHTML(j, cls) {
 
 // Upload a compressed photo for a job. Uses Storage when signed-in with a
 // real (uuid) job; otherwise stores base64 locally as a fallback.
+// Job Details text fields only commit on "Save changes". Cover/gallery photo
+// saves re-render the whole drawer from stored data — so commit any typed
+// edits first, or a photo upload silently wipes customer/job fields.
+function commitOpenJobDetailsEdits(id) {
+  if (!id || _jdJobId !== id) return;
+  if (!document.getElementById("jdName") && !document.getElementById("jdJobName")) return;
+  try { saveJobDetailsEdits(id, true); } catch (_) {}
+}
+
 async function saveJobPhoto(id, dataUrl) {
+  commitOpenJobDetailsEdits(id);
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j) return;
@@ -19168,6 +19291,7 @@ function confirmDeleteJob(j) {
 let _jdGalleryTargetId = null;   // job id awaiting files from #jdGalleryInput
 
 async function addJobGalleryPhotos(id, dataUrls) {
+  commitOpenJobDetailsEdits(id);
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j) return { added: 0, capped: false, saved: false };
@@ -19207,6 +19331,7 @@ async function removeJobGalleryPhoto(id, idx) {
 }
 /** Remove one or more gallery photos by index (descending splice, one save). */
 async function removeJobGalleryPhotos(id, idxs) {
+  commitOpenJobDetailsEdits(id);
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j || !Array.isArray(j.photos)) return 0;
@@ -19412,7 +19537,7 @@ function wireJobGallery(job) {
   const root = document.getElementById("jobDetailsBody");
   if (!root) return;
   // PHOTO-9: both the header "+ Add photos" and the empty-state drop-zone open the picker.
-  const openPicker = () => { _jdGalleryTargetId = job.id; document.getElementById("jdGalleryInput")?.click(); };
+  const openPicker = () => { commitOpenJobDetailsEdits(job.id); _jdGalleryTargetId = job.id; document.getElementById("jdGalleryInput")?.click(); };
   root.querySelectorAll("#jdAddPhotos, #jdEmptyAddPhotos").forEach(b => b.addEventListener("click", openPicker));
   const gridBtn = root.querySelector("#jdGridView");
   if (gridBtn) gridBtn.addEventListener("click", () => openGalleryGrid(job.id));
@@ -21060,13 +21185,20 @@ function wireDashboard() {
     if (!file || !id) return;
     if (file.size > 12 * 1024 * 1024) { toast("That image is too large (max ~12MB)."); return; }
     try {
-      // PHOTO-1: store the user's REAL photo (just compressed) — do not bake a blur +
-      // job title into it. Baking discarded the original and left a stale title after a
-      // rename; the job name already shows in the card text beside the thumbnail, so the
-      // overlay was redundant. (AI-generated thumbnails still composite — they're
-      // stylized art with no original to protect.)
+      // Brand uploaded covers like AI thumbnails: blurred bg + job title overlay so
+      // every Jobs-list tile matches. Commit open Job Details edits first so the
+      // baked title uses what the user just typed. Half blur (radius 3 vs AI's 6)
+      // keeps a real install photo recognizable; fall back to the raw photo if
+      // compositing fails.
+      commitOpenJobDetailsEdits(id);
       const dataUrl = await compressJobPhoto(file);
-      await saveJobPhoto(id, dataUrl);
+      const job = loadJobs().find(x => x.id === id);
+      const title = (job && (job.name || job.customerName)) || "Window Job";
+      const cust = (job && job.customerName && job.customerName !== title) ? job.customerName : "";
+      const subtitle = cust || ((job && job.totalLF != null && job.totalLF !== "") ? (job.totalLF + " LF") : "");
+      let thumb = dataUrl;
+      try { thumb = await composeJobThumbnail(dataUrl, title, subtitle, 3); } catch (_) {}
+      await saveJobPhoto(id, thumb);
       toast("Photo added");
     }
     catch (_) { toast("Couldn't read that image"); }
@@ -21422,8 +21554,16 @@ function renderJobDetails(job) {
               <input id="jdPhone" type="tel" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="(555) 123-4567" autocomplete="tel" value="${escHtml(job.customerPhone || "")}"></div>
             <div><label for="jdEmail" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Email</label>
               <input id="jdEmail" type="email" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="name@email.com" autocomplete="email" value="${escHtml(job.customerEmail || "")}"></div>
-            <div><label for="jdAddress" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Address</label>
-              <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="123 Main St, City, ST" autocomplete="street-address" value="${escHtml(job.customerAddress || "")}"></div>
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <label for="jdAddress" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">Address</label>
+                <button type="button" id="jdAddressMap" class="addr-map-btn" aria-label="Pick address on map">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                  Map
+                </button>
+              </div>
+              <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="123 Main St, City, ST" autocomplete="street-address" value="${escHtml(job.customerAddress || "")}">
+            </div>
           </div>
         </div>
         <div class="jd-section">
@@ -21510,6 +21650,8 @@ function renderJobDetails(job) {
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
   });
+  const jdAddrMap = document.getElementById("jdAddressMap");
+  if (jdAddrMap) jdAddrMap.addEventListener("click", () => openAddressMapPicker("jdAddress"));
   const save = document.getElementById("jdSave");
   if (save) save.addEventListener("click", () => saveJobDetailsEdits(job.id));
   const openCalc = document.getElementById("jdOpenCalc");
@@ -21528,9 +21670,16 @@ function renderJobDetails(job) {
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
   // (Logging actuals moved to the dashboard's Pricing calibration card.)
   const jdPhoto = document.getElementById("jdPhoto");
-  if (jdPhoto) jdPhoto.addEventListener("click", () => { _dashPhotoTargetId = job.id; document.getElementById("dashPhotoInput")?.click(); });
+  if (jdPhoto) jdPhoto.addEventListener("click", () => {
+    commitOpenJobDetailsEdits(job.id);
+    _dashPhotoTargetId = job.id;
+    document.getElementById("dashPhotoInput")?.click();
+  });
   const jdGen = document.getElementById("jdGenThumb");
-  if (jdGen) jdGen.addEventListener("click", () => generateJobThumbnail(job.id, jdGen));
+  if (jdGen) jdGen.addEventListener("click", () => {
+    commitOpenJobDetailsEdits(job.id);
+    generateJobThumbnail(job.id, jdGen);
+  });
   // E-signature: detail-level toggle + customize + create-link
   _jdSignDetail = "summary";
   _jdSignExclude = new Set();
@@ -22775,7 +22924,16 @@ function custDetailHTML(c) {
           <div class="set-field"><label class="set-label">Customer name</label><input data-cust-field="name" type="text" value="${escHtml(c.name)}" class="${inp}"></div>
           <div class="set-field"><label class="set-label">Phone</label><input data-cust-field="phone" type="text" inputmode="tel" value="${escHtml(c.phone)}" class="${inp}"></div>
           <div class="set-field"><label class="set-label">Email</label><input data-cust-field="email" type="email" value="${escHtml(c.email)}" class="${inp}"></div>
-          <div class="set-field" style="grid-column:1 / -1"><label class="set-label">Address</label><input data-cust-field="address" type="text" value="${escHtml(c.address)}" class="${inp}"></div>
+          <div class="set-field" style="grid-column:1 / -1">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <label class="set-label" style="margin:0">Address</label>
+              <button type="button" id="custEditorAddressMap" class="addr-map-btn" aria-label="Pick address on map">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                Map
+              </button>
+            </div>
+            <input data-cust-field="address" id="custEditorAddress" type="text" value="${escHtml(c.address)}" class="${inp}">
+          </div>
           <div class="set-field" style="grid-column:1 / -1">
             <label class="set-label">Customer type</label>
             <div class="seg" data-cust-tag-seg role="radiogroup" aria-label="Customer type" style="max-width:none;">
@@ -22922,6 +23080,302 @@ function closeManageCustomers() {
   tvDismiss(document.getElementById("manageCustomersModal"));
 }
 
+/* ============================================================
+   ADDRESS MAP PICKER — “Map” next to Job Address opens a full-screen
+   Leaflet map, centers on the device location, keeps a floating pin
+   fixed at the viewport center while the user pans/zooms, reverse-
+   geocodes via Nominatim, and fills the address field on Done.
+   ============================================================ */
+const ADDR_MAP_FALLBACK = { lat: 28.5383, lng: -81.3792 }; // Orlando — FL-first default
+let _addrMapTargetId = null;   // input id to fill
+let _addrMap = null;
+let _addrMapReady = null;
+let _addrMapGeocodeTimer = 0;
+let _addrMapLast = { lat: null, lng: null, label: "", ok: false };
+let _addrMapLayers = { street: null, satellite: null };
+let _addrMapLayerMode = "street"; // "street" | "satellite"
+
+function ensureLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (_addrMapReady) return _addrMapReady;
+  _addrMapReady = new Promise((resolve, reject) => {
+    const cssId = "leaflet-css";
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement("link");
+      link.id = cssId; link.rel = "stylesheet";
+      link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+      link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
+      link.crossOrigin = "";
+      document.head.appendChild(link);
+    }
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    s.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
+    s.crossOrigin = "";
+    s.onload = () => resolve(window.L);
+    s.onerror = () => reject(new Error("Couldn't load map"));
+    document.head.appendChild(s);
+  });
+  return _addrMapReady;
+}
+
+function ensureAddressMapModal() {
+  let m = document.getElementById("addrMapModal");
+  if (m) return m;
+  m = document.createElement("div");
+  m.id = "addrMapModal";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  m.setAttribute("aria-label", "Pick address on map");
+  m.innerHTML =
+    `<div class="addr-map-head">
+       <div class="addr-map-title">Pick location</div>
+       <button type="button" class="addr-map-close" data-addr-map-close aria-label="Close">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+       </button>
+     </div>
+     <div class="addr-map-stage">
+       <div id="addrMapCanvas" aria-label="Map"></div>
+       <div class="addr-map-cross" aria-hidden="true"></div>
+       <div class="addr-map-pin" id="addrMapPin" aria-hidden="true">
+         <svg viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+           <path d="M18 46s14-10.4 14-22a14 14 0 1 0-28 0c0 11.6 14 22 14 22z" fill="#b58f4a"/>
+           <circle cx="18" cy="18" r="6.5" fill="#0b1120"/>
+         </svg>
+       </div>
+       <div class="addr-map-layers" id="addrMapLayers" role="group" aria-label="Map type">
+         <button type="button" data-addr-layer="street" aria-pressed="true">Map</button>
+         <button type="button" data-addr-layer="satellite" aria-pressed="false">Satellite</button>
+       </div>
+       <button type="button" class="addr-map-locate" id="addrMapLocate" aria-label="Use my current location" title="My location">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+       </button>
+     </div>
+     <div class="addr-map-foot">
+       <div class="addr-map-preview is-loading" id="addrMapPreview">Finding address…</div>
+       <div class="addr-map-coords" id="addrMapCoords"></div>
+       <button type="button" class="addr-map-done" id="addrMapDone" disabled>Use this address</button>
+     </div>`;
+  document.body.appendChild(m);
+  m.querySelector("[data-addr-map-close]").addEventListener("click", closeAddressMapPicker);
+  m.querySelector("#addrMapDone").addEventListener("click", confirmAddressMapPicker);
+  m.querySelector("#addrMapLocate").addEventListener("click", () => centerAddressMapOnDevice({ force: true }));
+  m.querySelector("#addrMapLayers")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-addr-layer]");
+    if (!btn) return;
+    setAddressMapLayer(btn.getAttribute("data-addr-layer"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && m.classList.contains("open")) closeAddressMapPicker();
+  });
+  return m;
+}
+
+function formatNominatimAddress(data) {
+  if (!data) return "";
+  const a = data.address || {};
+  const road = a.road || a.pedestrian || a.footway || a.path || a.residential || "";
+  const line1 = [a.house_number, road].filter(Boolean).join(" ").trim();
+  const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || "";
+  const state = a.state || "";
+  const postcode = a.postcode || "";
+  const parts = [];
+  if (line1) parts.push(line1);
+  else if (data.name && data.name !== city) parts.push(data.name);
+  const cityState = [city, state].filter(Boolean).join(", ");
+  if (cityState && postcode) parts.push(`${cityState} ${postcode}`);
+  else if (cityState) parts.push(cityState);
+  else if (postcode) parts.push(postcode);
+  return parts.join(", ") || data.display_name || "";
+}
+
+async function reverseGeocodeLatLng(lat, lng) {
+  const url = "https://nominatim.openstreetmap.org/reverse"
+    + `?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`
+    + "&format=jsonv2&addressdetails=1&zoom=18"
+    + "&email=support%40anchorquoting.com";
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error("geocode failed");
+  return res.json();
+}
+
+function setAddressMapPreview(state, text, coords) {
+  const prev = document.getElementById("addrMapPreview");
+  const coordEl = document.getElementById("addrMapCoords");
+  const done = document.getElementById("addrMapDone");
+  if (!prev || !done) return;
+  prev.classList.remove("is-loading", "is-error");
+  if (state === "loading") prev.classList.add("is-loading");
+  if (state === "error") prev.classList.add("is-error");
+  prev.textContent = text || "";
+  if (coordEl) coordEl.textContent = coords || "";
+  done.disabled = state !== "ok" || !text;
+  _addrMapLast.ok = state === "ok";
+  if (state === "ok") _addrMapLast.label = text;
+}
+
+function scheduleAddressMapGeocode() {
+  if (!_addrMap) return;
+  const c = _addrMap.getCenter();
+  const lat = c.lat, lng = c.lng;
+  _addrMapLast.lat = lat; _addrMapLast.lng = lng;
+  setAddressMapPreview("loading", "Finding address…", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  clearTimeout(_addrMapGeocodeTimer);
+  _addrMapGeocodeTimer = setTimeout(async () => {
+    try {
+      const data = await reverseGeocodeLatLng(lat, lng);
+      // Ignore stale responses if the map moved again.
+      const now = _addrMap && _addrMap.getCenter();
+      if (!now || Math.abs(now.lat - lat) > 0.00005 || Math.abs(now.lng - lng) > 0.00005) return;
+      const label = formatNominatimAddress(data);
+      if (!label) {
+        setAddressMapPreview("error", "No address found here — pan or zoom and try again.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        return;
+      }
+      setAddressMapPreview("ok", label, `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } catch (_) {
+      setAddressMapPreview("error", "Couldn't look up that spot — check your connection.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    }
+  }, 450);
+}
+
+function centerAddressMapOnDevice(opts) {
+  const force = !!(opts && opts.force);
+  const btn = document.getElementById("addrMapLocate");
+  if (!_addrMap) return;
+  if (!navigator.geolocation) {
+    if (force) toast("Location isn't available on this device.");
+    _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+    scheduleAddressMapGeocode();
+    return;
+  }
+  if (btn) btn.disabled = true;
+  setAddressMapPreview("loading", "Getting your location…", "");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      if (btn) btn.disabled = false;
+      if (!_addrMap) return;
+      const { latitude, longitude } = pos.coords;
+      _addrMap.setView([latitude, longitude], Math.max(_addrMap.getZoom(), 17));
+      scheduleAddressMapGeocode();
+    },
+    (err) => {
+      if (btn) btn.disabled = false;
+      if (!_addrMap) return;
+      if (force) {
+        const msg = err && err.code === 1
+          ? "Location permission denied — pan the map instead."
+          : "Couldn't get your location — pan the map instead.";
+        toast(msg);
+      }
+      // Keep current center if we already moved; otherwise fall back to FL.
+      if (!_addrMapLast.lat) {
+        _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+      }
+      scheduleAddressMapGeocode();
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+  );
+}
+
+function syncAddressMapLayerUI() {
+  const root = document.getElementById("addrMapLayers");
+  if (!root) return;
+  root.querySelectorAll("[data-addr-layer]").forEach((b) => {
+    const on = b.getAttribute("data-addr-layer") === _addrMapLayerMode;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+function setAddressMapLayer(mode) {
+  if (mode !== "street" && mode !== "satellite") return;
+  if (!_addrMap || !_addrMapLayers.street || !_addrMapLayers.satellite) {
+    _addrMapLayerMode = mode;
+    syncAddressMapLayerUI();
+    return;
+  }
+  if (_addrMapLayerMode === mode) { syncAddressMapLayerUI(); return; }
+  const next = mode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street;
+  const prev = mode === "satellite" ? _addrMapLayers.street : _addrMapLayers.satellite;
+  try { if (_addrMap.hasLayer(prev)) _addrMap.removeLayer(prev); } catch (_) {}
+  try { if (!_addrMap.hasLayer(next)) next.addTo(_addrMap); } catch (_) {}
+  _addrMapLayerMode = mode;
+  syncAddressMapLayerUI();
+}
+
+async function openAddressMapPicker(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  _addrMapTargetId = inputId;
+  const modal = ensureAddressMapModal();
+  const pin = document.getElementById("addrMapPin");
+  modal.classList.add("open");
+  try { trapDialog(modal, closeAddressMapPicker); } catch (_) {}
+  setAddressMapPreview("loading", "Loading map…", "");
+  try {
+    const L = await ensureLeaflet();
+    const canvas = document.getElementById("addrMapCanvas");
+    if (!_addrMap) {
+      _addrMap = L.map(canvas, {
+        zoomControl: true,
+        attributionControl: true,
+        maxZoom: 19,
+      }).setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+      _addrMapLayers.street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      });
+      // Esri World Imagery — free satellite basemap (no API key).
+      _addrMapLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics',
+      });
+      (_addrMapLayerMode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street).addTo(_addrMap);
+      syncAddressMapLayerUI();
+      _addrMap.on("movestart zoomstart", () => { if (pin) pin.classList.add("is-lifted"); });
+      _addrMap.on("moveend zoomend", () => {
+        if (pin) pin.classList.remove("is-lifted");
+        scheduleAddressMapGeocode();
+      });
+    } else {
+      // Re-opened — make sure size is correct after display:none.
+      setAddressMapLayer(_addrMapLayerMode);
+      setTimeout(() => { try { _addrMap.invalidateSize(); } catch (_) {} }, 40);
+    }
+    syncAddressMapLayerUI();
+    requestAnimationFrame(() => {
+      try { _addrMap.invalidateSize(); } catch (_) {}
+      centerAddressMapOnDevice({ force: false });
+    });
+  } catch (_) {
+    setAddressMapPreview("error", "Couldn't load the map. Check your connection and try again.", "");
+    toast("Couldn't load the map.");
+  }
+}
+
+function closeAddressMapPicker() {
+  const modal = document.getElementById("addrMapModal");
+  if (!modal) return;
+  clearTimeout(_addrMapGeocodeTimer);
+  modal.classList.remove("open");
+  try { releaseDialog(modal); } catch (_) {}
+  _addrMapTargetId = null;
+}
+
+function confirmAddressMapPicker() {
+  if (!_addrMapLast.ok || !_addrMapLast.label || !_addrMapTargetId) return;
+  const input = document.getElementById(_addrMapTargetId);
+  if (input) {
+    input.value = _addrMapLast.label;
+    try { input.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+    try { input.focus(); } catch (_) {}
+  }
+  toast("Address filled from map");
+  closeAddressMapPicker();
+}
+
 // OUT-7/OUT-10: an action (export a doc, create a signing link) can be interrupted
 // by the "save this job first" gate. Stash it here so doSaveJob resumes it once the
 // user actually saves; cleared on every open/abort so it can never fire stale.
@@ -22935,9 +23389,106 @@ function _resetSaveJobPhotoUI() {
   if (l) l.textContent = "Add job photos";
 }
 
+// Persist Save Job form fields across the photo picker (iOS/Android often
+// background the page or fire a ghost click on the backdrop, which used to wipe
+// whatever the user had typed). Kept in STATE + sessionStorage.
+const SAVE_JOB_FORM_DRAFT_KEY = "aq_saveJobFormDraft";
+let _saveJobPhotoPicking = false;
+let _saveJobIgnoreCloseUntil = 0;
+
+function isSaveJobModalOpen() {
+  const m = document.getElementById("saveJobModal");
+  return !!(m && !m.classList.contains("hidden") && m.classList.contains("flex"));
+}
+
+function readSaveJobForm() {
+  return {
+    name: document.getElementById("saveJobName")?.value || "",
+    company: document.getElementById("saveJobCompany")?.value || "",
+    jobName: document.getElementById("saveJobJobName")?.value || "",
+    address: document.getElementById("saveJobAddress")?.value || "",
+    phone: document.getElementById("saveJobPhone")?.value || "",
+    email: document.getElementById("saveJobEmail")?.value || "",
+    notes: document.getElementById("saveJobNotes")?.value || "",
+    tag: typeof getSaveJobCustomerTag === "function" ? getSaveJobCustomerTag() : "",
+    recurring: !!document.getElementById("saveJobRecurring")?.checked,
+    customerPick: document.getElementById("saveJobCustomerPick")?.value || "",
+  };
+}
+
+function applySaveJobForm(d) {
+  if (!d) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+  set("saveJobName", d.name);
+  set("saveJobCompany", d.company);
+  set("saveJobJobName", d.jobName);
+  set("saveJobAddress", d.address);
+  set("saveJobPhone", d.phone);
+  set("saveJobEmail", d.email);
+  set("saveJobNotes", d.notes);
+  const rec = document.getElementById("saveJobRecurring");
+  if (rec && d.recurring != null) rec.checked = !!d.recurring;
+  if (d.tag !== undefined) syncSaveJobCustomerTagUI(d.tag);
+  const pick = document.getElementById("saveJobCustomerPick");
+  if (pick && d.customerPick != null) {
+    try { pick.value = d.customerPick; } catch (_) {}
+  }
+}
+
+function clearSaveJobFormDraft() {
+  try { sessionStorage.removeItem(SAVE_JOB_FORM_DRAFT_KEY); } catch (_) {}
+}
+
+function loadSaveJobFormDraft() {
+  try {
+    const raw = sessionStorage.getItem(SAVE_JOB_FORM_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || !d.t || (Date.now() - d.t) > 2 * 60 * 60 * 1000) return null;
+    return d;
+  } catch (_) { return null; }
+}
+
+function syncSaveJobFormToState() {
+  if (!isSaveJobModalOpen() && !_saveJobPhotoPicking) return null;
+  const d = readSaveJobForm();
+  STATE.customerName = (d.name || "").trim();
+  STATE.jobName = (d.jobName || "").trim();
+  STATE.customerAddress = (d.address || "").trim();
+  STATE.customerCompany = (d.company || "").trim();
+  STATE.customerPhone = (d.phone || "").trim();
+  STATE.customerEmail = (d.email || "").trim();
+  STATE.customerNotes = (d.notes || "").trim();
+  STATE.customerTag = normalizeCustomerTag(d.tag);
+  try {
+    sessionStorage.setItem(SAVE_JOB_FORM_DRAFT_KEY, JSON.stringify(Object.assign({}, d, { t: Date.now() })));
+  } catch (_) {}
+  return d;
+}
+
+function ensureSaveJobModalVisible() {
+  const modal = document.getElementById("saveJobModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function armSaveJobPickerShield(ms) {
+  _saveJobIgnoreCloseUntil = Date.now() + (ms || 700);
+  // Same iOS ghost-click pattern as the gallery lightbox: the synthetic click
+  // after the system picker closes often lands on the modal backdrop and would
+  // dismiss Save Job (wiping the form + staged photos).
+  if (typeof armLightboxClickShield === "function") {
+    try { armLightboxClickShield(ms || 700); } catch (_) {}
+  }
+}
+
 function openSaveJobModal() {
   _pendingAfterSave = null;   // a fresh open clears any stale pending; the gate re-sets it
-  _resetSaveJobPhotoUI();     // PHOTO-10: drop any photos staged from a previous open
+  const alreadyOpen = isSaveJobModalOpen();
+  // Keep staged photos + typed fields if the modal is already up (e.g. photo
+  // picker returned and something re-entered openSaveJobModal).
+  if (!alreadyOpen) _resetSaveJobPhotoUI();
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return false; }
   // OUT-4: surface the plan wall BEFORE the user fills the whole form. A fresh save
@@ -22948,46 +23499,57 @@ function openSaveJobModal() {
     const chk = canGenerate();
     if (!chk.allowed) { showUpsellModal(chk.reason); return false; }
   }
-  // Customer and job name are separate fields now: customer groups jobs, job name
-  // distinguishes them. Prefill both from STATE (a loaded job sets both).
-  document.getElementById("saveJobName").value = STATE.customerName || "";
-  { const _co = document.getElementById("saveJobCompany"); if (_co) _co.value = STATE.customerCompany || ""; }
-  { const _jn = document.getElementById("saveJobJobName"); if (_jn) _jn.value = STATE.jobName || ""; }
-  document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
-  { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
-  { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
-  document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
-  populateCustomerPicker();   // refresh the saved-customer dropdown each open
-  // Prefill customer type from STATE (loaded job / prior pick); clear for a fresh quote.
-  { let tag = normalizeCustomerTag(STATE.customerTag);
-    if (!tag && STATE.currentJobId) {
-      const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
-      if (_j) tag = normalizeCustomerTag(_j.customerTag);
-    }
-    syncSaveJobCustomerTagUI(tag);
-  }
-  // "Recurring customer" defaults ON. When re-saving an existing job, reflect
-  // that job's stored flag so a one-time client stays one-time.
-  { const _rec = document.getElementById("saveJobRecurring");
-    if (_rec) {
-      let on = true;
-      if (STATE.currentJobId) {
+  if (!alreadyOpen) {
+    // Customer and job name are separate fields now: customer groups jobs, job name
+    // distinguishes them. Prefill both from STATE (a loaded job sets both).
+    document.getElementById("saveJobName").value = STATE.customerName || "";
+    { const _co = document.getElementById("saveJobCompany"); if (_co) _co.value = STATE.customerCompany || ""; }
+    { const _jn = document.getElementById("saveJobJobName"); if (_jn) _jn.value = STATE.jobName || ""; }
+    document.getElementById("saveJobAddress").value = STATE.customerAddress || "";
+    { const _p = document.getElementById("saveJobPhone"); if (_p) _p.value = STATE.customerPhone || ""; }
+    { const _e = document.getElementById("saveJobEmail"); if (_e) _e.value = STATE.customerEmail || ""; }
+    document.getElementById("saveJobNotes").value = STATE.customerNotes || "";
+    populateCustomerPicker();   // refresh the saved-customer dropdown each open
+    // Prefill customer type from STATE (loaded job / prior pick); clear for a fresh quote.
+    { let tag = normalizeCustomerTag(STATE.customerTag);
+      if (!tag && STATE.currentJobId) {
         const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
-        if (_j) on = _j.customerRecurring !== false;
+        if (_j) tag = normalizeCustomerTag(_j.customerTag);
       }
-      _rec.checked = on;
-    } }
+      syncSaveJobCustomerTagUI(tag);
+    }
+    // "Recurring customer" defaults ON. When re-saving an existing job, reflect
+    // that job's stored flag so a one-time client stays one-time.
+    { const _rec = document.getElementById("saveJobRecurring");
+      if (_rec) {
+        let on = true;
+        if (STATE.currentJobId) {
+          const _j = loadJobs().find(x => x.id === STATE.currentJobId && !x.isDraft);
+          if (_j) on = _j.customerRecurring !== false;
+        }
+        _rec.checked = on;
+      } }
+    // Re-apply an in-progress draft (photo-picker background kill / accidental close).
+    const draft = loadSaveJobFormDraft();
+    if (draft && (draft.name || draft.jobName || draft.address || draft.phone || draft.email || draft.company || draft.notes)) {
+      applySaveJobForm(draft);
+    }
+  }
   const modal = document.getElementById("saveJobModal");
   modal.classList.remove("hidden");
   modal.classList.add("flex");
   navPushOverlay(modal);   // Phase 4d (no-op unless HISTORY_NAV)
-  setTimeout(() => { try { document.getElementById("saveJobName").focus(); } catch {} }, 60);
+  if (!alreadyOpen) setTimeout(() => { try { document.getElementById("saveJobName").focus(); } catch {} }, 60);
   return true;
 }
 
 function closeSaveJobModal() {
+  // Ignore dismiss while the system photo picker is up / just closed — otherwise
+  // an iOS ghost click on the backdrop wipes the filled-in customer fields.
+  if (_saveJobPhotoPicking || Date.now() < _saveJobIgnoreCloseUntil) return;
   _pendingAfterSave = null;   // OUT-7: closing the save form abandons any interrupted action
   _pendingSaveJobPhotos = []; // PHOTO-10: abandon any staged (unsaved) photos
+  clearSaveJobFormDraft();
   const _m = document.getElementById("saveJobModal");
   navPopOverlay(_m);   // Phase 4d (no-op unless HISTORY_NAV)
   tvDismiss(_m);
@@ -22996,6 +23558,9 @@ function closeSaveJobModal() {
 // Save dispatcher: reads the form into STATE, then decides whether to update the
 // loaded job in place, overwrite a name+customer twin, or save fresh.
 function confirmSaveJob() {
+  _saveJobPhotoPicking = false;
+  _saveJobIgnoreCloseUntil = 0;
+  try { syncSaveJobFormToState(); } catch (_) {}
   const customer = document.getElementById("saveJobName").value.trim();   // "Customer" field
   const jobName = (document.getElementById("saveJobJobName")?.value || "").trim();   // "Job name" field
   STATE.customerName = customer;
@@ -34817,12 +35382,63 @@ function init() {
   // so it reopens after you pick. (Save button was double-bound the same way.)
   const saveModal = document.getElementById("saveJobModal");
   if (saveModal && !saveModal._wired) {
-  saveModal.addEventListener("click", e => { if (e.target.dataset.closeSave !== undefined) closeSaveJobModal(); });
+  saveModal.addEventListener("click", e => {
+    if (e.target.dataset.closeSave === undefined) return;
+    // Cancel / × always win. Backdrop clicks are ignored while the photo picker
+    // is up or for a short shield window (iOS ghost click after the picker).
+    const intentional = !!e.target.closest("button");
+    if (!intentional && (_saveJobPhotoPicking || Date.now() < _saveJobIgnoreCloseUntil)) return;
+    if (intentional) { _saveJobPhotoPicking = false; _saveJobIgnoreCloseUntil = 0; }
+    closeSaveJobModal();
+  });
   document.getElementById("saveJobConfirm").addEventListener("click", confirmSaveJob);
+  // Keep typed customer/job fields alive while the modal is open (photo picker,
+  // backgrounding, accidental close → reopen).
+  saveModal.addEventListener("input", () => { try { syncSaveJobFormToState(); } catch (_) {} });
+  saveModal.addEventListener("change", () => { try { syncSaveJobFormToState(); } catch (_) {} });
   // PHOTO-10: stage photos picked in the Save modal (compressed) until the job is saved.
-  { const b = document.getElementById("saveJobAddPhotos"); if (b) b.addEventListener("click", () => document.getElementById("saveJobPhotoInput")?.click()); }
+  { const b = document.getElementById("saveJobAddPhotos"); if (b) b.addEventListener("click", () => {
+      try { syncSaveJobFormToState(); } catch (_) {}
+      _saveJobPhotoPicking = true;
+      armSaveJobPickerShield(900);
+      document.getElementById("saveJobPhotoInput")?.click();
+      // If the user cancels the picker, clear the picking flag shortly after focus returns.
+      const clearPick = () => {
+        setTimeout(() => {
+          _saveJobPhotoPicking = false;
+          armSaveJobPickerShield(500);
+          try {
+            const draft = loadSaveJobFormDraft();
+            if (draft) applySaveJobForm(draft);
+            ensureSaveJobModalVisible();
+          } catch (_) {}
+        }, 0);
+        window.removeEventListener("focus", clearPick);
+        document.removeEventListener("visibilitychange", onVis);
+      };
+      const onVis = () => { if (document.visibilityState === "visible") clearPick(); };
+      window.addEventListener("focus", clearPick);
+      document.addEventListener("visibilitychange", onVis);
+    }); }
+  { const b = document.getElementById("saveJobAddressMap"); if (b) b.addEventListener("click", () => {
+      try { syncSaveJobFormToState(); } catch (_) {}
+      openAddressMapPicker("saveJobAddress");
+    }); }
   { const inp = document.getElementById("saveJobPhotoInput"); if (inp) inp.addEventListener("change", async (e) => {
       const files = Array.from(e.target.files || []); e.target.value = "";
+      _saveJobPhotoPicking = false;
+      armSaveJobPickerShield(700);
+      // Restore fields first — some WebViews wipe inputs when the camera returns.
+      try {
+        const draft = loadSaveJobFormDraft();
+        if (draft) applySaveJobForm(draft);
+        else applySaveJobForm({
+          name: STATE.customerName, company: STATE.customerCompany, jobName: STATE.jobName,
+          address: STATE.customerAddress, phone: STATE.customerPhone, email: STATE.customerEmail,
+          notes: STATE.customerNotes, tag: STATE.customerTag,
+        });
+        ensureSaveJobModalVisible();
+      } catch (_) {}
       const label = document.getElementById("saveJobPhotoLabel");
       // Count the target job's EXISTING gallery too (a re-save carries it forward), so we
       // never stage photos that would just be cap-dropped at attach time.
@@ -34845,9 +35461,25 @@ function init() {
         if (saveBtn) saveBtn.disabled = false;
         const n = _pendingSaveJobPhotos.length;
         if (label) label.textContent = n ? (n + " photo" + (n === 1 ? "" : "s") + " ready — tap to add more") : "Add job photos";
+        try {
+          const draft = loadSaveJobFormDraft();
+          if (draft) applySaveJobForm(draft);
+          ensureSaveJobModalVisible();
+          syncSaveJobFormToState();
+        } catch (_) {}
       }
     }); }
     saveModal._wired = true;
+  }
+  // Backgrounding for the camera/gallery — stash the form so a killed WebView
+  // can restore fields when Save Job is opened again.
+  if (!window._saveJobVisWired) {
+    window._saveJobVisWired = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden" && (isSaveJobModalOpen() || _saveJobPhotoPicking)) {
+        try { syncSaveJobFormToState(); } catch (_) {}
+      }
+    });
   }
   // Save-conflict prompt (overwrite existing vs save a new quote)
   const _conf = document.getElementById("saveConflictModal");
@@ -34995,6 +35627,7 @@ function init() {
   const _custBody = document.getElementById("customersBody");
   if (_custBody && !_custBody._wired) {
     _custBody.addEventListener("click", e => {
+      if (e.target.closest("#custEditorAddressMap")) { openAddressMapPicker("custEditorAddress"); return; }
       const openBtn = e.target.closest("[data-cust-open]");
       if (openBtn) { _custDetailKey = openBtn.dataset.custOpen; renderCustomersSettings(); return; }
       if (e.target.closest("[data-cust-back]")) { try { commitCustDetailIfDirty(); } catch (_) {} _custDetailKey = null; renderCustomersSettings(); return; }
