@@ -19168,7 +19168,17 @@ function jobPhotoImgHTML(j, cls) {
 
 // Upload a compressed photo for a job. Uses Storage when signed-in with a
 // real (uuid) job; otherwise stores base64 locally as a fallback.
+// Job Details text fields only commit on "Save changes". Cover/gallery photo
+// saves re-render the whole drawer from stored data — so commit any typed
+// edits first, or a photo upload silently wipes customer/job fields.
+function commitOpenJobDetailsEdits(id) {
+  if (!id || _jdJobId !== id) return;
+  if (!document.getElementById("jdName") && !document.getElementById("jdJobName")) return;
+  try { saveJobDetailsEdits(id, true); } catch (_) {}
+}
+
 async function saveJobPhoto(id, dataUrl) {
+  commitOpenJobDetailsEdits(id);
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j) return;
@@ -19263,6 +19273,7 @@ function confirmDeleteJob(j) {
 let _jdGalleryTargetId = null;   // job id awaiting files from #jdGalleryInput
 
 async function addJobGalleryPhotos(id, dataUrls) {
+  commitOpenJobDetailsEdits(id);
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j) return { added: 0, capped: false, saved: false };
@@ -19302,6 +19313,7 @@ async function removeJobGalleryPhoto(id, idx) {
 }
 /** Remove one or more gallery photos by index (descending splice, one save). */
 async function removeJobGalleryPhotos(id, idxs) {
+  commitOpenJobDetailsEdits(id);
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
   if (!j || !Array.isArray(j.photos)) return 0;
@@ -19507,7 +19519,7 @@ function wireJobGallery(job) {
   const root = document.getElementById("jobDetailsBody");
   if (!root) return;
   // PHOTO-9: both the header "+ Add photos" and the empty-state drop-zone open the picker.
-  const openPicker = () => { _jdGalleryTargetId = job.id; document.getElementById("jdGalleryInput")?.click(); };
+  const openPicker = () => { commitOpenJobDetailsEdits(job.id); _jdGalleryTargetId = job.id; document.getElementById("jdGalleryInput")?.click(); };
   root.querySelectorAll("#jdAddPhotos, #jdEmptyAddPhotos").forEach(b => b.addEventListener("click", openPicker));
   const gridBtn = root.querySelector("#jdGridView");
   if (gridBtn) gridBtn.addEventListener("click", () => openGalleryGrid(job.id));
@@ -21633,9 +21645,16 @@ function renderJobDetails(job) {
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
   // (Logging actuals moved to the dashboard's Pricing calibration card.)
   const jdPhoto = document.getElementById("jdPhoto");
-  if (jdPhoto) jdPhoto.addEventListener("click", () => { _dashPhotoTargetId = job.id; document.getElementById("dashPhotoInput")?.click(); });
+  if (jdPhoto) jdPhoto.addEventListener("click", () => {
+    commitOpenJobDetailsEdits(job.id);
+    _dashPhotoTargetId = job.id;
+    document.getElementById("dashPhotoInput")?.click();
+  });
   const jdGen = document.getElementById("jdGenThumb");
-  if (jdGen) jdGen.addEventListener("click", () => generateJobThumbnail(job.id, jdGen));
+  if (jdGen) jdGen.addEventListener("click", () => {
+    commitOpenJobDetailsEdits(job.id);
+    generateJobThumbnail(job.id, jdGen);
+  });
   // E-signature: detail-level toggle + customize + create-link
   _jdSignDetail = "summary";
   _jdSignExclude = new Set();
