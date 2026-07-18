@@ -1022,13 +1022,9 @@
   }
   .addr-map-done:disabled { opacity: 0.45; cursor: default; }
   .addr-map-done:not(:disabled):active { transform: scale(0.99); }
-  /* Leaflet chrome tweaks inside our dark modal */
-  #addrMapModal .leaflet-control-zoom a {
-    background: rgba(8,13,24,0.92) !important; color: #e2e8f0 !important;
-    border-color: rgba(148,163,184,0.3) !important; width: 36px !important; height: 36px !important;
-    line-height: 36px !important; font-size: 18px !important;
-  }
-  #addrMapModal .leaflet-bar { border: 0 !important; box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important; }
+  /* Keep Google’s own zoom control; lift our chrome above the map tiles. */
+  #addrMapModal .gm-style { font-family: inherit; }
+  #addrMapCanvas .gm-style-cc, #addrMapCanvas .gmnoprint a { display: none !important; }
   [data-theme="light"] .addr-map-btn { color: #8a6a2e; border-color: rgba(138,106,46,0.4); background: rgba(181,143,74,0.1); }
 
   /* ── Expandable live-total sheet (UI refresh P5) ── tap the selling-price bar
@@ -23107,41 +23103,84 @@ function closeManageCustomers() {
 }
 
 /* ============================================================
-   ADDRESS MAP PICKER — “Map” next to Job Address opens a full-screen
-   Leaflet map, centers on the device location, keeps a floating pin
-   fixed at the viewport center while the user pans/zooms, reverse-
-   geocodes via Nominatim, and fills the address field on Done.
+   ADDRESS MAP PICKER — Google Maps (best look on web; Hybrid satellite
+   + landmarks by default — Apple-like orientation on job sites).
+   Floating center pin; Google Geocoder fills the address field.
+   Requires a Maps JavaScript API key (referrer-restricted). Set via
+   window.__ANCHOR_GOOGLE_MAPS_KEY, GOOGLE_MAPS_API_KEY below, or the
+   maps-config edge function secret GOOGLE_MAPS_API_KEY. See MAPS_SETUP.md.
    ============================================================ */
 const ADDR_MAP_FALLBACK = { lat: 28.5383, lng: -81.3792 }; // Orlando — FL-first default
-let _addrMapTargetId = null;   // input id to fill
-let _addrMap = null;
-let _addrMapReady = null;
+// Publishable browser key — restrict in Google Cloud to HTTP referrers:
+//   https://anchorquoting.com/*, https://*.netlify.app/*, http://localhost/*
+// Enable: Maps JavaScript API (+ Geocoding API for address lookup).
+const GOOGLE_MAPS_API_KEY = "AIzaSyC4pZ4XSXJS1UsHeiIKov-VIY7sCGSdcaw";
+let _addrMapTargetId = null;
+let _addrMap = null;            // google.maps.Map
+let _addrMapReady = null;       // Promise<google>
 let _addrMapGeocodeTimer = 0;
+let _addrMapGeocoder = null;
 let _addrMapLast = { lat: null, lng: null, label: "", ok: false };
-let _addrMapLayers = { street: null, satellite: null };
-let _addrMapLayerMode = "street"; // "street" | "satellite"
+let _addrMapLayerMode = "satellite"; // "street" | "satellite" (satellite = hybrid)
+let _addrMapIdleListener = null;
+let _addrMapDragListener = null;
+let _addrMapResolvedKey = "";
 
-function ensureLeaflet() {
-  if (window.L) return Promise.resolve(window.L);
-  if (_addrMapReady) return _addrMapReady;
-  _addrMapReady = new Promise((resolve, reject) => {
-    const cssId = "leaflet-css";
-    if (!document.getElementById(cssId)) {
-      const link = document.createElement("link");
-      link.id = cssId; link.rel = "stylesheet";
-      link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-      link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
-      link.crossOrigin = "";
-      document.head.appendChild(link);
+function getGoogleMapsApiKeyLocal() {
+  return String((typeof window !== "undefined" && window.__ANCHOR_GOOGLE_MAPS_KEY) || GOOGLE_MAPS_API_KEY || "").trim();
+}
+
+async function resolveGoogleMapsApiKey() {
+  if (_addrMapResolvedKey) return _addrMapResolvedKey;
+  const local = getGoogleMapsApiKeyLocal();
+  if (local) { _addrMapResolvedKey = local; return local; }
+  // Optional: pull a referrer-restricted key from Supabase secrets (not committed).
+  try {
+    if (typeof SUPABASE_URL === "string" && SUPABASE_URL && typeof SUPABASE_ANON_KEY === "string") {
+      const res = await fetch(SUPABASE_URL + "/functions/v1/maps-config", {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.ok && data.key) {
+          _addrMapResolvedKey = String(data.key).trim();
+          try { window.__ANCHOR_GOOGLE_MAPS_KEY = _addrMapResolvedKey; } catch (_) {}
+          return _addrMapResolvedKey;
+        }
+      }
     }
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
-    s.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
-    s.crossOrigin = "";
-    s.onload = () => resolve(window.L);
-    s.onerror = () => reject(new Error("Couldn't load map"));
-    document.head.appendChild(s);
-  });
+  } catch (_) {}
+  return "";
+}
+
+function ensureGoogleMaps() {
+  if (window.google && window.google.maps) return Promise.resolve(window.google);
+  if (_addrMapReady) return _addrMapReady;
+  _addrMapReady = (async () => {
+    const key = await resolveGoogleMapsApiKey();
+    if (!key) throw new Error("Maps API key missing");
+    await new Promise((resolve, reject) => {
+      const cb = "__anchorGoogleMapsReady";
+      const prev = window[cb];
+      window[cb] = () => {
+        try { if (prev) delete window[cb]; else delete window[cb]; } catch (_) {}
+        if (window.google && window.google.maps) resolve();
+        else reject(new Error("Google Maps failed to initialize"));
+      };
+      const s = document.createElement("script");
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key)
+        + "&v=weekly&callback=" + cb;
+      s.async = true;
+      s.defer = true;
+      s.onerror = () => reject(new Error("Couldn't load Google Maps"));
+      document.head.appendChild(s);
+    });
+    return window.google;
+  })();
+  _addrMapReady = _addrMapReady.catch((err) => { _addrMapReady = null; throw err; });
   return _addrMapReady;
 }
 
@@ -23170,8 +23209,8 @@ function ensureAddressMapModal() {
          </svg>
        </div>
        <div class="addr-map-layers" id="addrMapLayers" role="group" aria-label="Map type">
-         <button type="button" data-addr-layer="street" aria-pressed="true">Map</button>
-         <button type="button" data-addr-layer="satellite" aria-pressed="false">Satellite</button>
+         <button type="button" data-addr-layer="street" aria-pressed="false">Map</button>
+         <button type="button" data-addr-layer="satellite" aria-pressed="true">Satellite</button>
        </div>
        <button type="button" class="addr-map-locate" id="addrMapLocate" aria-label="Use my current location" title="My location">
          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
@@ -23197,34 +23236,46 @@ function ensureAddressMapModal() {
   return m;
 }
 
-function formatNominatimAddress(data) {
-  if (!data) return "";
-  const a = data.address || {};
-  const road = a.road || a.pedestrian || a.footway || a.path || a.residential || "";
-  const line1 = [a.house_number, road].filter(Boolean).join(" ").trim();
-  const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || "";
-  const state = a.state || "";
-  const postcode = a.postcode || "";
+function formatGoogleAddress(result) {
+  if (!result) return "";
+  const comps = result.address_components || [];
+  const get = (type) => {
+    const c = comps.find((x) => (x.types || []).includes(type));
+    return c ? (c.short_name || c.long_name || "") : "";
+  };
+  const getLong = (type) => {
+    const c = comps.find((x) => (x.types || []).includes(type));
+    return c ? (c.long_name || c.short_name || "") : "";
+  };
+  const line1 = [get("street_number"), getLong("route")].filter(Boolean).join(" ").trim();
+  const city = getLong("locality") || getLong("sublocality") || getLong("neighborhood")
+    || getLong("administrative_area_level_3") || getLong("postal_town") || "";
+  const state = get("administrative_area_level_1");
+  const postcode = get("postal_code");
   const parts = [];
   if (line1) parts.push(line1);
-  else if (data.name && data.name !== city) parts.push(data.name);
   const cityState = [city, state].filter(Boolean).join(", ");
-  if (cityState && postcode) parts.push(`${cityState} ${postcode}`);
+  if (cityState && postcode) parts.push(cityState + " " + postcode);
   else if (cityState) parts.push(cityState);
   else if (postcode) parts.push(postcode);
-  return parts.join(", ") || data.display_name || "";
+  if (parts.length) return parts.join(", ");
+  // Prefer a street-level formatted address over plus-codes when possible.
+  const formatted = result.formatted_address || "";
+  if (formatted && !/^\+[A-Z0-9]+/.test(formatted)) return formatted;
+  return formatted;
 }
 
-async function reverseGeocodeLatLng(lat, lng) {
-  const url = "https://nominatim.openstreetmap.org/reverse"
-    + `?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`
-    + "&format=jsonv2&addressdetails=1&zoom=18"
-    + "&email=support%40anchorquoting.com";
-  const res = await fetch(url, {
-    headers: { Accept: "application/json" },
+function reverseGeocodeLatLng(lat, lng) {
+  return new Promise((resolve, reject) => {
+    if (!_addrMapGeocoder && window.google && window.google.maps) {
+      _addrMapGeocoder = new google.maps.Geocoder();
+    }
+    if (!_addrMapGeocoder) return reject(new Error("geocoder unavailable"));
+    _addrMapGeocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === "OK" && results && results.length) resolve(results);
+      else reject(new Error(status || "geocode failed"));
+    });
   });
-  if (!res.ok) throw new Error("geocode failed");
-  return res.json();
 }
 
 function setAddressMapPreview(state, text, coords) {
@@ -23242,27 +23293,40 @@ function setAddressMapPreview(state, text, coords) {
   if (state === "ok") _addrMapLast.label = text;
 }
 
-function scheduleAddressMapGeocode() {
-  if (!_addrMap) return;
+function addrMapCenter() {
+  if (!_addrMap) return null;
   const c = _addrMap.getCenter();
-  const lat = c.lat, lng = c.lng;
+  if (!c) return null;
+  return { lat: c.lat(), lng: c.lng() };
+}
+
+function scheduleAddressMapGeocode() {
+  const c = addrMapCenter();
+  if (!c) return;
+  const { lat, lng } = c;
   _addrMapLast.lat = lat; _addrMapLast.lng = lng;
-  setAddressMapPreview("loading", "Finding address…", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  setAddressMapPreview("loading", "Finding address…", lat.toFixed(5) + ", " + lng.toFixed(5));
   clearTimeout(_addrMapGeocodeTimer);
   _addrMapGeocodeTimer = setTimeout(async () => {
     try {
-      const data = await reverseGeocodeLatLng(lat, lng);
-      // Ignore stale responses if the map moved again.
-      const now = _addrMap && _addrMap.getCenter();
+      const results = await reverseGeocodeLatLng(lat, lng);
+      const now = addrMapCenter();
       if (!now || Math.abs(now.lat - lat) > 0.00005 || Math.abs(now.lng - lng) > 0.00005) return;
-      const label = formatNominatimAddress(data);
+      // Prefer a result that has a street address.
+      let best = results[0];
+      for (const r of results) {
+        const types = r.types || [];
+        if (types.includes("street_address") || types.includes("premise")) { best = r; break; }
+        if (!best && types.includes("route")) best = r;
+      }
+      const label = formatGoogleAddress(best);
       if (!label) {
-        setAddressMapPreview("error", "No address found here — pan or zoom and try again.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        setAddressMapPreview("error", "No address found here — pan or zoom and try again.", lat.toFixed(5) + ", " + lng.toFixed(5));
         return;
       }
-      setAddressMapPreview("ok", label, `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      setAddressMapPreview("ok", label, lat.toFixed(5) + ", " + lng.toFixed(5));
     } catch (_) {
-      setAddressMapPreview("error", "Couldn't look up that spot — check your connection.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      setAddressMapPreview("error", "Couldn't look up that spot — check your connection.", lat.toFixed(5) + ", " + lng.toFixed(5));
     }
   }, 450);
 }
@@ -23273,7 +23337,8 @@ function centerAddressMapOnDevice(opts) {
   if (!_addrMap) return;
   if (!navigator.geolocation) {
     if (force) toast("Location isn't available on this device.");
-    _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+    _addrMap.setCenter(ADDR_MAP_FALLBACK);
+    _addrMap.setZoom(12);
     scheduleAddressMapGeocode();
     return;
   }
@@ -23284,7 +23349,8 @@ function centerAddressMapOnDevice(opts) {
       if (btn) btn.disabled = false;
       if (!_addrMap) return;
       const { latitude, longitude } = pos.coords;
-      _addrMap.setView([latitude, longitude], Math.max(_addrMap.getZoom(), 17));
+      _addrMap.setCenter({ lat: latitude, lng: longitude });
+      _addrMap.setZoom(Math.max(_addrMap.getZoom() || 0, 18));
       scheduleAddressMapGeocode();
     },
     (err) => {
@@ -23296,9 +23362,9 @@ function centerAddressMapOnDevice(opts) {
           : "Couldn't get your location — pan the map instead.";
         toast(msg);
       }
-      // Keep current center if we already moved; otherwise fall back to FL.
       if (!_addrMapLast.lat) {
-        _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+        _addrMap.setCenter(ADDR_MAP_FALLBACK);
+        _addrMap.setZoom(12);
       }
       scheduleAddressMapGeocode();
     },
@@ -23317,18 +23383,18 @@ function syncAddressMapLayerUI() {
 
 function setAddressMapLayer(mode) {
   if (mode !== "street" && mode !== "satellite") return;
-  if (!_addrMap || !_addrMapLayers.street || !_addrMapLayers.satellite) {
-    _addrMapLayerMode = mode;
-    syncAddressMapLayerUI();
-    return;
-  }
-  if (_addrMapLayerMode === mode) { syncAddressMapLayerUI(); return; }
-  const next = mode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street;
-  const prev = mode === "satellite" ? _addrMapLayers.street : _addrMapLayers.satellite;
-  try { if (_addrMap.hasLayer(prev)) _addrMap.removeLayer(prev); } catch (_) {}
-  try { if (!_addrMap.hasLayer(next)) next.addTo(_addrMap); } catch (_) {}
   _addrMapLayerMode = mode;
+  if (_addrMap && window.google && window.google.maps) {
+    // Hybrid = satellite imagery + road/landmark labels (what users expect from
+    // Google/Apple satellite for orientation). Plain "satellite" hides labels.
+    _addrMap.setMapTypeId(mode === "satellite" ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.ROADMAP);
+  }
   syncAddressMapLayerUI();
+}
+
+function resizeAddressMap() {
+  if (!_addrMap || !window.google || !window.google.maps) return;
+  try { google.maps.event.trigger(_addrMap, "resize"); } catch (_) {}
 }
 
 async function openAddressMapPicker(inputId) {
@@ -23341,43 +23407,49 @@ async function openAddressMapPicker(inputId) {
   try { trapDialog(modal, closeAddressMapPicker); } catch (_) {}
   setAddressMapPreview("loading", "Loading map…", "");
   try {
-    const L = await ensureLeaflet();
+    await ensureGoogleMaps();
     const canvas = document.getElementById("addrMapCanvas");
     if (!_addrMap) {
-      _addrMap = L.map(canvas, {
+      _addrMap = new google.maps.Map(canvas, {
+        center: ADDR_MAP_FALLBACK,
+        zoom: 12,
+        mapTypeId: google.maps.MapTypeId.HYBRID,
+        disableDefaultUI: true,
         zoomControl: true,
-        attributionControl: true,
-        maxZoom: 19,
-      }).setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
-      _addrMapLayers.street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP },
+        gestureHandling: "greedy",
+        clickableIcons: true,   // landmarks / POIs help orientation
+        keyboardShortcuts: false,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        rotateControl: false,
       });
-      // Esri World Imagery — free satellite basemap (no API key).
-      _addrMapLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19,
-        attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics',
-      });
-      (_addrMapLayerMode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street).addTo(_addrMap);
-      syncAddressMapLayerUI();
-      _addrMap.on("movestart zoomstart", () => { if (pin) pin.classList.add("is-lifted"); });
-      _addrMap.on("moveend zoomend", () => {
+      _addrMapGeocoder = new google.maps.Geocoder();
+      _addrMapDragListener = _addrMap.addListener("dragstart", () => { if (pin) pin.classList.add("is-lifted"); });
+      _addrMapIdleListener = _addrMap.addListener("idle", () => {
         if (pin) pin.classList.remove("is-lifted");
         scheduleAddressMapGeocode();
       });
-    } else {
-      // Re-opened — make sure size is correct after display:none.
-      setAddressMapLayer(_addrMapLayerMode);
-      setTimeout(() => { try { _addrMap.invalidateSize(); } catch (_) {} }, 40);
     }
-    syncAddressMapLayerUI();
+    setAddressMapLayer(_addrMapLayerMode);
     requestAnimationFrame(() => {
-      try { _addrMap.invalidateSize(); } catch (_) {}
-      centerAddressMapOnDevice({ force: false });
+      resizeAddressMap();
+      setTimeout(() => {
+        resizeAddressMap();
+        centerAddressMapOnDevice({ force: false });
+      }, 60);
     });
-  } catch (_) {
-    setAddressMapPreview("error", "Couldn't load the map. Check your connection and try again.", "");
-    toast("Couldn't load the map.");
+  } catch (err) {
+    const missing = /key missing/i.test(String(err && err.message || err || ""));
+    setAddressMapPreview(
+      "error",
+      missing
+        ? "Google Maps isn’t configured yet — see MAPS_SETUP.md for the API key."
+        : "Couldn't load Google Maps. Check your connection and try again.",
+      ""
+    );
+    toast(missing ? "Add a Google Maps API key (MAPS_SETUP.md)" : "Couldn't load the map.");
   }
 }
 
