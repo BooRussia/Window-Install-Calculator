@@ -2501,6 +2501,15 @@
     .sheet-on-mobile > .card.sheet-opened:not(.tv-off) {
       animation: none !important;
     }
+    /* Backdrop counterpart: removing .sheet-drag-active after an aborted
+       dismiss flips the backdrop's animation-name none → aFade, restarting the
+       fill-both fade from opacity 0 (scrim flashes clear, then re-fades). This
+       matches in the same style recalc that adds .sheet-opened, so the name
+       stays none continuously. :not(.tv-off) releases it during an animated
+       close so aFadeOut still plays. */
+    .sheet-on-mobile:has(> .sheet-opened:not(.tv-off)) > .modal-backdrop {
+      animation: none !important;
+    }
   }
   /* Page changes: overlay screens materialize with the same physics family —
      fade leads (fast, its own track), the rise settles on the spring.
@@ -16201,13 +16210,27 @@ function setAccOpen(acc, open) {
     acc.classList.toggle("open", open);
     return;
   }
+  // Tear down BOTH cleanup channels from any in-flight open before starting a
+  // new direction. An interrupted open fires transitioncancel (not -end), so a
+  // stale listener/timer would fire rest() when the CLOSE's transition ends —
+  // setting max-height:none on a closed section and snapping it fully open.
   if (b._accT) { clearTimeout(b._accT); b._accT = 0; }
+  if (b._accTe) { b.removeEventListener("transitionend", b._accTe); b._accTe = null; }
   if (open) {
+    // Measure BEFORE .open applies, then add the .open rule's vertical padding
+    // (2 + 16 — keep in sync with `.rail-acc.open .rail-acc-body`): once the
+    // content overflows, scrollHeight omits padding-bottom, so measuring after
+    // the class lands ~18px short and the section bottom pops in at rest.
+    const target = b.scrollHeight + 18;
     acc.classList.add("open");
-    b.style.maxHeight = b.scrollHeight + "px";
-    const rest = () => { b.style.maxHeight = "none"; b._accT = 0; b.removeEventListener("transitionend", te); };
+    b.style.maxHeight = target + "px";
+    const rest = () => {
+      if (b._accT) { clearTimeout(b._accT); b._accT = 0; }
+      if (b._accTe) { b.removeEventListener("transitionend", b._accTe); b._accTe = null; }
+      b.style.maxHeight = "none";
+    };
     const te = (e) => { if (e.propertyName === "max-height") rest(); };
-    b.addEventListener("transitionend", te);
+    b.addEventListener("transitionend", te); b._accTe = te;
     b._accT = setTimeout(rest, 420);   // safety: rest at auto even if transitionend is lost
   } else {
     b.style.maxHeight = b.scrollHeight + "px";   // pin current height (from none)…
@@ -21515,7 +21538,7 @@ function closeJobDetailsInstant() {
   if (m._tvCloseTimer) { clearTimeout(m._tvCloseTimer); m._tvCloseTimer = 0; }
   const card = m.querySelector(".modal-backdrop + div, :scope > .card");
   if (card) {
-    card.classList.remove("tv-off", "sheet-dragging", "sheet-settling");
+    card.classList.remove("tv-off", "sheet-dragging", "sheet-settling", "sheet-opened");
     card.style.transform = ""; card.style.transition = "";
   }
   const bd = m.querySelector(":scope > .modal-backdrop");
@@ -26828,7 +26851,7 @@ function closeChangeOrderInstant() {
   if (!changeOrderModal) return;
   if (changeOrderModal._tvCloseTimer) { clearTimeout(changeOrderModal._tvCloseTimer); changeOrderModal._tvCloseTimer = 0; }
   const card = changeOrderModal.querySelector(".modal-backdrop + div, :scope > .card");
-  if (card) { card.classList.remove("tv-off"); card.style.transform = ""; card.style.opacity = ""; }
+  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling", "sheet-opened"); card.style.transform = ""; card.style.opacity = ""; }
   changeOrderModal.classList.add("hidden");
   changeOrderModal.classList.remove("flex", "modal-closing");
   try { releaseDialog(changeOrderModal); } catch (_) {}
@@ -27253,7 +27276,7 @@ function closeFLInstant() {
   if (!flModal) return;
   if (flModal._tvCloseTimer) { clearTimeout(flModal._tvCloseTimer); flModal._tvCloseTimer = 0; }
   const card = flModal.querySelector(".modal-backdrop + div, :scope > .card");
-  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling"); card.style.transform = ""; card.style.transition = ""; }
+  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling", "sheet-opened"); card.style.transform = ""; card.style.transition = ""; }
   flModal.classList.add("hidden");
   flModal.classList.remove("flex", "modal-closing");
   try { releaseDialog(flModal); } catch (_) {}
