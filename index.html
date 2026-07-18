@@ -1644,6 +1644,53 @@
   @media (prefers-reduced-motion: reduce) {
     #emptyState .empty-dice-btn.is-rolling .empty-dice-icon { animation: none; }
   }
+  /* Empty-state AI plan-read progress (visible without opening the rail) */
+  #emptyStatePlanProgress {
+    margin-top: 4px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(181,143,74,0.35);
+    background: rgba(181,143,74,0.08);
+    text-align: left;
+  }
+  #emptyStatePlanProgress.hidden { display: none !important; }
+  .empty-plan-progress-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; color: #e2cf9a;
+    line-height: 1.35; min-height: 1.2em;
+  }
+  .empty-plan-progress-label .empty-plan-spin {
+    flex-shrink: 0;
+    animation: emptyPlanSpin 0.75s linear infinite;
+  }
+  @keyframes emptyPlanSpin { to { transform: rotate(360deg); } }
+  .empty-plan-progress-track {
+    margin-top: 10px; height: 6px; border-radius: 999px;
+    background: rgba(15,23,42,0.65); overflow: hidden;
+  }
+  .empty-plan-progress-fill {
+    height: 100%; width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #b58f4a, #e2cf9a);
+    transition: width .28s ease;
+  }
+  #emptyStatePlanProgress.is-indeterminate .empty-plan-progress-fill {
+    width: 38% !important;
+    animation: emptyPlanIndeterminate 1.15s ease-in-out infinite;
+  }
+  @keyframes emptyPlanIndeterminate {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(280%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .empty-plan-progress-label .empty-plan-spin { animation: none; }
+    #emptyStatePlanProgress.is-indeterminate .empty-plan-progress-fill { animation: none; width: 45% !important; }
+  }
+  [data-theme="light"] #emptyStatePlanProgress {
+    background: rgba(181,143,74,0.12); border-color: rgba(138,106,46,0.35);
+  }
+  [data-theme="light"] .empty-plan-progress-label { color: #8a6a2e; }
+  [data-theme="light"] .empty-plan-progress-track { background: rgba(226,232,240,0.9); }
   /* Live-recap band in the main panel — replaces the old big LF input */
   #liveRecap {
     display: none;            /* mobile uses the sticky #jobSummaryBar; desktop only */
@@ -9430,6 +9477,15 @@
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
         Upload Window Schedule
       </button>
+      <div id="emptyStatePlanProgress" class="hidden" role="status" aria-live="polite" aria-atomic="true">
+        <div class="empty-plan-progress-label" id="emptyStatePlanProgressLabel">
+          <svg class="empty-plan-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          <span id="emptyStatePlanProgressText">Reading your window schedule…</span>
+        </div>
+        <div class="empty-plan-progress-track" aria-hidden="true">
+          <div class="empty-plan-progress-fill" id="emptyStatePlanProgressFill"></div>
+        </div>
+      </div>
       <button id="emptyStateDiceBtn" type="button" class="btn empty-dice-btn w-full inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]" title="Generate a random quote for fun">
         <svg class="empty-dice-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="3" width="18" height="18" rx="3"/>
@@ -30220,22 +30276,56 @@ async function invokePlanExtraction(body) {
   return { ok: true, data };
 }
 
+// Empty-state progress panel — shown on "Set up your job" while AI reads a
+// schedule, so users don't have to open the calculator rail to see activity.
+function setEmptyPlanProgress(busy, msg, pct) {
+  const wrap = document.getElementById("emptyStatePlanProgress");
+  const textEl = document.getElementById("emptyStatePlanProgressText");
+  const fill = document.getElementById("emptyStatePlanProgressFill");
+  const btn = document.getElementById("emptyStateUploadBtn");
+  const dice = document.getElementById("emptyStateDiceBtn");
+  if (!wrap) return;
+  if (!busy) {
+    wrap.classList.add("hidden");
+    wrap.classList.remove("is-indeterminate");
+    if (fill) fill.style.width = "0%";
+    if (btn) { btn.disabled = false; btn.classList.remove("opacity-70", "pointer-events-none"); }
+    if (dice) { dice.disabled = false; dice.classList.remove("opacity-50", "pointer-events-none"); }
+    return;
+  }
+  wrap.classList.remove("hidden");
+  if (textEl) textEl.textContent = msg || "Reading your window schedule…";
+  if (btn) { btn.disabled = true; btn.classList.add("opacity-70", "pointer-events-none"); }
+  if (dice) { dice.disabled = true; dice.classList.add("opacity-50", "pointer-events-none"); }
+  const n = (pct == null || pct === "" || !isFinite(Number(pct))) ? null : Math.max(0, Math.min(100, Number(pct)));
+  if (n == null) {
+    wrap.classList.add("is-indeterminate");
+    if (fill) fill.style.width = "38%";
+  } else {
+    wrap.classList.remove("is-indeterminate");
+    if (fill) fill.style.width = Math.max(6, n) + "%";
+  }
+}
+
 // The rail "Upload Window Schedule" button doubles as the read-flow progress
 // indicator — the upload happens with no modal, so the button shows a spinner.
-function setRailUploadBusy(busy, msg) {
+// Also mirrors progress onto the empty-state panel (the hero upload path).
+function setRailUploadBusy(busy, msg, pct) {
   const lbl = document.getElementById("readFromPlanBtn");
   const input = document.getElementById("readPlanFile");
-  if (!lbl) return;
-  if (busy) {
-    if (lbl.dataset.orig == null) lbl.dataset.orig = lbl.innerHTML;
-    lbl.innerHTML = '<svg class="animate-spin flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><span>' + (msg || "Reading…") + "</span>";
-    lbl.classList.add("opacity-70", "pointer-events-none");
-    if (input) input.disabled = true;
-  } else {
-    if (lbl.dataset.orig != null) { lbl.innerHTML = lbl.dataset.orig; delete lbl.dataset.orig; }
-    lbl.classList.remove("opacity-70", "pointer-events-none");
-    if (input) input.disabled = false;
+  if (lbl) {
+    if (busy) {
+      if (lbl.dataset.orig == null) lbl.dataset.orig = lbl.innerHTML;
+      lbl.innerHTML = '<svg class="animate-spin flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><span>' + (msg || "Reading…") + "</span>";
+      lbl.classList.add("opacity-70", "pointer-events-none");
+      if (input) input.disabled = true;
+    } else {
+      if (lbl.dataset.orig != null) { lbl.innerHTML = lbl.dataset.orig; delete lbl.dataset.orig; }
+      lbl.classList.remove("opacity-70", "pointer-events-none");
+      if (input) input.disabled = false;
+    }
   }
+  try { setEmptyPlanProgress(busy, msg, pct); } catch (_) {}
 }
 
 // Persistent error display (a fleeting toast vanished before users could read
@@ -30326,12 +30416,15 @@ async function handlePlanUpload(files, source) {
   const usingRail = source !== "buck";          // read flow = rail button; buck flow = modal status
   const fileInput = document.getElementById(usingRail ? "readPlanFile" : "buckPlanFile");
   if (fileInput) fileInput.disabled = true;
-  const setBusy = (m) => usingRail ? setRailUploadBusy(true, m) : setPlanUploadStatus("buckPlanUploadStatus", m, "busy");
+  const setBusy = (m, pct) => {
+    if (usingRail) setRailUploadBusy(true, m, pct);
+    else setPlanUploadStatus("buckPlanUploadStatus", m, "busy");
+  };
   const setErr = (m, dbg) => {
     if (usingRail) showPlanError(m, dbg);
     else { setPlanUploadStatus("buckPlanUploadStatus", m, "error"); if (dbg) console.log("[plan] debug", dbg); }
   };
-  setBusy("Preparing…");
+  setBusy("Preparing your upload…", 8);
   try {
     // Render everything to images (Grok reads them with VISION) and combine all
     // pages across all files into one batch — the AI sums the openings for us.
@@ -30340,7 +30433,10 @@ async function handlePlanUpload(files, source) {
     let i = 0;
     for (const file of files) {
       i++;
-      setBusy(files.length > 1 ? `Rendering file ${i} of ${files.length}…` : "Rendering plan pages…");
+      setBusy(
+        files.length > 1 ? `Rendering file ${i} of ${files.length}…` : "Rendering plan pages…",
+        files.length > 1 ? Math.round(8 + (22 * i) / files.length) : 18
+      );
       const remaining = MAX_PLAN_PAGES - allImages.length;
       if (file.type === "application/pdf") {
         const { images, pages } = await pdfToImages(file, remaining);
@@ -30384,6 +30480,7 @@ async function handlePlanUpload(files, source) {
       const rem = getAiReadsRemaining();
       if (rem !== Infinity && !confirm(`This ${allImages.length}-page plan uses ${creditsNeeded} of your ${rem} AI reads (1 per ${PLAN_CHUNK_SIZE} pages). Read it now?`)) {
         if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "");   // review fix: the finally only self-heals the rail — clear the buck spinner on decline
+        else setRailUploadBusy(false);
         return;
       }
     }
@@ -30394,9 +30491,14 @@ async function handlePlanUpload(files, source) {
     // AIPLAN-4: 3 workers run in parallel, so a per-chunk page-range label just clobbers.
     // Show a cumulative "X of N sections read" count that's monotonic and lands on N of N
     // (updated both when a chunk starts and when it completes).
-    const bumpReadProgress = () => { if (chunks.length > 1) setBusy(`Reading your plan — ${okChunks + failChunks} of ${chunks.length} sections read…`); };
+    const bumpReadProgress = () => {
+      if (chunks.length > 1) {
+        const done = okChunks + failChunks;
+        setBusy(`Reading your plan — ${done} of ${chunks.length} sections…`, Math.round(35 + (60 * done) / chunks.length));
+      }
+    };
     const runChunk = async (idx) => {
-      if (chunks.length === 1) setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
+      if (chunks.length === 1) setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`, 55);
       else bumpReadProgress();
       let res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
       // one retry on a transient failure (timeout / 5xx) — not on cap / auth / too-large
@@ -30440,6 +30542,7 @@ async function handlePlanUpload(files, source) {
     }
 
     const mergedText = mergePlanExtractions(texts.filter(Boolean));
+    setBusy("Finishing your quote…", 96);
     const ok = applyFullExtraction(mergedText, source);   // fills the calc + toasts a summary
     if (!ok) {
       const rem = !adminUser ? getAiReadsRemaining() : Infinity;
