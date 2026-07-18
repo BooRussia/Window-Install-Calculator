@@ -263,13 +263,17 @@
     transform: translateY(-6px) scale(0.97);
     transform-origin: top center;
     pointer-events: none;
-    transition: opacity .18s ease, transform .26s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Base rule governs the CLOSE (destination when .open drops): shorter,
+       accelerating — exits leave quicker than entrances arrive. */
+    transition: opacity .14s ease, transform .18s cubic-bezier(0.55, 0, 0.8, 0.4);
     z-index: 40;
   }
   .dd.open .dd-panel {
     opacity: 1;
     transform: translateY(0) scale(1);
     pointer-events: auto;
+    /* Enter: decelerate on the family curve. */
+    transition: opacity .18s ease, transform .26s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .dd-item {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -739,6 +743,14 @@
   #mtotalBar.show { transform: translateY(0); pointer-events: auto; }
   #mtotalBar.show.tucked { transform: translateY(calc(100% + 12px)); pointer-events: none; }
   #mtotalBar.dragging { transition: none !important; }
+  /* A backdrop-filtered element that moves repaints everything behind it every
+     frame — drop the blur while the bar is under a finger or settling (same
+     mitigation as the sheet drag's .jd-top), and promote the moving layer. */
+  #mtotalBar.dragging, #mtotalBar.settling {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    background: rgba(7,12,24,1);
+    will-change: transform;
+  }
   #mtotalBtn {
     width: 100%; min-height: 56px;
     display: flex; align-items: center; gap: 12px;
@@ -1048,7 +1060,9 @@
   body.msheet-open #mtotalSheet { touch-action: auto; }
   body.msheet-open .msheet-panel { touch-action: pan-y; }
   body.msheet-open .msheet-grab { touch-action: none; }
-  .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); touch-action: none; }
+  /* Fades in with the sheet (no fill mode: rest opacity is already 1, and a
+     filled animation would override the drag-dismiss inline opacity writes). */
+  .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); touch-action: none; animation: aFade .3s cubic-bezier(0.16, 1, 0.3, 1); }
   .msheet-panel {
     position: absolute; left: 0; right: 0; bottom: 0; max-height: 78svh;
     overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
@@ -1070,7 +1084,7 @@
   /* Keep sheetUp from replaying while we settle a drag dismiss/snap-back —
      that replay was the bounce after finger-up. */
   .msheet-panel.settling { animation: none !important; }
-  @media (prefers-reduced-motion: reduce) { .msheet-panel { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .msheet-panel, .msheet-backdrop { animation: none; } }
   .msheet-grab {
     width: 40px; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.45);
     margin: 6px auto 14px; position: relative; touch-action: none; cursor: grab;
@@ -1264,15 +1278,22 @@
     display: flex; flex-direction: column;
   }
   #jobRail.show { transform: translateX(0); }
-  #appBody { transition: padding-left .32s cubic-bezier(0.16,1,0.3,1); }
+  /* No transition on #appBody's padding — animating a layout property on the
+     container of the whole app forces ~19 consecutive full-page reflows per
+     rail pin/unpin. The rail's own transform slide carries the motion cue;
+     the content snaps once. */
   #jobRailBackdrop {
     position: fixed; top: 3.5rem; left: 0; right: 0; bottom: 0; z-index: 29;
     background: rgba(2,6,23,0.65);
-    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+    /* Base = close: quicker, accelerating (family exit). */
+    opacity: 0; pointer-events: none; transition: opacity .24s cubic-bezier(0.55, 0, 0.8, 0.4);
   }
-  #jobRailBackdrop.open { opacity: 1; pointer-events: auto; }
+  #jobRailBackdrop.open { opacity: 1; pointer-events: auto; transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1); }
   #railHotzone { display: none; }
   .rail-toggle-chev { transition: transform .25s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    #jobRail, #appBody, .rail-toggle-chev { transition: none; }
+  }
   body:not(.rail-pinned) .rail-toggle-chev { transform: rotate(180deg); }
   @media (min-width: 1024px) {
     body.rail-pinned #jobRail { transform: translateX(0); }
@@ -1450,7 +1471,12 @@
     max-height: 0; overflow: hidden; padding: 0 15px;
     transition: max-height .32s cubic-bezier(0.16,1,0.3,1), padding .2s ease;
   }
-  body.rail-tidy #jobRail .rail-acc.open .rail-acc-body { max-height: 4000px; padding: 2px 15px 16px; }
+  /* No 4000px max-height sentinel: a sentinel that far past the real height
+     makes the .32s ease finish the visible travel in ~2 frames (progress is
+     distance-based). setAccOpen() (JS) animates to the section's real
+     scrollHeight via inline max-height, then rests here at none — which is
+     also the safe fallback if .open is toggled without the helper. */
+  body.rail-tidy #jobRail .rail-acc.open .rail-acc-body { max-height: none; padding: 2px 15px 16px; }
   /* When a dropdown (e.g. Manufacturer) opens inside an accordion, let it spill
      out over the sections below instead of being clipped by the collapse overflow. */
   body.rail-tidy #jobRail .rail-acc.open:has(.dd.open) { overflow: visible; }
@@ -2384,28 +2410,58 @@
      All disabled under prefers-reduced-motion (block at the bottom). ─── */
   @keyframes aFade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes aFadeOut { from { opacity: 1; } to { opacity: 0; } }
-  @keyframes aScreenIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* transform-only: opacity rides the separate aFade track (fade leads, geometry settles) */
+  @keyframes aScreenIn { from { transform: translateY(10px); } to { transform: none; } }
   @keyframes aSwap { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
-  /* Popups power on/off like a CRT/box: a bright slit snaps open and expands to
-     full on open, then folds back into a line and a point on close. The panel is
-     the div right after the .modal-backdrop in every modal; tvDismiss() (JS) adds
-     .tv-off + .modal-closing to drive the close, then hides it on animationend. */
-  @keyframes aTvOn {
-    0%   { opacity: 0; transform: scaleX(0.64) scaleY(0.008); }
-    46%  { opacity: 1; transform: scaleX(1) scaleY(0.016); }
-    100% { opacity: 1; transform: scaleX(1) scaleY(1); }
+  /* ── "Materialize" — the app's signature overlay motion (Apple-grade). ──
+     Popups don't power on like a CRT anymore; they MATERIALIZE: the fade leads
+     on its own fast track (~240ms) while the geometry settles on a longer,
+     gently damped spring (~380ms — rises 14px, scales 0.965→1, with a
+     sub-pixel settle past rest). Exit is the reverse but quicker and
+     accelerating (~210ms, recede down-and-away) — enter slow-out, exit
+     fast-in, never symmetric. Transform + opacity only (compositor-safe);
+     the frosted backdrop's blur rides its opacity ramp. The panel is the div
+     right after the .modal-backdrop in every modal; tvDismiss() (JS) adds
+     .tv-off + .modal-closing to drive the close, then hides on animationend. */
+  :root {
+    /* Damped-spring settle for overlay geometry. Fallback: one gentle
+       overshoot; upgraded to a real decaying spring via linear() below. */
+    --mo-spring: cubic-bezier(0.26, 1.09, 0.42, 1);
   }
-  @keyframes aTvOff {
-    0%   { opacity: 1; transform: scaleX(1) scaleY(1); filter: brightness(1); }
-    52%  { opacity: 1; transform: scaleX(1) scaleY(0.016); filter: brightness(1.4); }
-    100% { opacity: 0; transform: scaleX(0) scaleY(0.014); filter: brightness(1.7); }
+  @supports (animation-timing-function: linear(0, 1)) {
+    :root {
+      --mo-spring: linear(
+        0, 0.033 2.6%, 0.122 5.8%, 0.252 9%, 0.4 12.2%, 0.551 15.5%,
+        0.692 18.9%, 0.817 22.6%, 0.919 26.7%, 0.996 31.4%, 1.045 36.6%,
+        1.067 42.4%, 1.068 48.6%, 1.053 55.6%, 1.032 63%, 1.013 70.9%,
+        0.999 79.3%, 0.994 88.2%, 1
+      );
+    }
   }
-  .modal-backdrop { animation: aFade .22s ease both; }
-  .modal-backdrop + div { animation: aTvOn .4s cubic-bezier(0.2, 0.8, 0.25, 1) both; transform-origin: center center; }
-  .modal-closing .modal-backdrop { animation: aFadeOut .3s ease forwards; }
-  .modal-backdrop + div.tv-off { animation: aTvOff .34s cubic-bezier(0.5, 0, 0.7, 0.35) forwards; transform-origin: center center; }
-  /* Bottom sheets must NOT use the CRT aTvOn open — it leaves a scaleY fill
-     that snaps on the first dismiss-drag frame (the hitch users felt). */
+  @keyframes aPopIn {
+    from { transform: translateY(14px) scale(0.965); }
+    to   { transform: none; }
+  }
+  @keyframes aPopOut {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 0; transform: translateY(10px) scale(0.97); }
+  }
+  .modal-backdrop { animation: aFade .3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .modal-backdrop + div {
+    animation: aPopIn .38s var(--mo-spring) both, aFade .24s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: center center;
+  }
+  /* Backdrop exit must COMPLETE before the card's 210ms animationend hides the
+     modal — a longer fade would have its tail chopped off in one frame. */
+  .modal-closing .modal-backdrop { animation: aFadeOut .2s cubic-bezier(0.55, 0, 0.8, 0.4) forwards; }
+  .modal-backdrop + div.tv-off {
+    animation: aPopOut .21s cubic-bezier(0.55, 0, 0.8, 0.4) forwards;
+    transform-origin: center center;
+  }
+  /* Bottom sheets must NOT use the desktop materialize (aPopIn) open — a
+     fill-mode transform left on the card snaps on the first dismiss-drag
+     frame (the hitch users felt with the old CRT open). Sheets slide up and
+     the drag system owns their transform from there. */
   @media (max-width: 639px) {
     .sheet-on-mobile > .modal-backdrop + div,
     .sheet-on-mobile > .card {
@@ -2430,18 +2486,60 @@
       background: rgba(8, 13, 24, 1) !important;
     }
     .sheet-on-mobile.sheet-drag-active > .modal-backdrop {
+      /* Kill the filled aFade while a drag owns the scrim — a both-fill
+         animation beats inline style in the cascade, so without this the JS
+         opacity writes during drag-dismiss do nothing and the scrim vanishes
+         in one frame at the end instead of fading with the card. */
+      animation: none !important;
       transition: opacity .08s linear;
     }
+    /* After a settled (aborted) dismiss drag, the entrance must not replay —
+       swap-in class from wireMobileSheetDismiss; cleared by tvDismiss finish()
+       so the next OPEN plays sheetUp again. :not(.tv-off) keeps the sheetDown
+       close animation winning while closing. */
+    .sheet-on-mobile > .modal-backdrop + div.sheet-opened:not(.tv-off),
+    .sheet-on-mobile > .card.sheet-opened:not(.tv-off) {
+      animation: none !important;
+    }
   }
-  /* Page changes: the overlay screens ease in when shown. */
+  /* Page changes: overlay screens materialize with the same physics family —
+     fade leads (fast, its own track), the rise settles on the spring.
+     #adminModal (Settings) is a full-screen panel with no .modal-backdrop, so
+     it never rode the modal materialize — give its panel the screen treatment
+     (open only; closeAdmin's tvDismiss finds no card and hides instantly,
+     same as the other screens). */
   #dashboardScreen:not(.hidden), #learnScreen:not(.hidden),
-  #pricingScreen:not(.hidden), #setupScreen:not(.hidden) { animation: aScreenIn .32s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
-  /* Insights tab swap: the newly-shown panel fades/rises in. */
-  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden) { animation: aSwap .24s ease both; }
+  #pricingScreen:not(.hidden), #setupScreen:not(.hidden), #legalScreen:not(.hidden),
+  #adminModal:not(.hidden) > div {
+    animation: aScreenIn .34s var(--mo-spring) both, aFade .24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  /* Insights tab swap: small local move — decelerate only, no spring (a spring
+     on a 5px hop reads as noise, not physics). */
+  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden) { animation: aSwap .26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  /* Account menu: pops from its anchor (top right) like a macOS menu. */
+  #pfpMenu:not(.hidden) {
+    animation: aMenuIn .22s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: top right;
+  }
+  /* Scale + fade only (no translate): direction-agnostic, so it reads
+     correctly both when the menu drops below the avatar (origin top right,
+     the CSS default) and when positionPfpMenu flips it ABOVE the bottom
+     tab-bar trigger (JS sets transform-origin bottom right inline). */
+  @keyframes aMenuIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .modal-backdrop, .modal-backdrop + div, .modal-backdrop + div.tv-off, .modal-closing .modal-backdrop,
-    #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen,
-    #dashMaterials, #dashCustomers, #dashPipelinePanel { animation: none !important; }
+    #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen, #legalScreen, #pfpMenu, #adminModal > div,
+    #dashMaterials, #dashCustomers, #dashPipelinePanel, .set-panel { animation: none !important; }
+  }
+  /* Sheets under reduced motion: must come AFTER the sheetUp !important rule
+     above (equal specificity+importance — source order decides), or reduced-
+     motion users still get the full-height slide. */
+  @media (max-width: 639px) and (prefers-reduced-motion: reduce) {
+    .sheet-on-mobile > .modal-backdrop + div,
+    .sheet-on-mobile > .card { animation: none !important; }
   }
   /* Dashboard insight charts — spin/scale pivots for the WAAPI-driven entrance:
      donut rings rotate around the donut center, trend dots pop from their own
@@ -2471,12 +2569,15 @@
     position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: rgba(15,23,42,0.95); border: 1px solid rgba(181,143,74,0.5);
     color: #fdf6e3; padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 600;
-    opacity: 0; transition: opacity .2s ease, transform .2s ease;
+    /* Same physics family as the overlays: the fade is quick, the rise settles
+       on the longer decelerating track (and recedes on the way out). */
+    opacity: 0; transition: opacity .22s ease, transform .34s cubic-bezier(0.16, 1, 0.3, 1);
     /* Above every overlay (dashboard 74, legal 80, auth 90, Settings 79) so a
        toast like "Settings saved" is never hidden behind an open screen. */
     pointer-events: none; z-index: 95;
   }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: opacity .15s ease; } }
 
   /* E-sign Phase C: signed-quote alert (top-center, above all overlays) */
   .sign-alert {
@@ -2487,9 +2588,11 @@
     border: 1px solid rgba(16,185,129,0.45);
     border-radius: 14px; padding: 13px 14px;
     box-shadow: 0 18px 48px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(16,185,129,0.08);
-    opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease;
+    /* Same physics family as the toast: quick fade, longer settling drop. */
+    opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .34s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .sign-alert.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  @media (prefers-reduced-motion: reduce) { .sign-alert { transition: opacity .15s ease; } }
   .sign-alert-icon {
     flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
@@ -3722,7 +3825,7 @@
     box-shadow: 0 0 0 1px rgba(181,143,74,0.3) inset;
   }
   .set-panel { display: none; }
-  .set-panel.active { display: block; animation: fadeIn .25s ease both; }
+  .set-panel.active { display: block; animation: aSwap .26s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
   .set-sub { font-size: 12px; color: #7e8ca0; margin-top: 2px; }  /* was #64748b (4.2:1, sub-AA); #7e8ca0 clears AA on the dark modal */
   /* ── Settings: one shared component layer (redesign Phase 1) ───────────────
@@ -4496,7 +4599,11 @@
   .dash-nav-btn { font-size: 13px; font-weight: 600; color: #94a3b8; padding: 8px 11px; border-radius: 9999px; background: transparent; border: 0; cursor: pointer; transition: color .15s ease; white-space: nowrap; }
   .dash-nav-btn:hover { color: #c9a558; }
   @media (max-width: 480px) { .dash-nav-btn { font-size: 12.5px; padding: 8px 6px; } }
-  .dash-job-card { border: 1px solid #1e293b; border-radius: 16px; background: rgba(15,23,42,0.5); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
+  /* No box-shadow in the transition: tweening a 36px-blur shadow repaints on
+     every hover frame across the whole grid. The shadow snaps on; the tweened
+     translateY lift masks it. (overflow:hidden here clips ::after, so the
+     launch cards' pseudo-shadow trick can't be used on these.) */
+  .dash-job-card { border: 1px solid #1e293b; border-radius: 16px; background: rgba(15,23,42,0.5); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s ease, transform .15s ease; }
   .dash-job-card:hover { border-color: rgba(181,143,74,0.4); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
   .dash-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; background: rgba(2,6,23,0.6); border: 0; padding: 0; overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .dash-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
@@ -4586,8 +4693,12 @@
   [data-theme="light"] .dash-check-dismiss { color: #94a3b8; }
   [data-theme="light"] .dash-firstrun-note { color: #64748b; }
   /* ---- Launchpad cards (modular dashboard home) ---- */
-  .dash-launch-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
-  .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
+  /* Hover shadow lives on ::after and animates via opacity (compositor-cheap)
+     instead of tweening box-shadow, which repaints the card every frame. */
+  .dash-launch-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease; }
+  .dash-launch-card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+  .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); }
+  .dash-launch-card:hover::after { opacity: 1; }
   .dash-launch-card:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
   /* ---- Dashboard customize / edit mode ---- */
   .dash-customize-row {
@@ -4798,6 +4909,7 @@
   [data-theme="light"] .shop-list { border-color: #e6e8ec; }
   [data-theme="light"] .shop-item { border-color: #eef1f5; }
   [data-theme="light"] .dash-launch-card { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .dash-launch-card::after { box-shadow: 0 16px 36px -20px rgba(15,23,42,0.18); }
   [data-theme="light"] .dash-launch-title { color: #0f172a; }
   [data-theme="light"] .dash-launch-preview { color: #64748b; }
   [data-theme="light"] .dash-launch-preview2 { color: #94a3b8; }
@@ -5421,7 +5533,9 @@
   .learn-keynum-stat > b { font-size: 13px; color: #c9a558; font-weight: 800; font-variant-numeric: tabular-nums; }
   .learn-nav-toc.active { color: #c9a558; background: rgba(181,143,74,0.10); }
   .learn-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; }
-  .learn-progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #b58f4a, #c9a558); transition: width .15s linear; }
+  /* Driven by transform, not width — the scroll listener retargets this every
+     scroll event, and a width transition would relayout the bar per frame. */
+  .learn-progress span { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #b58f4a, #c9a558); transition: transform .15s linear; }
   .learn-pn { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
   .learn-pn-btn { text-align: left; border: 1px solid rgba(148,163,184,0.16); border-radius: 14px; padding: 14px 16px; background: rgba(15,23,42,0.4); cursor: pointer; display: flex; flex-direction: column; gap: 3px; transition: border-color .15s ease, transform .15s ease; -webkit-tap-highlight-color: transparent; }
   .learn-pn-btn:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-1px); }
@@ -14970,10 +15084,14 @@ function positionPfpMenu(trigger) {
     m.style.top = "auto";
     m.style.bottom = (vh - r.top + 8) + "px";
     m.style.maxHeight = Math.max(200, r.top - 16) + "px";
+    // Flipped above the trigger: the aMenuIn scale must grow from the anchor
+    // edge (bottom right), not the CSS-default top right.
+    m.style.transformOrigin = "bottom right";
   } else {
     m.style.bottom = "auto";
     m.style.top = (r.bottom + 8) + "px";
     m.style.maxHeight = "";
+    m.style.transformOrigin = "";
   }
 }
 function togglePfpMenu(e, trigger) {
@@ -16071,10 +16189,37 @@ function renderRailAccSummaries() {
   });
 }
 // One section open at a time. Wires once; default-opens the first section once.
+// Animated accordion toggle. The CSS has no max-height sentinel (a 4000px
+// target collapsed the .32s ease into ~2 visible frames) — this animates to
+// the section's REAL height via inline max-height, then rests at none so the
+// body stays auto-height (and :has(.dd.open) dropdown spill keeps working).
+// Falls back to a plain class toggle when there's no body to animate.
+function setAccOpen(acc, open) {
+  const b = acc.querySelector(".rail-acc-body");
+  const was = acc.classList.contains("open");
+  if (!b || was === open || !document.body.classList.contains("rail-tidy")) {
+    acc.classList.toggle("open", open);
+    return;
+  }
+  if (b._accT) { clearTimeout(b._accT); b._accT = 0; }
+  if (open) {
+    acc.classList.add("open");
+    b.style.maxHeight = b.scrollHeight + "px";
+    const rest = () => { b.style.maxHeight = "none"; b._accT = 0; b.removeEventListener("transitionend", te); };
+    const te = (e) => { if (e.propertyName === "max-height") rest(); };
+    b.addEventListener("transitionend", te);
+    b._accT = setTimeout(rest, 420);   // safety: rest at auto even if transitionend is lost
+  } else {
+    b.style.maxHeight = b.scrollHeight + "px";   // pin current height (from none)…
+    void b.offsetHeight;                          // …flush it…
+    acc.classList.remove("open");
+    b.style.maxHeight = "";                       // …then release to the base 0 → animates shut
+  }
+}
 function setAllAccordions(open) {
   // :not(.hidden) — a section with no applicable content (e.g. Materials when nothing
   // applies) shouldn't be force-opened or counted in the expand/collapse state.
-  document.querySelectorAll("#jobRail .rail-acc:not(.hidden)").forEach(a => a.classList.toggle("open", open));
+  document.querySelectorAll("#jobRail .rail-acc:not(.hidden)").forEach(a => setAccOpen(a, open));
   updateExpandAllBtn();
 }
 function updateExpandAllBtn() {
@@ -16106,8 +16251,8 @@ function initRailAccordion() {
             if (b) collapseAbove = b.getBoundingClientRect().height;
           }
         }
-        accs.forEach(a => a.classList.remove("open"));
-        if (!wasOpen) acc.classList.add("open");
+        accs.forEach(a => { if (a !== acc) setAccOpen(a, false); });
+        setAccOpen(acc, !wasOpen);
         updateExpandAllBtn();
         // On open, land the section's header near the top of the rail so its
         // beginning is always visible — scroll to its PROJECTED resting position
@@ -16186,8 +16331,8 @@ function jumpToRailField(target) {
   const accKey = target === "access" ? "extras" : "openings";
   const acc = document.querySelector(`#jobRail .rail-acc[data-acc="${accKey}"]`);
   if (acc && document.body.classList.contains("rail-tidy")) {
-    document.querySelectorAll("#jobRail .rail-acc").forEach(a => a.classList.remove("open"));
-    acc.classList.add("open");
+    document.querySelectorAll("#jobRail .rail-acc").forEach(a => { if (a !== acc) setAccOpen(a, false); });
+    setAccOpen(acc, true);
     if (typeof updateExpandAllBtn === "function") updateExpandAllBtn();
   }
   const el = document.getElementById(target === "access" ? "liftToggleBtn" : "windowCountInput");
@@ -16592,7 +16737,10 @@ function openDashboard(opts) {
   // an iOS touch-offset containing block over the fixed tab bar.
   if (wasHidden) {
     const clearAnim = (e) => {
-      if (e && e.target !== d) return;
+      // The screen runs TWO comma animations (aScreenIn 340ms + aFade 240ms);
+      // only the longer entrance ending may clear — reacting to aFade's end
+      // would chop the spring settle 100ms early.
+      if (e && (e.target !== d || e.animationName !== "aScreenIn")) return;
       d.classList.add("dash-anim-done");
       d.removeEventListener("animationend", clearAnim);
     };
@@ -17893,17 +18041,31 @@ function tvDismiss(modalEl, onDone) {
   if (card && card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; }
   const finish = () => {
     if (modalEl._tvCloseTimer) { clearTimeout(modalEl._tvCloseTimer); modalEl._tvCloseTimer = 0; }
-    if (card) { card.classList.remove("tv-off"); if (card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; } }
+    // sheet-opened is the drag-settle "entrance already played" marker — strip
+    // it on every close so the next OPEN replays the sheet slide-up.
+    if (card) { card.classList.remove("tv-off", "sheet-opened"); if (card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; } }
     modalEl.classList.add("hidden");
     modalEl.classList.remove("flex", "modal-closing");
     releaseDialog(modalEl);   // Phase 4c: restore focus + pop the dialog stack (no-op if not trapped)
     if (onDone) onDone();
   };
-  if (!card || dashReduceMotion()) { finish(); return; }
+  // Already hidden (e.g. the Escape catch-all closes every registered modal
+  // unconditionally): clean up + callback synchronously. Without this, .tv-off
+  // sits armed on a display:none card with a 520ms timer — reopening inside
+  // that window played the exit animation and self-hid the fresh modal.
+  if (!card || modalEl.classList.contains("hidden") || dashReduceMotion()) { finish(); return; }
   modalEl.classList.add("modal-closing");
   card.classList.add("tv-off");
   let fired = false;
-  const end = () => { if (fired) return; fired = true; finish(); };
+  // Only the card's own exit animation may finish the close (aPopOut on
+  // desktop, sheetDown for mobile bottom sheets) — animationend BUBBLES, so a
+  // child animation ending mid-close (spinner, content flourish) would
+  // otherwise cut the exit short. The 520ms timer below still backstops.
+  const end = (e) => {
+    if (fired) return;
+    if (e && (e.target !== card || (e.animationName !== "aPopOut" && e.animationName !== "sheetDown"))) return;
+    fired = true; finish();
+  };
   card._tvEnd = end;
   card.addEventListener("animationend", end);
   modalEl._tvCloseTimer = setTimeout(end, 520);   // safety net if animationend doesn't fire
@@ -22146,7 +22308,8 @@ function wireLearn() {
       const fill = document.getElementById("learnProgressFill");
       if (!fill) return;
       const max = screenEl.scrollHeight - screenEl.clientHeight;
-      fill.style.width = (max > 0 ? Math.min(100, (screenEl.scrollTop / max) * 100) : 0) + "%";
+      // scaleX, not width — a width write relayouts the bar on every scroll event
+      fill.style.transform = "scaleX(" + (max > 0 ? Math.min(1, screenEl.scrollTop / max) : 0) + ")";
     }, { passive: true });
   }
   const close = document.getElementById("learnClose"); if (close) close.addEventListener("click", closeLearn);
@@ -27045,6 +27208,11 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
         card.style.transform = "translate3d(0, 0, 0)";
         if (backdrop) backdrop.style.opacity = "1";
         setTimeout(() => {
+          // Swap settling → sheet-opened in the same sync block (no style flush
+          // between, so sheetUp can't restart): the entrance must NOT replay
+          // after an aborted dismiss drag. tvDismiss finish() strips
+          // sheet-opened on close so the next open animates again.
+          card.classList.add("sheet-opened");
           card.classList.remove("sheet-settling");
           card.style.transition = ""; card.style.transform = "";
           clearBackdropFade();
@@ -36419,6 +36587,7 @@ function init() {
     function clearInlineMotion() {
       _mbar.style.transition = "";
       _mbar.style.transform = "";
+      _mbar.classList.remove("settling");   // blur (dropped while moving) returns at rest
     }
     function onStart(e) {
       if (_msheet && _msheet.classList.contains("open")) return;
@@ -36473,6 +36642,7 @@ function init() {
             commitTuck();
           } else {
             _mbar.style.transition = "transform .28s cubic-bezier(0.22, 1, 0.36, 1)";
+            _mbar.classList.add("settling");     // keep the blur off while the bar glides
             _mbar.classList.remove("dragging");
             _mbar.style.transform = `translateY(${dy}px)`;
             void _mbar.offsetWidth;
@@ -36491,6 +36661,7 @@ function init() {
         } else {
           // Spring back to shown — stay in pixel space so CSS .show doesn't pop.
           _mbar.style.transition = "transform .28s cubic-bezier(0.16, 1, 0.3, 1)";
+          _mbar.classList.add("settling");     // keep the blur off while the bar glides
           _mbar.classList.remove("dragging");
           _mbar.style.transform = `translateY(${dy}px)`;
           void _mbar.offsetWidth;
@@ -36619,17 +36790,22 @@ function init() {
           if (dismiss) {
             panel.style.transform = `translate3d(0, ${Math.max(releaseY + 120, panel.getBoundingClientRect().height * 1.05)}px, 0)`;
             const bd = _msheet.querySelector(".msheet-backdrop");
-            if (bd) { bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
+            // animation:none — if the dismiss drag starts inside the first
+            // 300ms, the still-running aFade would beat the inline opacity.
+            if (bd) { bd.style.animation = "none"; bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
             setTimeout(() => {
               closeMtotalSheet(true);
               panel.classList.remove("settling");
               panel.style.transition = ""; panel.style.transform = "";
-              if (bd) { bd.style.transition = ""; bd.style.opacity = ""; }
+              if (bd) { bd.style.animation = ""; bd.style.transition = ""; bd.style.opacity = ""; }
             }, 300);
           } else {
             panel.style.transform = "translate3d(0, 0, 0)";
             setTimeout(() => {
-              panel.classList.remove("settling");
+              // Keep .settling for the rest of this open session — removing it
+              // re-arms the sheetUp entrance, which replayed the whole slide-up
+              // after every aborted dismiss drag. closeMtotalSheet strips it
+              // (while display:none), so the next open still animates.
               panel.style.transition = ""; panel.style.transform = "";
             }, 300);
           }
