@@ -4932,6 +4932,17 @@
     border-color: rgba(181, 143, 74, 0.65);
   }
   .jd-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #64748b; font-weight: 800; margin-bottom: 7px; }
+  .jd-approval-chip {
+    font-size: 11px; font-weight: 700; color: #c9a558;
+    background: rgba(181,143,74,0.10); border: 1px solid rgba(181,143,74,0.30);
+    border-radius: 6px; padding: 2px 6px; cursor: pointer; line-height: 1.4;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .jd-approval-chip:hover, .jd-approval-chip:focus-visible {
+    background: rgba(181,143,74,0.18); border-color: rgba(181,143,74,0.55); color: #e0c07a; outline: none;
+  }
+  .jd-approval-chip:active { background: rgba(181,143,74,0.28); }
   /* Job Details footer — one primary action, equal secondary pair, quiet delete.
      Stacked on all widths so buttons never wrap into an awkward staggered row. */
   .jd-footer {
@@ -21557,7 +21568,11 @@ function renderJobDetails(job) {
     `<div class="flex items-center justify-between gap-3 text-[13px]"><span class="text-slate-500">${escHtml(k)}</span><span class="text-slate-200 font-semibold text-right">${escHtml(String(v))}</span></div>`).join("");
   const approvals = Array.isArray(job.planApprovals) ? job.planApprovals : [];
   const apprBlock = approvals.length
-    ? `<div class="jd-section"><div class="jd-section-title">FL Product Approvals</div><div class="flex flex-wrap gap-1.5">${approvals.map(a => `<span class="text-[11px] font-bold text-[#c9a558] bg-[#b58f4a]/10 border border-[#b58f4a]/30 rounded px-1.5 py-0.5">${escHtml(a.number)}</span>`).join("")}</div></div>`
+    ? `<div class="jd-section"><div class="jd-section-title">FL Product Approvals</div><div class="flex flex-wrap gap-1.5">${approvals.map(a => {
+        const num = String(a.number || "").trim();
+        if (!num) return "";
+        return `<button type="button" class="jd-approval-chip" data-jd-approval="${escHtml(num)}" title="Look up ${escHtml(num)} in the FL approval database">${escHtml(num)}</button>`;
+      }).join("")}</div></div>`
     : "";
   const statusOpts = JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("");
   const photo = (job.photoPath || job.photo)
@@ -21746,6 +21761,8 @@ function renderJobDetails(job) {
   const del = body.querySelector("[data-jd-delete]");
   if (del) del.addEventListener("click", () => { if (confirmDeleteJob(job)) { deleteJob(job.id); closeJobDetails(); renderDashboard(); } });
   body.querySelectorAll("[data-jd-doc]").forEach(b => b.addEventListener("click", () => dashGenerateDoc(job.id, b.dataset.jdDoc)));
+  // FL product approval chips → open the existing approval lookup for that number
+  body.querySelectorAll("[data-jd-approval]").forEach(b => b.addEventListener("click", () => openFLForNumber(b.dataset.jdApproval)));
   // (Logging actuals moved to the dashboard's Pricing calibration card.)
   const jdPhoto = document.getElementById("jdPhoto");
   if (jdPhoto) jdPhoto.addEventListener("click", () => {
