@@ -4053,54 +4053,82 @@
   [data-theme="light"] [data-theme-toggle] { color: #64748b; border-color: #d6dae1; }
   [data-theme="light"] [data-theme-toggle]:hover { color: #97772e; border-color: #b58f4a; }
 
-  /* Account / More menu — carpet-roll open (unfurl from the trigger edge,
-     then cascade rows toward the far end). From the bottom tab "More" button
-     this reads bottom→up; from the header avatar it reads top→down. */
+  /* Account / More menu — carpet-roll open/close.
+     Panel + rows share --pfp-panel-dur / --pfp-item-dur / --pfp-stagger so the
+     glass unfurl and the icons stay on the same wave. More (from-bottom) rolls
+     upward on open and back down on close; avatar menus mirror top↔down. */
+  #pfpMenu.pfp-rolling.pfp-from-bottom,
+  #pfpMenu.pfp-closing.pfp-from-bottom { transform-origin: bottom center; }
+  #pfpMenu.pfp-rolling.pfp-from-top,
+  #pfpMenu.pfp-closing.pfp-from-top { transform-origin: top center; }
+
   #pfpMenu.pfp-rolling.pfp-from-bottom {
-    transform-origin: bottom center;
-    animation: pfpCarpetUp .42s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: pfpCarpetUp var(--pfp-panel-dur, .5s) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   #pfpMenu.pfp-rolling.pfp-from-top {
-    transform-origin: top center;
-    animation: pfpCarpetDown .38s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: pfpCarpetDown var(--pfp-panel-dur, .5s) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  #pfpMenu.pfp-closing.pfp-from-bottom {
+    animation: pfpCarpetUpClose var(--pfp-panel-dur, .5s) cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  #pfpMenu.pfp-closing.pfp-from-top {
+    animation: pfpCarpetDownClose var(--pfp-panel-dur, .5s) cubic-bezier(0.4, 0, 0.2, 1) both;
   }
   @keyframes pfpCarpetUp {
-    from {
-      opacity: 0;
-      clip-path: inset(100% 0 0 0 round 12px);
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      clip-path: inset(0 0 0 0 round 12px);
-      transform: none;
-    }
+    from { opacity: 0; clip-path: inset(100% 0 0 0 round 12px); transform: translateY(10px); }
+    to   { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: none; }
   }
   @keyframes pfpCarpetDown {
-    from {
-      opacity: 0;
-      clip-path: inset(0 0 100% 0 round 12px);
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      clip-path: inset(0 0 0 0 round 12px);
-      transform: none;
-    }
+    from { opacity: 0; clip-path: inset(0 0 100% 0 round 12px); transform: translateY(-10px); }
+    to   { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: none; }
   }
-  #pfpMenu.pfp-rolling .pfp-roll-item {
-    opacity: 0;
-    animation: pfpRollItem .3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    animation-delay: calc(var(--pfp-i, 0) * 18ms + 55ms);
+  @keyframes pfpCarpetUpClose {
+    from { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: none; }
+    to   { opacity: 0; clip-path: inset(100% 0 0 0 round 12px); transform: translateY(10px); }
   }
-  #pfpMenu.pfp-rolling.pfp-from-bottom .pfp-roll-item { transform: translateY(14px); }
-  #pfpMenu.pfp-rolling.pfp-from-top .pfp-roll-item { transform: translateY(-8px); }
-  @keyframes pfpRollItem {
-    to { opacity: 1; transform: none; }
+  @keyframes pfpCarpetDownClose {
+    from { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: none; }
+    to   { opacity: 0; clip-path: inset(0 0 100% 0 round 12px); transform: translateY(-10px); }
+  }
+
+  #pfpMenu.pfp-rolling .pfp-roll-item,
+  #pfpMenu.pfp-closing .pfp-roll-item {
+    animation-duration: var(--pfp-item-dur, .36s);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+    animation-delay: calc(var(--pfp-i, 0) * var(--pfp-stagger, 16ms));
+  }
+  #pfpMenu.pfp-rolling.pfp-from-bottom .pfp-roll-item { animation-name: pfpRollItemInUp; }
+  #pfpMenu.pfp-rolling.pfp-from-top .pfp-roll-item { animation-name: pfpRollItemInDown; }
+  #pfpMenu.pfp-closing.pfp-from-bottom .pfp-roll-item {
+    animation-name: pfpRollItemOutUp;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #pfpMenu.pfp-closing.pfp-from-top .pfp-roll-item {
+    animation-name: pfpRollItemOutDown;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @keyframes pfpRollItemInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes pfpRollItemInDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes pfpRollItemOutUp {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 0; transform: translateY(12px); }
+  }
+  @keyframes pfpRollItemOutDown {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 0; transform: translateY(-10px); }
   }
   @media (prefers-reduced-motion: reduce) {
     #pfpMenu.pfp-rolling,
-    #pfpMenu.pfp-rolling .pfp-roll-item {
+    #pfpMenu.pfp-closing,
+    #pfpMenu.pfp-rolling .pfp-roll-item,
+    #pfpMenu.pfp-closing .pfp-roll-item {
       animation: none !important;
       opacity: 1 !important;
       transform: none !important;
@@ -15109,11 +15137,7 @@ function positionPfpMenu(trigger) {
     m.style.maxHeight = "";
   }
 }
-function prepPfpRoll(m, fromBottom) {
-  m.querySelectorAll(".pfp-roll-item").forEach(el => {
-    el.classList.remove("pfp-roll-item");
-    el.style.removeProperty("--pfp-i");
-  });
+function pfpRollRows(m) {
   const rows = [];
   for (const el of m.children) {
     if (el.classList.contains("hidden")) continue;
@@ -15125,20 +15149,67 @@ function prepPfpRoll(m, fromBottom) {
       rows.push(el);
     }
   }
+  return rows;
+}
+function pfpPrefersReducedMotion() {
+  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+  catch (_) { return false; }
+}
+function setPfpRollTiming(m, n) {
+  const stagger = 16;
+  const itemDur = 360;
+  const panelDur = Math.max(itemDur, Math.max(0, n - 1) * stagger + itemDur);
+  m.style.setProperty("--pfp-stagger", stagger + "ms");
+  m.style.setProperty("--pfp-item-dur", itemDur + "ms");
+  m.style.setProperty("--pfp-panel-dur", panelDur + "ms");
+  return panelDur;
+}
+function clearPfpRollState(m) {
+  clearTimeout(m._pfpCloseT);
+  m._pfpCloseT = 0;
+  m.classList.remove("pfp-rolling", "pfp-closing", "pfp-from-bottom", "pfp-from-top");
+  m.style.pointerEvents = "";
+  m.style.removeProperty("--pfp-stagger");
+  m.style.removeProperty("--pfp-item-dur");
+  m.style.removeProperty("--pfp-panel-dur");
+  m.querySelectorAll(".pfp-roll-item").forEach(el => {
+    el.classList.remove("pfp-roll-item");
+    el.style.removeProperty("--pfp-i");
+  });
+}
+function finishPfpClose(m) {
+  if (!m) return;
+  m.classList.add("hidden");
+  clearPfpRollState(m);
+}
+function prepPfpRoll(m, fromBottom) {
+  m.querySelectorAll(".pfp-roll-item").forEach(el => {
+    el.classList.remove("pfp-roll-item");
+    el.style.removeProperty("--pfp-i");
+  });
+  const rows = pfpRollRows(m);
   const n = rows.length;
   rows.forEach((el, i) => {
     el.classList.add("pfp-roll-item");
     // Bottom-up: nearest the More button (last row) leads the cascade.
     el.style.setProperty("--pfp-i", String(fromBottom ? (n - 1 - i) : i));
   });
+  setPfpRollTiming(m, n);
   m.classList.toggle("pfp-from-bottom", !!fromBottom);
   m.classList.toggle("pfp-from-top", !fromBottom);
+  return n;
 }
 function togglePfpMenu(e, trigger) {
   if (e) e.stopPropagation();
   const m = document.getElementById("pfpMenu");
   if (!m) return;
-  if (!m.classList.contains("hidden")) {
+  // Mid-close + More/avatar tap → cancel close and reopen.
+  if (m.classList.contains("pfp-closing")) {
+    clearTimeout(m._pfpCloseT);
+    m._pfpCloseT = 0;
+    m.classList.remove("pfp-closing");
+    m.style.pointerEvents = "";
+  } else if (!m.classList.contains("hidden")) {
     closePfpMenu();
     return;
   }
@@ -15146,20 +15217,39 @@ function togglePfpMenu(e, trigger) {
   positionPfpMenu(trig);
   const fromBottom = !!(m.style.bottom && m.style.bottom !== "auto");
   prepPfpRoll(m, fromBottom);
-  m.classList.remove("hidden", "pfp-rolling");
+  m.classList.remove("hidden", "pfp-rolling", "pfp-closing");
+  if (pfpPrefersReducedMotion()) return;
   // Force a reflow so the carpet-roll animation retriggers every open.
   void m.offsetWidth;
   m.classList.add("pfp-rolling");
 }
-function closePfpMenu() {
+function closePfpMenu(immediate) {
   const m = document.getElementById("pfpMenu");
-  if (!m) return;
-  m.classList.add("hidden");
-  m.classList.remove("pfp-rolling", "pfp-from-bottom", "pfp-from-top");
-  m.querySelectorAll(".pfp-roll-item").forEach(el => {
-    el.classList.remove("pfp-roll-item");
-    el.style.removeProperty("--pfp-i");
+  if (!m || m.classList.contains("hidden")) return;
+  if (m.classList.contains("pfp-closing") && !immediate) return;
+
+  if (immediate || pfpPrefersReducedMotion()) {
+    finishPfpClose(m);
+    return;
+  }
+
+  // Invert open stagger so the far end leaves first (carpet rolls back in).
+  const items = [...m.querySelectorAll(".pfp-roll-item")];
+  const n = items.length || pfpRollRows(m).length || 1;
+  if (!items.length) prepPfpRoll(m, m.classList.contains("pfp-from-bottom"));
+  const live = [...m.querySelectorAll(".pfp-roll-item")];
+  live.forEach(el => {
+    const openI = Number(el.style.getPropertyValue("--pfp-i")) || 0;
+    el.style.setProperty("--pfp-i", String(Math.max(0, live.length - 1 - openI)));
   });
+  const panelDur = setPfpRollTiming(m, live.length || n);
+
+  m.classList.remove("pfp-rolling");
+  m.style.pointerEvents = "none";
+  void m.offsetWidth;
+  m.classList.add("pfp-closing");
+  clearTimeout(m._pfpCloseT);
+  m._pfpCloseT = setTimeout(() => finishPfpClose(m), panelDur + 40);
 }
 
 // Build a human-readable brand line for PDFs ("Acme Windows  ·  Phoenix, AZ  ·  555-1234")
@@ -35981,7 +36071,8 @@ function init() {
     const m = document.getElementById("pfpMenu");
     if (m && !m.classList.contains("hidden") &&
         !e.target.closest("#pfpMenu") && !e.target.closest("#pfpBtn") &&
-        !e.target.closest("#dashPfpBtn")) closePfpMenu();
+        !e.target.closest("#dashPfpBtn") &&
+        !e.target.closest("[data-tabact='more']")) closePfpMenu();
   });
   // Reposition / close the fixed menu if the viewport changes while it's open.
   window.addEventListener("resize", closePfpMenu);
