@@ -4053,6 +4053,61 @@
   [data-theme="light"] [data-theme-toggle] { color: #64748b; border-color: #d6dae1; }
   [data-theme="light"] [data-theme-toggle]:hover { color: #97772e; border-color: #b58f4a; }
 
+  /* Account / More menu — carpet-roll open (unfurl from the trigger edge,
+     then cascade rows toward the far end). From the bottom tab "More" button
+     this reads bottom→up; from the header avatar it reads top→down. */
+  #pfpMenu.pfp-rolling.pfp-from-bottom {
+    transform-origin: bottom center;
+    animation: pfpCarpetUp .42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  #pfpMenu.pfp-rolling.pfp-from-top {
+    transform-origin: top center;
+    animation: pfpCarpetDown .38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes pfpCarpetUp {
+    from {
+      opacity: 0;
+      clip-path: inset(100% 0 0 0 round 12px);
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      clip-path: inset(0 0 0 0 round 12px);
+      transform: none;
+    }
+  }
+  @keyframes pfpCarpetDown {
+    from {
+      opacity: 0;
+      clip-path: inset(0 0 100% 0 round 12px);
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      clip-path: inset(0 0 0 0 round 12px);
+      transform: none;
+    }
+  }
+  #pfpMenu.pfp-rolling .pfp-roll-item {
+    opacity: 0;
+    animation: pfpRollItem .3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: calc(var(--pfp-i, 0) * 18ms + 55ms);
+  }
+  #pfpMenu.pfp-rolling.pfp-from-bottom .pfp-roll-item { transform: translateY(14px); }
+  #pfpMenu.pfp-rolling.pfp-from-top .pfp-roll-item { transform: translateY(-8px); }
+  @keyframes pfpRollItem {
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #pfpMenu.pfp-rolling,
+    #pfpMenu.pfp-rolling .pfp-roll-item {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+      clip-path: none !important;
+    }
+  }
+
   /* ------- Trust signals band ------- */
   .lp-trust-headline {
     font-size: 1.05rem; line-height: 1.4;
@@ -15054,18 +15109,57 @@ function positionPfpMenu(trigger) {
     m.style.maxHeight = "";
   }
 }
+function prepPfpRoll(m, fromBottom) {
+  m.querySelectorAll(".pfp-roll-item").forEach(el => {
+    el.classList.remove("pfp-roll-item");
+    el.style.removeProperty("--pfp-i");
+  });
+  const rows = [];
+  for (const el of m.children) {
+    if (el.classList.contains("hidden")) continue;
+    if (el.id === "pfpAdminSection") {
+      for (const child of el.children) {
+        if (!child.classList.contains("hidden")) rows.push(child);
+      }
+    } else {
+      rows.push(el);
+    }
+  }
+  const n = rows.length;
+  rows.forEach((el, i) => {
+    el.classList.add("pfp-roll-item");
+    // Bottom-up: nearest the More button (last row) leads the cascade.
+    el.style.setProperty("--pfp-i", String(fromBottom ? (n - 1 - i) : i));
+  });
+  m.classList.toggle("pfp-from-bottom", !!fromBottom);
+  m.classList.toggle("pfp-from-top", !fromBottom);
+}
 function togglePfpMenu(e, trigger) {
   if (e) e.stopPropagation();
   const m = document.getElementById("pfpMenu");
   if (!m) return;
-  if (m.classList.contains("hidden")) {
-    positionPfpMenu(trigger || (e && e.currentTarget) || document.getElementById("pfpBtn"));
+  if (!m.classList.contains("hidden")) {
+    closePfpMenu();
+    return;
   }
-  m.classList.toggle("hidden");
+  const trig = trigger || (e && e.currentTarget) || document.getElementById("pfpBtn");
+  positionPfpMenu(trig);
+  const fromBottom = !!(m.style.bottom && m.style.bottom !== "auto");
+  prepPfpRoll(m, fromBottom);
+  m.classList.remove("hidden", "pfp-rolling");
+  // Force a reflow so the carpet-roll animation retriggers every open.
+  void m.offsetWidth;
+  m.classList.add("pfp-rolling");
 }
 function closePfpMenu() {
   const m = document.getElementById("pfpMenu");
-  if (m) m.classList.add("hidden");
+  if (!m) return;
+  m.classList.add("hidden");
+  m.classList.remove("pfp-rolling", "pfp-from-bottom", "pfp-from-top");
+  m.querySelectorAll(".pfp-roll-item").forEach(el => {
+    el.classList.remove("pfp-roll-item");
+    el.style.removeProperty("--pfp-i");
+  });
 }
 
 // Build a human-readable brand line for PDFs ("Acme Windows  ·  Phoenix, AZ  ·  555-1234")
