@@ -1446,6 +1446,16 @@
      end of this stylesheet: var(--gold-hi) only remaps to #9a7636 inside #landingScreen. */
   .job-status-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .job-status-sel option { color: #0f172a; font-weight: 700; }
+  /* Teams T3a — crew/sub assignment pill on a job card */
+  .dash-crewrow { margin-top: 10px; display: flex; }
+  .job-crew-sel { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+    border-radius: 9999px; padding: 4px 10px; cursor: pointer; max-width: 100%;
+    color: #94a3b8; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.28); }
+  .job-crew-sel.is-set { color: #c9a558; background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.45); }
+  .job-crew-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+  .job-crew-sel option { color: #0f172a; font-weight: 700; }
+  [data-theme="light"] .job-crew-sel { color: #64748b; background: #f1f5f9; border-color: #d6dae1; }
+  [data-theme="light"] .job-crew-sel.is-set { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
   /* Job-extras pills stack full-width inside the rail */
   #jobRail .margin-pill, #jobRail .toggle-pill {
     width: 100%; justify-content: space-between;
@@ -9830,6 +9840,11 @@
       </div>
       <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job name <span class="text-slate-600 normal-case tracking-normal">(this job)</span></label>
+        <div id="saveJobCrewWrap" class="hidden mb-3">
+          <label class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5" for="saveJobCrew">Assign to</label>
+          <select id="saveJobCrew" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100"></select>
+          <p id="saveJobCrewHint" class="mt-1 text-[11px] text-slate-500"></p>
+        </div>
         <input id="saveJobJobName" type="text" placeholder="e.g. Smith Residence · 123 Main St" autocomplete="off" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
       </div>
@@ -12152,6 +12167,63 @@ function getCrewRoster() {
   return { members, defaultWorkersCompPct: c.defaultWorkersCompPct ?? 10 };
 }
 
+/* ── Team-priced labor (T3a) ──────────────────────────────────────────────────
+   When a quote is assigned to a crew, that crew's own pay drives labor instead
+   of the account default. Two sources, in order:
+     1. the crew's MEMBERS' real hourly rates (member_field_settings.hourly_rate,
+        already loaded into the org context) — summed like the roster model, with
+        the account's default workers'-comp % applied so it stays comparable;
+     2. else crews.data.pay = { crewSize, payRatePerHr } (a flat fallback set in
+        the calculator for subs who don't have members in the field app yet).
+   Returns null when the assigned crew has no usable pay info, so pricing falls
+   through to today's behavior. */
+function assignedCrewId() {
+  return (typeof STATE !== "undefined" && STATE.assignedCrewId) || null;
+}
+function assignedCrew() {
+  const id = assignedCrewId();
+  if (!id) return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  if (!ctx) return null;
+  return (ctx.crews || []).find(c => c.id === id) || null;
+}
+function resolveAssignedCrewCost() {
+  const crew = assignedCrew();
+  if (!crew) return null;
+  const ctx = getOrgContext();
+  const wcPct = Math.max(0, Number((getCrewRoster() || {}).defaultWorkersCompPct ?? 10) || 0);
+  const byId = {}; (ctx.members || []).forEach(m => byId[m.userId] = m);
+  const paid = (crew.memberIds || [])
+    .map(uid => byId[uid])
+    .filter(m => m && Number(m.rate) > 0);
+  if (paid.length) {
+    let wageCostPerHr = 0, wcCostPerHr = 0;
+    const rows = paid.map(m => {
+      const wage = Number(m.rate) || 0;
+      const wcAmt = wage * (wcPct / 100);
+      wageCostPerHr += wage; wcCostPerHr += wcAmt;
+      return { id: m.userId, name: m.name || "Member", role: "Installer", avatar: "",
+               hourlyRate: wage, workersCompPct: wcPct, active: true,
+               loadedRate: wage + wcAmt, wcCostPerHr: wcAmt };
+    });
+    const crewSize = rows.length;
+    return {
+      mode: "team", teamId: crew.id, teamName: crew.name,
+      crewSize, crewPayPerHrEach: crewSize ? wageCostPerHr / crewSize : 0,
+      crewCostPerHr: wageCostPerHr + wcCostPerHr, wageCostPerHr, wcCostPerHr, members: rows,
+    };
+  }
+  const pay = (crew.data && crew.data.pay) || {};
+  const size = Math.max(1, parseInt(pay.crewSize, 10) || 0);
+  const rate = Math.max(0, Number(pay.payRatePerHr) || 0);
+  if (!rate) return null;              // nothing usable → don't touch pricing
+  return {
+    mode: "team", teamId: crew.id, teamName: crew.name,
+    crewSize: size, crewPayPerHrEach: rate, crewCostPerHr: size * rate,
+    wageCostPerHr: size * rate, wcCostPerHr: 0, members: [],
+  };
+}
+
 /** Resolve the $/hr the crew costs — roster if active members exist, else flat. */
 function resolveCrewCost() {
   const LM = (DATA.config && DATA.config.laborModel) || {};
@@ -12297,6 +12369,10 @@ function resolveJobCrewCost() {
       }
     }
   }
+  // No hand-edited crew on this job → an assigned team's own pay wins over the
+  // account default (but never over an explicit per-job override above).
+  const team = resolveAssignedCrewCost();
+  if (team) return team;
   return resolveCrewCost();
 }
 // Copy Settings crew into a job-local snapshot so helpers can be added without
@@ -13030,6 +13106,9 @@ function buildState() {
     // (DATA.config.defaultMargin); a number overrides it for THIS job only.
     marginOverride: null,
     laborOverride: null,   // per-job mob/setup/install/crew; null = Settings defaults
+    // Teams T3a: which crew/sub this quote is assigned to (null = unassigned →
+    // labor prices exactly as before). Rides job.data; no schema change.
+    assignedCrewId: null,
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
@@ -14351,6 +14430,7 @@ function floorPersistFields() {
     // site spreads, so the per-job markup override rides along to all of them.
     marginOverride: STATE.marginOverride ?? null,
     laborOverride: normalizeLaborOverride(STATE.laborOverride),
+    assignedCrewId: STATE.assignedCrewId || null,   // Teams T3a
     blockSealerEnabled: !!STATE.blockSealerEnabled,
     blockSealerGallons: STATE.blockSealerGallons != null ? String(STATE.blockSealerGallons) : "",
     excludedMaterials: normalizeExcludedMaterials(STATE.excludedMaterials),
@@ -16801,6 +16881,20 @@ function statusMeta(s) {
     Won:      { cls: "text-violet-300 border-violet-500/40 bg-violet-500/10" },
   })[s] || { cls: "text-slate-300 border-slate-600 bg-slate-700/20" };
 }
+// Teams T3a — assign/unassign a saved job's crew. Mirrors setJobStatus: patch the
+// local row, push it, and if it's the job currently loaded keep STATE in sync so
+// the live price re-prices at the new crew's pay immediately.
+function setJobCrew(id, crewId) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x && x.id === id);
+  if (!j) return;
+  j.assignedCrewId = crewId || null;
+  saveJobs(jobs);
+  try { pushJobToCloud(j, true); } catch (_) {}
+  if (STATE.loadedJobId === id) { STATE.assignedCrewId = j.assignedCrewId; try { render(); } catch (_) {} }
+  try { toast(crewId ? `Assigned to ${crewLabel(crewId) || "team"}` : "Unassigned"); } catch (_) {}
+}
+
 function setJobStatus(id, status) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
@@ -19363,6 +19457,16 @@ function dashJobCard(j) {
     : `<select data-dash-status="${j.id}" class="job-status-sel ${stCls}" title="Set deal status">` +
         JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("") +
       `</select>`;
+  // Teams T3a — reassign the crew/sub straight from the card. Only rendered when
+  // the account actually has crews, so solo users see no change at all.
+  const _tctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const _tcrews = (_tctx && _tctx.crews) ? _tctx.crews : [];
+  const crewSel = (!j.isDraft && _tcrews.length)
+    ? `<select data-dash-crew="${j.id}" class="job-crew-sel${j.assignedCrewId ? " is-set" : ""}" title="Assign a crew or subcontractor">`
+        + `<option value="">Unassigned</option>`
+        + _tcrews.map(c => `<option value="${escHtml(c.id)}"${c.id === j.assignedCrewId ? " selected" : ""}>${escHtml(c.name)}</option>`).join("")
+        + `</select>`
+    : "";
   return `<div class="dash-job-card">
     <div class="dash-thumb" data-dash-details="${j.id}" role="link" tabindex="0" title="View job details" aria-label="Open ${escHtml(name)}">
       ${thumbInner}${badgeOverlay}${thumbActions}
@@ -19381,6 +19485,7 @@ function dashJobCard(j) {
           </div>
         </div>
       </button>
+      ${crewSel ? `<div class="dash-crewrow">${crewSel}</div>` : ""}
       <div class="flex items-center justify-between gap-2 mt-auto pt-3.5">
         ${statusSel}
         <div class="flex items-center gap-1.5">
@@ -21440,6 +21545,8 @@ function wireDashboard() {
     grid.addEventListener("change", (e) => {
       const sel = e.target.closest("[data-dash-status]");
       if (sel) { setJobStatus(sel.dataset.dashStatus, sel.value); renderDashboard(); }
+      const csel = e.target.closest("[data-dash-crew]");
+      if (csel) { setJobCrew(csel.dataset.dashCrew, csel.value); renderDashboard(); }
     });
   }
   // Jobs insights panel: count/value donut toggle + clickable status legend that
@@ -23065,6 +23172,7 @@ function resetAll() {
     trimLength: 16,
     trimSplitCfg: defaultTrimSplitCfg(),
     laborOverride: null,
+    assignedCrewId: null,
   };
   saveState(STATE);
   clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
@@ -23297,6 +23405,47 @@ async function afterCrewWrite(msg) {
   try { await fetchOrgContext(); } catch (_) {}
   renderTeamsSettings();
   if (msg) { try { toast(msg); } catch (_) {} }
+}
+
+// Teams T3a — the Save-Job "Assign to" picker. Hidden entirely for accounts with
+// no crews, so nothing changes for solo users.
+function crewLabel(id) {
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const c = ctx && (ctx.crews || []).find(x => x.id === id);
+  return c ? c.name : null;
+}
+// What a crew's assignment would cost per hour (for the hint under the picker).
+function crewPayHint(id) {
+  const prev = STATE.assignedCrewId;
+  STATE.assignedCrewId = id;
+  let r = null;
+  try { r = resolveAssignedCrewCost(); } catch (_) {}
+  STATE.assignedCrewId = prev;
+  if (!r) return "No pay set for this team yet — labor uses your default crew cost.";
+  const who = r.members.length ? `${r.crewSize} member${r.crewSize === 1 ? "" : "s"}` : `${r.crewSize}-person flat rate`;
+  return `Labor priced at this team's pay — ${who}, ${formatMoney(r.crewCostPerHr)}/hr.`;
+}
+function renderSaveJobCrewPicker(selectedId) {
+  const wrap = document.getElementById("saveJobCrewWrap");
+  const sel = document.getElementById("saveJobCrew");
+  if (!wrap || !sel) return;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crews = (ctx && ctx.crews) ? ctx.crews : [];
+  if (!crews.length) { wrap.classList.add("hidden"); sel.innerHTML = ""; return; }
+  const mode = (typeof teamModeOf === "function") ? teamModeOf() : null;
+  const noneLabel = mode === "subcontract" ? "No subcontractor yet" : "No crew yet";
+  sel.innerHTML = `<option value="">${noneLabel}</option>` +
+    crews.map(c => `<option value="${escHtml(c.id)}"${c.id === selectedId ? " selected" : ""}>${escHtml(c.name)}</option>`).join("");
+  wrap.classList.remove("hidden");
+  const hint = document.getElementById("saveJobCrewHint");
+  if (hint) hint.textContent = sel.value ? crewPayHint(sel.value) : "Assign later from the job list if you're not sure yet.";
+  if (!sel._wired) {
+    sel._wired = true;
+    sel.addEventListener("change", () => {
+      const h = document.getElementById("saveJobCrewHint");
+      if (h) h.textContent = sel.value ? crewPayHint(sel.value) : "Assign later from the job list if you're not sure yet.";
+    });
+  }
 }
 
 // Settings → Teams (T1). Read-only: org identity, seats, crews + rosters.
@@ -24245,6 +24394,7 @@ function readSaveJobForm() {
   return {
     name: document.getElementById("saveJobName")?.value || "",
     company: document.getElementById("saveJobCompany")?.value || "",
+    assignedCrewId: document.getElementById("saveJobCrew")?.value || "",
     jobName: document.getElementById("saveJobJobName")?.value || "",
     address: document.getElementById("saveJobAddress")?.value || "",
     phone: document.getElementById("saveJobPhone")?.value || "",
@@ -24262,6 +24412,7 @@ function applySaveJobForm(d) {
   set("saveJobName", d.name);
   set("saveJobCompany", d.company);
   set("saveJobJobName", d.jobName);
+  renderSaveJobCrewPicker(d.assignedCrewId != null ? d.assignedCrewId : (STATE.assignedCrewId || ""));
   set("saveJobAddress", d.address);
   set("saveJobPhone", d.phone);
   set("saveJobEmail", d.email);
@@ -25003,6 +25154,7 @@ function applyJobToState(j) {
   // null → they reprice at the current account default, exactly as before.
   STATE.marginOverride = (j.marginOverride != null && j.marginOverride !== "") ? Number(j.marginOverride) : null;
   STATE.laborOverride = normalizeLaborOverride(j.laborOverride);
+  STATE.assignedCrewId = j.assignedCrewId || null;   // Teams T3a
   STATE.currentJobId = j.id;
   // Swing doors — migrate legacy {single,double,withFlashing} → per-door array.
   STATE.swingDoors = normalizeSwingDoors(j.swingDoors);
