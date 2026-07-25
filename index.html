@@ -590,6 +590,17 @@
   .team-add-btn:hover { background: #c9a558; }
   .team-empty { font-size: 12px; color: #94a3b8; line-height: 1.6; }
   .team-foot { font-size: 11px; color: #64748b; line-height: 1.6; margin-top: 12px; }
+  .team-act-danger:hover { color: #fb7185; border-color: rgba(251,113,133,0.55); }
+  .team-chip-x { background: transparent; border: 0; color: #64748b; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 5px; }
+  .team-chip-x:hover { color: #fb7185; }
+  .team-addmem { display: inline-flex; align-items: center; gap: 7px; }
+  .team-addmem-l { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b; }
+  .team-sel { font-size: 12px; font-weight: 600; color: #cbd5e1; background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7); border-radius: 9px; padding: 6px 9px; cursor: pointer; max-width: 100%; }
+  .team-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 1px; }
+  .team-sel[disabled] { opacity: 0.6; }
+  .team-add { display: flex; gap: 8px; margin-top: 12px; }
+  [data-theme="light"] .team-sel { background: #ffffff; border-color: #cbd5e1; color: #334155; }
+  [data-theme="light"] .team-chip-x { color: #94a3b8; }
   [data-theme="light"] .team-lock-h, [data-theme="light"] .team-org-name, [data-theme="light"] .team-stat b, [data-theme="light"] .team-name { color: #0f172a; }
   [data-theme="light"] .team-lock-p, [data-theme="light"] .team-org-sub, [data-theme="light"] .team-empty { color: #64748b; }
   [data-theme="light"] .team-stat, [data-theme="light"] .team-row { background: #ffffff; border-color: #e2e8f0; }
@@ -23199,6 +23210,47 @@ function setCustomerContact(oldKey, fields) {
 // (editable info incl. Company, propagated across all their jobs via
 // setCustomerContact) with their saved jobs as tap-to-open thumbnails.
 let _custDetailKey = null;
+/* ── Crew writes (T2a) ────────────────────────────────────────────────────────
+   Shapes mirror anchor-field/lib/fleet.ts so both apps behave identically:
+   createCrew inserts {org_id,name}; addCrewMember UPSERTS on (crew_id,user_id);
+   removeCrewMember deletes the pair; deleteCrew deletes the row — and the DB
+   CASCADES that to crew_members AND job_crew_assignments, so the confirm copy
+   spells out that the roster + any field job assignments go with it.
+   Only owner/admin/dispatcher may write (enforced by RLS, mirrored in the UI). */
+function canManageCrews() {
+  return ["owner", "admin", "dispatcher"].includes(orgRole());
+}
+async function createCrewWeb(orgId, name) {
+  const { data, error } = await sb.from("crews").insert({ org_id: orgId, name }).select("*").single();
+  if (error) throw error;
+  return data;
+}
+async function renameCrewWeb(crewId, name) {
+  const { error } = await sb.from("crews").update({ name }).eq("id", crewId);
+  if (error) throw error;
+}
+async function deleteCrewWeb(crewId) {
+  const { error } = await sb.from("crews").delete().eq("id", crewId);
+  if (error) throw error;
+}
+async function addCrewMemberWeb(crewId, orgId, userId) {
+  const { error } = await sb.from("crew_members")
+    .upsert({ crew_id: crewId, org_id: orgId, user_id: userId }, { onConflict: "crew_id,user_id" });
+  if (error) throw error;
+}
+async function removeCrewMemberWeb(crewId, userId) {
+  const { error } = await sb.from("crew_members").delete().eq("crew_id", crewId).eq("user_id", userId);
+  if (error) throw error;
+}
+// Every mutation refetches the org context so the tab (and the mobile app's
+// source of truth) stay in agreement — no optimistic local divergence.
+async function afterCrewWrite(msg) {
+  _orgCtx = null; saveOrgCtxCache(null);
+  try { await fetchOrgContext(); } catch (_) {}
+  renderTeamsSettings();
+  if (msg) { try { toast(msg); } catch (_) {} }
+}
+
 // Settings → Teams (T1). Read-only: org identity, seats, crews + rosters.
 // Refetches on open when the cache is older than 60s; paints the cache first.
 async function openTeamsSettings() {
@@ -23255,15 +23307,38 @@ function renderTeamsSettings() {
   };
   const unassigned = ctx.members.filter(m => !ctx.crews.some(c => c.memberIds.includes(m.userId)));
 
+  const canManage = canManageCrews();
+  // Members not already on a given crew — the "add member" picker.
+  const addPicker = (c) => {
+    const avail = ctx.members.filter(m => !c.memberIds.includes(m.userId));
+    if (!avail.length) return "";
+    return `<label class="team-addmem">
+      <span class="team-addmem-l">Add</span>
+      <select class="team-sel" data-crew-addmem="${escHtml(c.id)}">
+        <option value="">Choose a member&hellip;</option>
+        ${avail.map(m => `<option value="${escHtml(m.userId)}">${escHtml(m.name || "Member")}${m.role ? ` (${escHtml(ROLE_LABEL[m.role] || m.role)})` : ""}</option>`).join("")}
+      </select>
+    </label>`;
+  };
+  const chipFor = (c, uid) => {
+    const m = memberById[uid];
+    const nm = (m && m.name) ? m.name : "Member";
+    const rt = (m && m.rate != null) ? ` <span class="team-rate internal-only">$${m.rate}/hr</span>` : "";
+    return `<span class="team-chip-m">${escHtml(nm)}${rt}${canManage
+      ? `<button type="button" class="team-chip-x" data-crew-rmmem="${escHtml(c.id)}" data-uid="${escHtml(uid)}" aria-label="Remove ${escHtml(nm)} from ${escHtml(c.name)}">&times;</button>` : ""}</span>`;
+  };
   const crewCards = ctx.crews.length ? ctx.crews.map(c => `
     <div class="team-row team-row-stack">
       <div class="team-row-top">
         <span class="team-dot" style="background:#c9a558"></span>
         <span class="team-name">${escHtml(c.name)}</span>
         <span class="team-tag">${c.memberIds.length} member${c.memberIds.length === 1 ? "" : "s"}</span>
+        ${canManage ? `<button type="button" class="team-act" data-crew-rename="${escHtml(c.id)}">Rename</button>
+        <button type="button" class="team-act team-act-danger" data-crew-delete="${escHtml(c.id)}">Delete</button>` : ""}
       </div>
-      ${c.memberIds.length ? `<div class="team-chips">${c.memberIds.map(who).join("")}</div>` : `<p class="team-empty">Nobody on this crew yet.</p>`}
-    </div>`).join("") : `<p class="team-empty">No crews yet &mdash; create them in the Anchor Field app and they&rsquo;ll appear here.</p>`;
+      ${c.memberIds.length ? `<div class="team-chips">${c.memberIds.map(uid => chipFor(c, uid)).join("")}</div>` : `<p class="team-empty">Nobody on this crew yet.</p>`}
+      ${canManage ? addPicker(c) : ""}
+    </div>`).join("") : `<p class="team-empty">No crews yet${canManage ? " &mdash; add your first one below." : " &mdash; ask an admin to create one."}</p>`;
 
   body.innerHTML = `
     <div class="set-card">
@@ -23283,9 +23358,13 @@ function renderTeamsSettings() {
     <div class="set-card mt-4">
       <div class="team-sec-h">Crews</div>
       <div class="team-list">${crewCards}</div>
+      ${canManage ? `<div class="team-add">
+        <input id="crewNewName" type="text" class="control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1" placeholder="New crew name (e.g. North Crew)" maxlength="60" />
+        <button type="button" class="team-add-btn" data-crew-add>+ Add crew</button>
+      </div>` : ""}
       ${unassigned.length ? `<div class="team-sec-h mt-4">Not on a crew</div><div class="team-chips">${unassigned.map(m => who(m.userId)).join("")}</div>` : ""}
     </div>
-    <p class="team-foot">Read-only for now &mdash; crews and members are managed in the Anchor Field app. Assigning jobs to a team, per-team pay and subcontractor branding come next.</p>`;
+    <p class="team-foot">Crews here are the same crews as in the Anchor Field app &mdash; changes show up in both. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}Assigning jobs to a crew, per-crew pay and subcontractor branding come next.</p>`;
 }
 const TEAM_ICON_CREW = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-1.5A4.5 4.5 0 0 1 7.5 15h3A4.5 4.5 0 0 1 15 19.5V21"/><path d="M17 8.5a2.5 2.5 0 1 0-1.5-4.5"/><path d="M18 21v-1a4 4 0 0 0-2-3.4"/></svg>';
 
@@ -23301,6 +23380,61 @@ function wireTeamsSettings() {
       openTeamsSettings();
       return;
     }
+    const ctx = getOrgContext();
+    if (!ctx || !canManageCrews()) return;   // RLS would reject anyway; don't pretend
+    const fail = (e2) => { try { toast((e2 && e2.message) ? "Couldn't save — " + e2.message : "Couldn't save that change."); } catch (_) {} };
+
+    const add = e.target.closest("[data-crew-add]");
+    if (add) {
+      const input = document.getElementById("crewNewName");
+      const name = (input && input.value || "").trim();
+      if (!name) { if (input) input.focus(); return; }
+      if (ctx.crews.some(c => (c.name || "").trim().toLowerCase() === name.toLowerCase())) {
+        try { toast("You already have a crew with that name."); } catch (_) {}
+        return;
+      }
+      add.disabled = true;
+      createCrewWeb(ctx.orgId, name).then(() => afterCrewWrite("Crew added")).catch(fail).finally(() => { add.disabled = false; });
+      return;
+    }
+    const rn = e.target.closest("[data-crew-rename]");
+    if (rn) {
+      const c = ctx.crews.find(x => x.id === rn.dataset.crewRename); if (!c) return;
+      const v = prompt("Crew name", c.name);
+      const nm = (v || "").trim();
+      if (!nm || nm === c.name) return;
+      renameCrewWeb(c.id, nm).then(() => afterCrewWrite("Crew renamed")).catch(fail);
+      return;
+    }
+    const del = e.target.closest("[data-crew-delete]");
+    if (del) {
+      const c = ctx.crews.find(x => x.id === del.dataset.crewDelete); if (!c) return;
+      // Deleting CASCADES to crew_members + job_crew_assignments — say so plainly.
+      const msg = `Delete "${c.name}"?\n\nThis removes the crew everywhere, including in the Anchor Field app:\n` +
+        `• its ${c.memberIds.length} member assignment${c.memberIds.length === 1 ? "" : "s"} (the people stay in your company)\n` +
+        `• any field jobs this crew is assigned to\n\nThis can't be undone.`;
+      if (!confirm(msg)) return;
+      deleteCrewWeb(c.id).then(() => afterCrewWrite("Crew deleted")).catch(fail);
+      return;
+    }
+    const rm = e.target.closest("[data-crew-rmmem]");
+    if (rm) {
+      removeCrewMemberWeb(rm.dataset.crewRmmem, rm.dataset.uid).then(() => afterCrewWrite("Removed from crew")).catch(fail);
+      return;
+    }
+  });
+  // Add-member picker (change, not click)
+  body.addEventListener("change", (e) => {
+    const sel = e.target.closest("[data-crew-addmem]");
+    if (!sel || !sel.value) return;
+    const ctx = getOrgContext();
+    if (!ctx || !canManageCrews()) return;
+    const crewId = sel.dataset.crewAddmem, uid = sel.value;
+    sel.disabled = true;
+    addCrewMemberWeb(crewId, ctx.orgId, uid)
+      .then(() => afterCrewWrite("Added to crew"))
+      .catch(e2 => { try { toast((e2 && e2.message) || "Couldn't add that member."); } catch (_) {} })
+      .finally(() => { sel.disabled = false; });
   });
 }
 
