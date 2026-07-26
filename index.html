@@ -357,6 +357,39 @@
   .toggle-pill .val { font-variant-numeric: tabular-nums; color: #64748b; font-weight: 700; transition: color .2s; }
   .toggle-pill.active .val { color: var(--gold-hi); }
 
+  /* One height/radius/type for every control in the Jobs toolbar so the button,
+     the two dropdowns and the search field align on a single baseline. 16px type on
+     the search input on phones keeps iOS from zooming on focus. */
+  .jobs-ctl { height: 38px; border-radius: 10px; padding: 0 12px; font-size: 12px; font-weight: 600;
+    line-height: 1; display: inline-flex; align-items: center; }
+  .jobs-ctl-search { padding-left: 34px; font-size: 16px; font-weight: 500; }
+  @media (min-width: 640px) { .jobs-ctl-search { font-size: 13px; } }
+  .asel .dd-trigger.jobs-ctl { justify-content: space-between; padding-right: 10px; }
+
+  /* ═══ Animated dropdowns for native <select>s ═════════════════════════════
+     A native <select> popup is an OS sheet drawn OVER the control. These wrap the
+     real <select> — which stays in the DOM as the value + change-event source of
+     truth, so every existing `.value` read and `change` listener keeps working —
+     in the app's OWN dropdown component (.dd / .dd-trigger / .dd-panel /
+     .dd-item), so a converted select looks and animates exactly like the rail
+     pickers and inherits their light-mode rules for free.
+
+     The one addition: the panel is portaled to <body> and positioned:fixed so an
+     overflow-hidden card or a scrolling modal can't clip it. That puts it outside
+     `.dd.open`, so it animates off its own classes instead. */
+  .asel { position: relative; display: inline-flex; vertical-align: middle; }
+  .asel-native { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+    clip: rect(0 0 0 0); clip-path: inset(50%); overflow: hidden; }
+  .dd-panel--fixed { position: fixed; top: auto; left: auto; right: auto; min-width: 0;
+    z-index: 200; pointer-events: auto; }
+  .dd-panel--fixed.up { transform-origin: bottom center; transform: translateY(6px) scale(0.97); }
+  .dd-panel--fixed.in { opacity: 1; transform: translateY(0) scale(1); }
+  .dd-item.active { background: rgba(30,41,59,0.7); color: #ffffff; }
+  [data-theme="light"] .dd-item.active { background: #f1f5f9; color: #0f172a; }
+  .dd-item.selected.active { color: var(--gold-hi); }
+  [data-theme="light"] .dd-item.selected.active { color: var(--gold-lo); }
+  @media (prefers-reduced-motion: reduce) { .dd-panel--fixed { transition: none; } }
+
   /* ------- Segmented Control (tabs) ------- */
   .seg {
     display: flex;
@@ -8768,12 +8801,16 @@
       <div data-dashview="jobs" class="hidden">
         <div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
           <span id="dashJobsCount" class="text-[11px] uppercase tracking-[0.16em] text-slate-500 font-bold"></span>
+          <!-- One uniform control row: every child is jobs-ctl (same 38px height,
+               same radius, same 12px type) so the buttons, dropdowns and search
+               box line up instead of stair-stepping. -->
           <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <button id="dashExportCsv" type="button" class="btn inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 border border-slate-700 hover:text-[#c9a558] hover:border-[#b58f4a]/45" title="Export your pipeline as a CSV">
+            <button id="dashExportCsv" type="button" class="btn jobs-ctl inline-flex items-center gap-1.5 text-slate-400 border border-slate-700 hover:text-[#c9a558] hover:border-[#b58f4a]/45" title="Export your pipeline as a CSV">
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v9M6 8l4 4 4-4M4 15v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"/></svg>
               Export CSV
             </button>
-            <select id="dashJobSort" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Sort saved jobs">
+            <select id="dashJobStatusSel" class="control jobs-ctl text-slate-300" title="Filter jobs by deal status"></select>
+            <select id="dashJobSort" class="control jobs-ctl text-slate-300" title="Sort saved jobs">
               <option value="recent">Most recent</option>
               <option value="oldest">Oldest first</option>
               <option value="expensive">Most expensive</option>
@@ -8781,14 +8818,12 @@
               <option value="margin">Highest markup</option>
               <option value="customer">By customer</option>
             </select>
-            <div class="relative flex-1 min-w-[160px] sm:flex-none">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
-              <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control rounded-lg pl-9 pr-3 py-2 text-base sm:text-sm text-slate-100 w-full sm:w-64 placeholder:text-slate-600" />
+            <div class="relative flex-1 min-w-[160px] sm:flex-none sm:w-64">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none z-10" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+              <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control jobs-ctl jobs-ctl-search text-slate-100 w-full placeholder:text-slate-600" />
             </div>
           </div>
         </div>
-        <!-- Status filter chips (UI refresh P4) — rendered by renderDashJobsChips -->
-        <div id="dashJobsChips" class="dash-status-chips hidden" role="group" aria-label="Filter jobs by status"></div>
         <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         <!-- CMP-1: floating comparison bar — appears when 2+ jobs are selected via
              the per-card "Compare" toggle, and opens the (intact) compareModal. -->
@@ -17207,6 +17242,269 @@ function wireVisualViewportBottom() {
   window.addEventListener("resize", sync);
   window.addEventListener("orientationchange", sync);
 }
+/* ═══ Animated dropdowns (asel) ═══════════════════════════════════════════════
+   Replaces the OS's native <select> popup — which paints a system sheet over the
+   top of the control — with a panel that animates open below it.
+
+   Design constraint that shapes everything here: the real <select> stays in the
+   DOM and remains the single source of truth. Choosing an option writes to it and
+   dispatches a bubbling `change`, so all ~37 existing selects keep working with
+   zero changes at their call sites, and any code that repopulates a select with
+   innerHTML keeps working too (a MutationObserver refreshes the label).
+
+   The panel is position:fixed and appended to <body> so overflow-hidden cards and
+   scrolling dashboard panels can't clip it; it repositions on scroll/resize.
+   ─────────────────────────────────────────────────────────────────────────── */
+let _aselOpen = null;          // the currently open { wrap, sel, panel, ... }
+let _aselIdSeq = 0;
+
+// Same glyphs the app's rail dropdowns use, so converted selects are indistinguishable.
+const ASEL_CHEV = '<svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>';
+const ASEL_CHECK = '<svg class="dd-check" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 11 8 15 16 6"/></svg>';
+
+function aselLabelFor(sel) {
+  const o = sel.options[sel.selectedIndex];
+  return o ? o.textContent : "";
+}
+// Keep the trigger's text in step with the native select (value changed by our own
+// pick, by other app code, or by a wholesale innerHTML repopulate).
+function aselSync(wrap) {
+  const sel = wrap._asel && wrap._asel.sel;
+  if (!sel) return;
+  const lbl = wrap.querySelector(".dd-label");
+  if (lbl) lbl.textContent = aselLabelFor(sel);
+  const btn = wrap.querySelector(".dd-trigger");
+  if (btn) btn.disabled = sel.disabled;
+}
+/** Wrap one <select> in an animated dropdown. Idempotent. */
+function enhanceSelect(sel) {
+  if (!sel || sel._aselDone) return;
+  // Native behavior is kept for multi/list selects and anything opting out.
+  if (sel.multiple || sel.size > 1 || sel.hasAttribute("data-no-asel")) { sel._aselDone = true; return; }
+  sel._aselDone = true;
+
+  const wrap = document.createElement("span");
+  wrap.className = "dd asel";   // .dd drives the shared open/chevron styling
+  // Carry the select's own layout classes so it occupies the same box as before
+  // (widths like w-full / sm:w-64 and the flex-1 sizing all keep working).
+  const layout = (sel.className.match(/(^|\s)(w-|sm:w-|flex-|min-w-|max-w-|mt-|mb-|ml-|mr-|grow|shrink)\S*/g) || []).join(" ");
+  if (layout) wrap.className += " " + layout;
+  if (sel.style.width) wrap.style.width = sel.style.width;
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  // .dd-trigger supplies the chrome; the select's own classes ride along after it
+  // so each dropdown keeps its local sizing (a job-card status pill stays small,
+  // a toolbar control stays 38px) exactly as the native select did.
+  btn.className = "dd-trigger " + sel.className.replace(/(^|\s)control(\s|$)/g, " ")
+    .replace(/(^|\s)(w-full|sm:w-64|flex-1)(\s|$)/g, " ").trim();
+  btn.style.width = "100%";
+  btn.setAttribute("aria-haspopup", "listbox");
+  btn.setAttribute("aria-expanded", "false");
+  btn.innerHTML = `<span class="dd-label"></span>${ASEL_CHEV}`;
+  if (sel.title) btn.title = sel.title;
+  const labelledBy = sel.getAttribute("aria-label");
+  if (labelledBy) btn.setAttribute("aria-label", labelledBy);
+  if (sel.id) {
+    const lab = document.querySelector(`label[for="${sel.id}"]`);
+    if (lab) { if (!lab.id) lab.id = `aselLab${++_aselIdSeq}`; btn.setAttribute("aria-labelledby", lab.id); }
+  }
+
+  sel.classList.add("asel-native");   // before the move, so a re-entrant sweep skips it
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(btn);
+  wrap.appendChild(sel);
+  sel.setAttribute("tabindex", "-1");
+  sel.setAttribute("aria-hidden", "true");
+  wrap._asel = { sel, btn };
+  aselSync(wrap);
+
+  btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); aselToggle(wrap); });
+  btn.addEventListener("keydown", (e) => {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); aselOpenPanel(wrap, e.key === "ArrowUp" ? "last" : "sel"); }
+  });
+  // Other code may swap this select's options or value wholesale — mirror it.
+  const mo = new MutationObserver(() => aselSync(wrap));
+  mo.observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "disabled"] });
+  sel.addEventListener("change", () => aselSync(wrap));
+}
+
+function aselToggle(wrap) { (_aselOpen && _aselOpen.wrap === wrap) ? aselClose() : aselOpenPanel(wrap, "sel"); }
+
+function aselOpenPanel(wrap, focusMode) {
+  // A trigger inside a hidden pane has no layout box; opening would strand a panel
+  // in the corner. Only reachable via a programmatic click, but cheap to rule out.
+  const box = wrap.getBoundingClientRect();
+  if (!box.width && !box.height) return;
+  aselClose();
+  // A closing panel lingers for its fade-out; drop any leftovers so exactly one
+  // portaled panel is ever in the document.
+  document.querySelectorAll(".dd-panel--fixed").forEach(el => el.remove());
+  const sel = wrap._asel.sel;
+  const panel = document.createElement("ul");
+  panel.className = "dd-panel dd-panel--fixed";
+  panel.setAttribute("role", "listbox");
+  panel.id = `aselPanel${++_aselIdSeq}`;
+  // Read the options at OPEN time, so a select repopulated since load is correct.
+  const opts = [];
+  Array.from(sel.children).forEach(node => {
+    if (node.tagName === "OPTGROUP") {
+      const g = document.createElement("li");
+      g.className = "dd-group"; g.textContent = node.label; g.setAttribute("role", "presentation");
+      panel.appendChild(g);
+      Array.from(node.children).forEach(o => opts.push(aselAddOpt(panel, o, sel)));
+    } else if (node.tagName === "OPTION") {
+      opts.push(aselAddOpt(panel, node, sel));
+    }
+  });
+  document.body.appendChild(panel);
+  btnState(wrap, true);
+  wrap._asel.btn.setAttribute("aria-expanded", "true");
+  wrap._asel.btn.setAttribute("aria-controls", panel.id);
+
+  _aselOpen = { wrap, sel, panel, opts, active: -1 };
+  aselPosition();
+  requestAnimationFrame(() => panel.classList.add("in"));
+
+  const selIdx = opts.findIndex(li => li._opt.selected);
+  aselSetActive(focusMode === "last" ? opts.length - 1 : (selIdx < 0 ? 0 : selIdx));
+  panel.setAttribute("aria-activedescendant", (_aselOpen.opts[_aselOpen.active] || {}).id || "");
+  const cur = panel.querySelector('[aria-selected="true"]');
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+
+  panel.addEventListener("click", (e) => {
+    const li = e.target.closest(".dd-item");
+    if (!li || li._opt.disabled) return;
+    aselPick(li);
+  });
+  panel.addEventListener("mousemove", (e) => {
+    const li = e.target.closest(".dd-item");
+    if (li) aselSetActive(_aselOpen.opts.indexOf(li));
+  });
+  document.addEventListener("keydown", aselKeydown, true);
+  document.addEventListener("pointerdown", aselOutside, true);
+  window.addEventListener("resize", aselPosition, true);
+  window.addEventListener("scroll", aselPosition, true);
+}
+function aselAddOpt(panel, o, sel) {
+  const li = document.createElement("li");
+  li.className = "dd-item" + (o.selected ? " selected" : "");
+  li.id = `aselOpt${++_aselIdSeq}`;
+  li.setAttribute("role", "option");
+  li.setAttribute("aria-selected", o.selected ? "true" : "false");
+  if (o.disabled) li.setAttribute("aria-disabled", "true");
+  li.innerHTML = `<span></span>` + ASEL_CHECK;   // label first, check right — as .dd-item expects
+  li.firstChild.textContent = o.textContent;
+  li._opt = o;
+  panel.appendChild(li);
+  return li;
+}
+function btnState(wrap, open) { wrap.classList.toggle("open", open); }
+function aselSetActive(i) {
+  if (!_aselOpen) return;
+  const { opts } = _aselOpen;
+  if (!opts.length) return;
+  i = Math.max(0, Math.min(opts.length - 1, i));
+  opts.forEach((li, n) => li.classList.toggle("active", n === i));
+  _aselOpen.active = i;
+  _aselOpen.panel.setAttribute("aria-activedescendant", opts[i].id);
+  opts[i].scrollIntoView({ block: "nearest" });
+}
+function aselPick(li) {
+  const o = _aselOpen && _aselOpen.sel;
+  if (!o) return;
+  const changed = !li._opt.selected;
+  li._opt.selected = true;
+  const wrap = _aselOpen.wrap;
+  aselClose();
+  aselSync(wrap);
+  if (changed) o.dispatchEvent(new Event("change", { bubbles: true }));
+  const b = wrap._asel && wrap._asel.btn;
+  if (b) b.focus();
+}
+function aselKeydown(e) {
+  if (!_aselOpen) return;
+  const { opts, active } = _aselOpen;
+  switch (e.key) {
+    case "Escape": e.preventDefault(); e.stopPropagation(); { const w = _aselOpen.wrap; aselClose(); w._asel.btn.focus(); } break;
+    case "ArrowDown": e.preventDefault(); aselSetActive(active + 1); break;
+    case "ArrowUp": e.preventDefault(); aselSetActive(active - 1); break;
+    case "Home": e.preventDefault(); aselSetActive(0); break;
+    case "End": e.preventDefault(); aselSetActive(opts.length - 1); break;
+    case "Enter": case " ": e.preventDefault(); if (opts[active] && !opts[active]._opt.disabled) aselPick(opts[active]); break;
+    case "Tab": aselClose(); break;
+    default:
+      if (e.key.length === 1) {   // type-ahead, like a native select
+        const q = e.key.toLowerCase();
+        const from = active + 1;
+        const hit = opts.slice(from).concat(opts.slice(0, from))
+          .find(li => li.textContent.trim().toLowerCase().startsWith(q));
+        if (hit) aselSetActive(opts.indexOf(hit));
+      }
+  }
+}
+function aselOutside(e) {
+  if (!_aselOpen) return;
+  if (_aselOpen.panel.contains(e.target) || _aselOpen.wrap.contains(e.target)) return;
+  aselClose();
+}
+// Anchor the fixed panel to the trigger, flipping above when there isn't room.
+function aselPosition() {
+  if (!_aselOpen) return;
+  const { wrap, panel } = _aselOpen;
+  const r = wrap.getBoundingClientRect();
+  const gap = 6, pad = 8;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  panel.style.minWidth = `${Math.round(r.width)}px`;
+  panel.style.maxWidth = `${Math.round(Math.min(vw - pad * 2, Math.max(r.width, 320)))}px`;
+  const h = panel.offsetHeight;
+  const below = vh - r.bottom - gap, above = r.top - gap;
+  const up = below < Math.min(h, 180) && above > below;
+  panel.classList.toggle("up", up);
+  panel.style.maxHeight = `${Math.round(Math.max(120, Math.min(288, (up ? above : below) - pad)))}px`;
+  const top = up ? Math.max(pad, r.top - gap - panel.offsetHeight) : r.bottom + gap;
+  let left = r.left;
+  if (left + panel.offsetWidth > vw - pad) left = Math.max(pad, vw - pad - panel.offsetWidth);
+  panel.style.top = `${Math.round(top)}px`;
+  panel.style.left = `${Math.round(Math.max(pad, left))}px`;
+}
+function aselClose() {
+  if (!_aselOpen) return;
+  const { wrap, panel } = _aselOpen;
+  _aselOpen = null;
+  btnState(wrap, false);
+  const b = wrap._asel && wrap._asel.btn;
+  if (b) { b.setAttribute("aria-expanded", "false"); b.removeAttribute("aria-controls"); }
+  document.removeEventListener("keydown", aselKeydown, true);
+  document.removeEventListener("pointerdown", aselOutside, true);
+  window.removeEventListener("resize", aselPosition, true);
+  window.removeEventListener("scroll", aselPosition, true);
+  panel.classList.remove("in");
+  const done = () => panel.remove();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) done();
+  else { panel.addEventListener("transitionend", done, { once: true }); setTimeout(done, 260); }
+}
+/** Enhance everything present now, and anything rendered later. */
+function initAnimatedSelects() {
+  if (initAnimatedSelects._wired) { document.querySelectorAll("select:not(.asel-native)").forEach(enhanceSelect); return; }
+  initAnimatedSelects._wired = true;
+  document.querySelectorAll("select:not(.asel-native)").forEach(enhanceSelect);
+  // Job cards, modals and rate grids rebuild their markup constantly; this saves
+  // touching every render site.
+  // Runs synchronously in the observer callback (a microtask), NOT on the next
+  // frame: job cards and modals re-render constantly, and deferring a frame let
+  // the raw native selects paint once before being wrapped — a visible flicker.
+  let sweeping = false;
+  new MutationObserver((muts) => {
+    if (sweeping) return;   // our own wrap/button insertions re-enter this
+    if (!muts.some(m => Array.from(m.addedNodes).some(n => n.nodeType === 1 &&
+        (n.tagName === "SELECT" || n.querySelector?.("select:not(.asel-native)"))))) return;
+    sweeping = true;
+    try { document.querySelectorAll("select:not(.asel-native)").forEach(enhanceSelect); }
+    finally { sweeping = false; }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 function wireTabBar() {
   const src = document.getElementById("appTabBar");
   if (!src) return;
@@ -19532,28 +19830,27 @@ function dashJobCard(j) {
   </div>`;
 }
 
-// Status filter chips above the jobs grid (UI refresh P4). Counts are REAL
-// jobs only (drafts excluded — same contract as the count label and KPIs).
-// Clicks route through the existing data-dash-filter delegated handler, so
-// the pipeline legend, filter note, and chips share one source of truth.
+// Deal-status filter. Was a chip row (UI refresh P4); the user found the extra
+// band of pills busy, so it's a dropdown in the shared toolbar now. Counts are
+// REAL jobs only (drafts excluded — same contract as the count label and KPIs).
+// Writing to the native <select> keeps the existing data-dash-filter handlers,
+// pipeline legend and filter note working off one source of truth.
 function renderDashJobsChips(jobs) {
-  const wrap = document.getElementById("dashJobsChips");
-  if (!wrap) return;
+  const sel = document.getElementById("dashJobStatusSel");
+  if (!sel) return;
   const real = (jobs || []).filter(j => j && !j.isDraft);
-  if (!real.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
-  wrap.classList.remove("hidden");
+  if (!real.length) { sel.innerHTML = ""; sel.classList.add("hidden"); return; }
+  sel.classList.remove("hidden");
   const counts = {};
   JOB_STATUSES.forEach(st => counts[st] = 0);
   real.forEach(j => { const st = jobStatus(j); if (counts[st] != null) counts[st]++; });
-  const chip = (label, key, count, dot) => {
-    const active = key ? _dashStatusFilter === key : !_dashStatusFilter;
-    return `<button type="button" ${key ? `data-dash-filter="${key}"` : "data-dash-filter-all"} class="dash-chip${active ? " active" : ""}" aria-pressed="${active}">` +
-      (dot ? `<span class="dash-chip-dot" style="background:${dot}"></span>` : "") +
-      `${label}<span class="dash-chip-n">${count}</span></button>`;
-  };
-  wrap.innerHTML = chip("All", null, real.length, null)
-    + JOB_STATUSES.map(st => chip(st, st, counts[st], STATUS_COLORS[st])).join("");
+  const opt = (val, text, count) =>
+    `<option value="${escHtml(val)}"${val === (_dashStatusFilter || "") ? " selected" : ""}>` +
+    `${escHtml(text)}${count == null ? "" : "  \u00b7  " + count}</option>`;
+  sel.innerHTML = opt("", "All statuses", real.length) +
+    JOB_STATUSES.map(st => opt(st, st, counts[st])).join("");
 }
+
 
 /* ── Teams T3b: crew filter chips + per-crew performance ─────────────────────
    Both are pure client-side reads over the saved jobs (which already carry
@@ -21729,13 +22026,11 @@ function wireDashboard() {
     dashGoTo("jobs");
     renderDashJobs(loadJobs());
   });
-  const chipsWrap = document.getElementById("dashJobsChips");
-  if (chipsWrap) chipsWrap.addEventListener("click", (e) => {
-    const all = e.target.closest("[data-dash-filter-all]");
-    const f = e.target.closest("[data-dash-filter]");
-    if (!all && !f) return;
-    _dashStatusFilter = all ? null
-      : (_dashStatusFilter === f.dataset.dashFilter ? null : f.dataset.dashFilter);
+  // The status filter is a dropdown now (was a chip row) — same three follow-up
+  // calls the chips made, so the pipeline legend and filter note stay in step.
+  const statusSel = document.getElementById("dashJobStatusSel");
+  if (statusSel) statusSel.addEventListener("change", () => {
+    _dashStatusFilter = statusSel.value || null;
     renderDashJobsPanel(loadJobs());
     renderDashJobs(loadJobs());
     scheduleSaveNav();
@@ -37046,6 +37341,7 @@ function init() {
   // even number of times = no-op. Set from the switch's shown state so it's
   // idempotent even if the listener ever does fire twice.
   try { wireTabBar(); } catch (_) {}   // mobile bottom tab bar (UI refresh P1)
+  try { initAnimatedSelects(); } catch (_) {}   // animated dropdowns everywhere
   try { wireTeamsSettings(); } catch (_) {}   // Settings → Teams (T1)
   // Lapsed-account paywall actions (2026-07)
   { const _cta = document.getElementById("calcPaywallCta");
