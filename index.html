@@ -34105,7 +34105,8 @@ async function firstLoginMigration(userId) {
   if (localJobs.length) {
     const rows = localJobs.map(j => {
       const id = j.isDraft ? draftIdFor({ id: userId }) : (isUuid(j.id) ? j.id : crypto.randomUUID());
-      return { id, user_id: userId, data: { ...j, id } };
+      const data = { ...j, id };
+      return jobCloudRow(data, userId);   // Teams T6: mirror org/crew into columns
     });
     await sb.from("jobs").upsert(rows);   // upsert (not insert) → safe to re-run
     localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
@@ -34145,6 +34146,39 @@ async function pushProfileToCloud(d) {
   } catch (e) { /* error routed via trackCloud; dirty flag stays set so the next sync re-pushes */ }
 }
 
+/* ── Teams T6: the org/crew columns on `jobs` ──────────────────────────────────
+   The assignment already lives inside the job blob (data.assignedCrewId, T3a).
+   These mirror it into real columns so the server can filter by crew/org — needed
+   for the installer dashboard and any org-wide rollup, neither of which can query
+   inside a jsonb efficiently.
+
+   Both columns carry a FOREIGN KEY, which means a stale id would make the whole
+   upsert fail and lose the save. So both resolve through the org context and fall
+   back to null: a job referencing a crew that has since been deleted (or belonging
+   to an account with no org at all) simply writes null instead of erroring. The
+   jsonb keeps its own copy either way, so nothing is lost if these are null.
+
+   No RLS change accompanies this: `data` is one blob holding sellingPrice, cost,
+   margin and customer contact, and RLS is row-level — a policy letting a crew
+   member read their crew's jobs would hand them the owner's margins too. The
+   installer dashboard will read a narrow projection instead. */
+function jobCloudOrgId() {
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  return (ctx && ctx.orgId) || null;
+}
+function jobCloudCrewId(job) {
+  const id = job && job.assignedCrewId;
+  if (!id) return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  if (!ctx) return null;   // can't verify it exists → don't risk the FK
+  return (ctx.crews || []).some(c => c.id === id) ? id : null;
+}
+/** The row we send for a job: blob plus the mirrored columns. */
+function jobCloudRow(job, userId) {
+  return { id: job.id, user_id: userId, data: job,
+           org_id: jobCloudOrgId(), crew_id: jobCloudCrewId(job) };
+}
+
 async function pushJobToCloud(job, silent) {
   if (!sb || !currentUser) return false;
   markWritten(job.id);   // protect a just-saved row from a racing reconcile pull
@@ -34152,7 +34186,7 @@ async function pushJobToCloud(job, silent) {
     // Upsert (not insert) so Cmd+S overwriting an already-uploaded job and
     // explicit-save-upgrades of a draft id both succeed instead of colliding
     // on the primary key.
-    await trackCloud(sb.from("jobs").upsert({ id: job.id, user_id: currentUser.id, data: job }));
+    await trackCloud(sb.from("jobs").upsert(jobCloudRow(job, currentUser.id)));
     removePendingPush(job.id);   // confirmed in the cloud — clear any retry entry
     return true;
   } catch (e) {
