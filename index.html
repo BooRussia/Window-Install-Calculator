@@ -635,6 +635,19 @@
   .team-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(51,65,85,0.5); }
   .team-mode-now { font-size: 13.5px; font-weight: 800; color: #f1f5f9; }
   .team-mode-sub { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+  .team-rategrid { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 8px 0 4px; }
+  @media (min-width: 640px) { .team-rategrid { grid-template-columns: 1fr 1fr; gap: 6px 14px; } }
+  .team-rategrid-labor { border-top: 1px dashed rgba(148,163,184,0.2); padding-top: 10px; margin-top: 10px; }
+  .team-ratef { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .team-ratename { flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 700; color: #e2e8f0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team-ratename i { font-style: normal; font-weight: 500; color: #94a3b8; }
+  .team-rateacct { flex: 0 0 auto; font-size: 10.5px; font-weight: 600; color: #94a3b8; font-variant-numeric: tabular-nums; }
+  .team-ratehint { font-size: 11px; line-height: 1.55; color: #94a3b8; margin-bottom: 4px; }
+  [data-theme="light"] .team-ratename { color: #0f172a; }
+  [data-theme="light"] .team-ratename i, [data-theme="light"] .team-rateacct,
+  [data-theme="light"] .team-ratehint { color: #64748b; }
+  [data-theme="light"] .team-rategrid-labor { border-top-color: #e2e8f0; }
   .team-brandrow { display: flex; align-items: center; gap: 9px; padding-top: 9px; border-top: 1px dashed rgba(148,163,184,0.2); flex-wrap: wrap; }
   .team-brandlogo { height: 26px; width: auto; max-width: 90px; object-fit: contain; border-radius: 4px; }
   .team-brandlogo-empty { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 8px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; border: 1px dashed rgba(148,163,184,0.3); border-radius: 6px; }
@@ -12364,9 +12377,13 @@ function laborHasOverrides() {
   return !!normalizeLaborOverride(STATE.laborOverride);
 }
 function defaultSetupMinPerOpening() {
+  const team = teamLaborKnob("setupMinPerOpening");   // Teams T5
+  if (team != null) return team;
   return ((DATA.config && DATA.config.laborModel) || {}).setupMinPerOpening ?? 45;
 }
 function defaultMobilizationHours() {
+  const team = teamLaborKnob("mobilizationHours");    // Teams T5
+  if (team != null) return team;
   return ((DATA.config && DATA.config.laborModel) || {}).mobilizationHours ?? 2;
 }
 function resolveSetupMinPerOpening() {
@@ -14147,8 +14164,82 @@ function computeProcurement(totalQty, item) {
   return out;
 }
 
+/* ── Teams T5: per-team rate books ─────────────────────────────────────────────
+   A subcontractor buys its own consumables and works at its own pace, so a job
+   assigned to that team can price off THEIR numbers instead of the account's.
+
+   Stored SPARSELY in crews.data.rateBook — only the values that differ from the
+   account's book are kept:
+       { prices: { "<variantId|itemId>": 0.14, … },
+         labor:  { setupMinPerOpening?, mobilizationHours? } }
+   Sparse matters: anything the team hasn't overridden keeps tracking the
+   account's book, so raising your own screw price still flows through to every
+   team that never set one.
+
+   Injection is three accessors, not a config swap — dollars in this app all
+   resolve through getUnitPrice(), so overriding there reaches the engine, the
+   shopping list and the materials PDF at once, while Settings → Rates keeps
+   reading DATA.costItems directly and therefore still shows/edits the ACCOUNT's
+   book. Nothing is ever written into DATA.costItems, so a team's prices cannot
+   leak into the account or into another team.
+
+   Two items are deliberately NOT overridable: interior trim (priced off the
+   3x3 type/width grid, not a flat unit price) and Labor (a team's labor is
+   already priced from its own crew pay — see resolveAssignedCrewCost in T3a —
+   and a second override here would double-count it). */
+let _rbCache = { key: null, val: null };
+
+function assignedRateBook() {
+  const id = (typeof assignedCrewId === "function") ? assignedCrewId() : null;
+  if (!id) return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  if (!ctx) return null;
+  // getUnitPrice runs ~13x per calculate() and calculate() runs on every render,
+  // so memoize against the context's fetch stamp.
+  const key = id + "|" + (ctx.fetchedAt || 0);
+  if (_rbCache.key === key) return _rbCache.val;
+  const crew = (ctx.crews || []).find(c => c.id === id);
+  const rb = crew && crew.data && crew.data.rateBook;
+  let val = null;
+  if (rb) {
+    const prices = (rb.prices && typeof rb.prices === "object") ? rb.prices : {};
+    const labor = (rb.labor && typeof rb.labor === "object") ? rb.labor : {};
+    if (Object.keys(prices).length || Object.keys(labor).length) val = { prices, labor };
+  }
+  _rbCache = { key, val };
+  return val;
+}
+function clearRateBookCache() { _rbCache = { key: null, val: null }; }
+
+/** Rate-book key for an item: its ACTIVE variant, so overriding 2x8 bucking
+    doesn't silently reprice a job that selected 2x6. */
+function ratePriceKey(item) {
+  const v = (typeof activeVariant === "function") ? activeVariant(item) : null;
+  return (v && v.id) || (item && item.id) || "";
+}
+/** The assigned team's price for an item, or null to fall through to the account. */
+function teamUnitPrice(item) {
+  const rb = assignedRateBook();
+  if (!rb || !item) return null;
+  const raw = rb.prices[ratePriceKey(item)];
+  if (raw === "" || raw == null) return null;
+  const n = Number(raw);
+  return (isNaN(n) || n < 0) ? null : n;
+}
+/** A team's labor-model knob, else the account's. */
+function teamLaborKnob(name) {
+  const rb = assignedRateBook();
+  if (!rb) return null;
+  const raw = rb.labor[name];
+  if (raw === "" || raw == null) return null;
+  const n = Number(raw);
+  return (isNaN(n) || n < 0) ? null : n;
+}
+
 function getUnitPrice(item) {
   if (item && item.id === "trim_board") return trimSelection().price;   // $/LF from type×width grid
+  const teamPrice = teamUnitPrice(item);   // Teams T5: assigned team's own price wins
+  if (teamPrice != null) return teamPrice;
   if (item.unitPriceByApplication && item.unitPriceByApplication[STATE.application] != null) {
     return item.unitPriceByApplication[STATE.application];
   }
@@ -23901,6 +23992,7 @@ async function removeCrewMemberWeb(crewId, userId) {
 // Every mutation refetches the org context so the tab (and the mobile app's
 // source of truth) stay in agreement — no optimistic local divergence.
 async function afterCrewWrite(msg) {
+  clearRateBookCache();   // Teams T5: rate books live on crews.data
   _orgCtx = null; saveOrgCtxCache(null);
   try { await fetchOrgContext(); } catch (_) {}
   renderTeamsSettings();
@@ -24060,6 +24152,52 @@ function renderTeamsSettings() {
       </div>
     </div>`;
   };
+
+  // Per-crew rate book (T5). Applies in BOTH modes — it's opt-in per crew, and an
+  // in-house crew can legitimately buy at a different price than the shop default.
+  const rateEditor = (c) => {
+    const rb = (c.data && c.data.rateBook) || {};
+    const prices = rb.prices || {}, labor = rb.labor || {};
+    const n = Object.keys(prices).length + Object.keys(labor).length;
+    const open = _teamRatesOpen === c.id;
+    if (!open) {
+      return `<div class="team-brandrow">
+        <span class="team-brandname">${n ? `${n} rate override${n === 1 ? "" : "s"}` : "Uses your rates"}</span>
+        ${canManage ? `<button type="button" class="team-act" data-crew-rates="${escHtml(c.id)}">Rates</button>` : ""}
+      </div>`;
+    }
+    const rows = priceableRateEntries().map(e => `
+      <label class="team-ratef">
+        <span class="team-ratename">${escHtml(e.item)}${e.label ? ` <i>${escHtml(e.label)}</i>` : ""}</span>
+        <span class="team-rateacct">yours ${formatMoney(e.price)}/${escHtml(e.unit)}</span>
+        <input type="text" inputmode="decimal" data-rf="${escHtml(e.key)}" value="${prices[e.key] != null ? escHtml(String(prices[e.key])) : ""}"
+          placeholder="${Number(Number(e.price).toFixed(4))}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+      </label>`).join("");
+    const LM = (DATA.config && DATA.config.laborModel) || {};
+    return `<div class="team-brandedit" data-rate-form="${escHtml(c.id)}">
+      <p class="team-ratehint">Blank means &ldquo;use your rate&rdquo; &mdash; so raising a price in Settings &rarr; Rates still reaches this team. Their labor comes from this team&rsquo;s own pay, and interior trim from your trim grid, so neither is listed here.</p>
+      <div class="team-rategrid">${rows}</div>
+      <div class="team-rategrid team-rategrid-labor">
+        <label class="team-ratef">
+          <span class="team-ratename">Setup per opening</span>
+          <span class="team-rateacct">yours ${LM.setupMinPerOpening ?? 45} min</span>
+          <input type="text" inputmode="decimal" data-rl="setupMinPerOpening" value="${labor.setupMinPerOpening != null ? escHtml(String(labor.setupMinPerOpening)) : ""}"
+            placeholder="${LM.setupMinPerOpening ?? 45}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+        <label class="team-ratef">
+          <span class="team-ratename">Mobilization</span>
+          <span class="team-rateacct">yours ${LM.mobilizationHours ?? 2} hrs</span>
+          <input type="text" inputmode="decimal" data-rl="mobilizationHours" value="${labor.mobilizationHours != null ? escHtml(String(labor.mobilizationHours)) : ""}"
+            placeholder="${LM.mobilizationHours ?? 2}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+      </div>
+      <div class="team-brandactions">
+        ${n ? `<button type="button" class="team-act team-act-danger" data-rate-clear="${escHtml(c.id)}">Clear all</button>` : ""}
+        <button type="button" class="team-act" data-rate-cancel>Cancel</button>
+        <button type="button" class="team-add-btn" data-rate-save="${escHtml(c.id)}">Save rates</button>
+      </div>
+    </div>`;
+  };
   // Members not already on a given crew — the "add member" picker.
   const addPicker = (c) => {
     const avail = ctx.members.filter(m => !c.memberIds.includes(m.userId));
@@ -24091,6 +24229,7 @@ function renderTeamsSettings() {
       ${c.memberIds.length ? `<div class="team-chips">${c.memberIds.map(uid => chipFor(c, uid)).join("")}</div>` : `<p class="team-empty">Nobody on this crew yet.</p>`}
       ${canManage ? addPicker(c) : ""}
       ${brandEditor(c)}
+      ${rateEditor(c)}
     </div>`).join("") : `<p class="team-empty">No crews yet${canManage ? " &mdash; add your first one below." : " &mdash; ask an admin to create one."}</p>`;
 
   body.innerHTML = `
@@ -24131,9 +24270,29 @@ function renderTeamsSettings() {
       </div>` : ""}
       ${unassigned.length ? `<div class="team-sec-h mt-4">Not on a crew</div><div class="team-chips">${unassigned.map(m => who(m.userId)).join("")}</div>` : ""}
     </div>
-    <p class="team-foot">Crews here are the same crews as in the Anchor Field app &mdash; changes show up in both. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}Assigning jobs to a crew, per-crew pay and subcontractor branding come next.</p>`;
+    <p class="team-foot">Crews here are the same crews as in the Anchor Field app &mdash; changes show up in both. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}Assign a job to a team on the Save&nbsp;Job screen: its labor prices at that team&rsquo;s pay, its rate overrides apply, and in subcontracted mode its branding goes on the customer&rsquo;s quote.</p>`;
 }
 let _teamBrandOpen = null;   // crew id whose branding form is expanded
+let _teamRatesOpen = null;   // crew id whose rate book is expanded
+
+/** Every account price a team could override: one row per VARIANT (that's where
+    dollars live), or the item itself when it has none. Trim is grid-priced and
+    Labor comes from team pay, so both are excluded — see the T5 header note. */
+function priceableRateEntries() {
+  const out = [];
+  (DATA.costItems || []).forEach(it => {
+    if (it.id === "trim_board" || it.id === "labor") return;
+    if (Array.isArray(it.variants) && it.variants.length) {
+      it.variants.forEach(v => {
+        if (v.unitPrice == null) return;
+        out.push({ key: v.id, item: it.name, label: (it.variants.length > 1 ? (v.brand || v.id) : ""), unit: it.unit, price: v.unitPrice });
+      });
+    } else if (it.unitPrice != null) {
+      out.push({ key: it.id, item: it.name, label: "", unit: it.unit, price: it.unitPrice });
+    }
+  });
+  return out;
+}
 const TEAM_ICON_INHOUSE = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-1.5A4.5 4.5 0 0 1 7.5 15h3A4.5 4.5 0 0 1 15 19.5V21"/><path d="M17 8.5a2.5 2.5 0 1 0-1.5-4.5"/><path d="M18 21v-1a4 4 0 0 0-2-3.4"/></svg>';
 const TEAM_ICON_SUB = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l5-3 5 3v12"/><path d="M13 21V13l6-3v11"/><path d="M6 13h2M6 17h2M16 15h1M16 18h1"/></svg>';
 const TEAM_ICON_CREW = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-1.5A4.5 4.5 0 0 1 7.5 15h3A4.5 4.5 0 0 1 15 19.5V21"/><path d="M17 8.5a2.5 2.5 0 1 0-1.5-4.5"/><path d="M18 21v-1a4 4 0 0 0-2-3.4"/></svg>';
@@ -24205,6 +24364,55 @@ function wireTeamsSettings() {
       updateCrewDataWeb(cid, { brand, brandOnQuotes: onQ })
         .then(() => { _teamBrandOpen = null; return afterCrewWrite("Branding saved"); })
         .catch(fail).finally(() => { save.disabled = false; });
+      return;
+    }
+    // ── Per-crew rate book (T5) ──
+    const rOpen = e.target.closest("[data-crew-rates]");
+    if (rOpen) { _teamRatesOpen = rOpen.dataset.crewRates; _teamBrandOpen = null; renderTeamsSettings(); return; }
+    if (e.target.closest("[data-rate-cancel]")) { _teamRatesOpen = null; renderTeamsSettings(); return; }
+    const rClear = e.target.closest("[data-rate-clear]");
+    if (rClear) {
+      const cid = rClear.dataset.rateClear;
+      if (!confirm("Clear this team's rate overrides?\n\nThey go back to pricing at your rates. Nothing else about the team changes.")) return;
+      updateCrewDataWeb(cid, { rateBook: null })
+        .then(() => { _teamRatesOpen = null; return afterCrewWrite("Rate overrides cleared"); }).catch(fail);
+      return;
+    }
+    const rSave = e.target.closest("[data-rate-save]");
+    if (rSave) {
+      const cid = rSave.dataset.rateSave;
+      const form = body.querySelector(`[data-rate-form="${cid}"]`);
+      if (!form) return;
+      // SPARSE save: keep a value only when it's a real number that actually
+      // differs from the account's. Anything blank, invalid, or equal to your own
+      // rate is dropped, so it keeps tracking your book instead of freezing a copy.
+      const accountPrice = {};
+      priceableRateEntries().forEach(en => accountPrice[en.key] = Number(en.price));
+      const prices = {};
+      form.querySelectorAll("[data-rf]").forEach(inp => {
+        const raw = (inp.value || "").trim();
+        if (!raw) return;
+        const n = Number(raw);
+        if (isNaN(n) || n < 0) return;
+        if (n === accountPrice[inp.dataset.rf]) return;
+        prices[inp.dataset.rf] = n;
+      });
+      const LM = (DATA.config && DATA.config.laborModel) || {};
+      const acctLabor = { setupMinPerOpening: LM.setupMinPerOpening ?? 45, mobilizationHours: LM.mobilizationHours ?? 2 };
+      const labor = {};
+      form.querySelectorAll("[data-rl]").forEach(inp => {
+        const raw = (inp.value || "").trim();
+        if (!raw) return;
+        const n = Number(raw);
+        if (isNaN(n) || n < 0) return;
+        if (n === Number(acctLabor[inp.dataset.rl])) return;
+        labor[inp.dataset.rl] = n;
+      });
+      const rateBook = (Object.keys(prices).length || Object.keys(labor).length) ? { prices, labor } : null;
+      rSave.disabled = true;
+      updateCrewDataWeb(cid, { rateBook })
+        .then(() => { _teamRatesOpen = null; return afterCrewWrite(rateBook ? "Rates saved" : "Rate overrides cleared"); })
+        .catch(fail).finally(() => { rSave.disabled = false; });
       return;
     }
     const add = e.target.closest("[data-crew-add]");
