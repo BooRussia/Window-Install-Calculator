@@ -635,6 +635,16 @@
   .team-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(51,65,85,0.5); }
   .team-mode-now { font-size: 13.5px; font-weight: 800; color: #f1f5f9; }
   .team-mode-sub { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+  .team-inviterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 0;
+    border-bottom: 1px dashed rgba(148,163,184,0.18); }
+  .team-inviterow:last-of-type { border-bottom: 0; }
+  .team-invitecode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700;
+    letter-spacing: 0.08em; color: var(--gold-hi); background: rgba(181,143,74,0.10);
+    border: 1px solid rgba(181,143,74,0.30); border-radius: 8px; padding: 4px 9px; }
+  .team-invitemeta { flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 600; color: #94a3b8; }
+  [data-theme="light"] .team-inviterow { border-bottom-color: #e2e8f0; }
+  [data-theme="light"] .team-invitecode { color: #8a6a2e; background: rgba(181,143,74,0.08); border-color: #d9c79a; }
+  [data-theme="light"] .team-invitemeta { color: #64748b; }
   .team-rategrid { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 8px 0 4px; }
   @media (min-width: 640px) { .team-rategrid { grid-template-columns: 1fr 1fr; gap: 6px 14px; } }
   .team-rategrid-labor { border-top: 1px dashed rgba(148,163,184,0.2); padding-top: 10px; margin-top: 10px; }
@@ -23948,6 +23958,126 @@ let _custDetailKey = null;
    CASCADES that to crew_members AND job_crew_assignments, so the confirm copy
    spells out that the roster + any field job assignments go with it.
    Only owner/admin/dispatcher may write (enforced by RLS, mirrored in the UI). */
+/* ── Teams T7: invites + installer self-service ────────────────────────────────
+   Access model: the owner issues an invite code, the installer signs up with
+   their own real login and redeems it (redeem_org_invite, already shared with the
+   anchor-field app), landing in the org as role "installer". org_invites has no
+   crew column, so the owner then drops them onto a crew with the existing
+   "add member" picker — no schema change was needed for any of this.
+
+   What an installer may then do is deliberately narrow, and enforced in the DB,
+   not just the UI:
+     * crews.data.rateBook / .brand for a crew they're ON — via the
+       set_crew_self_service RPC. It cannot rename a crew, cannot touch
+       brandOnQuotes (whether their branding reaches a customer stays the owner's
+       call), and cannot reach another crew.
+     * their OWN hourly rate — member_field_settings already restricts writes to
+       user_id = auth.uid().
+   They still cannot read `jobs`: that blob carries the owner's margins, so the
+   shopping list needs a narrow projection first (see the T6 note). */
+const LS_PENDING_INVITE = "anchorPendingInvite";
+const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // no I/O/0/1
+
+function newInviteCode() {
+  const buf = new Uint32Array(8);
+  try { crypto.getRandomValues(buf); }
+  catch (_) { for (let i = 0; i < 8; i++) buf[i] = Math.floor(Math.random() * 0xffffffff); }
+  let out = "";
+  for (let i = 0; i < 8; i++) out += INVITE_ALPHABET[buf[i] % INVITE_ALPHABET.length];
+  return out;
+}
+function inviteLinkFor(code) {
+  return `${location.origin}${location.pathname}?join=${encodeURIComponent(code)}`;
+}
+async function createOrgInviteWeb(orgId, role) {
+  const code = newInviteCode();
+  const { error } = await sb.from("org_invites")
+    .insert({ org_id: orgId, code, role: role || "installer", created_by: currentUser.id });
+  if (error) throw error;
+  return code;
+}
+async function listOrgInvitesWeb(orgId) {
+  const { data, error } = await sb.from("org_invites")
+    .select("id,code,role,uses,max_uses,expires_at")
+    .eq("org_id", orgId).gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+async function revokeOrgInviteWeb(id) {
+  const { error } = await sb.from("org_invites").delete().eq("id", id);
+  if (error) throw error;
+}
+/** Patch a crew's rate book / brand as one of its members (RPC-gated). */
+async function setCrewSelfServiceWeb(crewId, rateBook, brand) {
+  const { error } = await sb.rpc("set_crew_self_service", {
+    p_crew_id: crewId,
+    p_rate_book: rateBook === undefined ? null : rateBook,
+    p_brand: brand === undefined ? null : brand,
+  });
+  if (error) throw error;
+}
+async function getMyHourlyRate(orgId) {
+  const { data, error } = await sb.from("member_field_settings")
+    .select("hourly_rate").eq("org_id", orgId).eq("user_id", currentUser.id).maybeSingle();
+  if (error) throw error;
+  return data ? data.hourly_rate : null;
+}
+async function setMyHourlyRateWeb(orgId, rate) {
+  const { error } = await sb.from("member_field_settings")
+    .upsert({ org_id: orgId, user_id: currentUser.id, hourly_rate: rate,
+              updated_at: new Date().toISOString() }, { onConflict: "org_id,user_id" });
+  if (error) throw error;
+}
+
+/* Join links. The code is stashed before any auth redirect so it survives the
+   sign-in round trip, and stripped from the URL so a shared screenshot or a
+   browser-history entry can't re-redeem it later. */
+function captureJoinCode() {
+  let code = null;
+  try {
+    const q = new URLSearchParams(location.search);
+    code = (q.get("join") || "").trim();
+    if (code) {
+      localStorage.setItem(LS_PENDING_INVITE, code);
+      q.delete("join");
+      const rest = q.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    }
+  } catch (_) {}
+  return code || (() => { try { return localStorage.getItem(LS_PENDING_INVITE); } catch (_) { return null; } })();
+}
+function clearPendingInvite() { try { localStorage.removeItem(LS_PENDING_INVITE); } catch (_) {} }
+/** Redeem a stashed code once we have a session. Safe to call repeatedly. */
+async function redeemPendingInvite() {
+  if (!sb || !currentUser) return;
+  let code = null;
+  try { code = localStorage.getItem(LS_PENDING_INVITE); } catch (_) {}
+  if (!code) return;
+  try {
+    const { data, error } = await sb.rpc("redeem_org_invite", { p_code: code });
+    if (error) throw error;
+    clearPendingInvite();
+    const row = Array.isArray(data) ? data[0] : data;
+    const name = (row && (row.org_name || row.orgName)) || "the team";
+    _orgCtx = null; saveOrgCtxCache(null);
+    await fetchOrgContext();
+    try { toast(`You've joined ${name}`); } catch (_) {}
+    try { renderTeamsSettings(); } catch (_) {}
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    // "already a member" is a no-op success from the user's point of view.
+    if (/already a member/i.test(msg)) { clearPendingInvite(); return; }
+    if (/invalid or expired/i.test(msg)) {
+      clearPendingInvite();
+      try { toast("That invite link is no longer valid — ask for a new one."); } catch (_) {}
+      return;
+    }
+    // Anything else (offline, transient) → keep the code and retry next boot.
+    console.warn("invite redeem failed", e);
+  }
+}
+
 function canManageCrews() {
   return ["owner", "admin", "dispatcher"].includes(orgRole());
 }
@@ -23993,6 +24123,7 @@ async function removeCrewMemberWeb(crewId, userId) {
 // source of truth) stay in agreement — no optimistic local divergence.
 async function afterCrewWrite(msg) {
   clearRateBookCache();   // Teams T5: rate books live on crews.data
+  _teamInvites = null;    // Teams T7: re-fetch invite links on the next render
   _orgCtx = null; saveOrgCtxCache(null);
   try { await fetchOrgContext(); } catch (_) {}
   renderTeamsSettings();
@@ -24059,6 +24190,117 @@ async function openTeamsSettings() {
   finally { _orgCtxLoading = false; renderTeamsSettings(); }
 }
 
+
+/* ── Teams T7: the installer's own view ────────────────────────────────────────
+   A crew member who signs in is NOT the account owner — they get their own empty
+   calculator, and this pane instead of the owner's crew-management UI. What's here
+   is exactly what the DB will actually let them write: their crew's rate book
+   (via set_crew_self_service) and their own hourly rate. Everything else about
+   the crew is read-only, and jobs aren't reachable at all yet. */
+let _instSaving = false;
+
+function myCrews(ctx) {
+  const uid = currentUser && currentUser.id;
+  if (!uid) return [];
+  return (ctx.crews || []).filter(c => (c.memberIds || []).includes(uid));
+}
+
+function renderInstallerDashboard(body, ctx) {
+  const org = ctx.org || {};
+  const mine = myCrews(ctx);
+  const crew = mine[0] || null;
+  const rb = (crew && crew.data && crew.data.rateBook) || {};
+  const prices = rb.prices || {}, laborOv = rb.labor || {};
+  const brand = (crew && crew.data && crew.data.brand) || {};
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+
+  if (!crew) {
+    body.innerHTML = `
+      <div class="set-card">
+        <div class="team-org-head"><div class="min-w-0">
+          <div class="team-org-name">${escHtml(org.name || "This company")}</div>
+          <div class="team-org-sub">You&rsquo;re on the team as an <b>installer</b></div>
+        </div>
+        <button type="button" class="team-act" data-teams-refresh${_orgCtxLoading ? " disabled" : ""}>${_orgCtxLoading ? "Refreshing&hellip;" : "Refresh"}</button></div>
+        <p class="team-empty mt-2">You&rsquo;re in, but not on a crew yet &mdash; ask them to add you. Once you are, your rates and pay show up here.</p>
+      </div>`;
+    return;
+  }
+
+  const rows = priceableRateEntries().map(e => `
+    <label class="team-ratef">
+      <span class="team-ratename">${escHtml(e.item)}${e.label ? ` <i>${escHtml(e.label)}</i>` : ""}</span>
+      <span class="team-rateacct">theirs ${formatMoney(e.price)}/${escHtml(e.unit)}</span>
+      <input type="text" inputmode="decimal" data-irf="${escHtml(e.key)}" value="${prices[e.key] != null ? escHtml(String(prices[e.key])) : ""}"
+        placeholder="${Number(Number(e.price).toFixed(4))}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+    </label>`).join("");
+
+  body.innerHTML = `
+    <div class="set-card">
+      <div class="team-org-head">
+        <div class="min-w-0">
+          <div class="team-org-name">${escHtml(org.name || "This company")}</div>
+          <div class="team-org-sub">You&rsquo;re on <b>${escHtml(crew.name)}</b>${mine.length > 1 ? ` and ${mine.length - 1} other crew${mine.length > 2 ? "s" : ""}` : ""}</div>
+        </div>
+        <button type="button" class="team-act" data-teams-refresh${_orgCtxLoading ? " disabled" : ""}>${_orgCtxLoading ? "Refreshing&hellip;" : "Refresh"}</button>
+      </div>
+      <p class="team-ratehint">These are the numbers they price your work with. Set what <b>you</b> actually charge and it feeds their quotes for jobs assigned to ${escHtml(crew.name)}. Blank means you&rsquo;re fine with their rate.</p>
+    </div>
+
+    <div class="set-card mt-3" data-inst-form="${escHtml(crew.id)}">
+      <div class="set-sub mb-2">Your prices</div>
+      <div class="team-rategrid">${rows}</div>
+      <div class="team-rategrid team-rategrid-labor">
+        <label class="team-ratef">
+          <span class="team-ratename">Setup per opening</span>
+          <span class="team-rateacct">theirs ${LM.setupMinPerOpening ?? 45} min</span>
+          <input type="text" inputmode="decimal" data-irl="setupMinPerOpening" value="${laborOv.setupMinPerOpening != null ? escHtml(String(laborOv.setupMinPerOpening)) : ""}"
+            placeholder="${LM.setupMinPerOpening ?? 45}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+        <label class="team-ratef">
+          <span class="team-ratename">Mobilization</span>
+          <span class="team-rateacct">theirs ${LM.mobilizationHours ?? 2} hrs</span>
+          <input type="text" inputmode="decimal" data-irl="mobilizationHours" value="${laborOv.mobilizationHours != null ? escHtml(String(laborOv.mobilizationHours)) : ""}"
+            placeholder="${LM.mobilizationHours ?? 2}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+      </div>
+      <div class="team-brandactions">
+        <button type="button" class="team-add-btn" data-inst-save="${escHtml(crew.id)}"${_instSaving ? " disabled" : ""}>${_instSaving ? "Saving&hellip;" : "Save my rates"}</button>
+      </div>
+    </div>
+
+    <div class="set-card mt-3">
+      <div class="set-sub mb-2">Your pay</div>
+      <div class="team-rategrid">
+        <label class="team-ratef">
+          <span class="team-ratename">Your hourly rate</span>
+          <input type="text" inputmode="decimal" id="instMyRate" placeholder="&mdash;" class="control rounded-lg px-2.5 py-1.5 w-28 text-sm text-slate-100 placeholder:text-slate-600" />
+          <button type="button" class="team-act" data-inst-pay-save>Save</button>
+        </label>
+      </div>
+      <p class="team-ratehint mt-1">Only you and the company&rsquo;s owner can see this. It&rsquo;s what their labor math uses for your hours.</p>
+    </div>
+
+    ${brand.companyName || brand.logo ? `<div class="set-card mt-3">
+      <div class="set-sub mb-2">Your company on their quotes</div>
+      <div class="team-brandrow" style="border-top:0;padding-top:0;">
+        ${brand.logo ? `<img class="team-brandlogo" src="${escHtml(brand.logo)}" alt="" />` : `<span class="team-brandlogo team-brandlogo-empty">no logo</span>`}
+        <span class="team-brandname">${escHtml(brand.companyName || "No name set")}</span>
+        <span class="team-brandflag${crew.data && crew.data.brandOnQuotes ? " is-on" : ""}">${crew.data && crew.data.brandOnQuotes ? "On quotes" : "Not on quotes"}</span>
+      </div>
+      <p class="team-ratehint mt-2">Whether your branding appears is their setting, not yours.</p>
+    </div>` : ""}
+
+    <p class="team-foot">You&rsquo;re seeing the installer view. Crew membership, job assignments and pricing calibration stay with the company owner.</p>`;
+
+  // Pay is a separate table read; fill it in once the pane exists.
+  const payInput = document.getElementById("instMyRate");
+  if (payInput && sb && currentUser) {
+    getMyHourlyRate(ctx.orgId).then(v => { if (v != null && document.getElementById("instMyRate")) document.getElementById("instMyRate").value = String(v); })
+      .catch(() => {});
+  }
+}
+
 function renderTeamsSettings() {
   const body = document.getElementById("teamsBody");
   if (!body) return;
@@ -24078,6 +24320,8 @@ function renderTeamsSettings() {
     return;
   }
   const ctx = getOrgContext();
+  // Teams T7: a plain crew member gets the installer view, not the owner's UI.
+  if (ctx && !isOrgAdminRole() && orgRole() !== "dispatcher") { renderInstallerDashboard(body, ctx); return; }
   if (!ctx) {
     body.innerHTML = _orgCtxLoading
       ? `<div class="set-card"><p class="team-empty">Loading your company&hellip;</p></div>`
@@ -24270,10 +24514,45 @@ function renderTeamsSettings() {
       </div>` : ""}
       ${unassigned.length ? `<div class="team-sec-h mt-4">Not on a crew</div><div class="team-chips">${unassigned.map(m => who(m.userId)).join("")}</div>` : ""}
     </div>
+    <div class="set-card mt-3">
+      <div class="set-sub mb-2">Invite links</div>
+      <div id="teamInvites"></div>
+    </div>
     <p class="team-foot">Crews here are the same crews as in the Anchor Field app &mdash; changes show up in both. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}Assign a job to a team on the Save&nbsp;Job screen: its labor prices at that team&rsquo;s pay, its rate overrides apply, and in subcontracted mode its branding goes on the customer&rsquo;s quote.</p>`;
+  if (isOrgAdminRole()) renderInvitePanel(ctx.orgId);   // Teams T7 — lazy, non-blocking
 }
 let _teamBrandOpen = null;   // crew id whose branding form is expanded
 let _teamRatesOpen = null;   // crew id whose rate book is expanded
+let _teamInvitesOpen = false;   // Teams T7: the owner's invite panel
+let _teamInvites = null;        // cached list; null = not loaded yet
+
+/** Owner-side invite panel. Rendered as a placeholder, filled after the fetch,
+    so the Teams pane never blocks on a second round trip. */
+function renderInvitePanel(orgId) {
+  const wrap = document.getElementById("teamInvites");
+  if (!wrap) return;
+  if (_teamInvites === null) {
+    wrap.innerHTML = `<p class="team-empty">Loading invite links&hellip;</p>`;
+    listOrgInvitesWeb(orgId)
+      .then(rows => { _teamInvites = rows; renderInvitePanel(orgId); })
+      .catch(() => { _teamInvites = []; renderInvitePanel(orgId); });
+    return;
+  }
+  const rows = _teamInvites.map(iv => {
+    const left = Math.max(0, (iv.max_uses || 0) - (iv.uses || 0));
+    const days = Math.max(0, Math.ceil((new Date(iv.expires_at) - Date.now()) / 86400000));
+    return `<div class="team-inviterow">
+      <code class="team-invitecode">${escHtml(iv.code)}</code>
+      <span class="team-invitemeta">${escHtml(ROLE_LABEL[iv.role] || iv.role)} &middot; ${left} use${left === 1 ? "" : "s"} left &middot; ${days}d</span>
+      <button type="button" class="team-act" data-invite-copy="${escHtml(iv.code)}">Copy link</button>
+      <button type="button" class="team-act team-act-danger" data-invite-revoke="${escHtml(iv.id)}">Revoke</button>
+    </div>`;
+  }).join("");
+  wrap.innerHTML = (rows || `<p class="team-empty">No active invite links.</p>`) +
+    `<button type="button" class="team-add-btn mt-2" data-invite-new>Create an invite link</button>
+     <p class="team-ratehint mt-2">Send this to a sub or a crew lead. They sign up with their own email, land on the team as an installer, and can then set the prices and pay you quote their work at. Add them to a crew above once they&rsquo;ve joined.</p>`;
+}
+
 
 /** Every account price a team could override: one row per VARIANT (that's where
     dollars live), or the item itself when it has none. Trim is grid-priced and
@@ -24310,6 +24589,49 @@ function wireTeamsSettings() {
       return;
     }
     const ctx = getOrgContext();
+    // ── Teams T7: installer self-service (runs before the owner-only gate) ──
+    const iSave = e.target.closest("[data-inst-save]");
+    if (iSave) {
+      const cid = iSave.dataset.instSave;
+      const form = body.querySelector(`[data-inst-form="${cid}"]`);
+      if (!form || !ctx) return;
+      // Same sparse rule as the owner's editor: only real differences persist, so
+      // an unset row keeps tracking whatever the company changes its rate to.
+      const acct = {};
+      priceableRateEntries().forEach(en => acct[en.key] = Number(en.price));
+      const prices = {};
+      form.querySelectorAll("[data-irf]").forEach(inp => {
+        const raw = (inp.value || "").trim(); if (!raw) return;
+        const n2 = Number(raw); if (isNaN(n2) || n2 < 0) return;
+        if (n2 === acct[inp.dataset.irf]) return;
+        prices[inp.dataset.irf] = n2;
+      });
+      const LM2 = (DATA.config && DATA.config.laborModel) || {};
+      const acctLabor = { setupMinPerOpening: LM2.setupMinPerOpening ?? 45, mobilizationHours: LM2.mobilizationHours ?? 2 };
+      const labor = {};
+      form.querySelectorAll("[data-irl]").forEach(inp => {
+        const raw = (inp.value || "").trim(); if (!raw) return;
+        const n2 = Number(raw); if (isNaN(n2) || n2 < 0) return;
+        if (n2 === Number(acctLabor[inp.dataset.irl])) return;
+        labor[inp.dataset.irl] = n2;
+      });
+      _instSaving = true; renderTeamsSettings();
+      setCrewSelfServiceWeb(cid, { prices, labor })
+        .then(() => { _instSaving = false; return afterCrewWrite("Your rates are saved"); })
+        .catch((err) => { _instSaving = false; renderTeamsSettings(); fail(err); });
+      return;
+    }
+    if (e.target.closest("[data-inst-pay-save]")) {
+      const inp = document.getElementById("instMyRate");
+      if (!inp || !ctx) return;
+      const raw = (inp.value || "").trim();
+      const n2 = raw === "" ? null : Number(raw);
+      if (raw !== "" && (isNaN(n2) || n2 < 0)) { try { toast("Enter an hourly rate like 38"); } catch (_) {} return; }
+      setMyHourlyRateWeb(ctx.orgId, n2)
+        .then(() => { clearRateBookCache(); return afterCrewWrite("Your pay is saved"); })
+        .catch(fail);
+      return;
+    }
     if (!ctx || !canManageCrews()) return;   // RLS would reject anyway; don't pretend
     const fail = (e2) => { try { toast((e2 && e2.message) ? "Couldn't save — " + e2.message : "Couldn't save that change."); } catch (_) {} };
 
@@ -24413,6 +24735,28 @@ function wireTeamsSettings() {
       updateCrewDataWeb(cid, { rateBook })
         .then(() => { _teamRatesOpen = null; return afterCrewWrite(rateBook ? "Rates saved" : "Rate overrides cleared"); })
         .catch(fail).finally(() => { rSave.disabled = false; });
+      return;
+    }
+    // ── Teams T7: invite links ──
+    if (e.target.closest("[data-invite-new]")) {
+      if (!isOrgAdminRole()) { try { toast("Only an owner or admin can invite."); } catch (_) {} return; }
+      createOrgInviteWeb(ctx.orgId, "installer")
+        .then((code) => { _teamInvitesOpen = true; return afterCrewWrite("Invite link created"); })
+        .catch(fail);
+      return;
+    }
+    const iCopy = e.target.closest("[data-invite-copy]");
+    if (iCopy) {
+      const link = inviteLinkFor(iCopy.dataset.inviteCopy);
+      const done = () => { try { toast("Invite link copied"); } catch (_) {} };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done).catch(() => prompt("Copy this link:", link));
+      else prompt("Copy this link:", link);
+      return;
+    }
+    const iRev = e.target.closest("[data-invite-revoke]");
+    if (iRev) {
+      if (!confirm("Revoke this invite link?\n\nAnyone who hasn't used it yet won't be able to join with it. People who already joined stay on the team.")) return;
+      revokeOrgInviteWeb(iRev.dataset.inviteRevoke).then(() => afterCrewWrite("Invite revoked")).catch(fail);
       return;
     }
     const add = e.target.closest("[data-crew-add]");
@@ -34022,6 +34366,9 @@ async function syncFromCloud() {
     const { data: { user } } = await sb.auth.getUser();
     currentUser = user;
     if (!user) throw new Error("Not signed in");
+    // Teams T7: a ?join= code stashed before sign-in redeems here, once, as soon
+    // as there's a session. Fire-and-forget so a bad code can't block the sync.
+    redeemPendingInvite().catch(() => {});
 
     const { data: prof, error: pErr } = await sb.from("profiles")
       .select("data, updated_at").eq("id", user.id).maybeSingle();
@@ -37648,6 +37995,7 @@ function init() {
   // idempotent even if the listener ever does fire twice.
   try { wireTabBar(); } catch (_) {}   // mobile bottom tab bar (UI refresh P1)
   try { initAnimatedSelects(); } catch (_) {}   // animated dropdowns everywhere
+  try { captureJoinCode(); } catch (_) {}      // Teams T7: stash + strip ?join=CODE
   try { wireTeamsSettings(); } catch (_) {}   // Settings → Teams (T1)
   // Lapsed-account paywall actions (2026-07)
   { const _cta = document.getElementById("calcPaywallCta");
