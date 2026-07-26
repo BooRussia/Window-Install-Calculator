@@ -1014,6 +1014,11 @@
   .crewpanel-table td { text-align: right; padding: 10px 12px; color: #cbd5e1; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .crewpanel-table tbody tr + tr td { border-top: 1px solid rgba(51,65,85,0.35); }
   .crewpanel-table .cp-name { font-weight: 700; color: #f1f5f9; }
+  .crewpanel-table .cp-pick { font: inherit; color: inherit; background: none; border: 0; padding: 0;
+    cursor: pointer; text-align: left; border-bottom: 1px dashed transparent; }
+  .crewpanel-table .cp-pick:hover { color: var(--gold-hi); border-bottom-color: rgba(181,143,74,0.55); }
+  .crewpanel-table tr.is-sel { background: rgba(181,143,74,0.10); }
+  .crewpanel-table tr.is-sel .cp-pick { color: var(--gold-hi); }
   .crewpanel-table .cp-profit { color: #c9a558; font-weight: 700; }
   .crewpanel-table tr.is-unassigned .cp-name { color: #94a3b8; font-style: italic; }
   [data-theme="light"] .crewpanel-toggle { background: #ffffff; border-color: #d6dae1; color: #64748b; }
@@ -1024,6 +1029,9 @@
   [data-theme="light"] .crewpanel-table th { color: #64748b; }
   [data-theme="light"] .crewpanel-table .cp-profit { color: #8a6a2e; }
   [data-theme="light"] .crewpanel-table tr.is-unassigned .cp-name { color: #64748b; }
+  [data-theme="light"] .crewpanel-table .cp-pick:hover,
+  [data-theme="light"] .crewpanel-table tr.is-sel .cp-pick { color: #8a6a2e; }
+  [data-theme="light"] .crewpanel-table tr.is-sel { background: rgba(181,143,74,0.09); }
   .dash-chip-n { font-variant-numeric: tabular-nums; font-weight: 800; color: #64748b; }
   .dash-chip.active .dash-chip-n { color: inherit; }
   [data-theme="light"] .dash-chip { background: #ffffff; border-color: #d6dae1; color: #64748b; }
@@ -8777,6 +8785,9 @@
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v9M6 8l4 4 4-4M4 15v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"/></svg>
               Export CSV
             </button>
+            <!-- Teams T3b: crew/sub filter. A dropdown, not chips — the list is
+                 variable-length and it costs no vertical space in this toolbar. -->
+            <select id="dashCrewFilter" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300 hidden" title="Filter jobs by crew"></select>
             <select id="dashJobSort" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Sort saved jobs">
               <option value="recent">Most recent</option>
               <option value="oldest">Oldest first</option>
@@ -8793,8 +8804,7 @@
         </div>
         <!-- Status filter chips (UI refresh P4) — rendered by renderDashJobsChips -->
         <div id="dashJobsChips" class="dash-status-chips hidden" role="group" aria-label="Filter jobs by status"></div>
-        <!-- Teams T3b: filter by assigned crew/sub + a per-crew performance panel -->
-        <div id="dashCrewChips" class="dash-status-chips hidden" role="group" aria-label="Filter jobs by crew"></div>
+        <!-- Teams T3b: per-crew performance (collapsed by default) -->
         <div id="dashCrewPanel" class="hidden"></div>
         <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         <!-- CMP-1: floating comparison bar — appears when 2+ jobs are selected via
@@ -19566,7 +19576,7 @@ function jobLaborCost(j) {
 function crewPerformance(jobs) {
   const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
   const crews = (ctx && ctx.crews) ? ctx.crews : [];
-  if (!crews.length) return null;
+  if (!crews.length) return null;   // the full roster — a crew with 0 matches still lists
   const real = (jobs || []).filter(j => j && !j.isDraft);
   const mk = (id, name) => ({ id, name, jobs: 0, revenue: 0, profit: 0, labor: 0, marginSum: 0, marginN: 0 });
   const buckets = crews.map(c => mk(c.id, c.name));
@@ -19583,34 +19593,28 @@ function crewPerformance(jobs) {
   const fin = (b) => Object.assign(b, { avgMargin: b.marginN ? Math.round(b.marginSum / b.marginN) : null });
   return { crews: buckets.map(fin), unassigned: fin(unassigned), total: real.length };
 }
-function renderDashCrewChips(jobs) {
-  const wrap = document.getElementById("dashCrewChips");
-  if (!wrap) return;
+function renderDashCrewFilter(jobs) {
+  const sel = document.getElementById("dashCrewFilter");
+  if (!sel) return;
   const perf = crewPerformance(jobs);
-  // No crews (solo account, or the org context isn't loaded) → hide both, and
-  // drop any stale filter so the jobs list isn't silently narrowed.
+  // No crews (solo account, or the org context isn't loaded) → hide the control
+  // and the panel, and drop any stale filter so the list isn't silently narrowed.
   if (!perf) {
-    wrap.innerHTML = ""; wrap.classList.add("hidden");
+    sel.innerHTML = ""; sel.classList.add("hidden");
     _dashCrewFilter = null;
     const panel = document.getElementById("dashCrewPanel");
     if (panel) { panel.innerHTML = ""; panel.classList.add("hidden"); }
     return;
   }
   const mode = (typeof teamModeOf === "function") ? teamModeOf() : null;
-  const label = mode === "subcontract" ? "All subs" : "All crews";
-  // `key` is the literal filter value ("__none__" for unassigned); undefined = the All chip.
-  const chip = (text, key, count) => {
-    const active = key === undefined ? !_dashCrewFilter : _dashCrewFilter === key;
-    return `<button type="button" class="dash-chip${active ? " active" : ""}" aria-pressed="${active}"` +
-      (key === undefined ? " data-crew-filter-all" : ` data-crew-filter="${escHtml(key)}"`) +
-      `>${escHtml(text)}<span class="dash-chip-n">${count}</span></button>`;
-  };
-  const parts = [chip(label, undefined, perf.total)]
-    .concat(perf.crews.filter(c => c.jobs > 0).map(c => chip(c.name, c.id, c.jobs)));
-  if (perf.unassigned.jobs > 0) parts.push(chip("Unassigned", "__none__", perf.unassigned.jobs));
-  // Nothing is assigned yet → the row would just say "All crews" — skip it.
-  if (parts.length <= 2 && !perf.crews.some(c => c.jobs > 0)) { wrap.innerHTML = ""; wrap.classList.add("hidden"); }
-  else { wrap.innerHTML = parts.join(""); wrap.classList.remove("hidden"); }
+  const opt = (val, text, count) =>
+    `<option value="${escHtml(val)}"${val === (_dashCrewFilter || "") ? " selected" : ""}>` +
+    `${escHtml(text)}${count == null ? "" : "  \u00b7  " + count}</option>`;
+  let html = opt("", mode === "subcontract" ? "All subs" : "All crews", perf.total);
+  perf.crews.forEach(c => { html += opt(c.id, c.name, c.jobs); });
+  if (perf.unassigned.jobs > 0) html += opt("__none__", "Unassigned", perf.unassigned.jobs);
+  sel.innerHTML = html;
+  sel.classList.remove("hidden");
   renderDashCrewPanel(jobs, perf);
 }
 function renderDashCrewPanel(jobs, perf) {
@@ -19623,19 +19627,23 @@ function renderDashCrewPanel(jobs, perf) {
   const mode = (typeof teamModeOf === "function") ? teamModeOf() : null;
   const head = mode === "subcontract" ? "By subcontractor" : "By crew";
   if (!_dashCrewPanelOpen) {
-    el.innerHTML = `<button type="button" class="crewpanel-toggle" data-crewpanel-toggle>${escHtml(head)} &middot; ${rows.length} with jobs <span class="crewpanel-chev">&#9662;</span></button>`;
+    el.innerHTML = `<button type="button" class="crewpanel-toggle" data-crewpanel-toggle>${escHtml(head)} <span class="crewpanel-chev">&#9662;</span></button>`;
     return;
   }
   const all = rows.concat(perf.unassigned.jobs ? [perf.unassigned] : []);
-  const body = all.map(c => `
-    <tr${c.id === null ? ' class="is-unassigned"' : ""}>
-      <td class="cp-name">${escHtml(c.name)}</td>
+  const body = all.map(c => {
+    const key = c.id === null ? "__none__" : c.id;
+    const cls = [c.id === null ? "is-unassigned" : "", _dashCrewFilter === key ? "is-sel" : ""].filter(Boolean).join(" ");
+    return `
+    <tr${cls ? ` class="${cls}"` : ""}>
+      <td class="cp-name"><button type="button" class="cp-pick" data-crew-row="${escHtml(key)}" title="Show only this team's jobs">${escHtml(c.name)}</button></td>
       <td>${c.jobs}</td>
       <td>${formatMoney(c.revenue)}</td>
       <td class="internal-only">${formatMoney(c.labor)}</td>
       <td class="internal-only cp-profit">${formatMoney(c.profit)}</td>
       <td class="internal-only">${c.avgMargin == null ? "&mdash;" : c.avgMargin + "%"}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   el.innerHTML = `
     <button type="button" class="crewpanel-toggle is-open" data-crewpanel-toggle>${escHtml(head)} <span class="crewpanel-chev">&#9652;</span></button>
     <div class="crewpanel-wrap">
@@ -19649,8 +19657,16 @@ function renderDashCrewPanel(jobs, perf) {
 function renderDashJobs(jobs) {
   const grid = document.getElementById("dashJobsGrid");
   if (!grid) return;
-  renderDashJobsChips(jobs || loadJobs());
-  renderDashCrewChips(jobs || loadJobs());
+  // Faceted counts: the status chips count within the active crew filter and the
+  // crew dropdown counts within the active status filter, so neither row can show
+  // a number that disagrees with the list underneath it.
+  const _all = jobs || loadJobs();
+  renderDashJobsChips(_dashCrewFilter
+    ? _all.filter(j => j && !j.isDraft && (_dashCrewFilter === "__none__" ? !j.assignedCrewId : j.assignedCrewId === _dashCrewFilter))
+    : _all);
+  renderDashCrewFilter(_dashStatusFilter
+    ? _all.filter(j => j && !j.isDraft && jobStatus(j) === _dashStatusFilter)
+    : _all);
   const q = (document.getElementById("dashJobSearch")?.value || "").trim().toLowerCase();
   let list = (jobs || loadJobs()).slice().reverse();
   if (_dashStatusFilter) list = list.filter(j => !j.isDraft && jobStatus(j) === _dashStatusFilter);
@@ -21709,20 +21725,24 @@ function wireDashboard() {
   // Status chips above the jobs grid (UI refresh P4). The pipeline panel's
   // data-dash-filter listener only covers that panel, so the chip row gets its
   // own — same _dashStatusFilter + legend re-render, so both stay in lockstep.
-  // Teams T3b — crew chips + panel toggle
-  const crewChips = document.getElementById("dashCrewChips");
-  if (crewChips) crewChips.addEventListener("click", (e) => {
-    const all = e.target.closest("[data-crew-filter-all]");
-    const f = e.target.closest("[data-crew-filter]");
-    if (!all && !f) return;
-    _dashCrewFilter = all ? null : (_dashCrewFilter === f.dataset.crewFilter ? null : f.dataset.crewFilter);
+  // Teams T3b — crew filter dropdown, plus the panel's toggle and row picks
+  const crewSel = document.getElementById("dashCrewFilter");
+  if (crewSel) crewSel.addEventListener("change", () => {
+    _dashCrewFilter = crewSel.value || null;
     renderDashJobs(loadJobs());
   });
   const crewPanel = document.getElementById("dashCrewPanel");
   if (crewPanel) crewPanel.addEventListener("click", (e) => {
-    if (!e.target.closest("[data-crewpanel-toggle]")) return;
-    _dashCrewPanelOpen = !_dashCrewPanelOpen;
-    renderDashCrewPanel(loadJobs());
+    if (e.target.closest("[data-crewpanel-toggle]")) {
+      _dashCrewPanelOpen = !_dashCrewPanelOpen;
+      renderDashCrewPanel(loadJobs());
+      return;
+    }
+    const pick = e.target.closest("[data-crew-row]");
+    if (!pick) return;
+    const key = pick.dataset.crewRow;
+    _dashCrewFilter = (_dashCrewFilter === key) ? null : key;   // click again to clear
+    renderDashJobs(loadJobs());
   });
   const chipsWrap = document.getElementById("dashJobsChips");
   if (chipsWrap) chipsWrap.addEventListener("click", (e) => {
