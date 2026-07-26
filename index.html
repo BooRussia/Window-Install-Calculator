@@ -9896,13 +9896,13 @@
       </div>
       <div>
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job name <span class="text-slate-600 normal-case tracking-normal">(this job)</span></label>
-        <div id="saveJobCrewWrap" class="hidden mb-3">
-          <label class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold mb-1.5" for="saveJobCrew">Assign to</label>
-          <select id="saveJobCrew" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100"></select>
-          <p id="saveJobCrewHint" class="mt-1 text-[11px] text-slate-500"></p>
-        </div>
         <input id="saveJobJobName" type="text" placeholder="e.g. Smith Residence · 123 Main St" autocomplete="off" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+      </div>
+      <div id="saveJobCrewWrap" class="hidden">
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2" for="saveJobCrew">Assign to</label>
+        <select id="saveJobCrew" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100"></select>
+        <p id="saveJobCrewHint" class="mt-1.5 text-[11px] text-slate-500 leading-relaxed"></p>
       </div>
       <div>
         <div class="flex items-center justify-between gap-2 mb-2">
@@ -15492,9 +15492,64 @@ function closePfpMenu(immediate) {
   m._pfpCloseT = setTimeout(() => finishPfpClose(m), panelDur + 30);
 }
 
+/* ── Teams T4: whose name goes on the paperwork ────────────────────────────────
+   Subcontract mode only. When a job is assigned to a sub AND that sub has opted
+   in (crews.data.brandOnQuotes, set in Settings → Teams), the sub's own company
+   name / logo / phone / email / license replace the account's on that job's
+   documents. In-house mode never swaps — big orgs divide work between internal
+   crews and the paperwork must always carry the one company name, which is the
+   whole reason the mode toggle exists.
+
+   Resolution is an OVERLAY, not a replacement: the sub supplies only the five
+   fields its editor collects, so city/state/zip/website/tagline still come from
+   the account. A field the sub left BLANK falls back to the account's value, so
+   the document always carries a reachable phone/email rather than a sub's name
+   above dead air. The one deliberate exception is the logo — see below.
+
+   Reads STATE.assignedCrewId, so every document surface picks this up for free:
+   PDFs run off live STATE, and the share/e-sign snapshots run through
+   applyJobToState() first (which restores assignedCrewId). */
+function mainBrand() { return (DATA && DATA.config && DATA.config.brand) || {}; }
+
+/** The sub's brand for a crew id, or null when it shouldn't be used. */
+function teamBrandFor(crewId) {
+  if (!crewId) return null;
+  if (typeof teamModeOf !== "function" || teamModeOf() !== "subcontract") return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crew = ctx && (ctx.crews || []).find(c => c.id === crewId);
+  const data = crew && crew.data;
+  if (!data || !data.brandOnQuotes) return null;
+  const b = data.brand || {};
+  // Nothing usable → don't half-swap the letterhead.
+  if (!b.companyName && !b.logo) return null;
+  return b;
+}
+
+/** The brand to print on THIS job's documents. */
+function effectiveBrand() {
+  const base = mainBrand();
+  const team = teamBrandFor(typeof assignedCrewId === "function" ? assignedCrewId() : null);
+  if (!team) return base;
+  const out = Object.assign({}, base);
+  ["companyName", "logo", "phone", "email", "license"].forEach(k => {
+    if (team[k]) out[k] = team[k];
+  });
+  // Identity-bound fields must never ride along under another company's name: the
+  // account's logo, website and tagline are claims about the ACCOUNT. The sub's
+  // editor can't supply a website/tagline, so those simply go blank rather than
+  // pointing a customer at the sales company while the letterhead says otherwise.
+  // (phone/email still fall back above, so there is always a way to reach someone.)
+  if (team.companyName && !team.logo) out.logo = "";
+  out.website = team.website || "";
+  out.tagline = team.tagline || "";
+  out._teamBranded = true;
+  out._teamName = team.companyName || "";
+  return out;
+}
+
 // Build a human-readable brand line for PDFs ("Acme Windows  ·  Phoenix, AZ  ·  555-1234")
-function brandFooterLine(includeContact) {
-  const b = DATA.config.brand || {};
+function brandFooterLine(includeContact, brandOverride) {
+  const b = brandOverride || effectiveBrand();
   const parts = [];
   if (b.companyName) parts.push(b.companyName);
   if (b.city && b.state) parts.push(`${b.city}, ${b.state}`);
@@ -15504,11 +15559,15 @@ function brandFooterLine(includeContact) {
   return parts.join("  ·  ");
 }
 
-function brandContactLine() {
-  const b = DATA.config.brand || {};
+function brandContactLine(brandOverride) {
+  const b = brandOverride || effectiveBrand();
   const parts = [];
   if (b.email) parts.push(b.email);
   if (b.website) parts.push(b.website);
+  // Teams T4: the sub-brand editor collects a License # that nothing used to
+  // print. It belongs on customer paperwork, so surface it here. Accounts with no
+  // license on file are unaffected (the main brand has no such field yet).
+  if (b.license) parts.push(`Lic. ${b.license}`);
   return parts.join("  ·  ");
 }
 
@@ -23862,9 +23921,13 @@ function crewPayHint(id) {
   let r = null;
   try { r = resolveAssignedCrewCost(); } catch (_) {}
   STATE.assignedCrewId = prev;
-  if (!r) return "No pay set for this team yet — labor uses your default crew cost.";
-  const who = r.members.length ? `${r.crewSize} member${r.crewSize === 1 ? "" : "s"}` : `${r.crewSize}-person flat rate`;
-  return `Labor priced at this team's pay — ${who}, ${formatMoney(r.crewCostPerHr)}/hr.`;
+  const pay = !r ? "No pay set for this team yet — labor uses your default crew cost."
+    : `Labor priced at this team's pay — ${r.members.length ? `${r.crewSize} member${r.crewSize === 1 ? "" : "s"}` : `${r.crewSize}-person flat rate`}, ${formatMoney(r.crewCostPerHr)}/hr.`;
+  // Teams T4: say it plainly BEFORE they send anything — assigning a branded sub
+  // changes whose name the customer sees.
+  const tb = (typeof teamBrandFor === "function") ? teamBrandFor(id) : null;
+  if (!tb) return pay;
+  return `${pay} Customer quote, change orders and signing links go out as ${tb.companyName || "this sub"}${tb.logo ? ", with their logo" : ""}.`;
 }
 function renderSaveJobCrewPicker(selectedId) {
   const wrap = document.getElementById("saveJobCrewWrap");
@@ -26071,7 +26134,7 @@ function exportCustomerPDF(mode, force) {
   const ensure = (need) => { if (y + need > pageH - 70) { doc.addPage(); y = M; } };
 
   // ---------- Header ----------
-  const brand = DATA.config.brand || {};
+  const brand = effectiveBrand();   // Teams T4: the assigned sub's letterhead, if any
   let y;
   let logoDrawn = false;
   if (brand.logo) {
@@ -26294,7 +26357,7 @@ function exportCustomerPDF(mode, force) {
    ============================================================ */
 async function buildCustomerSharePayload() {
   const r = calculate();
-  const brand = (DATA && DATA.config && DATA.config.brand) || {};
+  const brand = effectiveBrand();   // Teams T4 — also carried into the e-sign snapshot
 
   // Same scope rows the customer PDF prints (kept in sync intentionally)
   const scope = [
@@ -26354,7 +26417,8 @@ async function buildCustomerSharePayload() {
       state:       brand.state || "",
       phone:       brand.phone || "",
       email:       brand.email || "",
-      website:     brand.website || ""
+      website:     brand.website || "",
+      license:     brand.license || ""     // Teams T4: subs carry a license #
     },
     customer:  STATE.customerName || "",
     total:     r.sellingPrice,
@@ -26903,7 +26967,7 @@ function exportPDF(mode) {
   const M = 40;
 
   // ---------- Header ----------
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   let y = M + 8;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
@@ -27100,7 +27164,7 @@ function exportPDF(mode) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(160, 160, 160);
-  const footerParts = [brandFooterLine(false), "Internal cost breakdown — not for customer distribution"]
+  const footerParts = [brandFooterLine(false, mainBrand()), "Internal cost breakdown — not for customer distribution"]
     .filter(Boolean);
   doc.text(footerParts.join("  ·  "), pageW / 2, pageH - 24, { align: "center" });
 
@@ -27167,7 +27231,7 @@ function exportMaterialsPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
 
   // Header
@@ -28142,7 +28206,7 @@ function exportChangeOrderPDF(mode, force) {
   const pageH = doc.internal.pageSize.getHeight();
   const M = 56;
   const ensure = (need) => { if (y + need > pageH - 70) { doc.addPage(); y = M; } };
-  const brand = DATA.config.brand || {};
+  const brand = effectiveBrand();   // Teams T4: customer-facing → assigned sub's letterhead
   let y;
   let logoDrawn = false;
 
@@ -32864,7 +32928,7 @@ function exportCutListPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
   const colorFor = (type) =>
     type.startsWith("Head") ? [200, 50, 50] :
@@ -33141,7 +33205,7 @@ function exportComparisonPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter", orientation });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
 
   // Header — same clean style as the other PDFs
@@ -33208,7 +33272,7 @@ function exportComparisonPDF(mode) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(160, 160, 160);
-  const footerParts = [brandFooterLine(false), "Internal job comparison — not for customer distribution"].filter(Boolean);
+  const footerParts = [brandFooterLine(false, mainBrand()), "Internal job comparison — not for customer distribution"].filter(Boolean);
   doc.text(footerParts.join("  ·  "), pageW / 2, pageH - 24, { align: "center" });
   outputPDF(doc, `Comparison-${Date.now()}.pdf`, mode);
 }
@@ -36831,7 +36895,7 @@ function exportPricingChecklistPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
   let y = M + 8;
 
