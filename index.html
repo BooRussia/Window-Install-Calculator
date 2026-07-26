@@ -1000,38 +1000,8 @@
   .dash-chip:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .dash-chip-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
   /* Teams T3b — per-crew performance panel */
-  .crewpanel-toggle { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 7px 13px;
-    border-radius: 9999px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
-    color: #94a3b8; background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.6); cursor: pointer; }
-  .crewpanel-toggle:hover { color: #e2e8f0; border-color: rgba(100,116,139,0.8); }
-  .crewpanel-toggle.is-open { color: var(--gold-hi); border-color: rgba(181,143,74,0.5); background: rgba(181,143,74,0.10); }
-  .crewpanel-chev { font-size: 9px; }
-  .crewpanel-wrap { overflow-x: auto; border: 1px solid rgba(51,65,85,0.55); border-radius: 14px; margin-bottom: 14px; }
-  .crewpanel-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  .crewpanel-table th { text-align: right; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8;
-    font-weight: 800; padding: 9px 12px; border-bottom: 1px solid rgba(51,65,85,0.6); white-space: nowrap; }
-  .crewpanel-table th:first-child, .crewpanel-table td:first-child { text-align: left; }
-  .crewpanel-table td { text-align: right; padding: 10px 12px; color: #cbd5e1; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .crewpanel-table tbody tr + tr td { border-top: 1px solid rgba(51,65,85,0.35); }
-  .crewpanel-table .cp-name { font-weight: 700; color: #f1f5f9; }
-  .crewpanel-table .cp-pick { font: inherit; color: inherit; background: none; border: 0; padding: 0;
-    cursor: pointer; text-align: left; border-bottom: 1px dashed transparent; }
-  .crewpanel-table .cp-pick:hover { color: var(--gold-hi); border-bottom-color: rgba(181,143,74,0.55); }
-  .crewpanel-table tr.is-sel { background: rgba(181,143,74,0.10); }
-  .crewpanel-table tr.is-sel .cp-pick { color: var(--gold-hi); }
-  .crewpanel-table .cp-profit { color: #c9a558; font-weight: 700; }
-  .crewpanel-table tr.is-unassigned .cp-name { color: #94a3b8; font-style: italic; }
-  [data-theme="light"] .crewpanel-toggle { background: #ffffff; border-color: #d6dae1; color: #64748b; }
-  [data-theme="light"] .crewpanel-toggle.is-open { color: #9a7636; border-color: #b58f4a; background: rgba(181,143,74,0.08); }
-  [data-theme="light"] .crewpanel-wrap { border-color: #e2e8f0; }
-  [data-theme="light"] .crewpanel-table td { color: #334155; }
-  [data-theme="light"] .crewpanel-table .cp-name { color: #0f172a; }
-  [data-theme="light"] .crewpanel-table th { color: #64748b; }
-  [data-theme="light"] .crewpanel-table .cp-profit { color: #8a6a2e; }
-  [data-theme="light"] .crewpanel-table tr.is-unassigned .cp-name { color: #64748b; }
-  [data-theme="light"] .crewpanel-table .cp-pick:hover,
-  [data-theme="light"] .crewpanel-table tr.is-sel .cp-pick { color: #8a6a2e; }
-  [data-theme="light"] .crewpanel-table tr.is-sel { background: rgba(181,143,74,0.09); }
+  /* Teams T3b — per-crew analytics live in the Insights card (see #dashCrewsPanel),
+     reusing the Customers panel's ranked-row idiom, so there is no bespoke styling. */
   .dash-chip-n { font-variant-numeric: tabular-nums; font-weight: 800; color: #64748b; }
   .dash-chip.active .dash-chip-n { color: inherit; }
   [data-theme="light"] .dash-chip { background: #ffffff; border-color: #d6dae1; color: #64748b; }
@@ -2604,11 +2574,11 @@
   #dashboardScreen:not(.hidden), #learnScreen:not(.hidden),
   #pricingScreen:not(.hidden), #setupScreen:not(.hidden) { animation: aScreenIn .32s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
   /* Insights tab swap: the newly-shown panel fades/rises in. */
-  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden) { animation: aSwap .24s ease both; }
+  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden), #dashCrewsPanel:not(.hidden) { animation: aSwap .24s ease both; }
   @media (prefers-reduced-motion: reduce) {
     .modal-backdrop, .modal-backdrop + div, .modal-backdrop + div.tv-off, .modal-closing .modal-backdrop,
     #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen,
-    #dashMaterials, #dashCustomers, #dashPipelinePanel { animation: none !important; }
+    #dashMaterials, #dashCustomers, #dashPipelinePanel, #dashCrewsPanel { animation: none !important; }
   }
   /* Dashboard insight charts — spin/scale pivots for the WAAPI-driven entrance:
      donut rings rotate around the donut center, trend dots pop from their own
@@ -4620,6 +4590,22 @@
   }
   [data-theme="light"] .seg-section { background: #e9edf3; }
   /* Smaller segmented toggles for swapping data types inside a panel. */
+  /* The Insights rail gained a 4th tab (Crews/Subs). Four 15px pills overflow a
+     375px phone and the card clips them (overflow-hidden), so on narrow screens the
+     rail scrolls horizontally instead — one row, nothing unreachable. Vertical
+     padding is untouched so the touch height stays ~42px. applyInsightTab() keeps
+     the active pill scrolled into view. */
+  @media (max-width: 460px) {
+    .seg-section { overflow-x: auto; justify-content: flex-start; scrollbar-width: none;
+      -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+      /* Without this the rail sizes to its content and the CARD clips it, so
+         overflow-x never engages and the last pill is simply unreachable. */
+      max-width: 100%; }
+    .seg-section::-webkit-scrollbar { display: none; }
+    /* Tight enough that all four pills fit a 375px phone without scrolling; the
+       scroll above is the safety net for 320px-class devices. */
+    .seg-section .seg-btn { padding: 11px 8px; font-size: 13px; }
+  }
   .seg-sm { max-width: 300px; padding: 3px; border-radius: 11px; }
   .seg-sm .seg-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; }
   /* Chart-type picker: icon segmented control, sized to sit inline with the metric
@@ -8763,12 +8749,14 @@
               <button type="button" class="seg-btn active" data-insight="materials">Materials</button>
               <button type="button" class="seg-btn" data-insight="customers">Customers</button>
               <button type="button" class="seg-btn" data-insight="jobs">Jobs</button>
+              <button type="button" class="seg-btn hidden" data-insight="crews">Crews</button>
             </div>
             <div id="dashInsightsMeta" class="text-center sm:text-right shrink-0"></div>
           </div>
           <div id="dashMaterials"></div>
           <div id="dashCustomers" class="hidden"></div>
           <div id="dashPipelinePanel" class="hidden"></div>
+          <div id="dashCrewsPanel" class="hidden"></div>
         </div>
         <div id="dashInsightsEmpty" class="card rounded-2xl px-6 py-12 text-center hidden">
           <div class="text-slate-400 text-sm font-semibold">No insights yet.</div>
@@ -8785,9 +8773,6 @@
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v9M6 8l4 4 4-4M4 15v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"/></svg>
               Export CSV
             </button>
-            <!-- Teams T3b: crew/sub filter. A dropdown, not chips — the list is
-                 variable-length and it costs no vertical space in this toolbar. -->
-            <select id="dashCrewFilter" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300 hidden" title="Filter jobs by crew"></select>
             <select id="dashJobSort" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Sort saved jobs">
               <option value="recent">Most recent</option>
               <option value="oldest">Oldest first</option>
@@ -8804,8 +8789,6 @@
         </div>
         <!-- Status filter chips (UI refresh P4) — rendered by renderDashJobsChips -->
         <div id="dashJobsChips" class="dash-status-chips hidden" role="group" aria-label="Filter jobs by status"></div>
-        <!-- Teams T3b: per-crew performance (collapsed by default) -->
-        <div id="dashCrewPanel" class="hidden"></div>
         <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         <!-- CMP-1: floating comparison bar — appears when 2+ jobs are selected via
              the per-card "Compare" toggle, and opens the (intact) compareModal. -->
@@ -17063,8 +17046,6 @@ function renderSavedJobs() {
    ============================================================ */
 let _dashPhotoTargetId = null;
 let _dashStatusFilter = null;
-let _dashCrewFilter = null;      // Teams T3b: filter the jobs list by assigned crew
-let _dashCrewPanelOpen = false;  // Teams T3b: per-crew performance panel
 let _dashWired = false;
 let _dashChartType = { materials: "pie", customers: "pie", jobs: "pie" };   // chart type per insight tab
 let _dashView = "home";              // home | insights | jobs | esign | calibration — the launchpad drill-in
@@ -18272,8 +18253,8 @@ function renderDashShopping(jobs) {
 // dashboard short). Each panel renders its own inner content (no card of its
 // own); this shows the active panel, hides a tab with no data, and mirrors the
 // active panel's callout into the shared header.
-const INSIGHT_TABS = ["materials", "customers", "jobs"];
-const INSIGHT_PANELS = { jobs: "dashPipelinePanel", materials: "dashMaterials", customers: "dashCustomers" };
+const INSIGHT_TABS = ["materials", "customers", "jobs", "crews"];
+const INSIGHT_PANELS = { jobs: "dashPipelinePanel", materials: "dashMaterials", customers: "dashCustomers", crews: "dashCrewsPanel" };
 let _dashInsightTab = "materials";   // materials | customers | jobs
 
 /* ============================================================
@@ -18531,6 +18512,7 @@ function renderDashInsights(jobs) {
     jobs: renderDashJobsPanel(jobs),
     materials: renderDashMaterials(jobs),
     customers: renderDashCustomers(jobs),
+    crews: renderDashCrewsPanel(jobs),   // Teams T3b — hidden unless the account has crews
   };
   const wrap = document.getElementById("dashInsights");
   if (!wrap) return;
@@ -18548,7 +18530,17 @@ function applyInsightTab(animate) {
   const tab = _dashInsightTab;
   Object.entries(INSIGHT_PANELS).forEach(([t, id]) => { const el = document.getElementById(id); if (el) el.classList.toggle("hidden", t !== tab); });
   const tabs = document.getElementById("dashInsightsTabs");
-  if (tabs) tabs.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.insight === tab));
+  if (tabs) {
+    tabs.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.insight === tab));
+    // Narrow screens scroll this rail (4 tabs don't fit a phone) — keep the active
+    // pill in view. Done by hand, not scrollIntoView, so the page never moves.
+    const on = tabs.querySelector(".seg-btn.active");
+    if (on && tabs.scrollWidth > tabs.clientWidth + 1) {
+      const l = on.offsetLeft, r = l + on.offsetWidth;
+      if (l < tabs.scrollLeft) tabs.scrollLeft = Math.max(0, l - 6);
+      else if (r > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = r - tabs.clientWidth + 6;
+    }
+  }
   const meta = document.getElementById("dashInsightsMeta");
   const active = document.getElementById(INSIGHT_PANELS[tab]);
   if (meta) meta.innerHTML = (active && active._meta) || "";
@@ -19593,86 +19585,87 @@ function crewPerformance(jobs) {
   const fin = (b) => Object.assign(b, { avgMargin: b.marginN ? Math.round(b.marginSum / b.marginN) : null });
   return { crews: buckets.map(fin), unassigned: fin(unassigned), total: real.length };
 }
-function renderDashCrewFilter(jobs) {
-  const sel = document.getElementById("dashCrewFilter");
-  if (!sel) return;
+// Per-crew analytics, rendered as a tab inside the Insights card — it is a
+// report, not a filter, so it belongs with Materials / Customers / Jobs rather
+// than in the Jobs toolbar. Returns false when the account has no crews (or
+// none have jobs), which auto-hides the tab via the shared INSIGHT_TABS logic.
+function renderDashCrewsPanel(jobs) {
+  const wrap = document.getElementById("dashCrewsPanel");
+  if (!wrap) return false;
   const perf = crewPerformance(jobs);
-  // No crews (solo account, or the org context isn't loaded) → hide the control
-  // and the panel, and drop any stale filter so the list isn't silently narrowed.
-  if (!perf) {
-    sel.innerHTML = ""; sel.classList.add("hidden");
-    _dashCrewFilter = null;
-    const panel = document.getElementById("dashCrewPanel");
-    if (panel) { panel.innerHTML = ""; panel.classList.add("hidden"); }
-    return;
-  }
-  const mode = (typeof teamModeOf === "function") ? teamModeOf() : null;
-  const opt = (val, text, count) =>
-    `<option value="${escHtml(val)}"${val === (_dashCrewFilter || "") ? " selected" : ""}>` +
-    `${escHtml(text)}${count == null ? "" : "  \u00b7  " + count}</option>`;
-  let html = opt("", mode === "subcontract" ? "All subs" : "All crews", perf.total);
-  perf.crews.forEach(c => { html += opt(c.id, c.name, c.jobs); });
-  if (perf.unassigned.jobs > 0) html += opt("__none__", "Unassigned", perf.unassigned.jobs);
-  sel.innerHTML = html;
-  sel.classList.remove("hidden");
-  renderDashCrewPanel(jobs, perf);
-}
-function renderDashCrewPanel(jobs, perf) {
-  const el = document.getElementById("dashCrewPanel");
-  if (!el) return;
-  perf = perf || crewPerformance(jobs || loadJobs());
-  const rows = perf ? perf.crews.filter(c => c.jobs > 0) : [];
-  if (!perf || !rows.length) { el.innerHTML = ""; el.classList.add("hidden"); return; }
-  el.classList.remove("hidden");
-  const mode = (typeof teamModeOf === "function") ? teamModeOf() : null;
-  const head = mode === "subcontract" ? "By subcontractor" : "By crew";
-  if (!_dashCrewPanelOpen) {
-    el.innerHTML = `<button type="button" class="crewpanel-toggle" data-crewpanel-toggle>${escHtml(head)} <span class="crewpanel-chev">&#9662;</span></button>`;
-    return;
-  }
-  const all = rows.concat(perf.unassigned.jobs ? [perf.unassigned] : []);
-  const body = all.map(c => {
-    const key = c.id === null ? "__none__" : c.id;
-    const cls = [c.id === null ? "is-unassigned" : "", _dashCrewFilter === key ? "is-sel" : ""].filter(Boolean).join(" ");
-    return `
-    <tr${cls ? ` class="${cls}"` : ""}>
-      <td class="cp-name"><button type="button" class="cp-pick" data-crew-row="${escHtml(key)}" title="Show only this team's jobs">${escHtml(c.name)}</button></td>
-      <td>${c.jobs}</td>
-      <td>${formatMoney(c.revenue)}</td>
-      <td class="internal-only">${formatMoney(c.labor)}</td>
-      <td class="internal-only cp-profit">${formatMoney(c.profit)}</td>
-      <td class="internal-only">${c.avgMargin == null ? "&mdash;" : c.avgMargin + "%"}</td>
-    </tr>`;
-  }).join("");
-  el.innerHTML = `
-    <button type="button" class="crewpanel-toggle is-open" data-crewpanel-toggle>${escHtml(head)} <span class="crewpanel-chev">&#9652;</span></button>
-    <div class="crewpanel-wrap">
-      <table class="crewpanel-table">
-        <thead><tr><th>${escHtml(mode === "subcontract" ? "Subcontractor" : "Crew")}</th><th>Jobs</th><th>Revenue</th><th class="internal-only">Labor</th><th class="internal-only">Profit</th><th class="internal-only">Avg markup</th></tr></thead>
-        <tbody>${body}</tbody>
-      </table>
+  const active = perf ? perf.crews.filter(c => c.jobs > 0) : [];
+  if (!active.length) { wrap.innerHTML = ""; wrap._meta = ""; return false; }
+  const subMode = (typeof teamModeOf === "function") && teamModeOf() === "subcontract";
+  const noun = subMode ? "subcontractor" : "crew";
+  const tabBtn = document.querySelector('#dashInsightsTabs [data-insight="crews"]');
+  if (tabBtn) tabBtn.textContent = subMode ? "Subs" : "Crews";
+
+  const ranked = active.slice().sort((a, b) => b.revenue - a.revenue);
+  const grandRev = ranked.reduce((t, c) => t + c.revenue, 0);
+  const top = ranked[0];
+  wrap._meta = `<div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top by revenue</div>
+    <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${grandRev > 0 ? Math.round(top.revenue / grandRev * 100) : 0}%</div>`;
+
+  // Clicking a row jumps to that team's jobs by dropping its name in the Jobs
+  // search box — the search already matches the assigned crew, so no second
+  // filter control has to exist.
+  const row = (c, i) => {
+    const col = CUST_COLORS[i % CUST_COLORS.length];
+    const sub = [`${c.jobs} job${c.jobs === 1 ? "" : "s"}`,
+                 c.avgMargin == null ? null : `${c.avgMargin}% avg markup`,
+                 `${formatMoney(c.labor)} labor`].filter(Boolean).join(" · ");
+    return `<button type="button" data-crew-jobs="${escHtml(c.name)}" class="w-full text-left flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-slate-800/40 transition">
+        <span style="width:11px;height:11px;border-radius:3px;background:${col};flex-shrink:0;"></span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-bold text-slate-100 truncate">${escHtml(c.name)}</span>
+          <span class="block text-[11px] text-slate-500 internal-only">${sub}</span>
+        </span>
+        <span class="text-right shrink-0">
+          <span class="block text-sm font-extrabold text-slate-100" style="font-variant-numeric:tabular-nums;">${formatMoney(c.revenue)}</span>
+          <span class="block text-[11px] text-emerald-300/90 internal-only">${formatMoney(c.profit)} profit</span>
+        </span>
+      </button>`;
+  };
+  const un = perf.unassigned;
+  const unRow = !un.jobs ? "" : `<div class="flex items-center gap-3 px-2 py-2.5">
+      <span style="width:11px;height:11px;border-radius:3px;background:#475569;flex-shrink:0;"></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-sm font-bold text-slate-400 italic truncate">Unassigned</span>
+        <span class="block text-[11px] text-slate-500 internal-only">${un.jobs} job${un.jobs === 1 ? "" : "s"} · no ${escHtml(noun)} set</span>
+      </span>
+      <span class="text-right shrink-0">
+        <span class="block text-sm font-extrabold text-slate-400" style="font-variant-numeric:tabular-nums;">${formatMoney(un.revenue)}</span>
+      </span>
     </div>`;
+  wrap.innerHTML = `
+      <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
+        <p class="text-[11px] text-slate-500 font-medium">${ranked.length} ${escHtml(noun)}${ranked.length === 1 ? "" : "s"} with jobs — revenue, labor and profit by team. Tap one to see its jobs.</p>
+      </div>
+      <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${ranked.map(row).join("")}${unRow}</div>`;
+  return true;
 }
+
 
 function renderDashJobs(jobs) {
   const grid = document.getElementById("dashJobsGrid");
   if (!grid) return;
-  // Faceted counts: the status chips count within the active crew filter and the
-  // crew dropdown counts within the active status filter, so neither row can show
-  // a number that disagrees with the list underneath it.
-  const _all = jobs || loadJobs();
-  renderDashJobsChips(_dashCrewFilter
-    ? _all.filter(j => j && !j.isDraft && (_dashCrewFilter === "__none__" ? !j.assignedCrewId : j.assignedCrewId === _dashCrewFilter))
-    : _all);
-  renderDashCrewFilter(_dashStatusFilter
-    ? _all.filter(j => j && !j.isDraft && jobStatus(j) === _dashStatusFilter)
-    : _all);
+  renderDashJobsChips(jobs || loadJobs());
+  // Teams T3b: tell accounts that HAVE crews that they can search by one. Solo
+  // accounts keep the original placeholder — no hint for something they can't use.
+  {
+    const box = document.getElementById("dashJobSearch");
+    const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+    const hasCrews = !!(ctx && (ctx.crews || []).length);
+    const ph = !hasCrews ? "Search jobs\u2026"
+      : ((typeof teamModeOf === "function" && teamModeOf() === "subcontract") ? "Search jobs or sub\u2026" : "Search jobs or crew\u2026");
+    if (box && box.placeholder !== ph) box.placeholder = ph;
+  }
   const q = (document.getElementById("dashJobSearch")?.value || "").trim().toLowerCase();
   let list = (jobs || loadJobs()).slice().reverse();
   if (_dashStatusFilter) list = list.filter(j => !j.isDraft && jobStatus(j) === _dashStatusFilter);
-  if (_dashCrewFilter) list = list.filter(j => !j.isDraft &&
-    (_dashCrewFilter === "__none__" ? !j.assignedCrewId : j.assignedCrewId === _dashCrewFilter));
-  if (q) list = list.filter(j => `${j.customerName || ""} ${j.name || ""} ${j.customerAddress || ""} ${j.manufacturer || ""}`.toLowerCase().includes(q));
+  // Teams T3b: the assigned crew/sub is searchable too — typing "Prime" pulls up
+  // that sub's jobs, so filtering by team needs no control of its own.
+  if (q) list = list.filter(j => `${j.customerName || ""} ${j.name || ""} ${j.customerAddress || ""} ${j.manufacturer || ""} ${crewLabel(j.assignedCrewId) || ""}`.toLowerCase().includes(q));
   const countEl = document.getElementById("dashJobsCount");
   if (countEl) {
     // DASH-10: count REAL jobs (matching the launchpad card, KPIs, and the guide's
@@ -19686,8 +19679,8 @@ function renderDashJobs(jobs) {
   }
   if (!list.length) {
     grid.innerHTML = `<div class="col-span-full card rounded-2xl px-6 py-12 text-center">
-      <div class="text-slate-400 text-sm font-semibold">${(q || _dashStatusFilter || _dashCrewFilter) ? "No jobs match." : "No saved jobs yet."}</div>
-      <div class="text-slate-600 text-xs mt-1.5">${(q || _dashStatusFilter || _dashCrewFilter) ? "Try a different search or filter." : "Quote a job and hit Save to see it here."}</div>
+      <div class="text-slate-400 text-sm font-semibold">${(q || _dashStatusFilter) ? "No jobs match." : "No saved jobs yet."}</div>
+      <div class="text-slate-600 text-xs mt-1.5">${(q || _dashStatusFilter) ? "Try a different search or filter." : "Quote a job and hit Save to see it here."}</div>
     </div>`;
     return;
   }
@@ -21725,23 +21718,15 @@ function wireDashboard() {
   // Status chips above the jobs grid (UI refresh P4). The pipeline panel's
   // data-dash-filter listener only covers that panel, so the chip row gets its
   // own — same _dashStatusFilter + legend re-render, so both stay in lockstep.
-  // Teams T3b — crew filter dropdown, plus the panel's toggle and row picks
-  const crewSel = document.getElementById("dashCrewFilter");
-  if (crewSel) crewSel.addEventListener("change", () => {
-    _dashCrewFilter = crewSel.value || null;
-    renderDashJobs(loadJobs());
-  });
-  const crewPanel = document.getElementById("dashCrewPanel");
-  if (crewPanel) crewPanel.addEventListener("click", (e) => {
-    if (e.target.closest("[data-crewpanel-toggle]")) {
-      _dashCrewPanelOpen = !_dashCrewPanelOpen;
-      renderDashCrewPanel(loadJobs());
-      return;
-    }
-    const pick = e.target.closest("[data-crew-row]");
+  // Teams T3b — tapping a crew in Insights shows that team's jobs, via the
+  // search box (which now matches the assigned crew).
+  const crewsPanel = document.getElementById("dashCrewsPanel");
+  if (crewsPanel) crewsPanel.addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-crew-jobs]");
     if (!pick) return;
-    const key = pick.dataset.crewRow;
-    _dashCrewFilter = (_dashCrewFilter === key) ? null : key;   // click again to clear
+    const box = document.getElementById("dashJobSearch");
+    if (box) box.value = pick.dataset.crewJobs;
+    dashGoTo("jobs");
     renderDashJobs(loadJobs());
   });
   const chipsWrap = document.getElementById("dashJobsChips");
