@@ -15529,9 +15529,57 @@ function applyBrandToUI() {
   renderPfp();
 }
 
-// Profile avatar — the company logo, or initials / anchor fallback. Rendered
-// into BOTH the app-header avatar (#pfpInner) and the dashboard avatar
-// (#dashPfpInner). Also gates the admin-only menu section.
+// Default profile avatars — cute ocean creatures (Anchor-themed), assigned once
+// per account until the user uploads a company logo. Served from /avatars/*.png.
+const CREW_AVATARS = [
+  { id: "coral-fish",   src: "/avatars/coral-fish.png",   label: "Coral fish" },
+  { id: "baby-octopus", src: "/avatars/baby-octopus.png", label: "Baby octopus" },
+  { id: "sea-turtle",   src: "/avatars/sea-turtle.png",   label: "Sea turtle" },
+  { id: "seahorse",     src: "/avatars/seahorse.png",     label: "Seahorse" },
+  { id: "hermit-crab",  src: "/avatars/hermit-crab.png",  label: "Hermit crab" },
+  { id: "whale",        src: "/avatars/whale.png",        label: "Whale" },
+  { id: "stingray",     src: "/avatars/stingray.png",     label: "Stingray" },
+  { id: "dolphin",      src: "/avatars/dolphin.png",      label: "Dolphin" },
+  { id: "starfish",     src: "/avatars/starfish.png",     label: "Starfish" },
+];
+
+function hashPickAvatar(seed, n) {
+  let h = 2166136261;
+  const s = String(seed || "anchor");
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) % n;
+}
+
+// Pick (and remember) a default ocean avatar for this account. Stable per user
+// id so the same creature comes back across devices even before the first save.
+function ensureCrewAvatarId() {
+  if (!DATA || !DATA.config) return CREW_AVATARS[0].id;
+  if (!DATA.config.brand) DATA.config.brand = {};
+  const b = DATA.config.brand;
+  if (b.avatarId && CREW_AVATARS.some(a => a.id === b.avatarId)) return b.avatarId;
+  const seed = (typeof currentUser !== "undefined" && currentUser && currentUser.id)
+    ? currentUser.id
+    : ((b.companyName || "") + "|" + (b.email || "") || "guest");
+  const id = CREW_AVATARS[hashPickAvatar(seed, CREW_AVATARS.length)].id;
+  b.avatarId = id;
+  // Persist lazily so cloud/local keep the choice without blocking paint.
+  try {
+    queueMicrotask(() => { try { if (DATA && DATA.config) saveData(DATA); } catch (_) {} });
+  } catch (_) {
+    try { saveData(DATA); } catch (__) {}
+  }
+  return id;
+}
+
+function crewAvatarSrc(id) {
+  const a = CREW_AVATARS.find(x => x.id === id) || CREW_AVATARS[0];
+  return a.src;
+}
+
+// Profile avatar — uploaded company logo, else a randomly-assigned ocean
+// creature (replaces the old "PW" initials from the demo brand name).
+// Rendered into BOTH the app-header avatar (#pfpInner) and the dashboard
+// avatar (#dashPfpInner). Also gates the admin-only menu section.
 function renderPfp() {
   const b = (DATA && DATA.config && DATA.config.brand) || {};
   let html;
@@ -15539,11 +15587,10 @@ function renderPfp() {
   if (b.logo && /^data:image\//i.test(b.logo)) {
     html = `<img src="${escHtml(b.logo)}" alt="" class="w-full h-full object-cover">`;
   } else {
-    const name = (b.companyName || "").trim();
-    const initials = name
-      ? name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()
-      : "";
-    html = `<span class="text-[11px] font-black text-[#c9a558]">${initials ? escHtml(initials) : "&#9875;"}</span>`;
+    const id = ensureCrewAvatarId();
+    const src = crewAvatarSrc(id);
+    const label = (CREW_AVATARS.find(a => a.id === id) || {}).label || "Profile";
+    html = `<img src="${escHtml(src)}" alt="${escHtml(label)}" class="w-full h-full object-cover" decoding="async">`;
   }
   ["pfpInner", "dashPfpInner"].forEach(id => {
     const el = document.getElementById(id); if (el) el.innerHTML = html;
@@ -37721,7 +37768,14 @@ function renderLogoPreview(previewId, removeId, dataUrl) {
     prev.innerHTML = `<img src="${dataUrl}" alt="logo" class="w-full h-full object-contain">`;
     if (rm) rm.classList.remove("hidden");
   } else {
-    prev.innerHTML = `<span class="text-[8px] text-slate-600 uppercase tracking-wide text-center px-1">No logo</span>`;
+    // Show the assigned ocean creature so empty logo preview matches the
+    // account avatar (instead of a blank "No logo" stub).
+    let creature = "";
+    try {
+      const id = ensureCrewAvatarId();
+      creature = `<img src="${escHtml(crewAvatarSrc(id))}" alt="" class="w-full h-full object-cover">`;
+    } catch (_) { creature = ""; }
+    prev.innerHTML = creature || `<span class="text-[8px] text-slate-600 uppercase tracking-wide text-center px-1">No logo</span>`;
     if (rm) rm.classList.add("hidden");
   }
 }
