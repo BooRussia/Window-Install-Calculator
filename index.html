@@ -635,6 +635,27 @@
   .team-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(51,65,85,0.5); }
   .team-mode-now { font-size: 13.5px; font-weight: 800; color: #f1f5f9; }
   .team-mode-sub { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+  .inst-shop-job { border: 1px solid rgba(51,65,85,0.5); border-radius: 12px; padding: 10px 12px; margin-bottom: 9px; }
+  .inst-shop-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .inst-shop-title { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 800; color: #f1f5f9;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inst-shop-count { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+  .inst-shop-note { font-size: 11px; color: #94a3b8; margin-bottom: 7px; }
+  .inst-shop-item { display: flex; align-items: center; gap: 9px; padding: 7px 0; cursor: pointer;
+    border-top: 1px dashed rgba(148,163,184,0.16); }
+  .inst-shop-item:first-of-type { border-top: 0; }
+  .inst-shop-name { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 600; color: #e2e8f0; }
+  .inst-shop-qty { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .inst-shop-item.is-done .inst-shop-name { color: #64748b; text-decoration: line-through; }
+  .inst-shop-item.is-done .inst-shop-qty { color: #64748b; }
+  [data-theme="light"] .inst-shop-job { border-color: #e2e8f0; }
+  [data-theme="light"] .inst-shop-title { color: #0f172a; }
+  [data-theme="light"] .inst-shop-note { color: #64748b; }
+  [data-theme="light"] .inst-shop-name { color: #1e293b; }
+  [data-theme="light"] .inst-shop-qty { color: #334155; }
+  [data-theme="light"] .inst-shop-count { color: #8a6a2e; }
+  [data-theme="light"] .inst-shop-item.is-done .inst-shop-name,
+  [data-theme="light"] .inst-shop-item.is-done .inst-shop-qty { color: #94a3b8; }
   .team-inviterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 0;
     border-bottom: 1px dashed rgba(148,163,184,0.18); }
   .team-inviterow:last-of-type { border-bottom: 0; }
@@ -18669,11 +18690,70 @@ function shopJobBodyHTML(job) {
       <div class="shop-actions">
         <span class="text-[11px] text-slate-500 hidden sm:inline">Round up to full packs. Checks save with the job.</span>
         <span class="flex items-center gap-2 ml-auto">
+          ${crewLabel(job.assignedCrewId) ? `<button type="button" class="calib-dismiss" data-shop-send="${escHtml(job.id)}" title="Send this list to ${escHtml(crewLabel(job.assignedCrewId))}">Send to ${escHtml(crewLabel(job.assignedCrewId))}</button>` : ""}
           <button type="button" class="calib-dismiss" data-shop-pdf="view" data-shop-job="${escHtml(job.id)}">View PDF</button>
           <button type="button" class="calib-apply" data-shop-pdf="download" data-shop-job="${escHtml(job.id)}">Download PDF</button>
         </span>
       </div>`;
 }
+/* ── Teams T7b: publishing a shopping list to a crew ───────────────────────────
+   Installers never get read access to `jobs` — that blob carries the owner's
+   margins. Instead the owner publishes a payload BUILT to be safe: item name,
+   quantity, unit, and how many packs to buy. No unit price, no cost, no total,
+   no margin. Nothing is redacted after the fact because money never goes in.
+   Re-publishing the same job overwrites that crew's list (unique on job+crew)
+   and preserves nothing stale. Check-off comes back through an RPC, so a crew
+   member can tick items but cannot rewrite the list or hand it to another crew. */
+function crewShoppingPayload(job) {
+  return jobShoppingItems(job).map(it => {
+    const item = (DATA.costItems || []).find(c => c.id === it.id);
+    let proc = null;
+    try { proc = item ? computeProcurement(Number(it.quantity) || 0, item) : null; } catch (_) {}
+    return {
+      id: String(it.id),
+      name: String(it.name || it.id),
+      qty: Number(it.quantity) || 0,
+      unit: String(it.unit || ""),
+      buy: proc ? `${proc.packs} ${proc.packLabel}` : "",
+    };
+  });
+}
+async function publishCrewShoppingList(job) {
+  if (!sb || !currentUser) { toast("Sign in to send a list to your crew"); return false; }
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crewId = jobCloudCrewId(job);
+  if (!ctx || !crewId) { toast("Assign this job to a crew first, then send the list."); return false; }
+  const items = crewShoppingPayload(job);
+  if (!items.length) { toast("Nothing to buy on this job yet."); return false; }
+  const { error } = await sb.from("crew_shopping_lists").upsert({
+    org_id: ctx.orgId,
+    crew_id: crewId,
+    job_id: (typeof isUuid === "function" && isUuid(job.id)) ? job.id : null,
+    job_label: String(job.name || job.customerName || "Job").slice(0, 120),
+    site_note: String(job.customerAddress || "").slice(0, 200),
+    items,
+    published_by: currentUser.id,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "job_id,crew_id" });
+  if (error) throw error;
+  return true;
+}
+/** The lists published to crews I'm on. RLS does the filtering. */
+async function fetchMyShoppingLists() {
+  if (!sb || !currentUser) return [];
+  const { data, error } = await sb.from("crew_shopping_lists")
+    .select("id,crew_id,job_label,site_note,items,checked,updated_at")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+async function toggleCrewShoppingCheck(listId, itemId, checked) {
+  const { error } = await sb.rpc("set_crew_shopping_check", {
+    p_list_id: listId, p_item_id: itemId, p_checked: !!checked,
+  });
+  if (error) throw error;
+}
+
 function renderDashShopping(jobs) {
   const wrap = document.getElementById("dashShopping");
   if (!wrap) return;
@@ -22096,6 +22176,19 @@ function wireDashboard() {
       }
     });
     shop.addEventListener("change", (e) => {
+      const send = e.target.closest("[data-shop-send]");
+      if (send) {
+        const j = loadJobs().find(x => x.id === send.dataset.shopSend);
+        if (!j) return;
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = "Sending\u2026";
+        publishCrewShoppingList(j)
+          .then(ok => { if (ok) toast(`Sent to ${crewLabel(j.assignedCrewId) || "the crew"}`); })
+          .catch(err => { console.warn(err); toast("Couldn't send the list — check your connection."); })
+          .finally(() => { send.disabled = false; send.textContent = label; });
+        return;
+      }
       const cb = e.target.closest("[data-shop-check]");
       if (!cb) return;
       const row = cb.closest("[data-shop-jobrow]");
@@ -24124,6 +24217,7 @@ async function removeCrewMemberWeb(crewId, userId) {
 async function afterCrewWrite(msg) {
   clearRateBookCache();   // Teams T5: rate books live on crews.data
   _teamInvites = null;    // Teams T7: re-fetch invite links on the next render
+  _instLists = null;      // Teams T7b: re-fetch published shopping lists too
   _orgCtx = null; saveOrgCtxCache(null);
   try { await fetchOrgContext(); } catch (_) {}
   renderTeamsSettings();
@@ -24203,6 +24297,46 @@ function myCrews(ctx) {
   const uid = currentUser && currentUser.id;
   if (!uid) return [];
   return (ctx.crews || []).filter(c => (c.memberIds || []).includes(uid));
+}
+
+let _instLists = null;   // Teams T7b: shopping lists published to my crews
+
+/** The installer's shopping card: lists the owner has sent, with check-off.
+    Rendered into a placeholder and filled after the fetch so the pane never
+    blocks on a round trip. */
+function renderInstallerShopping(orgCtx) {
+  const wrap = document.getElementById("instShopping");
+  if (!wrap) return;
+  if (_instLists === null) {
+    wrap.innerHTML = `<p class="team-empty">Loading your lists&hellip;</p>`;
+    fetchMyShoppingLists()
+      .then(rows => { _instLists = rows; renderInstallerShopping(orgCtx); })
+      .catch(() => { _instLists = []; renderInstallerShopping(orgCtx); });
+    return;
+  }
+  if (!_instLists.length) {
+    wrap.innerHTML = `<p class="team-empty">Nothing sent yet &mdash; when they send you a job's materials it shows up here to check off.</p>`;
+    return;
+  }
+  wrap.innerHTML = _instLists.map(l => {
+    const items = Array.isArray(l.items) ? l.items : [];
+    const chk = (l.checked && typeof l.checked === "object") ? l.checked : {};
+    const done = items.filter(it => chk[it.id]).length;
+    const rows = items.map(it => `
+      <label class="inst-shop-item${chk[it.id] ? " is-done" : ""}">
+        <input type="checkbox" class="shop-check" data-inst-check="${escHtml(it.id)}" data-list="${escHtml(l.id)}"${chk[it.id] ? " checked" : ""} />
+        <span class="inst-shop-name">${escHtml(it.name)}</span>
+        <span class="inst-shop-qty">${it.buy ? escHtml(it.buy) : `${formatQty(it.qty)} ${escHtml(it.unit)}`}</span>
+      </label>`).join("");
+    return `<div class="inst-shop-job">
+      <div class="inst-shop-head">
+        <span class="inst-shop-title">${escHtml(l.job_label || "Job")}</span>
+        <span class="inst-shop-count">${done}/${items.length}</span>
+      </div>
+      ${l.site_note ? `<div class="inst-shop-note">${escHtml(l.site_note)}</div>` : ""}
+      ${rows}
+    </div>`;
+  }).join("");
 }
 
 function renderInstallerDashboard(body, ctx) {
@@ -24291,7 +24425,14 @@ function renderInstallerDashboard(body, ctx) {
       <p class="team-ratehint mt-2">Whether your branding appears is their setting, not yours.</p>
     </div>` : ""}
 
+    <div class="set-card mt-3">
+      <div class="set-sub mb-2">What to buy</div>
+      <div id="instShopping"></div>
+      <p class="team-ratehint mt-2">Quantities and pack counts only &mdash; what the job needs, not what it&rsquo;s priced at.</p>
+    </div>
+
     <p class="team-foot">You&rsquo;re seeing the installer view. Crew membership, job assignments and pricing calibration stay with the company owner.</p>`;
+  renderInstallerShopping(ctx);
 
   // Pay is a separate table read; fill it in once the pane exists.
   const payInput = document.getElementById("instMyRate");
@@ -24619,6 +24760,25 @@ function wireTeamsSettings() {
       setCrewSelfServiceWeb(cid, { prices, labor })
         .then(() => { _instSaving = false; return afterCrewWrite("Your rates are saved"); })
         .catch((err) => { _instSaving = false; renderTeamsSettings(); fail(err); });
+      return;
+    }
+    const iChk = e.target.closest("[data-inst-check]");
+    if (iChk) {
+      const listId = iChk.dataset.list, itemId = iChk.dataset.instCheck, on = !!iChk.checked;
+      const row = iChk.closest(".inst-shop-item");
+      if (row) row.classList.toggle("is-done", on);
+      // Optimistic: the box is already ticked. On failure put it back and say so.
+      toggleCrewShoppingCheck(listId, itemId, on)
+        .then(() => {
+          const l = (_instLists || []).find(x => x.id === listId);
+          if (l) { l.checked = l.checked || {}; if (on) l.checked[itemId] = true; else delete l.checked[itemId]; }
+          renderInstallerShopping(ctx);
+        })
+        .catch(() => {
+          iChk.checked = !on;
+          if (row) row.classList.toggle("is-done", !on);
+          try { toast("Couldn't save that tick — check your connection."); } catch (_) {}
+        });
       return;
     }
     if (e.target.closest("[data-inst-pay-save]")) {
