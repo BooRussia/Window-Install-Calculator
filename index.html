@@ -368,6 +368,38 @@
     18%      { box-shadow: 0 0 0 3px rgba(181,143,74,0.45); }
   }
   @media (prefers-reduced-motion: reduce) { .dash-ovcard-flash { animation: none; } }
+  /* ── Dedicated pages: pipeline / revenue / manufacturers ─────────────────── */
+  .dpp-group { border-top: 1px solid rgba(51,65,85,0.4); padding-top: 10px; margin-top: 10px; }
+  .dpp-group:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  .dpp-grouphead { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800;
+    letter-spacing: 0.06em; text-transform: uppercase; color: #e2e8f0; margin-bottom: 4px; }
+  .dpp-groupn { margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: 0; text-transform: none; color: #94a3b8; }
+  .dpp-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; min-height: 44px;
+    padding: 7px 2px; background: none; border: 0; border-top: 1px solid rgba(51,65,85,0.25); cursor: pointer; }
+  .dpp-row:first-of-type { border-top: 0; }
+  .dpp-row:hover .dpp-name { color: var(--gold-hi); }
+  .dpp-name { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 700; color: #e2e8f0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dpp-meta { flex: 0 0 auto; font-size: 10.5px; font-weight: 600; color: #94a3b8; }
+  .dpp-val { flex: 0 0 auto; font-size: 12.5px; font-weight: 800; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+  /* profit band inside a booked bar */
+  .dash-bar-fill { position: relative; }
+  .rev-bar-profit { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0 0 6px 6px;
+    background: rgba(11,17,32,0.42); }
+  /* manufacturer availability */
+  .mfg-switch { display: flex; align-items: center; gap: 9px; cursor: pointer; min-height: 34px; }
+  .mfg-switch input { width: 17px; height: 17px; flex: 0 0 auto; accent-color: #b58f4a; cursor: pointer; }
+  .mfg-name { font-size: 12.5px; font-weight: 800; color: #f1f5f9; }
+  .mfg-table tr.is-off .mfg-name { color: #64748b; }
+  .mfg-table tr.is-off td:not(.mfg-check) { opacity: 0.45; }
+  [data-theme="light"] .dpp-group, [data-theme="light"] .dpp-row { border-top-color: #e2e8f0; }
+  [data-theme="light"] .dpp-grouphead { color: #0f172a; }
+  [data-theme="light"] .dpp-groupn, [data-theme="light"] .dpp-meta { color: #64748b; }
+  [data-theme="light"] .dpp-name { color: #1e293b; }
+  [data-theme="light"] .dpp-row:hover .dpp-name { color: #8a6a2e; }
+  [data-theme="light"] .dpp-val, [data-theme="light"] .mfg-name { color: #0f172a; }
+  [data-theme="light"] .rev-bar-profit { background: rgba(255,255,255,0.5); }
+  [data-theme="light"] .mfg-table tr.is-off .mfg-name { color: #94a3b8; }
   /* ── v2 P3: the overview grid ─────────────────────────────────────────────── */
   .dash-overview { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
   @media (min-width: 1000px) { .dash-overview { grid-template-columns: 2fr 1fr; } }
@@ -9168,6 +9200,21 @@
       <!-- Follow-ups view (stale quotes + finished jobs to calibrate) -->
       <div data-dashview="followups" class="hidden">
         <div id="dashFollowups"></div>
+      </div>
+
+      <!-- Deal pipeline view (stage funnel + conversion + per-stage jobs) -->
+      <div data-dashview="pipeline" class="hidden">
+        <div id="dashPipelinePage"></div>
+      </div>
+
+      <!-- Revenue trend view (booked/profit by month + bests + margin) -->
+      <div data-dashview="revenue" class="hidden">
+        <div id="dashRevenuePage"></div>
+      </div>
+
+      <!-- Manufacturers view (which brands are available + their rates + usage) -->
+      <div data-dashview="manufacturers" class="hidden">
+        <div id="dashMfgPage"></div>
       </div>
 
       <!-- Shopping list view (per-job materials to buy, checkable) -->
@@ -18192,6 +18239,9 @@ function renderDashboard() {
   try { wireDashNav(); renderDashNav(_navCtx); } catch (_) {}                     // v2 sidebar
   try { renderDashTopBar(_navCtx); } catch (_) {}                                // v2 page bar + range
   try { renderDashOverview(jobs); } catch (_) {}                                 // v2 overview panels
+  try { renderDashPipelinePage(jobs); } catch (_) {}                             // dedicated pages
+  try { renderDashRevenuePage(jobs); } catch (_) {}
+  try { renderDashMfgPage(jobs); } catch (_) {}
   renderDashEditBar();   // keep the customize bar in sync with edit mode (hidden by default)
   // E-sign hits the network, so only refresh it when its card is actually open.
   if (_dashView === "esign") renderDashEsign();
@@ -18247,7 +18297,7 @@ const DASH_CARDS = [
       ? `${ctx.approvedCount} approved · view activity`
       : "Track sent & signed quotes",
     preview2: (ctx) => ctx.signedCount ? `${ctx.signedCount} signed e-quote${ctx.signedCount === 1 ? "" : "s"}` : "" },
-  { key: "pipeline", title: "Deal pipeline", goto: "overview-pipeline",
+  { key: "pipeline", title: "Deal pipeline",
     blurb: "Every saved quote by stage — see where deals pile up, what's landed, and your win rate.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>` },
   { key: "insights", title: "Insights",
@@ -18257,10 +18307,10 @@ const DASH_CARDS = [
       ? `Top cost: ${ctx.topDriver.name} · ${ctx.topDriver.pct}%`
       : "Materials, customers & pipeline",
     preview2: (ctx) => ctx.topCustomer ? `Top client: ${ctx.topCustomer.name} · ${ctx.topCustomer.pct}%` : "" },
-  { key: "revenue", title: "Revenue trend", goto: "overview-booked",
+  { key: "revenue", title: "Revenue trend",
     blurb: "Your booked revenue and profit month by month — watch the trend and where your margin's going.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 3 3 7-8"/><path d="M16 8h4v4"/></svg>` },
-  { key: "manufacturers", title: "Manufacturers", goto: "setup-manufacturers",
+  { key: "manufacturers", title: "Manufacturers",
     blurb: "The window & door brands you quote, ranked by how often you use them — tap to edit a brand's rates.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4 21V11l5 3V11l5 3V8l5 3v10"/></svg>` },
 ];
@@ -20305,7 +20355,7 @@ function dashOpenCardKey(key) {
   dashOpenTarget((card && card.goto) || key);
 }
 function dashOpenTarget(target) {
-  // Manufacturers lives in Settings → Setup → Manufacturers, not in the dashboard.
+  // Kept for the Settings deep-link (the rates editor still lives there).
   if (target === "setup-manufacturers") {
     try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {}
     return;
@@ -20333,6 +20383,291 @@ function dashOpenTarget(target) {
     return;
   }
   dashGoTo(target);
+}
+
+/* ── Manufacturer availability ─────────────────────────────────────────────────
+   Stored as a DISABLED list, not an enabled one: every account starts with all
+   brands on, and a brand added later (by us or by the user in Settings) is
+   available without needing a migration. The Manufacturers page and the Settings
+   rates editor both read DATA.manufacturers / manufacturerRates, so names and
+   rates can't diverge; this flag is the only extra state. */
+function mfgDisabledList() {
+  const c = (DATA.config && DATA.config.mfgDisabled);
+  return Array.isArray(c) ? c : [];
+}
+function isMfgEnabled(name) { return !mfgDisabledList().includes(name); }
+/** The brands a quote may actually pick. Never returns empty — turning the last
+    one off would leave the calculator with no manufacturer to select. */
+function enabledManufacturers() {
+  const all = DATA.manufacturers || [];
+  const on = all.filter(isMfgEnabled);
+  return on.length ? on : all;
+}
+function setMfgEnabled(name, on) {
+  const all = DATA.manufacturers || [];
+  let list = mfgDisabledList().filter(n => all.includes(n));
+  if (on) list = list.filter(n => n !== name);
+  else if (!list.includes(name)) {
+    // Refuse to disable the last one — the calculator needs something to quote with.
+    if (all.filter(n => !list.includes(n) && n !== name).length === 0) {
+      try { toast("Keep at least one manufacturer available."); } catch (_) {}
+      return false;
+    }
+    list.push(name);
+  }
+  DATA.config.mfgDisabled = list;
+  // If the current pick or the job default just became unavailable, move both to
+  // the first available brand so nothing quotes against a hidden manufacturer.
+  const on2 = enabledManufacturers();
+  if (!on2.includes(STATE.manufacturer)) STATE.manufacturer = on2[0];
+  if (DATA.config.jobDefaults && !on2.includes(DATA.config.jobDefaults.manufacturer)) {
+    DATA.config.jobDefaults.manufacturer = on2[0];
+  }
+  saveData();
+  try { render(); } catch (_) {}
+  return true;
+}
+
+/* ── Deal pipeline page ────────────────────────────────────────────────────────
+   The funnel, honestly: how many deals sit at each stage, what they're worth, and
+   what actually converts. Stage-to-stage conversion is computed on DECIDED deals
+   only (won + lost) — quoting 20 jobs you haven't heard back on isn't a loss, and
+   counting it as one would make the number lie. */
+function renderDashPipelinePage(jobs) {
+  const el = document.getElementById("dashPipelinePage");
+  if (!el) return;
+  const ranged = dashRangeJobs(jobs);
+  const { real, groups, sum, wonCount, lostCount, decided, winRate } = pipelineStats(ranged);
+  if (!real.length) {
+    el.innerHTML = `<div class="dash-ovcard"><div class="dash-ovtitle">No deals in this range</div>
+      <div class="dash-ovsub mt-1">Save a quote, or widen the period at the top of the page.</div></div>`;
+    return;
+  }
+  const grand = sum(real);
+  const avg = real.length ? grand / real.length : 0;
+  const open = groups.Quoted || [], won = (groups.Approved || []).concat(groups.Finished || []);
+  const openVal = sum(open), wonVal = sum(won);
+  const avgWon = won.length ? wonVal / won.length : 0;
+  const avgOpen = open.length ? openVal / open.length : 0;
+  const ageOf = j => { const t = Date.parse(j.updatedAt || j.createdAt || ""); return isNaN(t) ? null : Math.floor((Date.now() - t) / 86400000); };
+  const openAges = open.map(ageOf).filter(n => n != null);
+  const oldestOpen = openAges.length ? Math.max(...openAges) : null;
+  const avgOpenAge = openAges.length ? Math.round(openAges.reduce((a, b) => a + b, 0) / openAges.length) : null;
+
+  const stat = (label, val, sub) => `<div class="dash-kpi-cell">
+      <div class="dash-kpi-head"><span class="dash-kpi-label">${escHtml(label)}</span></div>
+      <div class="dash-kpi-num">${val}</div>
+      <div class="dash-kpi-foot"><span class="dash-kpi-sub">${escHtml(sub)}</span></div>
+    </div>`;
+  const stageRow = (st) => {
+    const g = groups[st] || [], val = sum(g);
+    const share = grand ? Math.round((val / grand) * 100) : 0;
+    const a = g.map(ageOf).filter(n => n != null);
+    const oldest = a.length ? Math.max(...a) : null;
+    return `<tr>
+      <td class="dpt-stage"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}</td>
+      <td class="dpt-n">${g.length}</td>
+      <td class="dpt-bar"><span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:${STATUS_COLORS[st]}"></span></span><span class="dpt-share">${share}%</span></td>
+      <td class="dpt-val">${formatMoney(val)}</td>
+      <td class="dpt-val">${g.length ? formatMoney(val / g.length) : "&mdash;"}</td>
+      <td class="dpt-val">${oldest == null ? "&mdash;" : oldest + "d"}</td>
+    </tr>`;
+  };
+  // The deals in each stage, newest first, so the page answers "which ones?"
+  const jobRows = (st) => {
+    const g = (groups[st] || []).slice().sort((a, b) =>
+      (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0));
+    if (!g.length) return "";
+    return `<div class="dpp-group">
+      <div class="dpp-grouphead"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}
+        <span class="dpp-groupn">${g.length} &middot; ${formatMoney(sum(g))}</span></div>
+      ${g.slice(0, 8).map(j => {
+        const nm = j.name || j.customerName || "Untitled job";
+        const age = ageOf(j);
+        return `<button type="button" class="dpp-row" data-pipe-open="${escHtml(j.id)}">
+          <span class="dpp-name">${escHtml(nm)}</span>
+          <span class="dpp-meta">${j.totalLF ? escHtml(String(j.totalLF)) + " LF" : ""}${age != null ? (j.totalLF ? " &middot; " : "") + age + "d" : ""}</span>
+          <span class="dpp-val">${formatMoney(Number(j.sellingPrice) || 0)}</span>
+        </button>`;
+      }).join("")}
+      ${g.length > 8 ? `<div class="dash-ovfoot">+${g.length - 8} more in ${escHtml(st)}</div>` : ""}
+    </div>`;
+  };
+  el.innerHTML = `
+    <div class="dash-kpi mb-4">
+      ${stat("In play", formatMoney(openVal), `${open.length} open deal${open.length === 1 ? "" : "s"}`)}
+      ${stat("Won", formatMoney(wonVal), `${won.length} landed${avgWon ? " · " + formatMoney(avgWon) + " avg" : ""}`)}
+      ${stat("Win rate", winRate == null ? "&mdash;" : winRate + "%", decided ? `${wonCount}W · ${lostCount}L decided` : "nothing decided yet")}
+      ${stat("Avg deal", formatMoney(avg), `${real.length} job${real.length === 1 ? "" : "s"} in range`)}
+      ${stat("Oldest open", oldestOpen == null ? "&mdash;" : oldestOpen + "d", avgOpenAge == null ? "no open deals" : `${avgOpenAge}d average`)}
+    </div>
+    <div class="dash-ovcard mb-4">
+      <div class="dash-ovhead"><div>
+        <div class="dash-ovtitle">By stage</div>
+        <div class="dash-ovsub">${real.length} job${real.length === 1 ? "" : "s"} &middot; ${formatMoney(grand)} total${avgOpen ? ` &middot; ${formatMoney(avgOpen)} average open deal` : ""}</div>
+      </div></div>
+      <div class="dpt-wrap"><table class="dpt">
+        <thead><tr><th>Stage</th><th>Jobs</th><th>Share of pipeline</th><th>Value</th><th>Avg deal</th><th>Oldest</th></tr></thead>
+        <tbody>${JOB_STATUSES.map(stageRow).join("")}</tbody>
+      </table></div>
+      <p class="team-ratehint mt-3">Win rate counts only deals you&rsquo;ve heard back on &mdash; open quotes aren&rsquo;t losses, so they stay out of it.</p>
+    </div>
+    <div class="dash-ovcard">
+      <div class="dash-ovhead"><div><div class="dash-ovtitle">The deals</div>
+        <div class="dash-ovsub">Newest first in each stage. Tap one to open it.</div></div></div>
+      ${JOB_STATUSES.map(jobRows).join("") || `<div class="dash-ovempty">Nothing to list.</div>`}
+    </div>`;
+  if (!el._wired) {
+    el._wired = true;
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-pipe-open]");
+      if (b) { try { openJobDetails(b.dataset.pipeOpen); } catch (_) {} }
+    });
+  }
+}
+
+/* ── Revenue trend page ───────────────────────────────────────────────────────
+   Booked value and profit month by month, plus where the margin actually landed.
+   Profit comes from each job's stored profit, so it reflects what was quoted, not
+   a recomputation that could drift from the saved figure. */
+function renderDashRevenuePage(jobs) {
+  const el = document.getElementById("dashRevenuePage");
+  if (!el) return;
+  const ranged = dashRangeJobs(jobs).filter(j => j && !j.isDraft);
+  const months = dashMonthBuckets(ranged, 12);
+  // profit per bucket (dashMonthBuckets only totals value)
+  const byKey = {}; months.forEach(m => { m.profit = 0; byKey[m.key] = m; });
+  ranged.forEach(j => {
+    const t = Date.parse(j.updatedAt || j.createdAt || "");
+    if (isNaN(t)) return;
+    const d = new Date(t), k = `${d.getFullYear()}-${d.getMonth()}`;
+    if (byKey[k]) byKey[k].profit += Number(j.profit) || 0;
+  });
+  const booked = months.reduce((a, m) => a + m.total, 0);
+  const profit = months.reduce((a, m) => a + m.profit, 0);
+  const active = months.filter(m => m.n).length;
+  if (!booked && !ranged.length) {
+    el.innerHTML = `<div class="dash-ovcard"><div class="dash-ovtitle">Nothing booked in this range</div>
+      <div class="dash-ovsub mt-1">Save a quote, or widen the period at the top of the page.</div></div>`;
+    return;
+  }
+  const best = months.reduce((b, m) => (m.total > (b ? b.total : -1) ? m : b), null);
+  const marginPct = booked ? Math.round((profit / booked) * 100) : null;
+  const peak = Math.max(...months.map(m => m.total), 0);
+  const stat = (label, val, sub) => `<div class="dash-kpi-cell">
+      <div class="dash-kpi-head"><span class="dash-kpi-label">${escHtml(label)}</span></div>
+      <div class="dash-kpi-num">${val}</div>
+      <div class="dash-kpi-foot"><span class="dash-kpi-sub">${escHtml(sub)}</span></div></div>`;
+  const bars = months.map(m => {
+    const h = peak ? Math.max(m.total ? 4 : 0, Math.round((m.total / peak) * 100)) : 0;
+    const ph = m.total > 0 ? Math.round((Math.max(0, m.profit) / m.total) * 100) : 0;
+    return `<div class="dash-bar-col" title="${escHtml(`${m.label}: ${formatMoney(m.total)} booked, ${formatMoney(m.profit)} profit${m.n ? ` · ${m.n} job${m.n === 1 ? "" : "s"}` : ""}`)}">
+      <div class="dash-bar-track"><div class="dash-bar-fill${m.total ? "" : " is-empty"}" style="height:${h}%">
+        <div class="rev-bar-profit" style="height:${ph}%"></div>
+      </div></div>
+      <span class="dash-bar-lbl${m.isJan ? " is-year" : ""}">${escHtml(m.label)}</span></div>`;
+  }).join("");
+  const rows = months.slice().reverse().filter(m => m.n).map(m => `<tr>
+      <td class="dpt-stage">${escHtml(m.label)}</td>
+      <td class="dpt-n">${m.n}</td>
+      <td class="dpt-val">${formatMoney(m.total)}</td>
+      <td class="dpt-val">${formatMoney(m.profit)}</td>
+      <td class="dpt-val">${m.total ? Math.round((m.profit / m.total) * 100) + "%" : "&mdash;"}</td>
+    </tr>`).join("");
+  el.innerHTML = `
+    <div class="dash-kpi mb-4">
+      ${stat("Booked", formatMoney(booked), `${active} active month${active === 1 ? "" : "s"}`)}
+      ${stat("Profit", formatMoney(profit), marginPct == null ? "no revenue yet" : `${marginPct}% of booked`)}
+      ${stat("Best month", best && best.total ? formatMoney(best.total) : "&mdash;", best && best.total ? best.label : "nothing booked")}
+      ${stat("Monthly average", formatMoney(active ? booked / active : 0), "across active months")}
+    </div>
+    <div class="dash-ovcard mb-4">
+      <div class="dash-ovhead">
+        <div><div class="dash-ovtitle">Booked &amp; profit by month</div>
+          <div class="dash-ovsub">Gold is what you booked; the darker band inside each bar is the profit in it.</div></div>
+        <span class="dash-ovpill">Last 12 months</span>
+      </div>
+      <div class="dash-bars">${bars}</div>
+    </div>
+    <div class="dash-ovcard">
+      <div class="dash-ovhead"><div><div class="dash-ovtitle">Month by month</div>
+        <div class="dash-ovsub">Most recent first. Months with no saved jobs are left out.</div></div></div>
+      ${rows ? `<div class="dpt-wrap"><table class="dpt">
+        <thead><tr><th>Month</th><th>Jobs</th><th>Booked</th><th>Profit</th><th>Margin</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>` : `<div class="dash-ovempty">No dated jobs in this range.</div>`}
+      <p class="team-ratehint mt-3">A job with no saved date can&rsquo;t be placed in a month, so it&rsquo;s left out here even though it still counts in your totals elsewhere.</p>
+    </div>`;
+}
+
+/* ── Manufacturers page ───────────────────────────────────────────────────────
+   Which brands you can quote, how much you actually use each, and their per-LF
+   rates. Names and rates are the SAME data the Settings rates editor writes, so
+   the two pages can't disagree; only the availability checkbox lives here. */
+function renderDashMfgPage(jobs) {
+  const el = document.getElementById("dashMfgPage");
+  if (!el) return;
+  const all = DATA.manufacturers || [];
+  const rates = DATA.manufacturerRates || {};
+  const real = dashRangeJobs(jobs).filter(j => j && !j.isDraft);
+  const used = {}; let usedTotal = 0;
+  real.forEach(j => { const m = j.manufacturer; if (!m) return; used[m] = used[m] || { n: 0, val: 0 };
+    used[m].n++; used[m].val += Number(j.sellingPrice) || 0; usedTotal++; });
+  const onCount = all.filter(isMfgEnabled).length;
+  const rateCell = (r, path) => {
+    const v = r && r[path];
+    if (!v) return "&mdash;";
+    const i = v.impact, ni = v.nonImpact;
+    if (i == null && ni == null) return "&mdash;";
+    return (i === ni) ? `$${i}` : `$${ni ?? "—"} / $${i ?? "—"}`;
+  };
+  const rows = all.map(name => {
+    const on = isMfgEnabled(name), u = used[name], r = rates[name] || {};
+    const share = usedTotal && u ? Math.round((u.n / usedTotal) * 100) : 0;
+    return `<tr class="${on ? "" : "is-off"}">
+      <td class="mfg-check">
+        <label class="mfg-switch">
+          <input type="checkbox" data-mfg-toggle="${escHtml(name)}"${on ? " checked" : ""} aria-label="Available when quoting: ${escHtml(name)}" />
+          <span class="mfg-name">${escHtml(name)}</span>
+        </label>
+      </td>
+      <td class="dpt-n">${u ? u.n : 0}</td>
+      <td class="dpt-bar"><span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:var(--gold-hi)"></span></span><span class="dpt-share">${share}%</span></td>
+      <td class="dpt-val">${u ? formatMoney(u.val) : "&mdash;"}</td>
+      <td class="dpt-val">${rateCell(r, "nailfin")}</td>
+      <td class="dpt-val">${rateCell(r, "throughFrame")}</td>
+      <td class="dpt-val">${r.alwaysImpactSpec ? "Impact only" : "&mdash;"}</td>
+    </tr>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="dash-ovcard mb-4">
+      <div class="dash-ovhead">
+        <div><div class="dash-ovtitle">Available when quoting</div>
+          <div class="dash-ovsub">${onCount} of ${all.length} brand${all.length === 1 ? "" : "s"} on. Unticking one hides it from the manufacturer picker &mdash; it keeps its rates and any job that already used it.</div></div>
+        <button type="button" class="dash-ovlink" data-mfg-settings>Edit rates in Settings &rarr;</button>
+      </div>
+      <div class="dpt-wrap"><table class="dpt mfg-table">
+        <thead><tr><th>Brand</th><th>Jobs</th><th>Share of jobs</th><th>Booked</th>
+          <th>Nail-fin /LF</th><th>Through-frame /LF</th><th>Spec</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <p class="team-ratehint mt-3">Rates show non-impact / impact per linear foot where they differ. Add, rename or re-rate a brand in Settings &rarr; Setup &rarr; Manufacturers &mdash; this page and that editor read the same list.</p>
+    </div>`;
+  if (!el._wired) {
+    el._wired = true;
+    el.addEventListener("click", (e) => {
+      if (e.target.closest("[data-mfg-settings]")) {
+        try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {}
+        return;
+      }
+    });
+    el.addEventListener("change", (e) => {
+      const cb = e.target.closest("[data-mfg-toggle]");
+      if (!cb) return;
+      const ok = setMfgEnabled(cb.dataset.mfgToggle, cb.checked);
+      if (!ok) cb.checked = true;            // refused (last one) — put it back
+      renderDashMfgPage(loadJobs());
+    });
+  }
 }
 
 function renderDashStats(jobs) {
@@ -24119,7 +24454,7 @@ function bindControls() {
   if (DROPDOWNS.ddManufacturer) {
     DROPDOWNS.ddManufacturer.setValue(STATE.manufacturer, false);
   } else {
-    createDropdown("ddManufacturer", DATA.manufacturers, STATE.manufacturer, v => { STATE.manufacturer = v; const _mf = document.getElementById("ddManufacturer"); if (_mf && _mf.closest) clearFieldAi(_mf.closest(".rail-field")); markCalculatorFirstInteraction(); render(); });
+    createDropdown("ddManufacturer", enabledManufacturers(), STATE.manufacturer, v => { STATE.manufacturer = v; const _mf = document.getElementById("ddManufacturer"); if (_mf && _mf.closest) clearFieldAi(_mf.closest(".rail-field")); markCalculatorFirstInteraction(); render(); });
     document.addEventListener("click", () => {
       closeAllDropdowns();
       document.querySelectorAll(".info-tip.show").forEach(t => t.classList.remove("show"));
@@ -31356,7 +31691,7 @@ function buildAdminUI() {
     const sel = document.getElementById(id);
     sel.innerHTML = opts.map(o => `<option value="${o}" ${o === current ? "selected" : ""}>${o}</option>`).join("");
   };
-  fillSel("defaultMfg", DATA.manufacturers, jd.manufacturer);
+  fillSel("defaultMfg", enabledManufacturers(), jd.manufacturer);   // hidden brands aren't selectable
   fillSel("defaultApp", DATA.applicationTypes, jd.application);
   fillSel("defaultHouse", DATA.houseTypes, jd.houseType);
   fillSel("defaultConstruction", DATA.constructionTypes, jd.constructionType);
