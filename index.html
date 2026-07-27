@@ -711,6 +711,54 @@
   [data-theme="light"] .crew-title { color: #0f172a; }
   [data-theme="light"] .crew-sub { color: #55606e; }
   [data-theme="light"] .crew-brand { color: #97772e; }
+  /* ── Plan gate (shown once, right after signup) ────────────────────────── */
+  #planScreen {
+    position: fixed; inset: 0; z-index: 92; overflow-y: auto;
+    background: linear-gradient(180deg, #0b1120 0%, #060a16 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+  #planScreen.hidden { display: none; }
+  .plan-wrap { max-width: 940px; margin: 0 auto; padding: 22px 18px calc(40px + env(safe-area-inset-bottom)); }
+  .plan-grid { display: grid; gap: 12px; grid-template-columns: 1fr; margin-top: 4px; }
+  @media (min-width: 760px) { .plan-grid { grid-template-columns: repeat(3, 1fr); } }
+  .plan-card { position: relative; border: 1px solid #1e293b; border-radius: 16px; padding: 16px;
+    background: rgba(15,23,42,0.5); display: flex; flex-direction: column; }
+  .plan-card.is-hot { border-color: rgba(181,143,74,0.5); background: rgba(181,143,74,0.06); }
+  .plan-badge { position: absolute; top: -9px; left: 16px; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.08em; color: #0b1120; background: #c9a558;
+    border-radius: 999px; padding: 3px 9px; }
+  .plan-name { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #c9a558; }
+  .plan-price { margin: 6px 0 2px; color: #f1f5f9; }
+  .plan-price b { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+  .plan-price span { font-size: 13px; color: #94a3b8; margin-left: 2px; }
+  .plan-tag { font-size: 12px; color: #94a3b8; line-height: 1.45; min-height: 34px; }
+  .plan-feats { list-style: none; margin: 10px 0 14px; padding: 0; display: grid; gap: 6px; }
+  .plan-feats li { font-size: 12.5px; color: #cbd5e1; padding-left: 16px; position: relative; line-height: 1.4; }
+  .plan-feats li::before { content: "\2713"; position: absolute; left: 0; color: #c9a558; font-weight: 700; }
+  .plan-cta { margin-top: auto; width: 100%; min-height: 44px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.35);
+    background: transparent; color: #e2e8f0; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease; }
+  .plan-cta:hover { border-color: rgba(181,143,74,0.6); color: #dfc07a; }
+  .plan-cta.is-hot { background: linear-gradient(180deg, #dfc07a, #c9a558); border-color: transparent; color: #0b1120; }
+  .plan-trial { margin-top: 16px; border: 1px dashed rgba(148,163,184,0.35); border-radius: 16px; padding: 16px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .plan-trial-h { font-size: 14px; font-weight: 800; color: #f1f5f9; }
+  .plan-trial-p { font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin-top: 3px; max-width: 60ch; }
+  .plan-cta-ghost { width: auto; flex: 0 0 auto; padding: 0 20px; }
+  [data-theme="light"] #planScreen { background: #f3f4f7; }
+  [data-theme="light"] .plan-card { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .plan-card.is-hot { background: rgba(181,143,74,0.07); border-color: #d9c79a; }
+  [data-theme="light"] .plan-name { color: #97772e; }
+  [data-theme="light"] .plan-price { color: #0f172a; }
+  [data-theme="light"] .plan-price span,
+  [data-theme="light"] .plan-tag { color: #55606e; }
+  [data-theme="light"] .plan-feats li { color: #334155; }
+  [data-theme="light"] .plan-feats li::before { color: #97772e; }
+  [data-theme="light"] .plan-cta { color: #0f172a; border-color: #cbd5e1; }
+  [data-theme="light"] .plan-cta.is-hot { color: #0b1120; }
+  [data-theme="light"] .plan-trial-h { color: #0f172a; }
+  [data-theme="light"] .plan-trial-p { color: #55606e; }
+
   /* Strip every quoting affordance for a crew seat. */
   body.crew-account .app-tabbar,
   body.crew-account #mtotalBar,
@@ -11068,7 +11116,7 @@
             <!-- DEV ONLY — enable by pasting `window.__ANCHOR_DEV = true` in DevTools console, then reopen Settings. -->
             <div id="subDevTools" class="hidden mt-7 pt-5 border-t border-slate-800 max-w-2xl">
               <div class="text-[11px] uppercase tracking-[0.16em] text-amber-400/80 font-bold mb-1">Dev tools</div>
-              <p class="text-[11px] text-slate-600 mb-3">Reset your entitlement record to a fresh trial — for testing the badge + upsell flow.</p>
+              <p class="text-[11px] text-slate-600 mb-3">Reset to a brand-new account — brings back the plan chooser, for testing the signup, badge + upsell flow.</p>
               <button id="subResetEntitlements" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2">↻ Reset entitlements (DEV)</button>
             </div>
             </div><!-- /set-collapse-body -->
@@ -35299,7 +35347,7 @@ const PLANS = [
       "Unlimited quotes",
       "Everything in Pro, plus:",
       "Unlimited AI plan reads",
-      "Team members (coming soon)",
+      "Crews with their own logins, rates & shopping lists",
       "Custom branding on shared quotes",
       "White-glove onboarding call",
       "Priority phone support"
@@ -35323,7 +35371,24 @@ const PLANS = [
 const DAY_MS = 86400 * 1000;
 const CYCLE_MS = 30 * DAY_MS;
 
+// A brand-new account has NOT chosen anything yet. The trial used to start
+// itself the first time any code read entitlements, so people landed in the
+// calculator with a 14-day clock already running and nothing telling them.
+// Now the clock starts only when someone deliberately starts it
+// (startFreeTrial), which is what makes the countdown honest.
 function defaultEntitlements() {
+  return {
+    plan: "none",
+    subscriptionStatus: "unchosen",
+    trialStartedAt: null,
+    quotesUsedThisCycle: 0,
+    cycleResetAt: null,
+    planSetAt: null,
+    lastQuoteAt: null
+  };
+}
+/** A fresh 14-day trial, stamped from the moment it is actually chosen. */
+function freshTrialEntitlements() {
   const now = Date.now();
   return {
     plan: "trial",
@@ -35334,6 +35399,77 @@ function defaultEntitlements() {
     planSetAt: now,
     lastQuoteAt: null
   };
+}
+/** True when this account still has to pick a plan (or start the trial). */
+function needsPlanChoice() {
+  if (!currentUser) return false;
+  if (typeof isCrewAccount === "function" && isCrewAccount()) return false;   // seats have no plan by design
+  return (getEntitlements() || {}).plan === "none";
+}
+
+/** Start the trial — the ONLY place the clock is stamped. */
+function startFreeTrial() {
+  if (!DATA.config) DATA.config = {};
+  DATA.config.entitlements = freshTrialEntitlements();
+  saveData(DATA);
+  try { if (typeof window.track === "function") window.track("trial_started", { plan: "trial" }); } catch (_) {}
+  hidePlanChoice();
+  try { updateUsageBadge(); } catch (_) {}
+  try { toast(`Your ${TRIAL.days}-day free trial has started — ${TRIAL.quotes} quotes included`); } catch (_) {}
+}
+function hidePlanChoice() {
+  const s = document.getElementById("planScreen");
+  if (s) s.classList.add("hidden");
+  document.body.classList.remove("plan-choosing");
+}
+
+/* The plan gate. Shown once, right after signup, INSTEAD of dropping straight
+   into the calculator: paid plans first, the free trial as a deliberate choice
+   that spells out its length and limits. Built in JS (like the crew workspace)
+   so there is one place that owns it. */
+function renderPlanChoice() {
+  if (!needsPlanChoice()) { hidePlanChoice(); return; }
+  let scr = document.getElementById("planScreen");
+  if (!scr) {
+    scr = document.createElement("div");
+    scr.id = "planScreen";
+    scr.className = "hidden";
+    document.body.appendChild(scr);
+    scr.addEventListener("click", (e) => {
+      const buy = e.target.closest("[data-plan-buy]");
+      if (buy) { try { startStripeCheckout(buy.dataset.planBuy, "monthly"); } catch (_) { toast("Checkout unavailable"); } return; }
+      if (e.target.closest("[data-plan-trial]")) { startFreeTrial(); return; }
+      if (e.target.closest("[data-plan-signout]")) { try { signOut(); } catch (_) { location.reload(); } return; }
+    });
+  }
+  const cards = PLANS.map(p => `
+    <div class="plan-card${p.highlighted ? " is-hot" : ""}">
+      ${p.badge ? `<span class="plan-badge">${escHtml(p.badge)}</span>` : ""}
+      <div class="plan-name">${escHtml(p.name)}</div>
+      <div class="plan-price"><b>$${p.monthlyPrice}</b><span>/mo</span></div>
+      <div class="plan-tag">${escHtml(p.tagline)}</div>
+      <ul class="plan-feats">${p.features.slice(0, 4).map(f => `<li>${escHtml(f)}</li>`).join("")}</ul>
+      <button type="button" class="plan-cta${p.highlighted ? " is-hot" : ""}" data-plan-buy="${escHtml(p.id)}">${escHtml(p.cta)}</button>
+    </div>`).join("");
+  scr.innerHTML =
+    `<div class="plan-wrap">
+      <div class="crew-head">
+        <div class="crew-brand"><span class="crew-anchor">&#9875;</span><span>Anchor</span></div>
+        <button type="button" class="team-act" data-plan-signout>Sign out</button>
+      </div>
+      <h1 class="crew-title">Pick the plan that fits your shop</h1>
+      <p class="crew-sub">Cancel anytime. Prices are per month &mdash; annual billing saves about two months.</p>
+      <div class="plan-grid">${cards}</div>
+      <div class="plan-trial">
+        <div>
+          <div class="plan-trial-h">Not ready to pick?</div>
+          <p class="plan-trial-p">Try it free for <b>${TRIAL.days} days</b> &mdash; ${TRIAL.quotes} quotes with full Pro access. <b>No credit card.</b> Your trial starts when you tap this, and we'll show the days left in the header.</p>
+        </div>
+        <button type="button" class="plan-cta plan-cta-ghost" data-plan-trial>Start my ${TRIAL.days}-day free trial</button>
+      </div>
+    </div>`;
+  scr.classList.remove("hidden");
+  document.body.classList.add("plan-choosing");
 }
 
 // A crew account (a seat under someone else's company) has no plan of its own and
@@ -35361,6 +35497,9 @@ function getPlanDef() {
   if (e.plan === "crew") {
     return { id: "crew", name: "Crew seat", quoteLimit: 0, _synthetic: true };
   }
+  if (e.plan === "none") {
+    return { id: "none", name: "No plan yet", quoteLimit: 0, _synthetic: true };
+  }
   if (e.plan === "trial") {
     return { id: "trial", name: "Free trial", quoteLimit: TRIAL.quotes, _synthetic: true };
   }
@@ -35374,7 +35513,9 @@ function getPlanDef() {
 // fetch-material-prices / extract-plan-openings edge functions.
 // crew ranks BELOW trial: a seat under someone else's company may not use any
 // plan-gated feature on its own account.
-const PLAN_RANK = { crew: -1, trial: 0, starter: 1, pro: 2, unlimited: 3 };
+// "none" = hasn't chosen yet, "crew" = a seat under someone else's company.
+// Both rank below trial so nothing plan-gated opens before a real choice.
+const PLAN_RANK = { none: -1, crew: -1, trial: 0, starter: 1, pro: 2, unlimited: 3 };
 function planRankOf(id) { return PLAN_RANK[id] != null ? PLAN_RANK[id] : 0; }
 function currentPlanId() { return (getEntitlements() || {}).plan || "trial"; }
 // True if the account may use a feature requiring at least `minPlanId`. Admin
@@ -35388,6 +35529,7 @@ function planAllows(minPlanId) {
 function getPlanLimit() {
   const e = getEntitlements();
   if (e.plan === "crew") return 0;          // crew seats never quote
+  if (e.plan === "none") return 0;          // nothing until a plan is chosen
   if (e.plan === "trial") return TRIAL.quotes;
   if (e.plan === "unlimited") return Infinity;
   const p = PLANS.find(pp => pp.id === e.plan);
@@ -35462,7 +35604,11 @@ function renderAiReadsMeter() {
 function getCycleDaysRemaining() {
   const e = getEntitlements();
   const ms = (e.cycleResetAt || 0) - Date.now();
-  return Math.max(0, Math.floor(ms / DAY_MS));
+  // ceil, not floor: a 14-day trial has 13.99… days left one second in, and
+  // flooring made it announce "13 days left" the moment it started. Ceil counts
+  // a part-day as a day (so the final day reads "1 day left") and still hits 0
+  // exactly when the clock runs out.
+  return Math.max(0, Math.ceil(ms / DAY_MS));
 }
 
 function isTrialExpired() {
@@ -35483,6 +35629,10 @@ function cycleNeedsReset() {
   // A canceled subscription has no live billing cycle — don't auto-roll its
   // counter (that would hand a lapsed customer a fresh quota every 30 days).
   // The real reset comes from the invoice.paid webhook on renewal.
+  // "none"/"crew" have no billing cycle at all — a null cycleResetAt reads as
+  // expired, and rolling it would write a phantom 30-day cycle onto an account
+  // that hasn't bought anything.
+  if (e.plan === "none" || e.plan === "crew") return false;
   if (isCycleExpired() && e.plan !== "trial" && e.subscriptionStatus !== "canceled") {
     e.quotesUsedThisCycle = 0;
     e.cycleResetAt = Date.now() + CYCLE_MS;
@@ -36074,13 +36224,14 @@ function renderSubscriptionPanel() {
 
 function resetEntitlementsDev() {
   if (!window.__ANCHOR_DEV) return;
-  if (!confirm("Reset your entitlement record to a fresh 14-day trial?\n\nThis is a dev-only tool. Brand info, rates, and saved jobs are kept.")) return;
+  if (!confirm("Reset your entitlement record to a brand-new account?\n\nYou'll get the plan chooser again, exactly like a fresh signup — the trial only starts if you pick it. Dev-only tool: brand info, rates, and saved jobs are kept.")) return;
   DATA.config.entitlements = defaultEntitlements();
   saveData(DATA);
   _entitlementsInitTracked = false;
   updateUsageBadge();
   renderSubscriptionPanel();
-  toast("Entitlements reset to fresh trial");
+  try { renderPlanChoice(); } catch (_) {}
+  toast("Reset — pick a plan to continue");
 }
 
 // =========================================================
@@ -37502,6 +37653,10 @@ async function enterApp() {
   // straight into a full calculator until they happened to open that tab.
   try { applyCrewLockdown(); } catch (_) {}
   if (sb && currentUser) { fetchOrgContext().catch(() => {}); }
+  // Plan gate: a brand-new account picks a plan (or deliberately starts the
+  // trial) before reaching the calculator. Existing accounts already carry a
+  // plan, so this is a no-op for them.
+  try { renderPlanChoice(); } catch (e) { console.warn("plan gate failed", e); }
   renderDemoBanner();
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
