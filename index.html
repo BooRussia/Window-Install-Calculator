@@ -4204,13 +4204,107 @@
   /* settings inputs ride >=16px to stop iOS zoom-on-focus + keep one size */
   .set-field input, .set-field select, .set-field textarea { font-size: 16px; }
   /* Rates leaf sub-navigation (redesign: split Rates into focused leaves) */
-  .rleaf-nav { display: flex; gap: 6px; margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  /* ── Second-level menu (iOS Settings style) ────────────────────────────────
+     Was a horizontal pill strip across the top of a panel; now a VERTICAL list
+     that reads as the next layer in from the tab rail. Desktop shows rail →
+     list → content side by side (iPad Settings); narrow screens drill down one
+     level at a time with a back button (iPhone Settings). Same buttons, same
+     showRatesLeaf/showSetupLeaf/showAccountLeaf handlers — only the presentation
+     changed, so deep links, search and nav-restore all keep working. */
+  .rleaf-nav { display: flex; flex-direction: column; gap: 2px; margin-bottom: 20px; }
   .rleaf-nav::-webkit-scrollbar { display: none; }
-  /* Edge-fade the horizontally-scrolling tab strips on mobile so it's visible that
-     more tabs continue off-screen (paired with scroll-active-into-view in the JS). */
-  @media (max-width: 639px) {
-    #settingsNav, .rleaf-nav { -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); }
+  /* Two-class selector so these beat the old pill rule AND the coarse-pointer
+     touch-target rule further down the sheet (both are single-class). */
+  .rleaf-nav .rleaf-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; flex: 0 0 auto; text-align: left; white-space: normal;
+    border-radius: 9px; border: 1px solid transparent; background: transparent;
+    padding: 9px 10px; gap: 10px; min-height: 40px;
   }
+  /* Chevron marks each row as "opens another layer", like an iOS disclosure. */
+  .rleaf-nav .rleaf-btn::after {
+    content: ""; flex: 0 0 auto; width: 6px; height: 6px; margin-right: 3px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg); opacity: .35;
+  }
+  .rleaf-nav .rleaf-btn:hover { background: rgba(148,163,184,0.08); color: #e2e8f0; border-color: transparent; }
+  .rleaf-nav .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.35); }
+  .rleaf-nav .rleaf-btn.active::after { opacity: .85; }
+  /* Light: the inherited #94a3b8 was ~2.5:1 on the light surface — fine for a
+     small pill, not for a primary nav column. Slate-600 clears AA. */
+  [data-theme="light"] .rleaf-nav .rleaf-btn { color: #475569; }
+  [data-theme="light"] .rleaf-nav .rleaf-btn:hover { background: rgba(15,23,42,0.05); color: #0f172a; }
+
+  @media (min-width: 860px) {
+    /* Rail → list → content. The panel heading spans the full width; the leaf
+       list takes column 1 and everything else flows into column 2. */
+    .set-panel.active[data-panel="setup"],
+    .set-panel.active[data-panel="rates"],
+    .set-panel.active[data-panel="account"] {
+      display: grid;
+      grid-template-columns: 186px minmax(0, 1fr);
+      column-gap: 26px;
+      align-items: start;
+    }
+    .set-panel[data-panel="setup"] > .set-h,   .set-panel[data-panel="setup"] > .set-sub,
+    .set-panel[data-panel="rates"] > .set-h,   .set-panel[data-panel="rates"] > .set-sub,
+    .set-panel[data-panel="account"] > .set-h, .set-panel[data-panel="account"] > .set-sub { grid-column: 1 / -1; }
+    .set-panel > .rleaf-nav {
+      grid-column: 1; grid-row: auto; margin-bottom: 0;
+      position: sticky; top: 0;
+      border-right: 1px solid rgba(30,41,59,0.9); padding-right: 12px;
+    }
+    .set-panel[data-panel="setup"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav),
+    .set-panel[data-panel="rates"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav),
+    .set-panel[data-panel="account"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav) { grid-column: 2; }
+    [data-theme="light"] .set-panel > .rleaf-nav { border-right-color: #e6e8ec; }
+  }
+
+  /* ── Drill-down on narrow screens ─────────────────────────────────────────
+     One layer at a time: tabs → sections → the settings themselves. The level
+     lives as a class on #adminModal (set-l1/2/3), driven by setSettingsLevel(). */
+  @media (max-width: 859px) {
+    #adminModal.set-l1 #settingsContent { display: none; }
+    #adminModal.set-l1 #settingsNav { width: 100%; flex: 1 1 auto; border-right: 0; }
+
+    #adminModal.set-l2 #settingsNav { display: none; }
+    #adminModal.set-l2 .set-panel.active > *:not(.set-h):not(.set-sub):not(.rleaf-nav) { display: none !important; }
+
+    #adminModal.set-l3 #settingsNav { display: none; }
+    #adminModal.set-l3 .set-panel.active > .rleaf-nav { display: none; }
+    /* The panel's own heading + blurb describe the LEVEL-2 list, so they'd just
+       repeat the header once you're inside a section. */
+    #adminModal.set-l3 .set-panel.active > .set-h,
+    #adminModal.set-l3 .set-panel.active > .set-sub { display: none; }
+
+    /* The rail becomes a plain vertical list at level 1. */
+    #settingsNav { display: block; overflow-x: visible; }
+    #settingsNav .set-tab { width: 100%; flex: 1 1 auto; justify-content: space-between; }
+    #settingsNav .set-tab::after {
+      content: ""; width: 6px; height: 6px; border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor; transform: rotate(-45deg); opacity: .45;
+    }
+  }
+  @media (min-width: 860px) { #settingsBack { display: none !important; } }
+  /* Back control — only meaningful in the drill-down. */
+  #settingsBack {
+    display: none; align-items: center; gap: 5px; background: transparent; border: 0;
+    color: #c9a558; font-size: 13px; font-weight: 700; cursor: pointer; padding: 6px 4px; min-height: 44px;
+  }
+  #adminModal.set-l2 #settingsBack, #adminModal.set-l3 #settingsBack { display: inline-flex; }
+  #settingsBack svg { flex: 0 0 auto; }
+  /* Back sits leftmost (iOS order), and the anchor mark steps aside for it so a
+     long section title has room on a 375px header instead of wrapping. */
+  #settingsBack { order: -1; }
+  @media (max-width: 859px) {
+    #adminModal.set-l2 #settingsAnchorIcon,
+    #adminModal.set-l3 #settingsAnchorIcon { display: none; }
+    #adminModal.set-l2 #settingsTitle,
+    #adminModal.set-l3 #settingsTitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  }
+  /* Phone-width: the back label costs more than it earns — the chevron alone is
+     understood, and the section title stops truncating to "Job Co…". */
+  @media (max-width: 460px) { #settingsBackLabel { display: none; } }
   .rleaf-btn { flex: 0 0 auto; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
   .rleaf-btn:hover { color: #e2e8f0; border-color: #475569; }
   .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
@@ -10376,13 +10470,17 @@
     <!-- Header -->
     <div class="px-5 sm:px-8 py-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
       <div class="flex items-center gap-2.5">
-        <span class="text-[#c9a558]">
+        <span id="settingsAnchorIcon" class="text-[#c9a558]">
           <svg viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
             <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
           </svg>
         </span>
-        <h3 class="text-base font-bold text-slate-100 tracking-tight">Settings</h3>
+        <h3 id="settingsTitle" class="text-base font-bold text-slate-100 tracking-tight">Settings</h3>
+        <button type="button" id="settingsBack" aria-label="Back">
+          <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="13 4 7 10 13 16"/></svg>
+          <span id="settingsBackLabel">Settings</span>
+        </button>
       </div>
       <div class="flex items-center gap-3">
         <span id="settingsSavedFlag" class="settings-saved" role="status" aria-live="polite" aria-atomic="true">
@@ -10424,7 +10522,7 @@
       </nav>
 
       <!-- Content -->
-      <div class="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
+      <div id="settingsContent" class="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
 
         <!-- Setup: Brand · Job Defaults · Manufacturers grouped as leaves -->
         <div class="set-panel active" data-panel="setup">
@@ -28447,6 +28545,11 @@ const adminModal = document.getElementById("adminModal");
 function openAdmin() {
   window.track("settings_opened");
   buildAdminUI();
+  // Drill-down back button — wire once (init() can run more than once).
+  { const bk = document.getElementById("settingsBack");
+    if (bk && !bk._wired) { bk.addEventListener("click", settingsBack); bk._wired = true; } }
+  // The level is set by showSettingsTab() below, which honours last-tab memory —
+  // so re-opening lands where you left off instead of back at the root list.
   const acct = document.getElementById("acctEmailSettings");
   if (acct) acct.textContent = (currentUser && currentUser.email) || "Offline mode";
   document.getElementById("adminTabBtn").classList.toggle("hidden", !isAdmin());
@@ -28489,6 +28592,59 @@ function closeAdmin() {
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
+/* ── Settings drill-down (narrow screens) ─────────────────────────────────────
+   Wide screens show all three layers at once (rail → section list → content),
+   so the level is a no-op there. Narrow screens move one layer at a time like
+   iPhone Settings, and the header's back button walks it back.
+   Only these tabs have a second layer; the rest go straight to their content. */
+const SETTINGS_TABS_WITH_LEAVES = ["setup", "rates", "account"];
+const SETTINGS_TAB_LABEL = { setup: "Setup", customers: "Customers", rates: "Rates & Pricing",
+  teams: "Teams", account: "Account & Plan", feedback: "Feedback", resources: "Resources", admin: "Admin" };
+let _setLevel = 1;
+function settingsIsNarrow() { return window.matchMedia("(max-width: 859px)").matches; }
+function setSettingsLevel(n) {
+  _setLevel = n;
+  const m = document.getElementById("adminModal");
+  if (!m) return;
+  m.classList.remove("set-l1", "set-l2", "set-l3");
+  m.classList.add("set-l" + n);
+  // Title reflects where you are; back says where it returns to.
+  const tabName = (document.querySelector("#adminModal .set-tab.active") || {}).dataset?.tab;
+  const title = document.getElementById("settingsTitle");
+  const backLabel = document.getElementById("settingsBackLabel");
+  const tabLabel = SETTINGS_TAB_LABEL[tabName] || "Settings";
+  // iOS convention: the title is where you ARE, the back button is where it
+  // returns to. At level 3 that means the section name, not the tab again.
+  const leafBtn = document.querySelector("#adminModal .set-panel.active .rleaf-btn.active");
+  const leafLabel = leafBtn ? leafBtn.textContent.trim() : "";
+  if (title) {
+    title.textContent = (n === 1 || !tabName) ? "Settings"
+      : (n === 3 && leafLabel && SETTINGS_TABS_WITH_LEAVES.includes(tabName)) ? leafLabel
+      : tabLabel;
+  }
+  if (backLabel) {
+    backLabel.textContent = (n === 3 && SETTINGS_TABS_WITH_LEAVES.includes(tabName)) ? tabLabel : "Settings";
+  }
+}
+/** Back one layer. Level 3 → the section list (only if this tab has one). */
+function settingsBack() {
+  const tabName = (document.querySelector("#adminModal .set-tab.active") || {}).dataset?.tab;
+  if (_setLevel === 3 && SETTINGS_TABS_WITH_LEAVES.includes(tabName)) setSettingsLevel(2);
+  else setSettingsLevel(1);
+}
+/** Called by the leaf switchers — picking a section opens it. */
+function settingsEnterLeaf() { if (settingsIsNarrow()) setSettingsLevel(3); }
+/* Crossing the breakpoint (resize / rotate) must re-sync the level, or a stale
+   set-l2 from a narrow session hides the section list once it's wide again. */
+window.addEventListener("resize", () => {
+  const m = document.getElementById("adminModal");
+  if (!m || m.classList.contains("hidden")) return;
+  if (!settingsIsNarrow()) { setSettingsLevel(1); return; }
+  // Coming back to narrow: land on the deepest layer that has content.
+  const tabName = (document.querySelector("#adminModal .set-tab.active") || {}).dataset?.tab;
+  setSettingsLevel(SETTINGS_TABS_WITH_LEAVES.includes(tabName) ? 2 : 3);
+});
+
 function showSettingsTab(name) {
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
     t.classList.toggle("active", t.dataset.tab === name));
@@ -28507,6 +28663,9 @@ function showSettingsTab(name) {
   { const at = document.querySelector("#adminModal .set-tab.active"); if (at) try { at.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
   // Remember the last main tab (owner-only tabs excluded) so re-opening returns here.
   if (!["feedback", "resources", "admin"].includes(name)) { try { localStorage.setItem("settings_last_tab", name); } catch (_) {} }
+  // Drill in: to the section list when this tab has one, else straight to content.
+  if (settingsIsNarrow()) setSettingsLevel(SETTINGS_TABS_WITH_LEAVES.includes(name) ? 2 : 3);
+  else setSettingsLevel(1);
   scheduleSaveNav();
 }
 
@@ -31291,6 +31450,7 @@ function showRatesLeaf(name) {
   document.querySelectorAll('#ratesLeafNav [data-rleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.rleafBtn === name));
   document.querySelectorAll('#ratesShell [data-rleaf]').forEach(el => { el.style.display = (el.dataset.rleaf === name) ? '' : 'none'; });
   { const a = document.querySelector('#ratesLeafNav [data-rleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
+  settingsEnterLeaf();
   // Doors no longer swaps between types — all three dropdowns render together.
   scheduleSaveNav();
 }
@@ -31313,6 +31473,7 @@ function showSetupLeaf(name) {
   document.querySelectorAll('#setupLeafNav [data-setupleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.setupleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="setup"] [data-setupleaf]').forEach(el => { el.style.display = (el.dataset.setupleaf === name) ? '' : 'none'; });
   { const a = document.querySelector('#setupLeafNav [data-setupleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
+  settingsEnterLeaf();
   scheduleSaveNav();
 }
 
@@ -31321,6 +31482,7 @@ function showAccountLeaf(name) {
   document.querySelectorAll('#accountLeafNav [data-accountleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.accountleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="account"] [data-accountleaf]').forEach(el => { el.style.display = (el.dataset.accountleaf === name) ? '' : 'none'; });
   { const a = document.querySelector('#accountLeafNav [data-accountleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
+  settingsEnterLeaf();
   if (name === "appearance") { try { applyGlassTransparency(getGlassTransparency(), { persist: false }); } catch (_) {} }
   scheduleSaveNav();
 }
