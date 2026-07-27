@@ -656,6 +656,22 @@
   [data-theme="light"] .inst-shop-count { color: #8a6a2e; }
   [data-theme="light"] .inst-shop-item.is-done .inst-shop-name,
   [data-theme="light"] .inst-shop-item.is-done .inst-shop-qty { color: #94a3b8; }
+  .team-seatgrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+  @media (min-width: 640px) { .team-seatgrid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+  .team-seatcell { border: 1px solid rgba(51,65,85,0.5); border-radius: 12px; padding: 9px 11px; min-width: 0; }
+  .team-seatcell span { display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #64748b; }
+  .team-seatcell b { display: block; font-size: 16px; font-weight: 900; color: #f1f5f9; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .team-seatcell b.is-over { color: #fb7185; }
+  .team-seatcell i { display: block; font-style: normal; font-size: 10.5px; font-weight: 600; color: #94a3b8; margin-top: 1px; }
+  .team-seatwarn { margin-top: 9px; padding: 9px 11px; border-radius: 10px; font-size: 11.5px; line-height: 1.55;
+    color: #fcd34d; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.28); }
+  [data-theme="light"] .team-seatcell { border-color: #e2e8f0; }
+  [data-theme="light"] .team-seatcell b { color: #0f172a; }
+  [data-theme="light"] .team-seatcell b.is-over { color: #be123c; }
+  [data-theme="light"] .team-seatcell i, [data-theme="light"] .team-seatcell span { color: #64748b; }
+  [data-theme="light"] .team-seatwarn { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
   .team-inviterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 0;
     border-bottom: 1px dashed rgba(148,163,184,0.18); }
   .team-inviterow:last-of-type { border-bottom: 0; }
@@ -24442,6 +24458,55 @@ function renderInstallerDashboard(body, ctx) {
   }
 }
 
+/* ── Teams T8: seats & billing, reported not enforced ──────────────────────────
+   Two separate authorities decide what a company gets, and they can disagree:
+     * the CALCULATOR plan — profiles.data.config.entitlements.plan (Teams is Shop)
+     * the FIELD plan — organizations.plan + included/extra/total_seats, which is
+       what the Anchor Field app reads for tracked seats.
+   Live data has an org on field plan "pro" with 25 seats while its owner's
+   calculator plan is "starter", and with no Stripe subscription on the field side.
+   Clamping that automatically would strip tracker seats from people mid-job in the
+   mobile app, so this deliberately only REPORTS: it shows both plans, what's
+   included vs used, and flags a disagreement. Nothing here writes to
+   organizations.plan or to any seat count.
+
+   The quoting/tracking split: crews are unlimited for QUOTING (assign any job to
+   any crew, price it at that crew's pay and rates — none of that consumes a seat);
+   a seat is only consumed by TRACKING someone in the field app. */
+const TEAMS_INCLUDED_SEATS_ON_SHOP = 5;   // Shop includes 1 team of 5 tracked members
+
+function seatSummary(ctx) {
+  const org = (ctx && ctx.org) || {};
+  const included = Number(org.included_seats) || 0;
+  const extra = Number(org.extra_seats) || 0;
+  const total = Number(org.total_seats) || (included + extra) || 0;
+  const seated = ((ctx && ctx.members) || []).filter(m => m.hasSeat).length;
+  const fieldPlan = String(org.plan || "trial");
+  const calcPlan = String((getEntitlements() || {}).plan || "trial");
+  const calcAllowsTeams = (typeof planAllows === "function") ? planAllows("unlimited") : false;
+  const fieldPaid = fieldPlan !== "trial";
+  return { included, extra, total, seated, fieldPlan, calcPlan, calcAllowsTeams,
+    over: total > 0 && seated > total,
+    mismatch: fieldPaid && !calcAllowsTeams,
+    freeSeats: Math.max(0, total - seated) };
+}
+function renderSeatPanel(ctx) {
+  const el = document.getElementById("teamSeats");
+  if (!el) return;
+  const s = seatSummary(ctx);
+  const planName = (id) => ({ trial: "Trial", starter: "Starter", pro: "Pro", unlimited: "Shop" })[id] || id;
+  el.innerHTML = `
+    <div class="team-seatgrid">
+      <div class="team-seatcell"><span>Quoting plan</span><b>${escHtml(planName(s.calcPlan))}</b><i>${s.calcAllowsTeams ? "Teams included" : "Teams need Shop"}</i></div>
+      <div class="team-seatcell"><span>Field plan</span><b>${escHtml(planName(s.fieldPlan))}</b><i>${s.total} tracked seat${s.total === 1 ? "" : "s"}</i></div>
+      <div class="team-seatcell"><span>Seats in use</span><b class="${s.over ? "is-over" : ""}">${s.seated}${s.total ? ` / ${s.total}` : ""}</b><i>${s.over ? "over the limit" : `${s.freeSeats} free`}</i></div>
+      <div class="team-seatcell"><span>Crews</span><b>${(ctx.crews || []).length}</b><i>unlimited for quoting</i></div>
+    </div>
+    <p class="team-ratehint mt-2">Crews cost nothing to quote with &mdash; assign any job to any crew and price it at their pay and rates. A <b>seat</b> is only used when someone is tracked in the Anchor Field app. Shop includes ${TEAMS_INCLUDED_SEATS_ON_SHOP} tracked members; beyond that it&rsquo;s per seat.</p>
+    ${s.mismatch ? `<p class="team-seatwarn">Your field plan (<b>${escHtml(planName(s.fieldPlan))}</b>, ${s.total} seat${s.total === 1 ? "" : "s"}) is ahead of your quoting plan (<b>${escHtml(planName(s.calcPlan))}</b>), and nothing is billing for those extra seats &mdash; worth reconciling before you add more people.</p>` : ""}
+    ${s.over ? `<p class="team-seatwarn">${s.seated} people hold a tracked seat but only ${s.total} are paid for.</p>` : ""}`;
+}
+
 function renderTeamsSettings() {
   const body = document.getElementById("teamsBody");
   if (!body) return;
@@ -24451,7 +24516,17 @@ function renderTeamsSettings() {
       <div class="set-card team-lockcard">
         <div class="tmc-ico">${TEAM_ICON_CREW}</div>
         <div class="team-lock-h">Teams are part of Shop</div>
-        <p class="team-lock-p">Assign each job to a crew or subcontractor, price labor at that team&rsquo;s real pay, and give team leads their own login for shopping lists &mdash; plus the Anchor Field app with 5 tracked members included.</p>
+        <p class="team-lock-p">Assign each job to a crew or subcontractor, price labor at that team&rsquo;s real pay, and give team leads their own login for shopping lists &mdash; plus the Anchor Field app with ${TEAMS_INCLUDED_SEATS_ON_SHOP} tracked members included.</p>
+        ${(() => {
+          // Teams T8: the seat/plan mismatch lives on THIS card too. An account whose
+          // field plan is ahead of its quoting plan never reaches the panel below —
+          // this card is all it sees — so the disclosure has to be here or nowhere.
+          const c0 = (typeof getOrgContext === "function") ? getOrgContext() : null;
+          if (!c0) return "";
+          const s0 = seatSummary(c0);
+          if (!s0.mismatch) return "";
+          return `<p class="team-seatwarn">You already have <b>${s0.total}</b> tracked seat${s0.total === 1 ? "" : "s"} on the field side with <b>${escHtml(s0.seated)}</b> in use, but Teams here needs Shop. Nothing is billing for those seats yet.</p>`;
+        })()}
         <button type="button" class="team-add-btn" data-team-upsell>See plans &rarr;</button>
       </div>`;
     return;
@@ -24656,10 +24731,15 @@ function renderTeamsSettings() {
       ${unassigned.length ? `<div class="team-sec-h mt-4">Not on a crew</div><div class="team-chips">${unassigned.map(m => who(m.userId)).join("")}</div>` : ""}
     </div>
     <div class="set-card mt-3">
+      <div class="set-sub mb-2">Seats &amp; plan</div>
+      <div id="teamSeats"></div>
+    </div>
+    <div class="set-card mt-3">
       <div class="set-sub mb-2">Invite links</div>
       <div id="teamInvites"></div>
     </div>
     <p class="team-foot">Crews here are the same crews as in the Anchor Field app &mdash; changes show up in both. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}Assign a job to a team on the Save&nbsp;Job screen: its labor prices at that team&rsquo;s pay, its rate overrides apply, and in subcontracted mode its branding goes on the customer&rsquo;s quote.</p>`;
+  renderSeatPanel(ctx);                                // Teams T8 — report only, no writes
   if (isOrgAdminRole()) renderInvitePanel(ctx.orgId);   // Teams T7 — lazy, non-blocking
 }
 let _teamBrandOpen = null;   // crew id whose branding form is expanded
@@ -24982,9 +25062,16 @@ function wireTeamsSettings() {
     const ctx = getOrgContext();
     if (!ctx || !canManageCrews()) return;
     const crewId = sel.dataset.crewAddmem, uid = sel.value;
+    // Teams T8: joining a crew is free — it's quoting, not tracking. If every
+    // tracked seat is taken, say so once and still add them; they just won't be
+    // trackable in the field app.
+    const s8 = seatSummary(ctx);
+    const seatNote = (s8.total > 0 && s8.freeSeats === 0)
+      ? ` — all ${s8.total} tracked seats are in use, so they can be quoted with but not tracked`
+      : "";
     sel.disabled = true;
     addCrewMemberWeb(crewId, ctx.orgId, uid)
-      .then(() => afterCrewWrite("Added to crew"))
+      .then(() => afterCrewWrite("Added to crew" + seatNote))
       .catch(e2 => { try { toast((e2 && e2.message) || "Couldn't add that member."); } catch (_) {} })
       .finally(() => { sel.disabled = false; });
   });
