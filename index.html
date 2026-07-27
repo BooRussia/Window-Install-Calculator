@@ -24522,6 +24522,9 @@ async function afterCrewWrite(msg) {
   _orgCtx = null; saveOrgCtxCache(null);
   try { await fetchOrgContext(); } catch (_) {}
   renderTeamsSettings();
+  // A caged crew seat sees the crew workspace, not #teamsBody — repaint it too so
+  // a saved rate / pay / shopping tick shows up where the seat is actually looking.
+  try { if (typeof isCrewAccount === "function" && isCrewAccount()) renderCrewWorkspace(); } catch (_) {}
   if (msg) { try { toast(msg); } catch (_) {} }
 }
 
@@ -24583,7 +24586,10 @@ async function openTeamsSettings() {
   renderTeamsSettings();
   try { await fetchOrgContext(); }
   catch (e) { _orgCtx = _orgCtx || null; console.warn("[teams] load failed", e && e.message); }
-  finally { _orgCtxLoading = false; renderTeamsSettings(); }
+  finally {
+    _orgCtxLoading = false; renderTeamsSettings();
+    try { if (isCrewAccount()) renderCrewWorkspace(); } catch (_) {}
+  }
 }
 
 
@@ -25112,11 +25118,15 @@ const TEAM_ICON_SUB = '<svg width="22" height="22" viewBox="0 0 24 24" fill="non
 const TEAM_ICON_CREW = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-1.5A4.5 4.5 0 0 1 7.5 15h3A4.5 4.5 0 0 1 15 19.5V21"/><path d="M17 8.5a2.5 2.5 0 1 0-1.5-4.5"/><path d="M18 21v-1a4 4 0 0 0-2-3.4"/></svg>';
 
 // Delegated Teams wiring (init runs more than once → _wired guard).
+// The Teams click delegation, held in a shared handler so the caged crew
+// workspace (renderCrewWorkspace) can wire the SAME logic onto its own screen —
+// its installer controls live outside #teamsBody and would otherwise be dead.
+let _teamsClickHandler = null;
 function wireTeamsSettings() {
   const body = document.getElementById("teamsBody");
   if (!body || body._wired) return;
   body._wired = true;
-  body.addEventListener("click", (e) => {
+  _teamsClickHandler = (e) => {
     if (e.target.closest("[data-team-upsell]")) { try { showUpsellModal("teams_locked"); } catch (_) {} return; }
     if (e.target.closest("[data-teams-refresh]")) {
       _orgCtx = null; saveOrgCtxCache(null);
@@ -25128,7 +25138,9 @@ function wireTeamsSettings() {
     const iSave = e.target.closest("[data-inst-save]");
     if (iSave) {
       const cid = iSave.dataset.instSave;
-      const form = body.querySelector(`[data-inst-form="${cid}"]`);
+      // The installer form may live in #teamsBody OR in the caged crew screen —
+      // scope the lookup to whichever surface the click came from.
+      const form = (e.target.closest("#crewScreen, #teamsBody") || body).querySelector(`[data-inst-form="${cid}"]`);
       if (!form || !ctx) return;
       // Same sparse rule as the owner's editor: only real differences persist, so
       // an unset row keeps tracking whatever the company changes its rate to.
@@ -25365,7 +25377,8 @@ function wireTeamsSettings() {
       removeCrewMemberWeb(rm.dataset.crewRmmem, rm.dataset.uid).then(() => afterCrewWrite("Removed from crew")).catch(fail);
       return;
     }
-  });
+  };
+  body.addEventListener("click", _teamsClickHandler);
   // Sub logo upload — reuse the app's resizer (320px cap) so a phone photo
   // can't blow past the crews.data size guard.
   body.addEventListener("change", async (e) => {
@@ -36087,6 +36100,12 @@ function renderCrewWorkspace() {
     document.body.appendChild(scr);
     const so = scr.querySelector("#crewSignOut");
     if (so) so.addEventListener("click", () => { try { signOut(); } catch (_) { location.reload(); } });
+    // The crew workspace renders the SAME installer panel as Settings → Teams,
+    // whose controls (save rates, save pay, check off the shopping list) are
+    // delegated to #teamsBody — a surface a caged seat can never reach. Without
+    // wiring the shared handler here every control below is a silent no-op, so
+    // the invited installer can view their rates but never save anything.
+    scr.addEventListener("click", (e) => { if (typeof _teamsClickHandler === "function") _teamsClickHandler(e); });
   }
   const title = scr.querySelector(".crew-title");
   if (title) title.textContent = crewAccountOrgName() ? ("You're on the " + crewAccountOrgName() + " team") : "Your crew workspace";
