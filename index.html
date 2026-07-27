@@ -24324,16 +24324,27 @@ function newInviteCode() {
 function inviteLinkFor(code) {
   return `${location.origin}${location.pathname}?join=${encodeURIComponent(code)}`;
 }
-async function createOrgInviteWeb(orgId, role) {
+/* Packaging limits. Crews are capped in the app only — `crews` is owned by the
+   anchor-field app too, and a DB trigger there would start rejecting crew
+   creation inside the mobile app. The INVITE cap is enforced in the database
+   (trigger trg_crew_invite_cap), because that's this app's own table and it is
+   the limit that actually needs to hold. */
+const MAX_CREWS_PER_ORG = 3;
+const MAX_INVITES_PER_CREW = 5;
+
+async function createOrgInviteWeb(orgId, role, crewId) {
   const code = newInviteCode();
-  const { error } = await sb.from("org_invites")
-    .insert({ org_id: orgId, code, role: role || "installer", created_by: currentUser.id });
+  const row = { org_id: orgId, code, role: role || "installer", created_by: currentUser.id };
+  // Crew-scoped link: redeem_org_invite seats them on that crew automatically,
+  // so nobody has to be hand-picked into a crew after joining.
+  if (crewId) row.crew_id = crewId;
+  const { error } = await sb.from("org_invites").insert(row);
   if (error) throw error;
   return code;
 }
 async function listOrgInvitesWeb(orgId) {
   const { data, error } = await sb.from("org_invites")
-    .select("id,code,role,uses,max_uses,expires_at")
+    .select("id,code,role,uses,max_uses,expires_at,crew_id")
     .eq("org_id", orgId).gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -24993,7 +25004,12 @@ function renderInvitePanel(orgId) {
       .catch(() => { _teamInvites = []; renderInvitePanel(orgId); });
     return;
   }
-  const rows = _teamInvites.map(iv => {
+  // Links belong to a crew, so the panel is grouped by crew: each crew gets its
+  // own list and its own "create" button, capped at MAX_INVITES_PER_CREW live.
+  const ctx = getOrgContext();
+  const crews = (ctx && ctx.crews) || [];
+  const isLive = (iv) => new Date(iv.expires_at) > new Date() && (iv.uses || 0) < (iv.max_uses || 1);
+  const rowHtml = (iv) => {
     const left = Math.max(0, (iv.max_uses || 0) - (iv.uses || 0));
     const days = Math.max(0, Math.ceil((new Date(iv.expires_at) - Date.now()) / 86400000));
     return `<div class="team-inviterow">
@@ -25002,10 +25018,26 @@ function renderInvitePanel(orgId) {
       <button type="button" class="team-act" data-invite-copy="${escHtml(iv.code)}">Copy link</button>
       <button type="button" class="team-act team-act-danger" data-invite-revoke="${escHtml(iv.id)}">Revoke</button>
     </div>`;
-  }).join("");
-  wrap.innerHTML = (rows || `<p class="team-empty">No active invite links.</p>`) +
-    `<button type="button" class="team-add-btn mt-2" data-invite-new>Create an invite link</button>
-     <p class="team-ratehint mt-2">Send this to a sub or a crew lead. They sign up with their own email, land on the team as an installer, and can then set the prices and pay you quote their work at. Add them to a crew above once they&rsquo;ve joined.</p>`;
+  };
+  if (!crews.length) {
+    wrap.innerHTML = `<p class="team-empty">Add a crew first — invite links belong to a crew, so whoever joins lands on it automatically.</p>`;
+    return;
+  }
+  // Links made before links were crew-scoped have no crew — still listed, so
+  // they can be copied or revoked, just not grouped.
+  const legacy = _teamInvites.filter(iv => !iv.crew_id);
+  wrap.innerHTML = crews.map(c => {
+    const mine = _teamInvites.filter(iv => iv.crew_id === c.id);
+    const live = mine.filter(isLive).length;
+    const full = live >= MAX_INVITES_PER_CREW;
+    return `<div class="set-card mb-2">
+      <div class="set-sub mb-1">${escHtml(c.name)} <span class="team-invitemeta">&middot; ${live}/${MAX_INVITES_PER_CREW} active</span></div>
+      ${mine.map(rowHtml).join("") || `<p class="team-empty">No links yet.</p>`}
+      <button type="button" class="team-add-btn mt-2" data-invite-new="${escHtml(c.id)}"${full ? " disabled" : ""}>${full ? "Link limit reached" : "Create an invite link"}</button>
+    </div>`;
+  }).join("") +
+    (legacy.length ? `<div class="set-card mb-2"><div class="set-sub mb-1">Older links <span class="team-invitemeta">&middot; not tied to a crew</span></div>${legacy.map(rowHtml).join("")}</div>` : "") +
+    `<p class="team-ratehint mt-2">Send a crew&rsquo;s link to its lead or sub. They sign up with their own email and land straight on that crew &mdash; where they set the prices and pay you quote their work at, and see the shopping list. They never get the calculator. ${MAX_INVITES_PER_CREW} live links per crew, ${MAX_CREWS_PER_ORG} crews for now.</p>`;
 }
 
 
@@ -25212,9 +25244,19 @@ function wireTeamsSettings() {
       return;
     }
     // ── Teams T7: invite links ──
-    if (e.target.closest("[data-invite-new]")) {
+    const iNew = e.target.closest("[data-invite-new]");
+    if (iNew) {
       if (!isOrgAdminRole()) { try { toast("Only an owner or admin can invite."); } catch (_) {} return; }
-      createOrgInviteWeb(ctx.orgId, "installer")
+      // Links belong to a crew: the invitee is seated on it the moment they join.
+      const crewId = iNew.dataset.inviteNew || null;
+      if (!crewId) { try { toast("Add a crew first — invite links belong to a crew."); } catch (_) {} return; }
+      const live = (_teamInvites || []).filter(v => v.crew_id === crewId
+        && new Date(v.expires_at) > new Date() && (v.uses || 0) < (v.max_uses || 1)).length;
+      if (live >= MAX_INVITES_PER_CREW) {
+        try { toast(`That crew already has ${MAX_INVITES_PER_CREW} active invite links — revoke one to make room.`); } catch (_) {}
+        return;
+      }
+      createOrgInviteWeb(ctx.orgId, "installer", crewId)
         .then((code) => { _teamInvitesOpen = true; return afterCrewWrite("Invite link created"); })
         .catch(fail);
       return;
@@ -25240,6 +25282,10 @@ function wireTeamsSettings() {
       if (!name) { if (input) input.focus(); return; }
       if (ctx.crews.some(c => (c.name || "").trim().toLowerCase() === name.toLowerCase())) {
         try { toast("You already have a crew with that name."); } catch (_) {}
+        return;
+      }
+      if ((ctx.crews || []).length >= MAX_CREWS_PER_ORG) {
+        try { toast(`You can run ${MAX_CREWS_PER_ORG} crews for now — rename or remove one to add another.`); } catch (_) {}
         return;
       }
       add.disabled = true;
