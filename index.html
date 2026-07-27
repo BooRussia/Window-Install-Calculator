@@ -357,6 +357,92 @@
   .toggle-pill .val { font-variant-numeric: tabular-nums; color: #64748b; font-weight: 700; transition: color .2s; }
   .toggle-pill.active .val { color: var(--gold-hi); }
 
+  /* ── v2 P3: the overview grid ─────────────────────────────────────────────── */
+  .dash-overview { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
+  @media (min-width: 1000px) { .dash-overview { grid-template-columns: 2fr 1fr; } }
+  /* Flex column so a shorter panel's content can stretch to the row height the
+     taller neighbour sets — otherwise the chart floats at the top of dead space. */
+  .dash-ovcard { border: 1px solid rgba(51,65,85,0.55); border-radius: 16px; background: #0b1120;
+    padding: 15px 16px 16px; min-width: 0; display: flex; flex-direction: column; }
+  .dash-ovcard-full { grid-column: 1 / -1; }
+  .dash-ovhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    margin-bottom: 12px; }
+  .dash-ovtitle { font-size: 13.5px; font-weight: 900; letter-spacing: -0.01em; color: #f1f5f9; }
+  .dash-ovsub { font-size: 11.5px; font-weight: 600; color: #94a3b8; margin-top: 2px; }
+  .dash-ovpill { flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #94a3b8; background: rgba(51,65,85,0.55);
+    border-radius: 9999px; padding: 3px 9px; }
+  .dash-ovlink { flex: 0 0 auto; font-size: 11.5px; font-weight: 800; color: var(--gold-hi);
+    background: none; border: 0; cursor: pointer; padding: 2px 0; }
+  .dash-ovlink:hover { text-decoration: underline; }
+  .dash-ovempty { font-size: 11.5px; line-height: 1.6; color: #94a3b8; }
+  .dash-ovfoot { font-size: 11px; font-weight: 700; color: #64748b; padding-top: 8px; }
+  /* Booked-by-month bars: CSS heights, so no redraw on resize or theme flip. */
+  .dash-bars { display: flex; align-items: flex-end; gap: 5px; flex: 1 1 auto; min-height: 132px; }
+  .dash-bar-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
+  .dash-bar-track { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end;
+    background: rgba(51,65,85,0.22); border-radius: 6px; overflow: hidden; }
+  .dash-bar-fill { width: 100%; border-radius: 6px 6px 0 0;
+    background: linear-gradient(180deg, var(--gold-hi), rgba(181,143,74,0.55)); }
+  .dash-bar-fill.is-empty { background: transparent; }
+  /* #64748b measured 3.96:1 on the card at 9.5px — under the floor. January keeps a
+     brighter tint so the year boundary still reads. */
+  .dash-bar-lbl { flex: 0 0 auto; font-size: 9.5px; font-weight: 700; color: #94a3b8; }
+  .dash-bar-lbl.is-year { color: #e2e8f0; }
+  /* Needs-attention rail */
+  .dash-attn-list { display: flex; flex-direction: column; }
+  .dash-attn-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+    padding: 8px 2px; background: none; border: 0; border-top: 1px solid rgba(51,65,85,0.35);
+    cursor: pointer; min-height: 44px; }
+  .dash-attn-row:first-child { border-top: 0; }
+  .dash-attn-row:hover .dash-attn-name { color: var(--gold-hi); }
+  .dash-attn-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 9999px; }
+  .dash-attn-dot.tone-warn { background: #fbbf24; }
+  .dash-attn-dot.tone-ok { background: #34d399; }
+  .dash-attn-main { flex: 1 1 auto; min-width: 0; }
+  .dash-attn-name { display: block; font-size: 12.5px; font-weight: 700; color: #e2e8f0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-attn-note { display: block; font-size: 10.5px; font-weight: 600; color: #94a3b8; }
+  .dash-attn-pill { flex: 0 0 auto; font-size: 10px; font-weight: 800; border-radius: 9999px; padding: 2px 8px; }
+  .dash-attn-pill.tone-warn { color: #fbbf24; background: rgba(251,191,36,0.12); }
+  .dash-attn-pill.tone-ok { color: #34d399; background: rgba(16,185,129,0.12); }
+  /* Pipeline table */
+  .dpt-wrap { overflow-x: auto; }
+  .dpt { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .dpt th { text-align: left; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #94a3b8; padding: 0 10px 8px 0; white-space: nowrap; }
+  .dpt th:last-child, .dpt .dpt-val { text-align: right; }
+  .dpt th:nth-child(2), .dpt .dpt-n { text-align: right; }
+  .dpt td { padding: 9px 10px 9px 0; border-top: 1px solid rgba(51,65,85,0.4);
+    color: #cbd5e1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dpt-stage { font-weight: 800; color: #f1f5f9; }
+  .dpt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 8px; }
+  .dpt-bar { width: 55%; }
+  .dpt-track { display: inline-block; width: calc(100% - 46px); height: 7px; border-radius: 9999px;
+    background: rgba(51,65,85,0.5); overflow: hidden; vertical-align: middle; }
+  .dpt-fill { display: block; height: 100%; border-radius: 9999px; }
+  .dpt-share { display: inline-block; width: 38px; text-align: right; font-size: 11px;
+    font-weight: 700; color: #94a3b8; }
+  .dpt-val { font-weight: 800; color: #f1f5f9; }
+  [data-theme="light"] .dash-ovcard { background: #ffffff; border-color: #e2e8f0; }
+  [data-theme="light"] .dash-ovtitle, [data-theme="light"] .dpt-stage,
+  [data-theme="light"] .dpt-val { color: #0f172a; }
+  [data-theme="light"] .dash-ovsub, [data-theme="light"] .dash-ovempty,
+  [data-theme="light"] .dash-attn-note, [data-theme="light"] .dpt th,
+  [data-theme="light"] .dpt-share { color: #64748b; }
+  [data-theme="light"] .dash-ovpill { color: #475569; background: #eef1f6; }
+  [data-theme="light"] .dash-ovlink { color: #8a6a2e; }
+  [data-theme="light"] .dash-ovfoot { color: #64748b; }
+  [data-theme="light"] .dash-bar-track { background: #eef1f6; }
+  [data-theme="light"] .dash-bar-lbl { color: #64748b; }
+  [data-theme="light"] .dash-bar-lbl.is-year { color: #334155; }
+  [data-theme="light"] .dash-attn-row { border-top-color: #e2e8f0; }
+  [data-theme="light"] .dash-attn-name { color: #1e293b; }
+  [data-theme="light"] .dash-attn-row:hover .dash-attn-name { color: #8a6a2e; }
+  [data-theme="light"] .dash-attn-pill.tone-warn { color: #92400e; background: #fffbeb; }
+  [data-theme="light"] .dash-attn-pill.tone-ok { color: #047857; background: #ecfdf5; }
+  [data-theme="light"] .dpt td { border-top-color: #e2e8f0; color: #334155; }
+  [data-theme="light"] .dpt-track { background: #e2e8f0; }
   /* ── v2 P2: page bar + the divided KPI strip ─────────────────────────────── */
   .dash-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
     flex-wrap: wrap; padding-bottom: 14px; margin-bottom: 18px;
@@ -8950,6 +9036,13 @@
     <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
     <div id="dashStats" class="mb-4 hidden"></div>
+    <!-- v2 P3: the overview. Booked-by-month + what needs attention, then the
+         pipeline table. Home view only; all three read the active date range. -->
+    <div id="dashOverview" class="dash-overview hidden">
+      <div class="dash-ovcard dash-ovcard-wide" id="dashBookedCard"></div>
+      <div class="dash-ovcard" id="dashAttentionCard"></div>
+      <div class="dash-ovcard dash-ovcard-full" id="dashPipelineCard"></div>
+    </div>
 
     <!-- Customize sits under the KPI glance tiles and above the Jobs card —
          that's the launchpad it edits, so the control belongs with those cards. -->
@@ -18075,6 +18168,7 @@ function renderDashboard() {
   renderDashLaunchpad(jobs);
   try { wireDashNav(); renderDashNav(dashLaunchContext(jobs)); } catch (_) {}   // v2 sidebar
   try { renderDashTopBar(); } catch (_) {}                                       // v2 page bar + range
+  try { renderDashOverview(jobs); } catch (_) {}                                 // v2 overview panels
   renderDashEditBar();   // keep the customize bar in sync with edit mode (hidden by default)
   // E-sign hits the network, so only refresh it when its card is actually open.
   if (_dashView === "esign") renderDashEsign();
@@ -18576,6 +18670,9 @@ function applyDashView() {
   // checklist (if incomplete) rides above it as a strip.
   if (firstRun) firstRun.classList.toggle("hidden", !home || !_dashChecklistShow);
   if (launch) launch.classList.toggle("hidden", !home || _dashFirstRunActive);
+  // v2 P3: the overview belongs to home, and only once there are jobs to show.
+  const ov = document.getElementById("dashOverview");
+  if (ov) ov.classList.toggle("hidden", !home || _dashFirstRunActive);
   if (section) section.classList.toggle("hidden", home);
   // Customize edits the launchpad — keep it with those cards (under KPIs).
   const custRow = document.getElementById("dashCustomizeRow");
@@ -20016,6 +20113,151 @@ function renderDashTopBar() {
   label.textContent = meta ? meta.title : "Dashboard";
   if (icon) icon.innerHTML = (meta && meta.icon) || DNAV_HOME_ICON;
   renderDashRangePicker();
+}
+
+/* ── Dashboard v2 P3: the overview ────────────────────────────────────────────
+   Three panels that mirror the reference's main grid, all built from data the app
+   already computes and all honouring the active date range:
+     * Booked by month — saved-job value bucketed by month
+     * Needs attention — the follow-ups rail (stale quotes + jobs to calibrate)
+     * Open pipeline — stage rows with share-of-pipeline bars
+   No new library: the chart is CSS-height divs, which survive theme changes and
+   need no redraw on resize. */
+function dashMonthBuckets(jobs, count) {
+  const now = new Date();
+  const out = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleString(undefined, { month: "short" }),
+      isJan: d.getMonth() === 0, total: 0, n: 0 });
+  }
+  const byKey = {}; out.forEach(b => byKey[b.key] = b);
+  (jobs || []).filter(j => j && !j.isDraft).forEach(j => {
+    const t = Date.parse(j.updatedAt || j.createdAt || "");
+    if (isNaN(t)) return;                       // undated jobs can't be placed on a timeline
+    const d = new Date(t), k = `${d.getFullYear()}-${d.getMonth()}`;
+    if (byKey[k]) { byKey[k].total += Number(j.sellingPrice) || 0; byKey[k].n++; }
+  });
+  return out;
+}
+function renderDashBooked(jobs) {
+  const el = document.getElementById("dashBookedCard");
+  if (!el) return;
+  const months = dashMonthBuckets(jobs, 12);
+  const peak = Math.max(...months.map(m => m.total), 0);
+  const booked = months.reduce((s, m) => s + m.total, 0);
+  const active = months.filter(m => m.n).length;
+  const avg = active ? booked / active : 0;
+  if (!peak) {
+    el.innerHTML = `<div class="dash-ovhead"><div><div class="dash-ovtitle">Booked by month</div>
+      <div class="dash-ovsub">Nothing dated in this range yet.</div></div></div>`;
+    return;
+  }
+  const bars = months.map(m => {
+    const h = peak ? Math.max(m.total ? 4 : 0, Math.round((m.total / peak) * 100)) : 0;
+    const tip = `${m.label}: ${formatMoney(m.total)}${m.n ? ` · ${m.n} job${m.n === 1 ? "" : "s"}` : ""}`;
+    return `<div class="dash-bar-col" title="${escHtml(tip)}">
+      <div class="dash-bar-track"><div class="dash-bar-fill${m.total ? "" : " is-empty"}" style="height:${h}%"></div></div>
+      <span class="dash-bar-lbl${m.isJan ? " is-year" : ""}">${escHtml(m.label)}</span>
+    </div>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="dash-ovhead">
+      <div>
+        <div class="dash-ovtitle">Booked by month</div>
+        <div class="dash-ovsub">${formatMoney(booked)} over ${active} active month${active === 1 ? "" : "s"} &middot; ${formatMoney(avg)} avg</div>
+      </div>
+      <span class="dash-ovpill">Last 12 months</span>
+    </div>
+    <div class="dash-bars">${bars}</div>`;
+}
+function renderDashAttention(jobs) {
+  const el = document.getElementById("dashAttentionCard");
+  if (!el) return;
+  const { stale, calibrate } = computeFollowups(jobs);
+  const items = stale.map(n => ({ job: n.job, tone: "warn", pill: `${n.days}d quiet`,
+      note: "Quoted, no movement" }))
+    .concat(calibrate.map(n => ({ job: n.job, tone: "ok", pill: "Finished", note: "Log what you used" })))
+    .slice(0, 6);
+  const total = stale.length + calibrate.length;
+  if (!total) {
+    el.innerHTML = `<div class="dash-ovhead"><div><div class="dash-ovtitle">Needs attention</div>
+        <div class="dash-ovsub">You&rsquo;re all caught up.</div></div></div>
+      <div class="dash-ovempty">Quotes that go quiet for ${FOLLOWUP_STALE_DAYS}+ days and finished jobs you haven&rsquo;t calibrated land here.</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="dash-ovhead">
+      <div>
+        <div class="dash-ovtitle">Needs attention</div>
+        <div class="dash-ovsub">${total} item${total === 1 ? "" : "s"}${stale.length ? ` &middot; ${stale.length} quiet` : ""}</div>
+      </div>
+      <button type="button" class="dash-ovlink" data-dashnav-jump="followups">All &rarr;</button>
+    </div>
+    <div class="dash-attn-list">${items.map(it => {
+      const name = it.job.name || it.job.customerName || "Untitled job";
+      return `<button type="button" class="dash-attn-row" data-attn-open="${escHtml(it.job.id)}">
+        <span class="dash-attn-dot tone-${it.tone}"></span>
+        <span class="dash-attn-main">
+          <span class="dash-attn-name">${escHtml(name)}</span>
+          <span class="dash-attn-note">${escHtml(it.note)}</span>
+        </span>
+        <span class="dash-attn-pill tone-${it.tone}">${escHtml(it.pill)}</span>
+      </button>`;
+    }).join("")}</div>
+    ${total > items.length ? `<div class="dash-ovfoot">+${total - items.length} more</div>` : ""}`;
+}
+function renderDashPipelineCard(jobs) {
+  const el = document.getElementById("dashPipelineCard");
+  if (!el) return;
+  const { real, groups, sum } = pipelineStats(jobs);
+  if (!real.length) { el.innerHTML = ""; el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  const grand = sum(real) || 0;
+  const rows = JOB_STATUSES.map(st => {
+    const g = groups[st] || [], val = sum(g);
+    const share = grand ? Math.round((val / grand) * 100) : 0;
+    return `<tr>
+      <td class="dpt-stage"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}</td>
+      <td class="dpt-n">${g.length}</td>
+      <td class="dpt-bar">
+        <span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:${STATUS_COLORS[st]}"></span></span>
+        <span class="dpt-share">${share}%</span>
+      </td>
+      <td class="dpt-val">${formatMoney(val)}</td>
+    </tr>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="dash-ovhead">
+      <div>
+        <div class="dash-ovtitle">Open pipeline</div>
+        <div class="dash-ovsub">${real.length} job${real.length === 1 ? "" : "s"} &middot; ${formatMoney(grand)} total</div>
+      </div>
+      <button type="button" class="dash-ovlink" data-dashnav-jump="pipeline">Deal pipeline &rarr;</button>
+    </div>
+    <div class="dpt-wrap">
+      <table class="dpt">
+        <thead><tr><th>Stage</th><th>Jobs</th><th>Share of pipeline</th><th>Value</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+function renderDashOverview(jobs) {
+  const wrap = document.getElementById("dashOverview");
+  if (!wrap) return;
+  const ranged = dashRangeJobs(jobs);
+  renderDashBooked(ranged);
+  renderDashAttention(ranged);
+  renderDashPipelineCard(ranged);
+  if (!wrap._wired) {
+    wrap._wired = true;
+    wrap.addEventListener("click", (e) => {
+      const jump = e.target.closest("[data-dashnav-jump]");
+      if (jump) { dashGoTo(jump.dataset.dashnavJump); return; }
+      const open = e.target.closest("[data-attn-open]");
+      if (open) { try { openJobDetails(open.dataset.attnOpen); } catch (_) { dashGoTo("followups"); } }
+    });
+  }
 }
 
 function renderDashStats(jobs) {
