@@ -361,6 +361,43 @@
   .toggle-pill .val { font-variant-numeric: tabular-nums; color: #64748b; font-weight: 700; transition: color .2s; }
   .toggle-pill.active .val { color: var(--gold-hi); }
 
+  /* One height/radius/type for every control in the Jobs toolbar so the button,
+     the two dropdowns and the search field align on a single baseline. 16px type on
+     the search input on phones keeps iOS from zooming on focus. */
+  .jobs-ctl { height: 38px; border-radius: 10px; padding: 0 12px; font-size: 12px; font-weight: 600;
+    line-height: 1; display: inline-flex; align-items: center; }
+  .jobs-ctl-search { padding-left: 34px; font-size: 16px; font-weight: 500; }
+  @media (min-width: 640px) { .jobs-ctl-search { font-size: 13px; } }
+  .asel .dd-trigger.jobs-ctl { justify-content: space-between; padding-right: 10px; }
+
+  /* ═══ Animated dropdowns for native <select>s ═════════════════════════════
+     A native <select> popup is an OS sheet drawn OVER the control. These wrap the
+     real <select> — which stays in the DOM as the value + change-event source of
+     truth, so every existing `.value` read and `change` listener keeps working —
+     in the app's OWN dropdown component (.dd / .dd-trigger / .dd-panel /
+     .dd-item), so a converted select looks and animates exactly like the rail
+     pickers and inherits their light-mode rules for free.
+
+     The one addition: the panel is portaled to <body> and positioned:fixed so an
+     overflow-hidden card or a scrolling modal can't clip it. That puts it outside
+     `.dd.open`, so it animates off its own classes instead. */
+  .asel { position: relative; display: inline-flex; vertical-align: middle; }
+  .asel-native { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+    clip: rect(0 0 0 0); clip-path: inset(50%); overflow: hidden; }
+  .dd-panel--fixed { position: fixed; top: auto; left: auto; right: auto; min-width: 0;
+    z-index: 200; pointer-events: auto; }
+  .dd-panel--fixed.up { transform-origin: bottom center; transform: translateY(6px) scale(0.97); }
+  /* Enter curve, same as `.dd.open .dd-panel` — the base .dd-panel transition
+     is the CLOSE (shorter, accelerating), so the open state must declare its
+     own decelerating one or a portaled panel opens on the exit curve. */
+  .dd-panel--fixed.in { opacity: 1; transform: translateY(0) scale(1);
+    transition: opacity .18s ease, transform .26s cubic-bezier(0.16, 1, 0.3, 1); }
+  .dd-item.active { background: rgba(30,41,59,0.7); color: #ffffff; }
+  [data-theme="light"] .dd-item.active { background: #f1f5f9; color: #0f172a; }
+  .dd-item.selected.active { color: var(--gold-hi); }
+  [data-theme="light"] .dd-item.selected.active { color: var(--gold-lo); }
+  @media (prefers-reduced-motion: reduce) { .dd-panel--fixed { transition: none; } }
+
   /* ------- Segmented Control (tabs) ------- */
   .seg {
     display: flex;
@@ -564,6 +601,152 @@
   [data-theme="light"] .trim-grid .tg-rowlab { color: #1e293b; }
   [data-theme="light"] .trim-grid .tg-h { color: #475569; }
   [data-theme="light"] .trim-grid input { background: #fff; border-color: #cbd5e1; color: #1e293b; }
+  /* ── Teams T1 (Settings → Teams, read-only) ── */
+  .team-lockcard { text-align: center; }
+  .team-lockcard .tmc-ico { width: 46px; height: 46px; margin: 0 auto 12px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: rgba(181,143,74,0.14); color: #c9a558; }
+  .team-lock-h { font-size: 15px; font-weight: 800; color: #f1f5f9; }
+  .team-lock-p { font-size: 12.5px; line-height: 1.6; color: #94a3b8; margin: 8px auto 14px; max-width: 46ch; }
+  .team-org-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .team-org-name { font-size: 16px; font-weight: 800; color: #f1f5f9; }
+  .team-org-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+  .team-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  .team-stat { border: 1px solid rgba(51,65,85,0.55); border-radius: 12px; background: rgba(15,23,42,0.45); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .team-stat span { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b; }
+  .team-stat b { font-size: 17px; font-weight: 800; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+  .team-sec-h { font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #64748b; margin-bottom: 8px; }
+  .team-list { display: flex; flex-direction: column; gap: 8px; }
+  .team-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid rgba(51,65,85,0.55); border-radius: 12px; background: rgba(15,23,42,0.45); }
+  .team-row-stack { flex-direction: column; align-items: stretch; gap: 9px; }
+  .team-row-top { display: flex; align-items: center; gap: 10px; }
+  .team-dot { width: 10px; height: 10px; border-radius: 999px; flex-shrink: 0; }
+  .team-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team-tag { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; border: 1px solid rgba(148,163,184,0.32); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+  .team-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .team-chip-m { font-size: 11.5px; font-weight: 600; color: #cbd5e1; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.22); border-radius: 999px; padding: 4px 10px; }
+  .team-rate { color: #c9a558; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .team-act { font-size: 11.5px; font-weight: 700; color: #94a3b8; background: transparent; border: 1px solid rgba(148,163,184,0.3); border-radius: 999px; padding: 5px 12px; cursor: pointer; min-height: 32px; flex-shrink: 0; }
+  .team-act:hover { color: #f1f5f9; border-color: rgba(201,165,88,0.55); }
+  .team-act[disabled] { opacity: 0.6; cursor: default; }
+  .team-add-btn { font-size: 12.5px; font-weight: 800; color: #0b1120; background: #b58f4a; border: 0; border-radius: 999px; padding: 9px 18px; cursor: pointer; min-height: 42px; }
+  .team-add-btn:hover { background: #c9a558; }
+  .team-empty { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+  /* #64748b measured only 4.24:1 on the dark settings surface at 11px — under the
+     4.5:1 floor. Slate-400 clears it in dark; light gets its own override below. */
+  .team-foot { font-size: 11px; color: #94a3b8; line-height: 1.6; margin-top: 12px; }
+  /* T2b — mode picker + per-sub branding */
+  .team-modes { display: grid; gap: 12px; }
+  @media (min-width: 700px) { .team-modes { grid-template-columns: 1fr 1fr; } }
+  .team-mode-card { display: flex; flex-direction: column; gap: 7px; text-align: left; padding: 18px; border-radius: 16px; border: 1px solid rgba(51,65,85,0.7); background: rgba(15,23,42,0.4); cursor: pointer; transition: border-color .15s ease, transform .15s ease; -webkit-tap-highlight-color: transparent; }
+  .team-mode-card:hover:not([disabled]) { border-color: rgba(181,143,74,0.6); transform: translateY(-2px); }
+  .team-mode-card[disabled] { opacity: 0.55; cursor: default; }
+  .tmc-ico { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: rgba(181,143,74,0.14); color: #c9a558; }
+  .tmc-t, .tmc-d-top { font-size: 15px; font-weight: 800; color: #f1f5f9; }
+  .tmc-d { font-size: 12px; line-height: 1.6; color: #94a3b8; }
+  .team-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(51,65,85,0.5); }
+  .team-mode-now { font-size: 13.5px; font-weight: 800; color: #f1f5f9; }
+  .team-mode-sub { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+  .inst-shop-job { border: 1px solid rgba(51,65,85,0.5); border-radius: 12px; padding: 10px 12px; margin-bottom: 9px; }
+  .inst-shop-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .inst-shop-title { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 800; color: #f1f5f9;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inst-shop-count { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+  .inst-shop-note { font-size: 11px; color: #94a3b8; margin-bottom: 7px; }
+  .inst-shop-item { display: flex; align-items: center; gap: 9px; padding: 7px 0; cursor: pointer;
+    border-top: 1px dashed rgba(148,163,184,0.16); }
+  .inst-shop-item:first-of-type { border-top: 0; }
+  .inst-shop-name { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 600; color: #e2e8f0; }
+  .inst-shop-qty { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .inst-shop-item.is-done .inst-shop-name { color: #64748b; text-decoration: line-through; }
+  .inst-shop-item.is-done .inst-shop-qty { color: #64748b; }
+  [data-theme="light"] .inst-shop-job { border-color: #e2e8f0; }
+  [data-theme="light"] .inst-shop-title { color: #0f172a; }
+  [data-theme="light"] .inst-shop-note { color: #64748b; }
+  [data-theme="light"] .inst-shop-name { color: #1e293b; }
+  [data-theme="light"] .inst-shop-qty { color: #334155; }
+  [data-theme="light"] .inst-shop-count { color: #8a6a2e; }
+  [data-theme="light"] .inst-shop-item.is-done .inst-shop-name,
+  [data-theme="light"] .inst-shop-item.is-done .inst-shop-qty { color: #94a3b8; }
+  .team-seatgrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+  @media (min-width: 640px) { .team-seatgrid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+  .team-seatcell { border: 1px solid rgba(51,65,85,0.5); border-radius: 12px; padding: 9px 11px; min-width: 0; }
+  .team-seatcell span { display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #64748b; }
+  .team-seatcell b { display: block; font-size: 16px; font-weight: 900; color: #f1f5f9; margin-top: 2px;
+    font-variant-numeric: tabular-nums; }
+  .team-seatcell b.is-over { color: #fb7185; }
+  .team-seatcell i { display: block; font-style: normal; font-size: 10.5px; font-weight: 600; color: #94a3b8; margin-top: 1px; }
+  .team-seatwarn { margin-top: 9px; padding: 9px 11px; border-radius: 10px; font-size: 11.5px; line-height: 1.55;
+    color: #fcd34d; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.28); }
+  /* theme-parity: .team-foot inherits #64748b, which is only 4.33:1 on the light
+     page background (#f3f4f7) at 11px — under the 4.5:1 floor. Slate-600 clears it. */
+  [data-theme="light"] .team-foot { color: #475569; }
+  [data-theme="light"] .team-seatcell { border-color: #e2e8f0; }
+  [data-theme="light"] .team-seatcell b { color: #0f172a; }
+  [data-theme="light"] .team-seatcell b.is-over { color: #be123c; }
+  [data-theme="light"] .team-seatcell i, [data-theme="light"] .team-seatcell span { color: #64748b; }
+  [data-theme="light"] .team-seatwarn { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
+  .team-inviterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 0;
+    border-bottom: 1px dashed rgba(148,163,184,0.18); }
+  .team-inviterow:last-of-type { border-bottom: 0; }
+  .team-invitecode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700;
+    letter-spacing: 0.08em; color: var(--gold-hi); background: rgba(181,143,74,0.10);
+    border: 1px solid rgba(181,143,74,0.30); border-radius: 8px; padding: 4px 9px; }
+  .team-invitemeta { flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 600; color: #94a3b8; }
+  [data-theme="light"] .team-inviterow { border-bottom-color: #e2e8f0; }
+  [data-theme="light"] .team-invitecode { color: #8a6a2e; background: rgba(181,143,74,0.08); border-color: #d9c79a; }
+  [data-theme="light"] .team-invitemeta { color: #64748b; }
+  .team-rategrid { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 8px 0 4px; }
+  @media (min-width: 640px) { .team-rategrid { grid-template-columns: 1fr 1fr; gap: 6px 14px; } }
+  .team-rategrid-labor { border-top: 1px dashed rgba(148,163,184,0.2); padding-top: 10px; margin-top: 10px; }
+  .team-ratef { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .team-ratename { flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 700; color: #e2e8f0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team-ratename i { font-style: normal; font-weight: 500; color: #94a3b8; }
+  .team-rateacct { flex: 0 0 auto; font-size: 10.5px; font-weight: 600; color: #94a3b8; font-variant-numeric: tabular-nums; }
+  .team-ratehint { font-size: 11px; line-height: 1.55; color: #94a3b8; margin-bottom: 4px; }
+  [data-theme="light"] .team-ratename { color: #0f172a; }
+  [data-theme="light"] .team-ratename i, [data-theme="light"] .team-rateacct,
+  [data-theme="light"] .team-ratehint { color: #64748b; }
+  [data-theme="light"] .team-rategrid-labor { border-top-color: #e2e8f0; }
+  .team-brandrow { display: flex; align-items: center; gap: 9px; padding-top: 9px; border-top: 1px dashed rgba(148,163,184,0.2); flex-wrap: wrap; }
+  .team-brandlogo { height: 26px; width: auto; max-width: 90px; object-fit: contain; border-radius: 4px; }
+  .team-brandlogo-empty { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 8px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; border: 1px dashed rgba(148,163,184,0.3); border-radius: 6px; }
+  .team-brandname { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team-brandflag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; border: 1px solid rgba(148,163,184,0.3); border-radius: 999px; padding: 2px 8px; }
+  .team-brandflag.is-on { color: #c9a558; border-color: rgba(181,143,74,0.5); background: rgba(181,143,74,0.1); }
+  .team-brandedit { margin-top: 10px; padding-top: 12px; border-top: 1px dashed rgba(148,163,184,0.2); }
+  .team-brandgrid { display: grid; gap: 10px; }
+  @media (min-width: 620px) { .team-brandgrid { grid-template-columns: 1fr 1fr; } }
+  .team-f { display: flex; flex-direction: column; gap: 4px; }
+  .team-f > span { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b; }
+  .team-brandlogo-row { display: flex; align-items: center; gap: 9px; margin-top: 12px; flex-wrap: wrap; }
+  .team-brandtoggle { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: #cbd5e1; cursor: pointer; }
+  .team-brandtoggle input { width: 16px; height: 16px; accent-color: #b58f4a; }
+  .team-brandactions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  [data-theme="light"] .team-mode-card { background: #ffffff; border-color: #e2e8f0; }
+  [data-theme="light"] .tmc-t, [data-theme="light"] .tmc-d-top, [data-theme="light"] .team-mode-now { color: #0f172a; }
+  [data-theme="light"] .tmc-d, [data-theme="light"] .team-mode-sub { color: #64748b; }
+  [data-theme="light"] .team-brandname, [data-theme="light"] .team-brandtoggle { color: #334155; }
+  [data-theme="light"] .team-brandflag.is-on { color: #9a7636; border-color: #b58f4a; }
+  .team-act-danger:hover { color: #fb7185; border-color: rgba(251,113,133,0.55); }
+  .team-chip-x { background: transparent; border: 0; color: #64748b; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 5px; }
+  .team-chip-x:hover { color: #fb7185; }
+  .team-addmem { display: inline-flex; align-items: center; gap: 7px; }
+  .team-addmem-l { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b; }
+  .team-sel { font-size: 12px; font-weight: 600; color: #cbd5e1; background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7); border-radius: 9px; padding: 6px 9px; cursor: pointer; max-width: 100%; }
+  .team-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 1px; }
+  .team-sel[disabled] { opacity: 0.6; }
+  .team-add { display: flex; gap: 8px; margin-top: 12px; }
+  [data-theme="light"] .team-sel { background: #ffffff; border-color: #cbd5e1; color: #334155; }
+  [data-theme="light"] .team-chip-x { color: #94a3b8; }
+  [data-theme="light"] .team-lock-h, [data-theme="light"] .team-org-name, [data-theme="light"] .team-stat b, [data-theme="light"] .team-name { color: #0f172a; }
+  [data-theme="light"] .team-lock-p, [data-theme="light"] .team-org-sub, [data-theme="light"] .team-empty { color: #64748b; }
+  [data-theme="light"] .team-stat, [data-theme="light"] .team-row { background: #ffffff; border-color: #e2e8f0; }
+  [data-theme="light"] .team-chip-m { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
+  [data-theme="light"] .team-rate { color: #9a7636; }
+  [data-theme="light"] .team-act { color: #475569; border-color: #d6dae1; }
+  [data-theme="light"] .team-tag { color: #64748b; border-color: #d6dae1; }
+
   /* AI price-fetch button + review modal */
   .ai-price-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:9px; font-size:12px; font-weight:700;
     background:rgba(181,143,74,0.16); color:#c9a558; border:1px solid rgba(181,143,74,0.4); cursor:pointer; -webkit-tap-highlight-color:transparent;
@@ -930,6 +1113,9 @@
   .dash-chip.active { color: var(--gold-hi); background: rgba(181,143,74,0.14); border-color: rgba(181,143,74,0.55); }
   .dash-chip:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .dash-chip-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+  /* Teams T3b — per-crew performance panel */
+  /* Teams T3b — per-crew analytics live in the Insights card (see #dashCrewsPanel),
+     reusing the Customers panel's ranked-row idiom, so there is no bespoke styling. */
   .dash-chip-n { font-variant-numeric: tabular-nums; font-weight: 800; color: #64748b; }
   .dash-chip.active .dash-chip-n { color: inherit; }
   [data-theme="light"] .dash-chip { background: #ffffff; border-color: #d6dae1; color: #64748b; }
@@ -1034,13 +1220,9 @@
   }
   .addr-map-done:disabled { opacity: 0.45; cursor: default; }
   .addr-map-done:not(:disabled):active { transform: scale(0.99); }
-  /* Leaflet chrome tweaks inside our dark modal */
-  #addrMapModal .leaflet-control-zoom a {
-    background: rgba(8,13,24,0.92) !important; color: #e2e8f0 !important;
-    border-color: rgba(148,163,184,0.3) !important; width: 36px !important; height: 36px !important;
-    line-height: 36px !important; font-size: 18px !important;
-  }
-  #addrMapModal .leaflet-bar { border: 0 !important; box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important; }
+  /* Keep Google’s own zoom control; lift our chrome above the map tiles. */
+  #addrMapModal .gm-style { font-family: inherit; }
+  #addrMapCanvas .gm-style-cc, #addrMapCanvas .gmnoprint a { display: none !important; }
   [data-theme="light"] .addr-map-btn { color: #8a6a2e; border-color: rgba(138,106,46,0.4); background: rgba(181,143,74,0.1); }
 
   /* ── Expandable live-total sheet (UI refresh P5) ── tap the selling-price bar
@@ -1390,6 +1572,16 @@
      end of this stylesheet: var(--gold-hi) only remaps to #9a7636 inside #landingScreen. */
   .job-status-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .job-status-sel option { color: #0f172a; font-weight: 700; }
+  /* Teams T3a — crew/sub assignment pill on a job card */
+  .dash-crewrow { margin-top: 10px; display: flex; }
+  .job-crew-sel { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+    border-radius: 9999px; padding: 4px 10px; cursor: pointer; max-width: 100%;
+    color: #94a3b8; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.28); }
+  .job-crew-sel.is-set { color: #c9a558; background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.45); }
+  .job-crew-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+  .job-crew-sel option { color: #0f172a; font-weight: 700; }
+  [data-theme="light"] .job-crew-sel { color: #64748b; background: #f1f5f9; border-color: #d6dae1; }
+  [data-theme="light"] .job-crew-sel.is-set { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
   /* Job-extras pills stack full-width inside the rail */
   #jobRail .margin-pill, #jobRail .toggle-pill {
     width: 100%; justify-content: space-between;
@@ -1674,6 +1866,53 @@
   @media (prefers-reduced-motion: reduce) {
     #emptyState .empty-dice-btn.is-rolling .empty-dice-icon { animation: none; }
   }
+  /* Empty-state AI plan-read progress (visible without opening the rail) */
+  #emptyStatePlanProgress {
+    margin-top: 4px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(181,143,74,0.35);
+    background: rgba(181,143,74,0.08);
+    text-align: left;
+  }
+  #emptyStatePlanProgress.hidden { display: none !important; }
+  .empty-plan-progress-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; color: #e2cf9a;
+    line-height: 1.35; min-height: 1.2em;
+  }
+  .empty-plan-progress-label .empty-plan-spin {
+    flex-shrink: 0;
+    animation: emptyPlanSpin 0.75s linear infinite;
+  }
+  @keyframes emptyPlanSpin { to { transform: rotate(360deg); } }
+  .empty-plan-progress-track {
+    margin-top: 10px; height: 6px; border-radius: 999px;
+    background: rgba(15,23,42,0.65); overflow: hidden;
+  }
+  .empty-plan-progress-fill {
+    height: 100%; width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #b58f4a, #e2cf9a);
+    transition: width .28s ease;
+  }
+  #emptyStatePlanProgress.is-indeterminate .empty-plan-progress-fill {
+    width: 38% !important;
+    animation: emptyPlanIndeterminate 1.15s ease-in-out infinite;
+  }
+  @keyframes emptyPlanIndeterminate {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(280%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .empty-plan-progress-label .empty-plan-spin { animation: none; }
+    #emptyStatePlanProgress.is-indeterminate .empty-plan-progress-fill { animation: none; width: 45% !important; }
+  }
+  [data-theme="light"] #emptyStatePlanProgress {
+    background: rgba(181,143,74,0.12); border-color: rgba(138,106,46,0.35);
+  }
+  [data-theme="light"] .empty-plan-progress-label { color: #8a6a2e; }
+  [data-theme="light"] .empty-plan-progress-track { background: rgba(226,232,240,0.9); }
   /* Live-recap band in the main panel — replaces the old big LF input */
   #liveRecap {
     display: none;            /* mobile uses the sticky #jobSummaryBar; desktop only */
@@ -2524,7 +2763,7 @@
   }
   /* Insights tab swap: small local move — decelerate only, no spring (a spring
      on a 5px hop reads as noise, not physics). */
-  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden) { animation: aSwap .26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden), #dashCrewsPanel:not(.hidden) { animation: aSwap .26s cubic-bezier(0.16, 1, 0.3, 1) both; }
   /* Account menu: pops from its anchor (top right) like a macOS menu. */
   #pfpMenu:not(.hidden) {
     animation: aMenuIn .22s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -2541,7 +2780,7 @@
   @media (prefers-reduced-motion: reduce) {
     .modal-backdrop, .modal-backdrop + div, .modal-backdrop + div.tv-off, .modal-closing .modal-backdrop,
     #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen, #legalScreen, #pfpMenu, #adminModal > div,
-    #dashMaterials, #dashCustomers, #dashPipelinePanel, .set-panel { animation: none !important; }
+    #dashMaterials, #dashCustomers, #dashPipelinePanel, #dashCrewsPanel, .set-panel { animation: none !important; }
   }
   /* Sheets under reduced motion: must come AFTER the sheetUp !important rule
      above (equal specificity+importance — source order decides), or reduced-
@@ -3481,6 +3720,21 @@
   }
   /* Keep side-sliding reveals from ever poking a horizontal scrollbar. */
   #landingScreen { overflow-x: clip; }
+  #pricingScreen { overflow-x: clip; }
+  /* Pricing hero: keep each phrase on its own line on phones so "pro." can't
+     orphan/clip; gold-glow background-clip needs a hair of side room. */
+  #pricingScreen .pr-hero-title {
+    max-width: 100%;
+    line-height: 1.15;
+    text-wrap: balance;
+    padding-inline: 0.15em;
+    box-sizing: border-box;
+  }
+  @media (max-width: 639px) {
+    #pricingScreen .pr-hero-title {
+      font-size: clamp(1.45rem, 7.2vw, 1.875rem);
+    }
+  }
 
   /* ---- Docs cards: reveal-triggered content animations (.anim-go added on enter) ----
      Numbers count up via JS; the check-off + board fly-in/cut are pure CSS below. */
@@ -4107,6 +4361,97 @@
   [data-theme="light"] [data-theme-toggle] { color: #64748b; border-color: #d6dae1; }
   [data-theme="light"] [data-theme-toggle]:hover { color: #97772e; border-color: #b58f4a; }
 
+  /* Account / More menu — snappy Apple-style spring carpet-roll.
+     Open: fast unfurl + overshoot bounce settle. Close: little lift
+     (anticipation) then a quick slam back toward the trigger. */
+  #pfpMenu.pfp-rolling.pfp-from-bottom,
+  #pfpMenu.pfp-closing.pfp-from-bottom { transform-origin: bottom center; }
+  #pfpMenu.pfp-rolling.pfp-from-top,
+  #pfpMenu.pfp-closing.pfp-from-top { transform-origin: top center; }
+
+  #pfpMenu.pfp-rolling.pfp-from-bottom {
+    animation: pfpCarpetUp var(--pfp-panel-dur, .5s) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  #pfpMenu.pfp-rolling.pfp-from-top {
+    animation: pfpCarpetDown var(--pfp-panel-dur, .5s) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  #pfpMenu.pfp-closing.pfp-from-bottom {
+    animation: pfpCarpetUpClose var(--pfp-panel-dur, .36s) cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  #pfpMenu.pfp-closing.pfp-from-top {
+    animation: pfpCarpetDownClose var(--pfp-panel-dur, .36s) cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  @keyframes pfpCarpetUp {
+    0%   { opacity: 0; clip-path: inset(100% 0 0 0 round 12px); transform: translateY(14px) scale(0.98); }
+    62%  { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: translateY(-4px) scale(1.012); }
+    82%  { transform: translateY(1px) scale(0.997); }
+    100% { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: none; }
+  }
+  @keyframes pfpCarpetDown {
+    0%   { opacity: 0; clip-path: inset(0 0 100% 0 round 12px); transform: translateY(-12px) scale(0.98); }
+    62%  { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: translateY(4px) scale(1.012); }
+    82%  { transform: translateY(-1px) scale(0.997); }
+    100% { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: none; }
+  }
+  @keyframes pfpCarpetUpClose {
+    0%   { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: translateY(0) scale(1); }
+    22%  { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: translateY(-5px) scale(1.012); }
+    100% { opacity: 1; clip-path: inset(100% 0 0 0 round 12px); transform: translateY(14px) scale(0.98); }
+  }
+  @keyframes pfpCarpetDownClose {
+    0%   { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: translateY(0) scale(1); }
+    22%  { opacity: 1; clip-path: inset(0 0 0 0 round 12px); transform: translateY(5px) scale(1.012); }
+    100% { opacity: 1; clip-path: inset(0 0 100% 0 round 12px); transform: translateY(-12px) scale(0.98); }
+  }
+
+  #pfpMenu.pfp-rolling .pfp-roll-item,
+  #pfpMenu.pfp-closing .pfp-roll-item {
+    animation-duration: var(--pfp-item-dur, .3s);
+    animation-fill-mode: both;
+    animation-delay: calc(var(--pfp-i, 0) * var(--pfp-stagger, 9ms));
+  }
+  #pfpMenu.pfp-rolling .pfp-roll-item {
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #pfpMenu.pfp-closing .pfp-roll-item {
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  #pfpMenu.pfp-rolling.pfp-from-bottom .pfp-roll-item { animation-name: pfpRollItemInUp; }
+  #pfpMenu.pfp-rolling.pfp-from-top .pfp-roll-item { animation-name: pfpRollItemInDown; }
+  #pfpMenu.pfp-closing.pfp-from-bottom .pfp-roll-item { animation-name: pfpRollItemOutUp; }
+  #pfpMenu.pfp-closing.pfp-from-top .pfp-roll-item { animation-name: pfpRollItemOutDown; }
+  @keyframes pfpRollItemInUp {
+    0%   { opacity: 0; transform: translateY(10px); }
+    60%  { opacity: 1; transform: translateY(-2px); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes pfpRollItemInDown {
+    0%   { opacity: 0; transform: translateY(-8px); }
+    60%  { opacity: 1; transform: translateY(2px); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes pfpRollItemOutUp {
+    0%   { opacity: 1; transform: none; }
+    20%  { opacity: 1; transform: translateY(-3px); }
+    100% { opacity: 1; transform: translateY(10px); }
+  }
+  @keyframes pfpRollItemOutDown {
+    0%   { opacity: 1; transform: none; }
+    20%  { opacity: 1; transform: translateY(3px); }
+    100% { opacity: 1; transform: translateY(-8px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #pfpMenu.pfp-rolling,
+    #pfpMenu.pfp-closing,
+    #pfpMenu.pfp-rolling .pfp-roll-item,
+    #pfpMenu.pfp-closing .pfp-roll-item {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+      clip-path: none !important;
+    }
+  }
+
   /* ------- Trust signals band ------- */
   .lp-trust-headline {
     font-size: 1.05rem; line-height: 1.4;
@@ -4459,6 +4804,22 @@
   }
   [data-theme="light"] .seg-section { background: #e9edf3; }
   /* Smaller segmented toggles for swapping data types inside a panel. */
+  /* The Insights rail gained a 4th tab (Crews/Subs). Four 15px pills overflow a
+     375px phone and the card clips them (overflow-hidden), so on narrow screens the
+     rail scrolls horizontally instead — one row, nothing unreachable. Vertical
+     padding is untouched so the touch height stays ~42px. applyInsightTab() keeps
+     the active pill scrolled into view. */
+  @media (max-width: 460px) {
+    .seg-section { overflow-x: auto; justify-content: flex-start; scrollbar-width: none;
+      -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+      /* Without this the rail sizes to its content and the CARD clips it, so
+         overflow-x never engages and the last pill is simply unreachable. */
+      max-width: 100%; }
+    .seg-section::-webkit-scrollbar { display: none; }
+    /* Tight enough that all four pills fit a 375px phone without scrolling; the
+       scroll above is the safety net for 320px-class devices. */
+    .seg-section .seg-btn { padding: 11px 8px; font-size: 13px; }
+  }
   .seg-sm { max-width: 300px; padding: 3px; border-radius: 11px; }
   .seg-sm .seg-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; }
   /* Chart-type picker: icon segmented control, sized to sit inline with the metric
@@ -6267,9 +6628,20 @@
 #landingScreen #fl { padding: 22vh 0; }
 #landingScreen .fl-head { text-align: center; max-width: none; margin: 0 auto 40px; }
 #landingScreen .fl-head .sub { margin-left: auto; margin-right: auto; max-width: 40rem; }
-#landingScreen .fl-title {
-  white-space: nowrap; font-size: clamp(1.2rem, 4.6vw, 3.15rem);
-  letter-spacing: 0.005em; line-height: 1.12;
+/* Must beat #landingScreen h2.anton or the shared display size wins and nowrap clips. */
+#landingScreen h2.anton.fl-title {
+  font-size: clamp(1.5rem, 8.4vw, 3.15rem);
+  letter-spacing: 0.005em;
+  line-height: 1.12;
+  max-width: 100%;
+  text-wrap: balance;
+  white-space: normal;
+}
+@media (min-width: 640px) {
+#landingScreen h2.anton.fl-title {
+  white-space: nowrap;
+  font-size: clamp(1.2rem, 4.6vw, 3.15rem);
+}
 }
 #landingScreen .fl-u { position: relative; display: inline-block; }
 #landingScreen .fl-u::after {
@@ -8043,7 +8415,7 @@
       <!-- Header -->
       <div class="lp-reveal text-center">
         <span class="lp-eyebrow">Plans &amp; pricing</span>
-        <h2 class="text-3xl sm:text-5xl font-black tracking-tightest text-slate-100 mt-3 sm:mt-4">Quote like a pro. <span class="gold-glow">Pay like a pro.</span></h2>
+        <h2 class="pr-hero-title text-3xl sm:text-5xl font-black tracking-tightest text-slate-100 mt-3 sm:mt-4">Quote like a pro.<br class="sm:hidden"> <span class="gold-glow">Pay like a pro.</span></h2>
         <p id="lpPricingSubcopy" class="text-slate-400 mt-3 max-w-xl mx-auto leading-relaxed">
           Pick the plan that matches your volume. Cancel anytime. All plans include a <span id="lpPricingTrialDays" class="text-slate-200 font-semibold">14-day</span> free trial &mdash; no credit card required.
         </p>
@@ -8602,12 +8974,14 @@
               <button type="button" class="seg-btn active" data-insight="materials">Materials</button>
               <button type="button" class="seg-btn" data-insight="customers">Customers</button>
               <button type="button" class="seg-btn" data-insight="jobs">Jobs</button>
+              <button type="button" class="seg-btn hidden" data-insight="crews">Crews</button>
             </div>
             <div id="dashInsightsMeta" class="text-center sm:text-right shrink-0"></div>
           </div>
           <div id="dashMaterials"></div>
           <div id="dashCustomers" class="hidden"></div>
           <div id="dashPipelinePanel" class="hidden"></div>
+          <div id="dashCrewsPanel" class="hidden"></div>
         </div>
         <div id="dashInsightsEmpty" class="card rounded-2xl px-6 py-12 text-center hidden">
           <div class="text-slate-400 text-sm font-semibold">No insights yet.</div>
@@ -8619,12 +8993,16 @@
       <div data-dashview="jobs" class="hidden">
         <div class="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
           <span id="dashJobsCount" class="text-[11px] uppercase tracking-[0.16em] text-slate-500 font-bold"></span>
+          <!-- One uniform control row: every child is jobs-ctl (same 38px height,
+               same radius, same 12px type) so the buttons, dropdowns and search
+               box line up instead of stair-stepping. -->
           <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <button id="dashExportCsv" type="button" class="btn inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 border border-slate-700 hover:text-[#c9a558] hover:border-[#b58f4a]/45" title="Export your pipeline as a CSV">
+            <button id="dashExportCsv" type="button" class="btn jobs-ctl inline-flex items-center gap-1.5 text-slate-400 border border-slate-700 hover:text-[#c9a558] hover:border-[#b58f4a]/45" title="Export your pipeline as a CSV">
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v9M6 8l4 4 4-4M4 15v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"/></svg>
               Export CSV
             </button>
-            <select id="dashJobSort" class="control rounded-lg px-2.5 py-2 text-[12px] text-slate-300" title="Sort saved jobs">
+            <select id="dashJobStatusSel" class="control jobs-ctl text-slate-300" title="Filter jobs by deal status"></select>
+            <select id="dashJobSort" class="control jobs-ctl text-slate-300" title="Sort saved jobs">
               <option value="recent">Most recent</option>
               <option value="oldest">Oldest first</option>
               <option value="expensive">Most expensive</option>
@@ -8632,14 +9010,12 @@
               <option value="margin">Highest markup</option>
               <option value="customer">By customer</option>
             </select>
-            <div class="relative flex-1 min-w-[160px] sm:flex-none">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
-              <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control rounded-lg pl-9 pr-3 py-2 text-base sm:text-sm text-slate-100 w-full sm:w-64 placeholder:text-slate-600" />
+            <div class="relative flex-1 min-w-[160px] sm:flex-none sm:w-64">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none z-10" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><line x1="14" y1="14" x2="18" y2="18"/></svg>
+              <input id="dashJobSearch" type="search" placeholder="Search jobs…" class="control jobs-ctl jobs-ctl-search text-slate-100 w-full placeholder:text-slate-600" />
             </div>
           </div>
         </div>
-        <!-- Status filter chips (UI refresh P4) — rendered by renderDashJobsChips -->
-        <div id="dashJobsChips" class="dash-status-chips hidden" role="group" aria-label="Filter jobs by status"></div>
         <div id="dashJobsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         <!-- CMP-1: floating comparison bar — appears when 2+ jobs are selected via
              the per-card "Compare" toggle, and opens the (intact) compareModal. -->
@@ -9546,6 +9922,15 @@
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
         Upload Window Schedule
       </button>
+      <div id="emptyStatePlanProgress" class="hidden" role="status" aria-live="polite" aria-atomic="true">
+        <div class="empty-plan-progress-label" id="emptyStatePlanProgressLabel">
+          <svg class="empty-plan-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          <span id="emptyStatePlanProgressText">Reading your window schedule…</span>
+        </div>
+        <div class="empty-plan-progress-track" aria-hidden="true">
+          <div class="empty-plan-progress-fill" id="emptyStatePlanProgressFill"></div>
+        </div>
+      </div>
       <button id="emptyStateDiceBtn" type="button" class="btn empty-dice-btn w-full inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558]" title="Generate a random quote for fun">
         <svg class="empty-dice-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="3" width="18" height="18" rx="3"/>
@@ -9705,6 +10090,11 @@
         <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2">Job name <span class="text-slate-600 normal-case tracking-normal">(this job)</span></label>
         <input id="saveJobJobName" type="text" placeholder="e.g. Smith Residence · 123 Main St" autocomplete="off" enterkeyhint="next"
           class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100 placeholder:text-slate-700" />
+      </div>
+      <div id="saveJobCrewWrap" class="hidden">
+        <label class="text-xs uppercase tracking-[0.14em] text-slate-500 block mb-2" for="saveJobCrew">Assign to</label>
+        <select id="saveJobCrew" class="control rounded-xl px-4 py-3 w-full text-sm text-slate-100"></select>
+        <p id="saveJobCrewHint" class="mt-1.5 text-[11px] text-slate-500 leading-relaxed"></p>
       </div>
       <div>
         <div class="flex items-center justify-between gap-2 mb-2">
@@ -9947,6 +10337,7 @@
         <button type="button" class="set-tab active" data-tab="setup">Setup</button>
         <button type="button" class="set-tab" data-tab="customers">Customers</button>
         <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
+        <button type="button" class="set-tab" data-tab="teams">Teams</button>
         <button type="button" class="set-tab" data-tab="account">Account &amp; Plan</button>
         <button type="button" class="set-tab hidden" data-tab="feedback" id="feedbackTabBtn">Feedback<span id="feedbackTabBadge" class="fb-badge hidden">0</span></button>
         <button type="button" class="set-tab hidden" data-tab="resources" id="resourcesTabBtn">Resources</button>
@@ -10592,6 +10983,13 @@
         </div>
 
         <!-- Account & Plan — Plan + Account grouped as leaves (mirrors the Setup tab). -->
+        <!-- Teams (T1, read-only): the shared org layer the field app also uses -->
+        <div class="set-panel" data-panel="teams">
+          <div class="set-h">Teams</div>
+          <div class="set-sub mb-5">Your company, its crews and who&rsquo;s on them &mdash; shared live with the Anchor Field app.</div>
+          <div id="teamsBody"></div>
+        </div>
+
         <div class="set-panel" data-panel="account">
           <div id="accountLeafNav" class="rleaf-nav">
             <button type="button" class="rleaf-btn active" data-accountleaf-btn="plan" onclick="showAccountLeaf('plan')">Plan</button>
@@ -11969,7 +12367,10 @@ const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1
   // B13: set once this device has pulled >=1 saved job from the cloud. Lets us
   // tell "interrupted first-login migration (never synced jobs)" from "user
   // deleted all jobs elsewhere (cloud authoritatively empty)".
-  jobsSyncedOnce: "wcc.jobsSyncedOnce.v1" };
+  jobsSyncedOnce: "wcc.jobsSyncedOnce.v1",
+  // Teams T1: cached org membership + crew roster (read-only mirror of the
+  // shared org layer) so the Teams tab paints instantly before the refetch.
+  orgCtx: "wcc.orgCtx.v1" };
 
 /* ============================================================
    CREW ROSTER — per-person wages + workers' comp burden
@@ -12012,6 +12413,63 @@ function getCrewRoster() {
   const c = (DATA.config && DATA.config.crew) || {};
   const members = Array.isArray(c.members) ? c.members.map(normalizeCrewMember).filter(Boolean) : [];
   return { members, defaultWorkersCompPct: c.defaultWorkersCompPct ?? 10 };
+}
+
+/* ── Team-priced labor (T3a) ──────────────────────────────────────────────────
+   When a quote is assigned to a crew, that crew's own pay drives labor instead
+   of the account default. Two sources, in order:
+     1. the crew's MEMBERS' real hourly rates (member_field_settings.hourly_rate,
+        already loaded into the org context) — summed like the roster model, with
+        the account's default workers'-comp % applied so it stays comparable;
+     2. else crews.data.pay = { crewSize, payRatePerHr } (a flat fallback set in
+        the calculator for subs who don't have members in the field app yet).
+   Returns null when the assigned crew has no usable pay info, so pricing falls
+   through to today's behavior. */
+function assignedCrewId() {
+  return (typeof STATE !== "undefined" && STATE.assignedCrewId) || null;
+}
+function assignedCrew() {
+  const id = assignedCrewId();
+  if (!id) return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  if (!ctx) return null;
+  return (ctx.crews || []).find(c => c.id === id) || null;
+}
+function resolveAssignedCrewCost() {
+  const crew = assignedCrew();
+  if (!crew) return null;
+  const ctx = getOrgContext();
+  const wcPct = Math.max(0, Number((getCrewRoster() || {}).defaultWorkersCompPct ?? 10) || 0);
+  const byId = {}; (ctx.members || []).forEach(m => byId[m.userId] = m);
+  const paid = (crew.memberIds || [])
+    .map(uid => byId[uid])
+    .filter(m => m && Number(m.rate) > 0);
+  if (paid.length) {
+    let wageCostPerHr = 0, wcCostPerHr = 0;
+    const rows = paid.map(m => {
+      const wage = Number(m.rate) || 0;
+      const wcAmt = wage * (wcPct / 100);
+      wageCostPerHr += wage; wcCostPerHr += wcAmt;
+      return { id: m.userId, name: m.name || "Member", role: "Installer", avatar: "",
+               hourlyRate: wage, workersCompPct: wcPct, active: true,
+               loadedRate: wage + wcAmt, wcCostPerHr: wcAmt };
+    });
+    const crewSize = rows.length;
+    return {
+      mode: "team", teamId: crew.id, teamName: crew.name,
+      crewSize, crewPayPerHrEach: crewSize ? wageCostPerHr / crewSize : 0,
+      crewCostPerHr: wageCostPerHr + wcCostPerHr, wageCostPerHr, wcCostPerHr, members: rows,
+    };
+  }
+  const pay = (crew.data && crew.data.pay) || {};
+  const size = Math.max(1, parseInt(pay.crewSize, 10) || 0);
+  const rate = Math.max(0, Number(pay.payRatePerHr) || 0);
+  if (!rate) return null;              // nothing usable → don't touch pricing
+  return {
+    mode: "team", teamId: crew.id, teamName: crew.name,
+    crewSize: size, crewPayPerHrEach: rate, crewCostPerHr: size * rate,
+    wageCostPerHr: size * rate, wcCostPerHr: 0, members: [],
+  };
 }
 
 /** Resolve the $/hr the crew costs — roster if active members exist, else flat. */
@@ -12098,9 +12556,13 @@ function laborHasOverrides() {
   return !!normalizeLaborOverride(STATE.laborOverride);
 }
 function defaultSetupMinPerOpening() {
+  const team = teamLaborKnob("setupMinPerOpening");   // Teams T5
+  if (team != null) return team;
   return ((DATA.config && DATA.config.laborModel) || {}).setupMinPerOpening ?? 45;
 }
 function defaultMobilizationHours() {
+  const team = teamLaborKnob("mobilizationHours");    // Teams T5
+  if (team != null) return team;
   return ((DATA.config && DATA.config.laborModel) || {}).mobilizationHours ?? 2;
 }
 function resolveSetupMinPerOpening() {
@@ -12159,6 +12621,10 @@ function resolveJobCrewCost() {
       }
     }
   }
+  // No hand-edited crew on this job → an assigned team's own pay wins over the
+  // account default (but never over an explicit per-job override above).
+  const team = resolveAssignedCrewCost();
+  if (team) return team;
   return resolveCrewCost();
 }
 // Copy Settings crew into a job-local snapshot so helpers can be added without
@@ -12892,6 +13358,9 @@ function buildState() {
     // (DATA.config.defaultMargin); a number overrides it for THIS job only.
     marginOverride: null,
     laborOverride: null,   // per-job mob/setup/install/crew; null = Settings defaults
+    // Teams T3a: which crew/sub this quote is assigned to (null = unassigned →
+    // labor prices exactly as before). Rides job.data; no schema change.
+    assignedCrewId: null,
     ...persisted,
     // Back-compat: older saved STATE blobs predate jobName; coerce to string.
     jobName: (persisted && typeof persisted.jobName === "string") ? persisted.jobName : "",
@@ -13874,8 +14343,82 @@ function computeProcurement(totalQty, item) {
   return out;
 }
 
+/* ── Teams T5: per-team rate books ─────────────────────────────────────────────
+   A subcontractor buys its own consumables and works at its own pace, so a job
+   assigned to that team can price off THEIR numbers instead of the account's.
+
+   Stored SPARSELY in crews.data.rateBook — only the values that differ from the
+   account's book are kept:
+       { prices: { "<variantId|itemId>": 0.14, … },
+         labor:  { setupMinPerOpening?, mobilizationHours? } }
+   Sparse matters: anything the team hasn't overridden keeps tracking the
+   account's book, so raising your own screw price still flows through to every
+   team that never set one.
+
+   Injection is three accessors, not a config swap — dollars in this app all
+   resolve through getUnitPrice(), so overriding there reaches the engine, the
+   shopping list and the materials PDF at once, while Settings → Rates keeps
+   reading DATA.costItems directly and therefore still shows/edits the ACCOUNT's
+   book. Nothing is ever written into DATA.costItems, so a team's prices cannot
+   leak into the account or into another team.
+
+   Two items are deliberately NOT overridable: interior trim (priced off the
+   3x3 type/width grid, not a flat unit price) and Labor (a team's labor is
+   already priced from its own crew pay — see resolveAssignedCrewCost in T3a —
+   and a second override here would double-count it). */
+let _rbCache = { key: null, val: null };
+
+function assignedRateBook() {
+  const id = (typeof assignedCrewId === "function") ? assignedCrewId() : null;
+  if (!id) return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  if (!ctx) return null;
+  // getUnitPrice runs ~13x per calculate() and calculate() runs on every render,
+  // so memoize against the context's fetch stamp.
+  const key = id + "|" + (ctx.fetchedAt || 0);
+  if (_rbCache.key === key) return _rbCache.val;
+  const crew = (ctx.crews || []).find(c => c.id === id);
+  const rb = crew && crew.data && crew.data.rateBook;
+  let val = null;
+  if (rb) {
+    const prices = (rb.prices && typeof rb.prices === "object") ? rb.prices : {};
+    const labor = (rb.labor && typeof rb.labor === "object") ? rb.labor : {};
+    if (Object.keys(prices).length || Object.keys(labor).length) val = { prices, labor };
+  }
+  _rbCache = { key, val };
+  return val;
+}
+function clearRateBookCache() { _rbCache = { key: null, val: null }; }
+
+/** Rate-book key for an item: its ACTIVE variant, so overriding 2x8 bucking
+    doesn't silently reprice a job that selected 2x6. */
+function ratePriceKey(item) {
+  const v = (typeof activeVariant === "function") ? activeVariant(item) : null;
+  return (v && v.id) || (item && item.id) || "";
+}
+/** The assigned team's price for an item, or null to fall through to the account. */
+function teamUnitPrice(item) {
+  const rb = assignedRateBook();
+  if (!rb || !item) return null;
+  const raw = rb.prices[ratePriceKey(item)];
+  if (raw === "" || raw == null) return null;
+  const n = Number(raw);
+  return (isNaN(n) || n < 0) ? null : n;
+}
+/** A team's labor-model knob, else the account's. */
+function teamLaborKnob(name) {
+  const rb = assignedRateBook();
+  if (!rb) return null;
+  const raw = rb.labor[name];
+  if (raw === "" || raw == null) return null;
+  const n = Number(raw);
+  return (isNaN(n) || n < 0) ? null : n;
+}
+
 function getUnitPrice(item) {
   if (item && item.id === "trim_board") return trimSelection().price;   // $/LF from type×width grid
+  const teamPrice = teamUnitPrice(item);   // Teams T5: assigned team's own price wins
+  if (teamPrice != null) return teamPrice;
   if (item.unitPriceByApplication && item.unitPriceByApplication[STATE.application] != null) {
     return item.unitPriceByApplication[STATE.application];
   }
@@ -14213,6 +14756,7 @@ function floorPersistFields() {
     // site spreads, so the per-job markup override rides along to all of them.
     marginOverride: STATE.marginOverride ?? null,
     laborOverride: normalizeLaborOverride(STATE.laborOverride),
+    assignedCrewId: STATE.assignedCrewId || null,   // Teams T3a
     blockSealerEnabled: !!STATE.blockSealerEnabled,
     blockSealerGallons: STATE.blockSealerGallons != null ? String(STATE.blockSealerGallons) : "",
     excludedMaterials: normalizeExcludedMaterials(STATE.excludedMaterials),
@@ -15103,23 +15647,183 @@ function positionPfpMenu(trigger) {
     m.style.transformOrigin = "";
   }
 }
+function pfpRollRows(m) {
+  const rows = [];
+  for (const el of m.children) {
+    if (el.classList.contains("hidden")) continue;
+    if (el.id === "pfpAdminSection") {
+      for (const child of el.children) {
+        if (!child.classList.contains("hidden")) rows.push(child);
+      }
+    } else {
+      rows.push(el);
+    }
+  }
+  return rows;
+}
+function pfpPrefersReducedMotion() {
+  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+  catch (_) { return false; }
+}
+function setPfpRollTiming(m, n, mode) {
+  // Open: soft spring settle. Close: light lift, then a controlled roll-in.
+  const stagger = mode === "close" ? 8 : 11;
+  const itemDur = mode === "close" ? 260 : 340;
+  const cascade = Math.max(0, n - 1) * stagger + itemDur;
+  const panelDur = mode === "close"
+    ? 360
+    : Math.min(520, Math.max(460, cascade));
+  m.style.setProperty("--pfp-stagger", stagger + "ms");
+  m.style.setProperty("--pfp-item-dur", itemDur + "ms");
+  m.style.setProperty("--pfp-panel-dur", panelDur + "ms");
+  return panelDur;
+}
+function clearPfpRollState(m) {
+  clearTimeout(m._pfpCloseT);
+  m._pfpCloseT = 0;
+  m.classList.remove("pfp-rolling", "pfp-closing", "pfp-from-bottom", "pfp-from-top");
+  m.style.pointerEvents = "";
+  m.style.removeProperty("--pfp-stagger");
+  m.style.removeProperty("--pfp-item-dur");
+  m.style.removeProperty("--pfp-panel-dur");
+  m.querySelectorAll(".pfp-roll-item").forEach(el => {
+    el.classList.remove("pfp-roll-item");
+    el.style.removeProperty("--pfp-i");
+  });
+}
+function finishPfpClose(m) {
+  if (!m) return;
+  m.classList.add("hidden");
+  clearPfpRollState(m);
+}
+function prepPfpRoll(m, fromBottom) {
+  m.querySelectorAll(".pfp-roll-item").forEach(el => {
+    el.classList.remove("pfp-roll-item");
+    el.style.removeProperty("--pfp-i");
+  });
+  const rows = pfpRollRows(m);
+  const n = rows.length;
+  rows.forEach((el, i) => {
+    el.classList.add("pfp-roll-item");
+    // Bottom-up: nearest the More button (last row) leads the cascade.
+    el.style.setProperty("--pfp-i", String(fromBottom ? (n - 1 - i) : i));
+  });
+  setPfpRollTiming(m, n, "open");
+  m.classList.toggle("pfp-from-bottom", !!fromBottom);
+  m.classList.toggle("pfp-from-top", !fromBottom);
+  return n;
+}
 function togglePfpMenu(e, trigger) {
   if (e) e.stopPropagation();
   const m = document.getElementById("pfpMenu");
   if (!m) return;
-  if (m.classList.contains("hidden")) {
-    positionPfpMenu(trigger || (e && e.currentTarget) || document.getElementById("pfpBtn"));
+  // Mid-close + More/avatar tap → cancel close and reopen.
+  if (m.classList.contains("pfp-closing")) {
+    clearTimeout(m._pfpCloseT);
+    m._pfpCloseT = 0;
+    m.classList.remove("pfp-closing");
+    m.style.pointerEvents = "";
+  } else if (!m.classList.contains("hidden")) {
+    closePfpMenu();
+    return;
   }
-  m.classList.toggle("hidden");
+  const trig = trigger || (e && e.currentTarget) || document.getElementById("pfpBtn");
+  positionPfpMenu(trig);
+  const fromBottom = !!(m.style.bottom && m.style.bottom !== "auto");
+  prepPfpRoll(m, fromBottom);
+  m.classList.remove("hidden", "pfp-rolling", "pfp-closing");
+  if (pfpPrefersReducedMotion()) return;
+  // Force a reflow so the carpet-roll animation retriggers every open.
+  void m.offsetWidth;
+  m.classList.add("pfp-rolling");
 }
-function closePfpMenu() {
+function closePfpMenu(immediate) {
   const m = document.getElementById("pfpMenu");
-  if (m) m.classList.add("hidden");
+  if (!m || m.classList.contains("hidden")) return;
+  if (m.classList.contains("pfp-closing") && !immediate) return;
+
+  if (immediate || pfpPrefersReducedMotion()) {
+    finishPfpClose(m);
+    return;
+  }
+
+  // Invert open stagger so the far end leaves first (carpet rolls back in).
+  const items = [...m.querySelectorAll(".pfp-roll-item")];
+  const n = items.length || pfpRollRows(m).length || 1;
+  if (!items.length) prepPfpRoll(m, m.classList.contains("pfp-from-bottom"));
+  const live = [...m.querySelectorAll(".pfp-roll-item")];
+  live.forEach(el => {
+    const openI = Number(el.style.getPropertyValue("--pfp-i")) || 0;
+    el.style.setProperty("--pfp-i", String(Math.max(0, live.length - 1 - openI)));
+  });
+  const panelDur = setPfpRollTiming(m, live.length || n, "close");
+
+  m.classList.remove("pfp-rolling");
+  m.style.pointerEvents = "none";
+  void m.offsetWidth;
+  m.classList.add("pfp-closing");
+  clearTimeout(m._pfpCloseT);
+  m._pfpCloseT = setTimeout(() => finishPfpClose(m), panelDur + 30);
+}
+
+/* ── Teams T4: whose name goes on the paperwork ────────────────────────────────
+   Subcontract mode only. When a job is assigned to a sub AND that sub has opted
+   in (crews.data.brandOnQuotes, set in Settings → Teams), the sub's own company
+   name / logo / phone / email / license replace the account's on that job's
+   documents. In-house mode never swaps — big orgs divide work between internal
+   crews and the paperwork must always carry the one company name, which is the
+   whole reason the mode toggle exists.
+
+   Resolution is an OVERLAY, not a replacement: the sub supplies only the five
+   fields its editor collects, so city/state/zip/website/tagline still come from
+   the account. A field the sub left BLANK falls back to the account's value, so
+   the document always carries a reachable phone/email rather than a sub's name
+   above dead air. The one deliberate exception is the logo — see below.
+
+   Reads STATE.assignedCrewId, so every document surface picks this up for free:
+   PDFs run off live STATE, and the share/e-sign snapshots run through
+   applyJobToState() first (which restores assignedCrewId). */
+function mainBrand() { return (DATA && DATA.config && DATA.config.brand) || {}; }
+
+/** The sub's brand for a crew id, or null when it shouldn't be used. */
+function teamBrandFor(crewId) {
+  if (!crewId) return null;
+  if (typeof teamModeOf !== "function" || teamModeOf() !== "subcontract") return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crew = ctx && (ctx.crews || []).find(c => c.id === crewId);
+  const data = crew && crew.data;
+  if (!data || !data.brandOnQuotes) return null;
+  const b = data.brand || {};
+  // Nothing usable → don't half-swap the letterhead.
+  if (!b.companyName && !b.logo) return null;
+  return b;
+}
+
+/** The brand to print on THIS job's documents. */
+function effectiveBrand() {
+  const base = mainBrand();
+  const team = teamBrandFor(typeof assignedCrewId === "function" ? assignedCrewId() : null);
+  if (!team) return base;
+  const out = Object.assign({}, base);
+  ["companyName", "logo", "phone", "email", "license"].forEach(k => {
+    if (team[k]) out[k] = team[k];
+  });
+  // Identity-bound fields must never ride along under another company's name: the
+  // account's logo, website and tagline are claims about the ACCOUNT. The sub's
+  // editor can't supply a website/tagline, so those simply go blank rather than
+  // pointing a customer at the sales company while the letterhead says otherwise.
+  // (phone/email still fall back above, so there is always a way to reach someone.)
+  if (team.companyName && !team.logo) out.logo = "";
+  out.website = team.website || "";
+  out.tagline = team.tagline || "";
+  out._teamBranded = true;
+  out._teamName = team.companyName || "";
+  return out;
 }
 
 // Build a human-readable brand line for PDFs ("Acme Windows  ·  Phoenix, AZ  ·  555-1234")
-function brandFooterLine(includeContact) {
-  const b = DATA.config.brand || {};
+function brandFooterLine(includeContact, brandOverride) {
+  const b = brandOverride || effectiveBrand();
   const parts = [];
   if (b.companyName) parts.push(b.companyName);
   if (b.city && b.state) parts.push(`${b.city}, ${b.state}`);
@@ -15129,11 +15833,15 @@ function brandFooterLine(includeContact) {
   return parts.join("  ·  ");
 }
 
-function brandContactLine() {
-  const b = DATA.config.brand || {};
+function brandContactLine(brandOverride) {
+  const b = brandOverride || effectiveBrand();
   const parts = [];
   if (b.email) parts.push(b.email);
   if (b.website) parts.push(b.website);
+  // Teams T4: the sub-brand editor collects a License # that nothing used to
+  // print. It belongs on customer paperwork, so surface it here. Accounts with no
+  // license on file are unaffected (the main brand has no such field yet).
+  if (b.license) parts.push(`Lic. ${b.license}`);
   return parts.join("  ·  ");
 }
 
@@ -16603,6 +17311,20 @@ function statusMeta(s) {
     Won:      { cls: "text-violet-300 border-violet-500/40 bg-violet-500/10" },
   })[s] || { cls: "text-slate-300 border-slate-600 bg-slate-700/20" };
 }
+// Teams T3a — assign/unassign a saved job's crew. Mirrors setJobStatus: patch the
+// local row, push it, and if it's the job currently loaded keep STATE in sync so
+// the live price re-prices at the new crew's pay immediately.
+function setJobCrew(id, crewId) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x && x.id === id);
+  if (!j) return;
+  j.assignedCrewId = crewId || null;
+  saveJobs(jobs);
+  try { pushJobToCloud(j, true); } catch (_) {}
+  if (STATE.loadedJobId === id) { STATE.assignedCrewId = j.assignedCrewId; try { render(); } catch (_) {} }
+  try { toast(crewId ? `Assigned to ${crewLabel(crewId) || "team"}` : "Unassigned"); } catch (_) {}
+}
+
 function setJobStatus(id, status) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
@@ -16897,6 +17619,269 @@ function wireVisualViewportBottom() {
   window.addEventListener("resize", sync);
   window.addEventListener("orientationchange", sync);
 }
+/* ═══ Animated dropdowns (asel) ═══════════════════════════════════════════════
+   Replaces the OS's native <select> popup — which paints a system sheet over the
+   top of the control — with a panel that animates open below it.
+
+   Design constraint that shapes everything here: the real <select> stays in the
+   DOM and remains the single source of truth. Choosing an option writes to it and
+   dispatches a bubbling `change`, so all ~37 existing selects keep working with
+   zero changes at their call sites, and any code that repopulates a select with
+   innerHTML keeps working too (a MutationObserver refreshes the label).
+
+   The panel is position:fixed and appended to <body> so overflow-hidden cards and
+   scrolling dashboard panels can't clip it; it repositions on scroll/resize.
+   ─────────────────────────────────────────────────────────────────────────── */
+let _aselOpen = null;          // the currently open { wrap, sel, panel, ... }
+let _aselIdSeq = 0;
+
+// Same glyphs the app's rail dropdowns use, so converted selects are indistinguishable.
+const ASEL_CHEV = '<svg class="dd-chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 8 10 13 15 8"/></svg>';
+const ASEL_CHECK = '<svg class="dd-check" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 11 8 15 16 6"/></svg>';
+
+function aselLabelFor(sel) {
+  const o = sel.options[sel.selectedIndex];
+  return o ? o.textContent : "";
+}
+// Keep the trigger's text in step with the native select (value changed by our own
+// pick, by other app code, or by a wholesale innerHTML repopulate).
+function aselSync(wrap) {
+  const sel = wrap._asel && wrap._asel.sel;
+  if (!sel) return;
+  const lbl = wrap.querySelector(".dd-label");
+  if (lbl) lbl.textContent = aselLabelFor(sel);
+  const btn = wrap.querySelector(".dd-trigger");
+  if (btn) btn.disabled = sel.disabled;
+}
+/** Wrap one <select> in an animated dropdown. Idempotent. */
+function enhanceSelect(sel) {
+  if (!sel || sel._aselDone) return;
+  // Native behavior is kept for multi/list selects and anything opting out.
+  if (sel.multiple || sel.size > 1 || sel.hasAttribute("data-no-asel")) { sel._aselDone = true; return; }
+  sel._aselDone = true;
+
+  const wrap = document.createElement("span");
+  wrap.className = "dd asel";   // .dd drives the shared open/chevron styling
+  // Carry the select's own layout classes so it occupies the same box as before
+  // (widths like w-full / sm:w-64 and the flex-1 sizing all keep working).
+  const layout = (sel.className.match(/(^|\s)(w-|sm:w-|flex-|min-w-|max-w-|mt-|mb-|ml-|mr-|grow|shrink)\S*/g) || []).join(" ");
+  if (layout) wrap.className += " " + layout;
+  if (sel.style.width) wrap.style.width = sel.style.width;
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  // .dd-trigger supplies the chrome; the select's own classes ride along after it
+  // so each dropdown keeps its local sizing (a job-card status pill stays small,
+  // a toolbar control stays 38px) exactly as the native select did.
+  btn.className = "dd-trigger " + sel.className.replace(/(^|\s)control(\s|$)/g, " ")
+    .replace(/(^|\s)(w-full|sm:w-64|flex-1)(\s|$)/g, " ").trim();
+  btn.style.width = "100%";
+  btn.setAttribute("aria-haspopup", "listbox");
+  btn.setAttribute("aria-expanded", "false");
+  btn.innerHTML = `<span class="dd-label"></span>${ASEL_CHEV}`;
+  if (sel.title) btn.title = sel.title;
+  const labelledBy = sel.getAttribute("aria-label");
+  if (labelledBy) btn.setAttribute("aria-label", labelledBy);
+  if (sel.id) {
+    const lab = document.querySelector(`label[for="${sel.id}"]`);
+    if (lab) { if (!lab.id) lab.id = `aselLab${++_aselIdSeq}`; btn.setAttribute("aria-labelledby", lab.id); }
+  }
+
+  sel.classList.add("asel-native");   // before the move, so a re-entrant sweep skips it
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(btn);
+  wrap.appendChild(sel);
+  sel.setAttribute("tabindex", "-1");
+  sel.setAttribute("aria-hidden", "true");
+  wrap._asel = { sel, btn };
+  aselSync(wrap);
+
+  btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); aselToggle(wrap); });
+  btn.addEventListener("keydown", (e) => {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); aselOpenPanel(wrap, e.key === "ArrowUp" ? "last" : "sel"); }
+  });
+  // Other code may swap this select's options or value wholesale — mirror it.
+  const mo = new MutationObserver(() => aselSync(wrap));
+  mo.observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "disabled"] });
+  sel.addEventListener("change", () => aselSync(wrap));
+}
+
+function aselToggle(wrap) { (_aselOpen && _aselOpen.wrap === wrap) ? aselClose() : aselOpenPanel(wrap, "sel"); }
+
+function aselOpenPanel(wrap, focusMode) {
+  // A trigger inside a hidden pane has no layout box; opening would strand a panel
+  // in the corner. Only reachable via a programmatic click, but cheap to rule out.
+  const box = wrap.getBoundingClientRect();
+  if (!box.width && !box.height) return;
+  aselClose();
+  // A closing panel lingers for its fade-out; drop any leftovers so exactly one
+  // portaled panel is ever in the document.
+  document.querySelectorAll(".dd-panel--fixed").forEach(el => el.remove());
+  const sel = wrap._asel.sel;
+  const panel = document.createElement("ul");
+  panel.className = "dd-panel dd-panel--fixed";
+  panel.setAttribute("role", "listbox");
+  panel.id = `aselPanel${++_aselIdSeq}`;
+  // Read the options at OPEN time, so a select repopulated since load is correct.
+  const opts = [];
+  Array.from(sel.children).forEach(node => {
+    if (node.tagName === "OPTGROUP") {
+      const g = document.createElement("li");
+      g.className = "dd-group"; g.textContent = node.label; g.setAttribute("role", "presentation");
+      panel.appendChild(g);
+      Array.from(node.children).forEach(o => opts.push(aselAddOpt(panel, o, sel)));
+    } else if (node.tagName === "OPTION") {
+      opts.push(aselAddOpt(panel, node, sel));
+    }
+  });
+  document.body.appendChild(panel);
+  btnState(wrap, true);
+  wrap._asel.btn.setAttribute("aria-expanded", "true");
+  wrap._asel.btn.setAttribute("aria-controls", panel.id);
+
+  _aselOpen = { wrap, sel, panel, opts, active: -1 };
+  aselPosition();
+  requestAnimationFrame(() => panel.classList.add("in"));
+
+  const selIdx = opts.findIndex(li => li._opt.selected);
+  aselSetActive(focusMode === "last" ? opts.length - 1 : (selIdx < 0 ? 0 : selIdx));
+  panel.setAttribute("aria-activedescendant", (_aselOpen.opts[_aselOpen.active] || {}).id || "");
+  const cur = panel.querySelector('[aria-selected="true"]');
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+
+  panel.addEventListener("click", (e) => {
+    const li = e.target.closest(".dd-item");
+    if (!li || li._opt.disabled) return;
+    aselPick(li);
+  });
+  panel.addEventListener("mousemove", (e) => {
+    const li = e.target.closest(".dd-item");
+    if (li) aselSetActive(_aselOpen.opts.indexOf(li));
+  });
+  document.addEventListener("keydown", aselKeydown, true);
+  document.addEventListener("pointerdown", aselOutside, true);
+  window.addEventListener("resize", aselPosition, true);
+  window.addEventListener("scroll", aselPosition, true);
+}
+function aselAddOpt(panel, o, sel) {
+  const li = document.createElement("li");
+  li.className = "dd-item" + (o.selected ? " selected" : "");
+  li.id = `aselOpt${++_aselIdSeq}`;
+  li.setAttribute("role", "option");
+  li.setAttribute("aria-selected", o.selected ? "true" : "false");
+  if (o.disabled) li.setAttribute("aria-disabled", "true");
+  li.innerHTML = `<span></span>` + ASEL_CHECK;   // label first, check right — as .dd-item expects
+  li.firstChild.textContent = o.textContent;
+  li._opt = o;
+  panel.appendChild(li);
+  return li;
+}
+function btnState(wrap, open) { wrap.classList.toggle("open", open); }
+function aselSetActive(i) {
+  if (!_aselOpen) return;
+  const { opts } = _aselOpen;
+  if (!opts.length) return;
+  i = Math.max(0, Math.min(opts.length - 1, i));
+  opts.forEach((li, n) => li.classList.toggle("active", n === i));
+  _aselOpen.active = i;
+  _aselOpen.panel.setAttribute("aria-activedescendant", opts[i].id);
+  opts[i].scrollIntoView({ block: "nearest" });
+}
+function aselPick(li) {
+  const o = _aselOpen && _aselOpen.sel;
+  if (!o) return;
+  const changed = !li._opt.selected;
+  li._opt.selected = true;
+  const wrap = _aselOpen.wrap;
+  aselClose();
+  aselSync(wrap);
+  if (changed) o.dispatchEvent(new Event("change", { bubbles: true }));
+  const b = wrap._asel && wrap._asel.btn;
+  if (b) b.focus();
+}
+function aselKeydown(e) {
+  if (!_aselOpen) return;
+  const { opts, active } = _aselOpen;
+  switch (e.key) {
+    case "Escape": e.preventDefault(); e.stopPropagation(); { const w = _aselOpen.wrap; aselClose(); w._asel.btn.focus(); } break;
+    case "ArrowDown": e.preventDefault(); aselSetActive(active + 1); break;
+    case "ArrowUp": e.preventDefault(); aselSetActive(active - 1); break;
+    case "Home": e.preventDefault(); aselSetActive(0); break;
+    case "End": e.preventDefault(); aselSetActive(opts.length - 1); break;
+    case "Enter": case " ": e.preventDefault(); if (opts[active] && !opts[active]._opt.disabled) aselPick(opts[active]); break;
+    case "Tab": aselClose(); break;
+    default:
+      if (e.key.length === 1) {   // type-ahead, like a native select
+        const q = e.key.toLowerCase();
+        const from = active + 1;
+        const hit = opts.slice(from).concat(opts.slice(0, from))
+          .find(li => li.textContent.trim().toLowerCase().startsWith(q));
+        if (hit) aselSetActive(opts.indexOf(hit));
+      }
+  }
+}
+function aselOutside(e) {
+  if (!_aselOpen) return;
+  if (_aselOpen.panel.contains(e.target) || _aselOpen.wrap.contains(e.target)) return;
+  aselClose();
+}
+// Anchor the fixed panel to the trigger, flipping above when there isn't room.
+function aselPosition() {
+  if (!_aselOpen) return;
+  const { wrap, panel } = _aselOpen;
+  const r = wrap.getBoundingClientRect();
+  const gap = 6, pad = 8;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  panel.style.minWidth = `${Math.round(r.width)}px`;
+  panel.style.maxWidth = `${Math.round(Math.min(vw - pad * 2, Math.max(r.width, 320)))}px`;
+  const h = panel.offsetHeight;
+  const below = vh - r.bottom - gap, above = r.top - gap;
+  const up = below < Math.min(h, 180) && above > below;
+  panel.classList.toggle("up", up);
+  panel.style.maxHeight = `${Math.round(Math.max(120, Math.min(288, (up ? above : below) - pad)))}px`;
+  const top = up ? Math.max(pad, r.top - gap - panel.offsetHeight) : r.bottom + gap;
+  let left = r.left;
+  if (left + panel.offsetWidth > vw - pad) left = Math.max(pad, vw - pad - panel.offsetWidth);
+  panel.style.top = `${Math.round(top)}px`;
+  panel.style.left = `${Math.round(Math.max(pad, left))}px`;
+}
+function aselClose() {
+  if (!_aselOpen) return;
+  const { wrap, panel } = _aselOpen;
+  _aselOpen = null;
+  btnState(wrap, false);
+  const b = wrap._asel && wrap._asel.btn;
+  if (b) { b.setAttribute("aria-expanded", "false"); b.removeAttribute("aria-controls"); }
+  document.removeEventListener("keydown", aselKeydown, true);
+  document.removeEventListener("pointerdown", aselOutside, true);
+  window.removeEventListener("resize", aselPosition, true);
+  window.removeEventListener("scroll", aselPosition, true);
+  panel.classList.remove("in");
+  const done = () => panel.remove();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) done();
+  else { panel.addEventListener("transitionend", done, { once: true }); setTimeout(done, 260); }
+}
+/** Enhance everything present now, and anything rendered later. */
+function initAnimatedSelects() {
+  if (initAnimatedSelects._wired) { document.querySelectorAll("select:not(.asel-native)").forEach(enhanceSelect); return; }
+  initAnimatedSelects._wired = true;
+  document.querySelectorAll("select:not(.asel-native)").forEach(enhanceSelect);
+  // Job cards, modals and rate grids rebuild their markup constantly; this saves
+  // touching every render site.
+  // Runs synchronously in the observer callback (a microtask), NOT on the next
+  // frame: job cards and modals re-render constantly, and deferring a frame let
+  // the raw native selects paint once before being wrapped — a visible flicker.
+  let sweeping = false;
+  new MutationObserver((muts) => {
+    if (sweeping) return;   // our own wrap/button insertions re-enter this
+    if (!muts.some(m => Array.from(m.addedNodes).some(n => n.nodeType === 1 &&
+        (n.tagName === "SELECT" || n.querySelector?.("select:not(.asel-native)"))))) return;
+    sweeping = true;
+    try { document.querySelectorAll("select:not(.asel-native)").forEach(enhanceSelect); }
+    finally { sweeping = false; }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 function wireTabBar() {
   const src = document.getElementById("appTabBar");
   if (!src) return;
@@ -17901,11 +18886,70 @@ function shopJobBodyHTML(job) {
       <div class="shop-actions">
         <span class="text-[11px] text-slate-500 hidden sm:inline">Round up to full packs. Checks save with the job.</span>
         <span class="flex items-center gap-2 ml-auto">
+          ${crewLabel(job.assignedCrewId) ? `<button type="button" class="calib-dismiss" data-shop-send="${escHtml(job.id)}" title="Send this list to ${escHtml(crewLabel(job.assignedCrewId))}">Send to ${escHtml(crewLabel(job.assignedCrewId))}</button>` : ""}
           <button type="button" class="calib-dismiss" data-shop-pdf="view" data-shop-job="${escHtml(job.id)}">View PDF</button>
           <button type="button" class="calib-apply" data-shop-pdf="download" data-shop-job="${escHtml(job.id)}">Download PDF</button>
         </span>
       </div>`;
 }
+/* ── Teams T7b: publishing a shopping list to a crew ───────────────────────────
+   Installers never get read access to `jobs` — that blob carries the owner's
+   margins. Instead the owner publishes a payload BUILT to be safe: item name,
+   quantity, unit, and how many packs to buy. No unit price, no cost, no total,
+   no margin. Nothing is redacted after the fact because money never goes in.
+   Re-publishing the same job overwrites that crew's list (unique on job+crew)
+   and preserves nothing stale. Check-off comes back through an RPC, so a crew
+   member can tick items but cannot rewrite the list or hand it to another crew. */
+function crewShoppingPayload(job) {
+  return jobShoppingItems(job).map(it => {
+    const item = (DATA.costItems || []).find(c => c.id === it.id);
+    let proc = null;
+    try { proc = item ? computeProcurement(Number(it.quantity) || 0, item) : null; } catch (_) {}
+    return {
+      id: String(it.id),
+      name: String(it.name || it.id),
+      qty: Number(it.quantity) || 0,
+      unit: String(it.unit || ""),
+      buy: proc ? `${proc.packs} ${proc.packLabel}` : "",
+    };
+  });
+}
+async function publishCrewShoppingList(job) {
+  if (!sb || !currentUser) { toast("Sign in to send a list to your crew"); return false; }
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crewId = jobCloudCrewId(job);
+  if (!ctx || !crewId) { toast("Assign this job to a crew first, then send the list."); return false; }
+  const items = crewShoppingPayload(job);
+  if (!items.length) { toast("Nothing to buy on this job yet."); return false; }
+  const { error } = await sb.from("crew_shopping_lists").upsert({
+    org_id: ctx.orgId,
+    crew_id: crewId,
+    job_id: (typeof isUuid === "function" && isUuid(job.id)) ? job.id : null,
+    job_label: String(job.name || job.customerName || "Job").slice(0, 120),
+    site_note: String(job.customerAddress || "").slice(0, 200),
+    items,
+    published_by: currentUser.id,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "job_id,crew_id" });
+  if (error) throw error;
+  return true;
+}
+/** The lists published to crews I'm on. RLS does the filtering. */
+async function fetchMyShoppingLists() {
+  if (!sb || !currentUser) return [];
+  const { data, error } = await sb.from("crew_shopping_lists")
+    .select("id,crew_id,job_label,site_note,items,checked,updated_at")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+async function toggleCrewShoppingCheck(listId, itemId, checked) {
+  const { error } = await sb.rpc("set_crew_shopping_check", {
+    p_list_id: listId, p_item_id: itemId, p_checked: !!checked,
+  });
+  if (error) throw error;
+}
+
 function renderDashShopping(jobs) {
   const wrap = document.getElementById("dashShopping");
   if (!wrap) return;
@@ -17943,8 +18987,8 @@ function renderDashShopping(jobs) {
 // dashboard short). Each panel renders its own inner content (no card of its
 // own); this shows the active panel, hides a tab with no data, and mirrors the
 // active panel's callout into the shared header.
-const INSIGHT_TABS = ["materials", "customers", "jobs"];
-const INSIGHT_PANELS = { jobs: "dashPipelinePanel", materials: "dashMaterials", customers: "dashCustomers" };
+const INSIGHT_TABS = ["materials", "customers", "jobs", "crews"];
+const INSIGHT_PANELS = { jobs: "dashPipelinePanel", materials: "dashMaterials", customers: "dashCustomers", crews: "dashCrewsPanel" };
 let _dashInsightTab = "materials";   // materials | customers | jobs
 
 /* ============================================================
@@ -18216,6 +19260,7 @@ function renderDashInsights(jobs) {
     jobs: renderDashJobsPanel(jobs),
     materials: renderDashMaterials(jobs),
     customers: renderDashCustomers(jobs),
+    crews: renderDashCrewsPanel(jobs),   // Teams T3b — hidden unless the account has crews
   };
   const wrap = document.getElementById("dashInsights");
   if (!wrap) return;
@@ -18233,7 +19278,17 @@ function applyInsightTab(animate) {
   const tab = _dashInsightTab;
   Object.entries(INSIGHT_PANELS).forEach(([t, id]) => { const el = document.getElementById(id); if (el) el.classList.toggle("hidden", t !== tab); });
   const tabs = document.getElementById("dashInsightsTabs");
-  if (tabs) tabs.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.insight === tab));
+  if (tabs) {
+    tabs.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.insight === tab));
+    // Narrow screens scroll this rail (4 tabs don't fit a phone) — keep the active
+    // pill in view. Done by hand, not scrollIntoView, so the page never moves.
+    const on = tabs.querySelector(".seg-btn.active");
+    if (on && tabs.scrollWidth > tabs.clientWidth + 1) {
+      const l = on.offsetLeft, r = l + on.offsetWidth;
+      if (l < tabs.scrollLeft) tabs.scrollLeft = Math.max(0, l - 6);
+      else if (r > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = r - tabs.clientWidth + 6;
+    }
+  }
   const meta = document.getElementById("dashInsightsMeta");
   const active = document.getElementById(INSIGHT_PANELS[tab]);
   if (meta) meta.innerHTML = (active && active._meta) || "";
@@ -19182,6 +20237,16 @@ function dashJobCard(j) {
     : `<select data-dash-status="${j.id}" class="job-status-sel ${stCls}" title="Set deal status">` +
         JOB_STATUSES.map(s => `<option value="${s}" ${s === st ? "selected" : ""}>${s}</option>`).join("") +
       `</select>`;
+  // Teams T3a — reassign the crew/sub straight from the card. Only rendered when
+  // the account actually has crews, so solo users see no change at all.
+  const _tctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const _tcrews = (_tctx && _tctx.crews) ? _tctx.crews : [];
+  const crewSel = (!j.isDraft && _tcrews.length)
+    ? `<select data-dash-crew="${j.id}" class="job-crew-sel${j.assignedCrewId ? " is-set" : ""}" title="Assign a crew or subcontractor">`
+        + `<option value="">Unassigned</option>`
+        + _tcrews.map(c => `<option value="${escHtml(c.id)}"${c.id === j.assignedCrewId ? " selected" : ""}>${escHtml(c.name)}</option>`).join("")
+        + `</select>`
+    : "";
   return `<div class="dash-job-card">
     <div class="dash-thumb" data-dash-details="${j.id}" role="link" tabindex="0" title="View job details" aria-label="Open ${escHtml(name)}">
       ${thumbInner}${badgeOverlay}${thumbActions}
@@ -19200,6 +20265,7 @@ function dashJobCard(j) {
           </div>
         </div>
       </button>
+      ${crewSel ? `<div class="dash-crewrow">${crewSel}</div>` : ""}
       <div class="flex items-center justify-between gap-2 mt-auto pt-3.5">
         ${statusSel}
         <div class="flex items-center gap-1.5">
@@ -19214,37 +20280,139 @@ function dashJobCard(j) {
   </div>`;
 }
 
-// Status filter chips above the jobs grid (UI refresh P4). Counts are REAL
-// jobs only (drafts excluded — same contract as the count label and KPIs).
-// Clicks route through the existing data-dash-filter delegated handler, so
-// the pipeline legend, filter note, and chips share one source of truth.
+// Deal-status filter. Was a chip row (UI refresh P4); the user found the extra
+// band of pills busy, so it's a dropdown in the shared toolbar now. Counts are
+// REAL jobs only (drafts excluded — same contract as the count label and KPIs).
+// Writing to the native <select> keeps the existing data-dash-filter handlers,
+// pipeline legend and filter note working off one source of truth.
 function renderDashJobsChips(jobs) {
-  const wrap = document.getElementById("dashJobsChips");
-  if (!wrap) return;
+  const sel = document.getElementById("dashJobStatusSel");
+  if (!sel) return;
   const real = (jobs || []).filter(j => j && !j.isDraft);
-  if (!real.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
-  wrap.classList.remove("hidden");
+  if (!real.length) { sel.innerHTML = ""; sel.classList.add("hidden"); return; }
+  sel.classList.remove("hidden");
   const counts = {};
   JOB_STATUSES.forEach(st => counts[st] = 0);
   real.forEach(j => { const st = jobStatus(j); if (counts[st] != null) counts[st]++; });
-  const chip = (label, key, count, dot) => {
-    const active = key ? _dashStatusFilter === key : !_dashStatusFilter;
-    return `<button type="button" ${key ? `data-dash-filter="${key}"` : "data-dash-filter-all"} class="dash-chip${active ? " active" : ""}" aria-pressed="${active}">` +
-      (dot ? `<span class="dash-chip-dot" style="background:${dot}"></span>` : "") +
-      `${label}<span class="dash-chip-n">${count}</span></button>`;
-  };
-  wrap.innerHTML = chip("All", null, real.length, null)
-    + JOB_STATUSES.map(st => chip(st, st, counts[st], STATUS_COLORS[st])).join("");
+  const opt = (val, text, count) =>
+    `<option value="${escHtml(val)}"${val === (_dashStatusFilter || "") ? " selected" : ""}>` +
+    `${escHtml(text)}${count == null ? "" : "  \u00b7  " + count}</option>`;
+  sel.innerHTML = opt("", "All statuses", real.length) +
+    JOB_STATUSES.map(st => opt(st, st, counts[st])).join("");
 }
+
+
+/* ── Teams T3b: crew filter chips + per-crew performance ─────────────────────
+   Both are pure client-side reads over the saved jobs (which already carry
+   sellingPrice / profit / margin / rows), so no new queries and nothing to sync.
+   Rendered only for accounts that have crews. */
+function jobLaborCost(j) {
+  const rows = Array.isArray(j && j.rows) ? j.rows : [];
+  const lab = rows.find(r => r && r.id === "labor");
+  return lab ? (Number(lab.totalCost) || 0) : 0;
+}
+// Per-crew totals from real stored numbers (+ an "Unassigned" bucket).
+function crewPerformance(jobs) {
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crews = (ctx && ctx.crews) ? ctx.crews : [];
+  if (!crews.length) return null;   // the full roster — a crew with 0 matches still lists
+  const real = (jobs || []).filter(j => j && !j.isDraft);
+  const mk = (id, name) => ({ id, name, jobs: 0, revenue: 0, profit: 0, labor: 0, marginSum: 0, marginN: 0 });
+  const buckets = crews.map(c => mk(c.id, c.name));
+  const unassigned = mk(null, "Unassigned");
+  const byId = {}; buckets.forEach(b => byId[b.id] = b);
+  real.forEach(j => {
+    const b = (j.assignedCrewId && byId[j.assignedCrewId]) ? byId[j.assignedCrewId] : unassigned;
+    b.jobs++;
+    b.revenue += Number(j.sellingPrice) || 0;
+    b.profit += Number(j.profit) || 0;
+    b.labor += jobLaborCost(j);
+    const m = Number(j.margin); if (!isNaN(m)) { b.marginSum += m; b.marginN++; }
+  });
+  const fin = (b) => Object.assign(b, { avgMargin: b.marginN ? Math.round(b.marginSum / b.marginN) : null });
+  return { crews: buckets.map(fin), unassigned: fin(unassigned), total: real.length };
+}
+// Per-crew analytics, rendered as a tab inside the Insights card — it is a
+// report, not a filter, so it belongs with Materials / Customers / Jobs rather
+// than in the Jobs toolbar. Returns false when the account has no crews (or
+// none have jobs), which auto-hides the tab via the shared INSIGHT_TABS logic.
+function renderDashCrewsPanel(jobs) {
+  const wrap = document.getElementById("dashCrewsPanel");
+  if (!wrap) return false;
+  const perf = crewPerformance(jobs);
+  const active = perf ? perf.crews.filter(c => c.jobs > 0) : [];
+  if (!active.length) { wrap.innerHTML = ""; wrap._meta = ""; return false; }
+  const subMode = (typeof teamModeOf === "function") && teamModeOf() === "subcontract";
+  const noun = subMode ? "subcontractor" : "crew";
+  const tabBtn = document.querySelector('#dashInsightsTabs [data-insight="crews"]');
+  if (tabBtn) tabBtn.textContent = subMode ? "Subs" : "Crews";
+
+  const ranked = active.slice().sort((a, b) => b.revenue - a.revenue);
+  const grandRev = ranked.reduce((t, c) => t + c.revenue, 0);
+  const top = ranked[0];
+  wrap._meta = `<div class="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-bold">Top by revenue</div>
+    <div class="text-sm font-extrabold text-[#c9a558]">${escHtml(top.name)} · ${grandRev > 0 ? Math.round(top.revenue / grandRev * 100) : 0}%</div>`;
+
+  // Clicking a row jumps to that team's jobs by dropping its name in the Jobs
+  // search box — the search already matches the assigned crew, so no second
+  // filter control has to exist.
+  const row = (c, i) => {
+    const col = CUST_COLORS[i % CUST_COLORS.length];
+    const sub = [`${c.jobs} job${c.jobs === 1 ? "" : "s"}`,
+                 c.avgMargin == null ? null : `${c.avgMargin}% avg markup`,
+                 `${formatMoney(c.labor)} labor`].filter(Boolean).join(" · ");
+    return `<button type="button" data-crew-jobs="${escHtml(c.name)}" class="w-full text-left flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-slate-800/40 transition">
+        <span style="width:11px;height:11px;border-radius:3px;background:${col};flex-shrink:0;"></span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-bold text-slate-100 truncate">${escHtml(c.name)}</span>
+          <span class="block text-[11px] text-slate-500 internal-only">${sub}</span>
+        </span>
+        <span class="text-right shrink-0">
+          <span class="block text-sm font-extrabold text-slate-100" style="font-variant-numeric:tabular-nums;">${formatMoney(c.revenue)}</span>
+          <span class="block text-[11px] text-emerald-300/90 internal-only">${formatMoney(c.profit)} profit</span>
+        </span>
+      </button>`;
+  };
+  const un = perf.unassigned;
+  const unRow = !un.jobs ? "" : `<div class="flex items-center gap-3 px-2 py-2.5">
+      <span style="width:11px;height:11px;border-radius:3px;background:#475569;flex-shrink:0;"></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-sm font-bold text-slate-400 italic truncate">Unassigned</span>
+        <span class="block text-[11px] text-slate-500 internal-only">${un.jobs} job${un.jobs === 1 ? "" : "s"} · no ${escHtml(noun)} set</span>
+      </span>
+      <span class="text-right shrink-0">
+        <span class="block text-sm font-extrabold text-slate-400" style="font-variant-numeric:tabular-nums;">${formatMoney(un.revenue)}</span>
+      </span>
+    </div>`;
+  wrap.innerHTML = `
+      <div class="px-5 sm:px-6 pt-4 pb-3 border-b border-slate-800/80">
+        <p class="text-[11px] text-slate-500 font-medium">${ranked.length} ${escHtml(noun)}${ranked.length === 1 ? "" : "s"} with jobs — revenue, labor and profit by team. Tap one to see its jobs.</p>
+      </div>
+      <div class="px-3 sm:px-4 py-2 max-h-[360px] overflow-y-auto divide-y divide-slate-800/60">${ranked.map(row).join("")}${unRow}</div>`;
+  return true;
+}
+
 
 function renderDashJobs(jobs) {
   const grid = document.getElementById("dashJobsGrid");
   if (!grid) return;
   renderDashJobsChips(jobs || loadJobs());
+  // Teams T3b: tell accounts that HAVE crews that they can search by one. Solo
+  // accounts keep the original placeholder — no hint for something they can't use.
+  {
+    const box = document.getElementById("dashJobSearch");
+    const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+    const hasCrews = !!(ctx && (ctx.crews || []).length);
+    const ph = !hasCrews ? "Search jobs\u2026"
+      : ((typeof teamModeOf === "function" && teamModeOf() === "subcontract") ? "Search jobs or sub\u2026" : "Search jobs or crew\u2026");
+    if (box && box.placeholder !== ph) box.placeholder = ph;
+  }
   const q = (document.getElementById("dashJobSearch")?.value || "").trim().toLowerCase();
   let list = (jobs || loadJobs()).slice().reverse();
   if (_dashStatusFilter) list = list.filter(j => !j.isDraft && jobStatus(j) === _dashStatusFilter);
-  if (q) list = list.filter(j => `${j.customerName || ""} ${j.name || ""} ${j.customerAddress || ""} ${j.manufacturer || ""}`.toLowerCase().includes(q));
+  // Teams T3b: the assigned crew/sub is searchable too — typing "Prime" pulls up
+  // that sub's jobs, so filtering by team needs no control of its own.
+  if (q) list = list.filter(j => `${j.customerName || ""} ${j.name || ""} ${j.customerAddress || ""} ${j.manufacturer || ""} ${crewLabel(j.assignedCrewId) || ""}`.toLowerCase().includes(q));
   const countEl = document.getElementById("dashJobsCount");
   if (countEl) {
     // DASH-10: count REAL jobs (matching the launchpad card, KPIs, and the guide's
@@ -21218,6 +22386,19 @@ function wireDashboard() {
       }
     });
     shop.addEventListener("change", (e) => {
+      const send = e.target.closest("[data-shop-send]");
+      if (send) {
+        const j = loadJobs().find(x => x.id === send.dataset.shopSend);
+        if (!j) return;
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = "Sending\u2026";
+        publishCrewShoppingList(j)
+          .then(ok => { if (ok) toast(`Sent to ${crewLabel(j.assignedCrewId) || "the crew"}`); })
+          .catch(err => { console.warn(err); toast("Couldn't send the list — check your connection."); })
+          .finally(() => { send.disabled = false; send.textContent = label; });
+        return;
+      }
       const cb = e.target.closest("[data-shop-check]");
       if (!cb) return;
       const row = cb.closest("[data-shop-jobrow]");
@@ -21259,6 +22440,8 @@ function wireDashboard() {
     grid.addEventListener("change", (e) => {
       const sel = e.target.closest("[data-dash-status]");
       if (sel) { setJobStatus(sel.dataset.dashStatus, sel.value); renderDashboard(); }
+      const csel = e.target.closest("[data-dash-crew]");
+      if (csel) { setJobCrew(csel.dataset.dashCrew, csel.value); renderDashboard(); }
     });
   }
   // Jobs insights panel: count/value donut toggle + clickable status legend that
@@ -21295,13 +22478,22 @@ function wireDashboard() {
   // Status chips above the jobs grid (UI refresh P4). The pipeline panel's
   // data-dash-filter listener only covers that panel, so the chip row gets its
   // own — same _dashStatusFilter + legend re-render, so both stay in lockstep.
-  const chipsWrap = document.getElementById("dashJobsChips");
-  if (chipsWrap) chipsWrap.addEventListener("click", (e) => {
-    const all = e.target.closest("[data-dash-filter-all]");
-    const f = e.target.closest("[data-dash-filter]");
-    if (!all && !f) return;
-    _dashStatusFilter = all ? null
-      : (_dashStatusFilter === f.dataset.dashFilter ? null : f.dataset.dashFilter);
+  // Teams T3b — tapping a crew in Insights shows that team's jobs, via the
+  // search box (which now matches the assigned crew).
+  const crewsPanel = document.getElementById("dashCrewsPanel");
+  if (crewsPanel) crewsPanel.addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-crew-jobs]");
+    if (!pick) return;
+    const box = document.getElementById("dashJobSearch");
+    if (box) box.value = pick.dataset.crewJobs;
+    dashGoTo("jobs");
+    renderDashJobs(loadJobs());
+  });
+  // The status filter is a dropdown now (was a chip row) — same three follow-up
+  // calls the chips made, so the pipeline legend and filter note stay in step.
+  const statusSel = document.getElementById("dashJobStatusSel");
+  if (statusSel) statusSel.addEventListener("change", () => {
+    _dashStatusFilter = statusSel.value || null;
     renderDashJobsPanel(loadJobs());
     renderDashJobs(loadJobs());
     scheduleSaveNav();
@@ -22885,6 +24077,7 @@ function resetAll() {
     trimLength: 16,
     trimSplitCfg: defaultTrimSplitCfg(),
     laborOverride: null,
+    assignedCrewId: null,
   };
   saveState(STATE);
   clearAllAiFilled();   // a reset wipes the job → no field is AI-filled anymore
@@ -23062,6 +24255,1023 @@ function setCustomerContact(oldKey, fields) {
 // (editable info incl. Company, propagated across all their jobs via
 // setCustomerContact) with their saved jobs as tap-to-open thumbnails.
 let _custDetailKey = null;
+/* ── Crew writes (T2a) ────────────────────────────────────────────────────────
+   Shapes mirror anchor-field/lib/fleet.ts so both apps behave identically:
+   createCrew inserts {org_id,name}; addCrewMember UPSERTS on (crew_id,user_id);
+   removeCrewMember deletes the pair; deleteCrew deletes the row — and the DB
+   CASCADES that to crew_members AND job_crew_assignments, so the confirm copy
+   spells out that the roster + any field job assignments go with it.
+   Only owner/admin/dispatcher may write (enforced by RLS, mirrored in the UI). */
+/* ── Teams T7: invites + installer self-service ────────────────────────────────
+   Access model: the owner issues an invite code, the installer signs up with
+   their own real login and redeems it (redeem_org_invite, already shared with the
+   anchor-field app), landing in the org as role "installer". org_invites has no
+   crew column, so the owner then drops them onto a crew with the existing
+   "add member" picker — no schema change was needed for any of this.
+
+   What an installer may then do is deliberately narrow, and enforced in the DB,
+   not just the UI:
+     * crews.data.rateBook / .brand for a crew they're ON — via the
+       set_crew_self_service RPC. It cannot rename a crew, cannot touch
+       brandOnQuotes (whether their branding reaches a customer stays the owner's
+       call), and cannot reach another crew.
+     * their OWN hourly rate — member_field_settings already restricts writes to
+       user_id = auth.uid().
+   They still cannot read `jobs`: that blob carries the owner's margins, so the
+   shopping list needs a narrow projection first (see the T6 note). */
+const LS_PENDING_INVITE = "anchorPendingInvite";
+const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // no I/O/0/1
+
+function newInviteCode() {
+  const buf = new Uint32Array(8);
+  try { crypto.getRandomValues(buf); }
+  catch (_) { for (let i = 0; i < 8; i++) buf[i] = Math.floor(Math.random() * 0xffffffff); }
+  let out = "";
+  for (let i = 0; i < 8; i++) out += INVITE_ALPHABET[buf[i] % INVITE_ALPHABET.length];
+  return out;
+}
+function inviteLinkFor(code) {
+  return `${location.origin}${location.pathname}?join=${encodeURIComponent(code)}`;
+}
+async function createOrgInviteWeb(orgId, role) {
+  const code = newInviteCode();
+  const { error } = await sb.from("org_invites")
+    .insert({ org_id: orgId, code, role: role || "installer", created_by: currentUser.id });
+  if (error) throw error;
+  return code;
+}
+async function listOrgInvitesWeb(orgId) {
+  const { data, error } = await sb.from("org_invites")
+    .select("id,code,role,uses,max_uses,expires_at")
+    .eq("org_id", orgId).gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+async function revokeOrgInviteWeb(id) {
+  const { error } = await sb.from("org_invites").delete().eq("id", id);
+  if (error) throw error;
+}
+/** Patch a crew's rate book / brand as one of its members (RPC-gated). */
+async function setCrewSelfServiceWeb(crewId, rateBook, brand) {
+  const { error } = await sb.rpc("set_crew_self_service", {
+    p_crew_id: crewId,
+    p_rate_book: rateBook === undefined ? null : rateBook,
+    p_brand: brand === undefined ? null : brand,
+  });
+  if (error) throw error;
+}
+async function getMyHourlyRate(orgId) {
+  const { data, error } = await sb.from("member_field_settings")
+    .select("hourly_rate").eq("org_id", orgId).eq("user_id", currentUser.id).maybeSingle();
+  if (error) throw error;
+  return data ? data.hourly_rate : null;
+}
+async function setMyHourlyRateWeb(orgId, rate) {
+  const { error } = await sb.from("member_field_settings")
+    .upsert({ org_id: orgId, user_id: currentUser.id, hourly_rate: rate,
+              updated_at: new Date().toISOString() }, { onConflict: "org_id,user_id" });
+  if (error) throw error;
+}
+
+/* Join links. The code is stashed before any auth redirect so it survives the
+   sign-in round trip, and stripped from the URL so a shared screenshot or a
+   browser-history entry can't re-redeem it later. */
+function captureJoinCode() {
+  let code = null;
+  try {
+    const q = new URLSearchParams(location.search);
+    code = (q.get("join") || "").trim();
+    if (code) {
+      localStorage.setItem(LS_PENDING_INVITE, code);
+      q.delete("join");
+      const rest = q.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    }
+  } catch (_) {}
+  return code || (() => { try { return localStorage.getItem(LS_PENDING_INVITE); } catch (_) { return null; } })();
+}
+function clearPendingInvite() { try { localStorage.removeItem(LS_PENDING_INVITE); } catch (_) {} }
+/** Redeem a stashed code once we have a session. Safe to call repeatedly. */
+async function redeemPendingInvite() {
+  if (!sb || !currentUser) return;
+  let code = null;
+  try { code = localStorage.getItem(LS_PENDING_INVITE); } catch (_) {}
+  if (!code) return;
+  try {
+    const { data, error } = await sb.rpc("redeem_org_invite", { p_code: code });
+    if (error) throw error;
+    clearPendingInvite();
+    const row = Array.isArray(data) ? data[0] : data;
+    const name = (row && (row.org_name || row.orgName)) || "the team";
+    _orgCtx = null; saveOrgCtxCache(null);
+    await fetchOrgContext();
+    try { toast(`You've joined ${name}`); } catch (_) {}
+    try { renderTeamsSettings(); } catch (_) {}
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    // "already a member" is a no-op success from the user's point of view.
+    if (/already a member/i.test(msg)) { clearPendingInvite(); return; }
+    if (/invalid or expired/i.test(msg)) {
+      clearPendingInvite();
+      try { toast("That invite link is no longer valid — ask for a new one."); } catch (_) {}
+      return;
+    }
+    // Anything else (offline, transient) → keep the code and retry next boot.
+    console.warn("invite redeem failed", e);
+  }
+}
+
+function canManageCrews() {
+  return ["owner", "admin", "dispatcher"].includes(orgRole());
+}
+async function createCrewWeb(orgId, name) {
+  const { data, error } = await sb.from("crews").insert({ org_id: orgId, name }).select("*").single();
+  if (error) throw error;
+  return data;
+}
+async function renameCrewWeb(crewId, name) {
+  const { error } = await sb.from("crews").update({ name }).eq("id", crewId);
+  if (error) throw error;
+}
+async function deleteCrewWeb(crewId) {
+  const { error } = await sb.from("crews").delete().eq("id", crewId);
+  if (error) throw error;
+}
+// Mode lives on the organization; organizations_update RLS = is_org_admin, so
+// owner/admin only (dispatchers can manage crews but not re-shape the company).
+function teamModeOf() { const c = getOrgContext(); return c ? (c.mode || null) : null; }
+async function setOrgTeamModeWeb(orgId, mode) {
+  const { error } = await sb.from("organizations").update({ team_mode: mode }).eq("id", orgId);
+  if (error) throw error;
+}
+// crews.data is one jsonb bag — merge client-side against the row we just read,
+// then write the whole object (supabase-js can't do a partial jsonb merge).
+async function updateCrewDataWeb(crewId, patch) {
+  const c = (getOrgContext() || { crews: [] }).crews.find(x => x.id === crewId);
+  const next = Object.assign({}, (c && c.data) || {}, patch || {});
+  const { error } = await sb.from("crews").update({ data: next }).eq("id", crewId);
+  if (error) throw error;
+}
+
+async function addCrewMemberWeb(crewId, orgId, userId) {
+  const { error } = await sb.from("crew_members")
+    .upsert({ crew_id: crewId, org_id: orgId, user_id: userId }, { onConflict: "crew_id,user_id" });
+  if (error) throw error;
+}
+async function removeCrewMemberWeb(crewId, userId) {
+  const { error } = await sb.from("crew_members").delete().eq("crew_id", crewId).eq("user_id", userId);
+  if (error) throw error;
+}
+// Every mutation refetches the org context so the tab (and the mobile app's
+// source of truth) stay in agreement — no optimistic local divergence.
+async function afterCrewWrite(msg) {
+  clearRateBookCache();   // Teams T5: rate books live on crews.data
+  _teamInvites = null;    // Teams T7: re-fetch invite links on the next render
+  _instLists = null;      // Teams T7b: re-fetch published shopping lists too
+  _orgCtx = null; saveOrgCtxCache(null);
+  try { await fetchOrgContext(); } catch (_) {}
+  renderTeamsSettings();
+  if (msg) { try { toast(msg); } catch (_) {} }
+}
+
+// Teams T3a — the Save-Job "Assign to" picker. Hidden entirely for accounts with
+// no crews, so nothing changes for solo users.
+function crewLabel(id) {
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const c = ctx && (ctx.crews || []).find(x => x.id === id);
+  return c ? c.name : null;
+}
+// What a crew's assignment would cost per hour (for the hint under the picker).
+function crewPayHint(id) {
+  const prev = STATE.assignedCrewId;
+  STATE.assignedCrewId = id;
+  let r = null;
+  try { r = resolveAssignedCrewCost(); } catch (_) {}
+  STATE.assignedCrewId = prev;
+  const pay = !r ? "No pay set for this team yet — labor uses your default crew cost."
+    : `Labor priced at this team's pay — ${r.members.length ? `${r.crewSize} member${r.crewSize === 1 ? "" : "s"}` : `${r.crewSize}-person flat rate`}, ${formatMoney(r.crewCostPerHr)}/hr.`;
+  // Teams T4: say it plainly BEFORE they send anything — assigning a branded sub
+  // changes whose name the customer sees.
+  const tb = (typeof teamBrandFor === "function") ? teamBrandFor(id) : null;
+  if (!tb) return pay;
+  return `${pay} Customer quote, change orders and signing links go out as ${tb.companyName || "this sub"}${tb.logo ? ", with their logo" : ""}.`;
+}
+function renderSaveJobCrewPicker(selectedId) {
+  const wrap = document.getElementById("saveJobCrewWrap");
+  const sel = document.getElementById("saveJobCrew");
+  if (!wrap || !sel) return;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crews = (ctx && ctx.crews) ? ctx.crews : [];
+  if (!crews.length) { wrap.classList.add("hidden"); sel.innerHTML = ""; return; }
+  const mode = (typeof teamModeOf === "function") ? teamModeOf() : null;
+  const noneLabel = mode === "subcontract" ? "No subcontractor yet" : "No crew yet";
+  sel.innerHTML = `<option value="">${noneLabel}</option>` +
+    crews.map(c => `<option value="${escHtml(c.id)}"${c.id === selectedId ? " selected" : ""}>${escHtml(c.name)}</option>`).join("");
+  wrap.classList.remove("hidden");
+  const hint = document.getElementById("saveJobCrewHint");
+  if (hint) hint.textContent = sel.value ? crewPayHint(sel.value) : "Assign later from the job list if you're not sure yet.";
+  if (!sel._wired) {
+    sel._wired = true;
+    sel.addEventListener("change", () => {
+      const h = document.getElementById("saveJobCrewHint");
+      if (h) h.textContent = sel.value ? crewPayHint(sel.value) : "Assign later from the job list if you're not sure yet.";
+    });
+  }
+}
+
+// Settings → Teams (T1). Read-only: org identity, seats, crews + rosters.
+// Refetches on open when the cache is older than 60s; paints the cache first.
+async function openTeamsSettings() {
+  renderTeamsSettings();
+  if (typeof planAllows === "function" && !planAllows("unlimited")) return;
+  if (!sb || !currentUser || _orgCtxLoading) return;
+  const cached = getOrgContext();
+  if (cached && Date.now() - (cached.fetchedAt || 0) < 60000) { _orgCtx = cached; return; }
+  _orgCtxLoading = true;
+  renderTeamsSettings();
+  try { await fetchOrgContext(); }
+  catch (e) { _orgCtx = _orgCtx || null; console.warn("[teams] load failed", e && e.message); }
+  finally { _orgCtxLoading = false; renderTeamsSettings(); }
+}
+
+
+/* ── Teams T7: the installer's own view ────────────────────────────────────────
+   A crew member who signs in is NOT the account owner — they get their own empty
+   calculator, and this pane instead of the owner's crew-management UI. What's here
+   is exactly what the DB will actually let them write: their crew's rate book
+   (via set_crew_self_service) and their own hourly rate. Everything else about
+   the crew is read-only, and jobs aren't reachable at all yet. */
+let _instSaving = false;
+
+function myCrews(ctx) {
+  const uid = currentUser && currentUser.id;
+  if (!uid) return [];
+  return (ctx.crews || []).filter(c => (c.memberIds || []).includes(uid));
+}
+
+let _instLists = null;   // Teams T7b: shopping lists published to my crews
+
+/** The installer's shopping card: lists the owner has sent, with check-off.
+    Rendered into a placeholder and filled after the fetch so the pane never
+    blocks on a round trip. */
+function renderInstallerShopping(orgCtx) {
+  const wrap = document.getElementById("instShopping");
+  if (!wrap) return;
+  if (_instLists === null) {
+    wrap.innerHTML = `<p class="team-empty">Loading your lists&hellip;</p>`;
+    fetchMyShoppingLists()
+      .then(rows => { _instLists = rows; renderInstallerShopping(orgCtx); })
+      .catch(() => { _instLists = []; renderInstallerShopping(orgCtx); });
+    return;
+  }
+  if (!_instLists.length) {
+    wrap.innerHTML = `<p class="team-empty">Nothing sent yet &mdash; when they send you a job's materials it shows up here to check off.</p>`;
+    return;
+  }
+  wrap.innerHTML = _instLists.map(l => {
+    const items = Array.isArray(l.items) ? l.items : [];
+    const chk = (l.checked && typeof l.checked === "object") ? l.checked : {};
+    const done = items.filter(it => chk[it.id]).length;
+    const rows = items.map(it => `
+      <label class="inst-shop-item${chk[it.id] ? " is-done" : ""}">
+        <input type="checkbox" class="shop-check" data-inst-check="${escHtml(it.id)}" data-list="${escHtml(l.id)}"${chk[it.id] ? " checked" : ""} />
+        <span class="inst-shop-name">${escHtml(it.name)}</span>
+        <span class="inst-shop-qty">${it.buy ? escHtml(it.buy) : `${formatQty(it.qty)} ${escHtml(it.unit)}`}</span>
+      </label>`).join("");
+    return `<div class="inst-shop-job">
+      <div class="inst-shop-head">
+        <span class="inst-shop-title">${escHtml(l.job_label || "Job")}</span>
+        <span class="inst-shop-count">${done}/${items.length}</span>
+      </div>
+      ${l.site_note ? `<div class="inst-shop-note">${escHtml(l.site_note)}</div>` : ""}
+      ${rows}
+    </div>`;
+  }).join("");
+}
+
+function renderInstallerDashboard(body, ctx) {
+  const org = ctx.org || {};
+  const mine = myCrews(ctx);
+  const crew = mine[0] || null;
+  const rb = (crew && crew.data && crew.data.rateBook) || {};
+  const prices = rb.prices || {}, laborOv = rb.labor || {};
+  const brand = (crew && crew.data && crew.data.brand) || {};
+  const LM = (DATA.config && DATA.config.laborModel) || {};
+
+  if (!crew) {
+    body.innerHTML = `
+      <div class="set-card">
+        <div class="team-org-head"><div class="min-w-0">
+          <div class="team-org-name">${escHtml(org.name || "This company")}</div>
+          <div class="team-org-sub">You&rsquo;re on the team as an <b>installer</b></div>
+        </div>
+        <button type="button" class="team-act" data-teams-refresh${_orgCtxLoading ? " disabled" : ""}>${_orgCtxLoading ? "Refreshing&hellip;" : "Refresh"}</button></div>
+        <p class="team-empty mt-2">You&rsquo;re in, but not on a crew yet &mdash; ask them to add you. Once you are, your rates and pay show up here.</p>
+      </div>`;
+    return;
+  }
+
+  const rows = priceableRateEntries().map(e => `
+    <label class="team-ratef">
+      <span class="team-ratename">${escHtml(e.item)}${e.label ? ` <i>${escHtml(e.label)}</i>` : ""}</span>
+      <span class="team-rateacct">theirs ${formatMoney(e.price)}/${escHtml(e.unit)}</span>
+      <input type="text" inputmode="decimal" data-irf="${escHtml(e.key)}" value="${prices[e.key] != null ? escHtml(String(prices[e.key])) : ""}"
+        placeholder="${Number(Number(e.price).toFixed(4))}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+    </label>`).join("");
+
+  body.innerHTML = `
+    <div class="set-card">
+      <div class="team-org-head">
+        <div class="min-w-0">
+          <div class="team-org-name">${escHtml(org.name || "This company")}</div>
+          <div class="team-org-sub">You&rsquo;re on <b>${escHtml(crew.name)}</b>${mine.length > 1 ? ` and ${mine.length - 1} other crew${mine.length > 2 ? "s" : ""}` : ""}</div>
+        </div>
+        <button type="button" class="team-act" data-teams-refresh${_orgCtxLoading ? " disabled" : ""}>${_orgCtxLoading ? "Refreshing&hellip;" : "Refresh"}</button>
+      </div>
+      <p class="team-ratehint">These are the numbers they price your work with. Set what <b>you</b> actually charge and it feeds their quotes for jobs assigned to ${escHtml(crew.name)}. Blank means you&rsquo;re fine with their rate.</p>
+    </div>
+
+    <div class="set-card mt-3" data-inst-form="${escHtml(crew.id)}">
+      <div class="set-sub mb-2">Your prices</div>
+      <div class="team-rategrid">${rows}</div>
+      <div class="team-rategrid team-rategrid-labor">
+        <label class="team-ratef">
+          <span class="team-ratename">Setup per opening</span>
+          <span class="team-rateacct">theirs ${LM.setupMinPerOpening ?? 45} min</span>
+          <input type="text" inputmode="decimal" data-irl="setupMinPerOpening" value="${laborOv.setupMinPerOpening != null ? escHtml(String(laborOv.setupMinPerOpening)) : ""}"
+            placeholder="${LM.setupMinPerOpening ?? 45}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+        <label class="team-ratef">
+          <span class="team-ratename">Mobilization</span>
+          <span class="team-rateacct">theirs ${LM.mobilizationHours ?? 2} hrs</span>
+          <input type="text" inputmode="decimal" data-irl="mobilizationHours" value="${laborOv.mobilizationHours != null ? escHtml(String(laborOv.mobilizationHours)) : ""}"
+            placeholder="${LM.mobilizationHours ?? 2}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+      </div>
+      <div class="team-brandactions">
+        <button type="button" class="team-add-btn" data-inst-save="${escHtml(crew.id)}"${_instSaving ? " disabled" : ""}>${_instSaving ? "Saving&hellip;" : "Save my rates"}</button>
+      </div>
+    </div>
+
+    <div class="set-card mt-3">
+      <div class="set-sub mb-2">Your pay</div>
+      <div class="team-rategrid">
+        <label class="team-ratef">
+          <span class="team-ratename">Your hourly rate</span>
+          <input type="text" inputmode="decimal" id="instMyRate" placeholder="&mdash;" class="control rounded-lg px-2.5 py-1.5 w-28 text-sm text-slate-100 placeholder:text-slate-600" />
+          <button type="button" class="team-act" data-inst-pay-save>Save</button>
+        </label>
+      </div>
+      <p class="team-ratehint mt-1">Only you and the company&rsquo;s owner can see this. It&rsquo;s what their labor math uses for your hours.</p>
+    </div>
+
+    ${brand.companyName || brand.logo ? `<div class="set-card mt-3">
+      <div class="set-sub mb-2">Your company on their quotes</div>
+      <div class="team-brandrow" style="border-top:0;padding-top:0;">
+        ${brand.logo ? `<img class="team-brandlogo" src="${escHtml(brand.logo)}" alt="" />` : `<span class="team-brandlogo team-brandlogo-empty">no logo</span>`}
+        <span class="team-brandname">${escHtml(brand.companyName || "No name set")}</span>
+        <span class="team-brandflag${crew.data && crew.data.brandOnQuotes ? " is-on" : ""}">${crew.data && crew.data.brandOnQuotes ? "On quotes" : "Not on quotes"}</span>
+      </div>
+      <p class="team-ratehint mt-2">Whether your branding appears is their setting, not yours.</p>
+    </div>` : ""}
+
+    <div class="set-card mt-3">
+      <div class="set-sub mb-2">What to buy</div>
+      <div id="instShopping"></div>
+      <p class="team-ratehint mt-2">Quantities and pack counts only &mdash; what the job needs, not what it&rsquo;s priced at.</p>
+    </div>
+
+    <p class="team-foot">You&rsquo;re seeing the installer view. Crew membership, job assignments and pricing calibration stay with the company owner.</p>`;
+  renderInstallerShopping(ctx);
+
+  // Pay is a separate table read; fill it in once the pane exists.
+  const payInput = document.getElementById("instMyRate");
+  if (payInput && sb && currentUser) {
+    getMyHourlyRate(ctx.orgId).then(v => { if (v != null && document.getElementById("instMyRate")) document.getElementById("instMyRate").value = String(v); })
+      .catch(() => {});
+  }
+}
+
+/* ── Teams T8: seats & billing, reported not enforced ──────────────────────────
+   Two separate authorities decide what a company gets, and they can disagree:
+     * the CALCULATOR plan — profiles.data.config.entitlements.plan (Teams is Shop)
+     * the FIELD plan — organizations.plan + included/extra/total_seats, which is
+       what the Anchor Field app reads for tracked seats.
+   Live data has an org on field plan "pro" with 25 seats while its owner's
+   calculator plan is "starter", and with no Stripe subscription on the field side.
+   Clamping that automatically would strip tracker seats from people mid-job in the
+   mobile app, so this deliberately only REPORTS: it shows both plans, what's
+   included vs used, and flags a disagreement. Nothing here writes to
+   organizations.plan or to any seat count.
+
+   The quoting/tracking split: crews are unlimited for QUOTING (assign any job to
+   any crew, price it at that crew's pay and rates — none of that consumes a seat);
+   a seat is only consumed by TRACKING someone in the field app. */
+const TEAMS_INCLUDED_SEATS_ON_SHOP = 5;   // Shop includes 1 team of 5 tracked members
+
+function seatSummary(ctx) {
+  const org = (ctx && ctx.org) || {};
+  const included = Number(org.included_seats) || 0;
+  const extra = Number(org.extra_seats) || 0;
+  const total = Number(org.total_seats) || (included + extra) || 0;
+  const seated = ((ctx && ctx.members) || []).filter(m => m.hasSeat).length;
+  const fieldPlan = String(org.plan || "trial");
+  const calcPlan = String((getEntitlements() || {}).plan || "trial");
+  const calcAllowsTeams = (typeof planAllows === "function") ? planAllows("unlimited") : false;
+  const fieldPaid = fieldPlan !== "trial";
+  return { included, extra, total, seated, fieldPlan, calcPlan, calcAllowsTeams,
+    over: total > 0 && seated > total,
+    mismatch: fieldPaid && !calcAllowsTeams,
+    freeSeats: Math.max(0, total - seated) };
+}
+function renderSeatPanel(ctx) {
+  const el = document.getElementById("teamSeats");
+  if (!el) return;
+  const s = seatSummary(ctx);
+  const planName = (id) => ({ trial: "Trial", starter: "Starter", pro: "Pro", unlimited: "Shop" })[id] || id;
+  el.innerHTML = `
+    <div class="team-seatgrid">
+      <div class="team-seatcell"><span>Quoting plan</span><b>${escHtml(planName(s.calcPlan))}</b><i>${s.calcAllowsTeams ? "Teams included" : "Teams need Shop"}</i></div>
+      <div class="team-seatcell"><span>Field plan</span><b>${escHtml(planName(s.fieldPlan))}</b><i>${s.total} tracked seat${s.total === 1 ? "" : "s"}</i></div>
+      <div class="team-seatcell"><span>Seats in use</span><b class="${s.over ? "is-over" : ""}">${s.seated}${s.total ? ` / ${s.total}` : ""}</b><i>${s.over ? "over the limit" : `${s.freeSeats} free`}</i></div>
+      <div class="team-seatcell"><span>Crews</span><b>${(ctx.crews || []).length}</b><i>unlimited for quoting</i></div>
+    </div>
+    <p class="team-ratehint mt-2">Crews cost nothing to quote with &mdash; assign any job to any crew and price it at their pay and rates. A <b>seat</b> is only used when someone is tracked in the Anchor Field app. Shop includes ${TEAMS_INCLUDED_SEATS_ON_SHOP} tracked members; beyond that it&rsquo;s per seat.</p>
+    ${s.mismatch ? `<p class="team-seatwarn">Your field plan (<b>${escHtml(planName(s.fieldPlan))}</b>, ${s.total} seat${s.total === 1 ? "" : "s"}) is ahead of your quoting plan (<b>${escHtml(planName(s.calcPlan))}</b>), and nothing is billing for those extra seats &mdash; worth reconciling before you add more people.</p>` : ""}
+    ${s.over ? `<p class="team-seatwarn">${s.seated} people hold a tracked seat but only ${s.total} are paid for.</p>` : ""}`;
+}
+
+function renderTeamsSettings() {
+  const body = document.getElementById("teamsBody");
+  if (!body) return;
+  const allowed = (typeof planAllows === "function") ? planAllows("unlimited") : false;
+  if (!allowed) {
+    body.innerHTML = `
+      <div class="set-card team-lockcard">
+        <div class="tmc-ico">${TEAM_ICON_CREW}</div>
+        <div class="team-lock-h">Teams are part of Shop</div>
+        <p class="team-lock-p">Assign each job to a crew or subcontractor, price labor at that team&rsquo;s real pay, and give team leads their own login for shopping lists &mdash; plus the Anchor Field app with ${TEAMS_INCLUDED_SEATS_ON_SHOP} tracked members included.</p>
+        ${(() => {
+          // Teams T8: the seat/plan mismatch lives on THIS card too. An account whose
+          // field plan is ahead of its quoting plan never reaches the panel below —
+          // this card is all it sees — so the disclosure has to be here or nowhere.
+          const c0 = (typeof getOrgContext === "function") ? getOrgContext() : null;
+          if (!c0) return "";
+          const s0 = seatSummary(c0);
+          if (!s0.mismatch) return "";
+          return `<p class="team-seatwarn">You already have <b>${s0.total}</b> tracked seat${s0.total === 1 ? "" : "s"} on the field side with <b>${escHtml(s0.seated)}</b> in use, but Teams here needs Shop. Nothing is billing for those seats yet.</p>`;
+        })()}
+        <button type="button" class="team-add-btn" data-team-upsell>See plans &rarr;</button>
+      </div>`;
+    return;
+  }
+  if (!currentUser) {
+    body.innerHTML = `<div class="set-card"><p class="team-empty">Sign in to see your company and crews.</p></div>`;
+    return;
+  }
+  const ctx = getOrgContext();
+  // Teams T7: a plain crew member gets the installer view, not the owner's UI.
+  if (ctx && !isOrgAdminRole() && orgRole() !== "dispatcher") { renderInstallerDashboard(body, ctx); return; }
+  if (!ctx) {
+    body.innerHTML = _orgCtxLoading
+      ? `<div class="set-card"><p class="team-empty">Loading your company&hellip;</p></div>`
+      : `<div class="set-card">
+           <p class="team-empty">No company workspace found for this account yet. Installing the Anchor Field app creates one automatically &mdash; then your crews show up here.</p>
+         </div>`;
+    return;
+  }
+
+  const org = ctx.org || {};
+  const seats = Number(org.total_seats) || 0;
+  const seated = ctx.members.filter(m => m.hasSeat).length;
+  const roleLabel = ROLE_LABEL[ctx.role] || ctx.role || "Member";
+  const memberById = {}; ctx.members.forEach(m => memberById[m.userId] = m);
+  const who = (uid) => {
+    const m = memberById[uid];
+    const nm = (m && m.name) ? m.name : "Member";
+    const rt = (m && m.rate != null) ? ` <span class="team-rate internal-only">$${m.rate}/hr</span>` : "";
+    return `<span class="team-chip-m">${escHtml(nm)}${rt}</span>`;
+  };
+  const unassigned = ctx.members.filter(m => !ctx.crews.some(c => c.memberIds.includes(m.userId)));
+
+  const canManage = canManageCrews();
+  const canSetMode = isOrgAdminRole();
+  const mode = ctx.mode;
+  // Mode picker — shown until the company picks how it uses teams.
+  const modeCards = `
+    <div class="team-modes">
+      <button type="button" class="team-mode-card" data-team-mode="inhouse"${canSetMode ? "" : " disabled"}>
+        <span class="tmc-ico">${TEAM_ICON_INHOUSE}</span>
+        <span class="tmc-t">We install our own work</span>
+        <span class="tmc-d">Crews are your own people. Divide jobs between them, give leads their shopping list, and price labor at each crew's real pay. Customer quotes always carry <b>your</b> company brand.</span>
+      </button>
+      <button type="button" class="team-mode-card" data-team-mode="subcontract"${canSetMode ? "" : " disabled"}>
+        <span class="tmc-ico">${TEAM_ICON_SUB}</span>
+        <span class="tmc-d-top">We sub the installs out</span>
+        <span class="tmc-d">Each team is a separate subcontractor with its own name and logo. Whichever sub is assigned to a job supplies the branding on that job's quote &mdash; they can fill in their own details later.</span>
+      </button>
+    </div>
+    ${canSetMode ? "" : `<p class="team-empty mt-2">Only an owner or admin can choose this.</p>`}`;
+  // Per-crew branding editor (subcontract mode only).
+  const brandEditor = (c) => {
+    if (mode !== "subcontract") return "";
+    const b = (c.data && c.data.brand) || {};
+    const on = !!(c.data && c.data.brandOnQuotes);
+    const open = _teamBrandOpen === c.id;
+    if (!open) {
+      return `<div class="team-brandrow">
+        ${b.logo ? `<img class="team-brandlogo" src="${escHtml(b.logo)}" alt="" />` : `<span class="team-brandlogo team-brandlogo-empty">no logo</span>`}
+        <span class="team-brandname">${escHtml(b.companyName || "No branding set")}</span>
+        <span class="team-brandflag${on ? " is-on" : ""}">${on ? "On quotes" : "Not on quotes"}</span>
+        ${canManage ? `<button type="button" class="team-act" data-crew-brand="${escHtml(c.id)}">Branding</button>` : ""}
+      </div>`;
+    }
+    return `<div class="team-brandedit" data-brand-form="${escHtml(c.id)}">
+      <div class="team-brandgrid">
+        <label class="team-f"><span>Company name</span><input type="text" data-bf="companyName" value="${escHtml(b.companyName || "")}" maxlength="80" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
+        <label class="team-f"><span>Phone</span><input type="text" data-bf="phone" value="${escHtml(b.phone || "")}" maxlength="40" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
+        <label class="team-f"><span>Email</span><input type="text" data-bf="email" value="${escHtml(b.email || "")}" maxlength="80" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
+        <label class="team-f"><span>License #</span><input type="text" data-bf="license" value="${escHtml(b.license || "")}" maxlength="40" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
+      </div>
+      <div class="team-brandlogo-row">
+        ${b.logo ? `<img class="team-brandlogo" src="${escHtml(b.logo)}" alt="" />` : `<span class="team-brandlogo team-brandlogo-empty">no logo</span>`}
+        <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" data-brand-logo-input="${escHtml(c.id)}" />
+        <button type="button" class="team-act" data-brand-logo-pick="${escHtml(c.id)}">Upload logo</button>
+        ${b.logo ? `<button type="button" class="team-act team-act-danger" data-brand-logo-clear="${escHtml(c.id)}">Remove</button>` : ""}
+      </div>
+      <label class="team-brandtoggle"><input type="checkbox" data-bf-onquotes ${on ? "checked" : ""} /><span>Use this sub&rsquo;s branding on quotes assigned to them</span></label>
+      <div class="team-brandactions">
+        <button type="button" class="team-act" data-brand-cancel>Cancel</button>
+        <button type="button" class="team-add-btn" data-brand-save="${escHtml(c.id)}">Save branding</button>
+      </div>
+    </div>`;
+  };
+
+  // Per-crew rate book (T5). Applies in BOTH modes — it's opt-in per crew, and an
+  // in-house crew can legitimately buy at a different price than the shop default.
+  const rateEditor = (c) => {
+    const rb = (c.data && c.data.rateBook) || {};
+    const prices = rb.prices || {}, labor = rb.labor || {};
+    const n = Object.keys(prices).length + Object.keys(labor).length;
+    const open = _teamRatesOpen === c.id;
+    if (!open) {
+      return `<div class="team-brandrow">
+        <span class="team-brandname">${n ? `${n} rate override${n === 1 ? "" : "s"}` : "Uses your rates"}</span>
+        ${canManage ? `<button type="button" class="team-act" data-crew-rates="${escHtml(c.id)}">Rates</button>` : ""}
+      </div>`;
+    }
+    const rows = priceableRateEntries().map(e => `
+      <label class="team-ratef">
+        <span class="team-ratename">${escHtml(e.item)}${e.label ? ` <i>${escHtml(e.label)}</i>` : ""}</span>
+        <span class="team-rateacct">yours ${formatMoney(e.price)}/${escHtml(e.unit)}</span>
+        <input type="text" inputmode="decimal" data-rf="${escHtml(e.key)}" value="${prices[e.key] != null ? escHtml(String(prices[e.key])) : ""}"
+          placeholder="${Number(Number(e.price).toFixed(4))}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+      </label>`).join("");
+    const LM = (DATA.config && DATA.config.laborModel) || {};
+    return `<div class="team-brandedit" data-rate-form="${escHtml(c.id)}">
+      <p class="team-ratehint">Blank means &ldquo;use your rate&rdquo; &mdash; so raising a price in Settings &rarr; Rates still reaches this team. Their labor comes from this team&rsquo;s own pay, and interior trim from your trim grid, so neither is listed here.</p>
+      <div class="team-rategrid">${rows}</div>
+      <div class="team-rategrid team-rategrid-labor">
+        <label class="team-ratef">
+          <span class="team-ratename">Setup per opening</span>
+          <span class="team-rateacct">yours ${LM.setupMinPerOpening ?? 45} min</span>
+          <input type="text" inputmode="decimal" data-rl="setupMinPerOpening" value="${labor.setupMinPerOpening != null ? escHtml(String(labor.setupMinPerOpening)) : ""}"
+            placeholder="${LM.setupMinPerOpening ?? 45}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+        <label class="team-ratef">
+          <span class="team-ratename">Mobilization</span>
+          <span class="team-rateacct">yours ${LM.mobilizationHours ?? 2} hrs</span>
+          <input type="text" inputmode="decimal" data-rl="mobilizationHours" value="${labor.mobilizationHours != null ? escHtml(String(labor.mobilizationHours)) : ""}"
+            placeholder="${LM.mobilizationHours ?? 2}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
+        </label>
+      </div>
+      <div class="team-brandactions">
+        ${n ? `<button type="button" class="team-act team-act-danger" data-rate-clear="${escHtml(c.id)}">Clear all</button>` : ""}
+        <button type="button" class="team-act" data-rate-cancel>Cancel</button>
+        <button type="button" class="team-add-btn" data-rate-save="${escHtml(c.id)}">Save rates</button>
+      </div>
+    </div>`;
+  };
+  // Members not already on a given crew — the "add member" picker.
+  const addPicker = (c) => {
+    const avail = ctx.members.filter(m => !c.memberIds.includes(m.userId));
+    if (!avail.length) return "";
+    return `<label class="team-addmem">
+      <span class="team-addmem-l">Add</span>
+      <select class="team-sel" data-crew-addmem="${escHtml(c.id)}">
+        <option value="">Choose a member&hellip;</option>
+        ${avail.map(m => `<option value="${escHtml(m.userId)}">${escHtml(m.name || "Member")}${m.role ? ` (${escHtml(ROLE_LABEL[m.role] || m.role)})` : ""}</option>`).join("")}
+      </select>
+    </label>`;
+  };
+  const chipFor = (c, uid) => {
+    const m = memberById[uid];
+    const nm = (m && m.name) ? m.name : "Member";
+    const rt = (m && m.rate != null) ? ` <span class="team-rate internal-only">$${m.rate}/hr</span>` : "";
+    return `<span class="team-chip-m">${escHtml(nm)}${rt}${canManage
+      ? `<button type="button" class="team-chip-x" data-crew-rmmem="${escHtml(c.id)}" data-uid="${escHtml(uid)}" aria-label="Remove ${escHtml(nm)} from ${escHtml(c.name)}">&times;</button>` : ""}</span>`;
+  };
+  const crewCards = ctx.crews.length ? ctx.crews.map(c => `
+    <div class="team-row team-row-stack">
+      <div class="team-row-top">
+        <span class="team-dot" style="background:#c9a558"></span>
+        <span class="team-name">${escHtml(c.name)}</span>
+        <span class="team-tag">${c.memberIds.length} member${c.memberIds.length === 1 ? "" : "s"}</span>
+        ${canManage ? `<button type="button" class="team-act" data-crew-rename="${escHtml(c.id)}">Rename</button>
+        <button type="button" class="team-act team-act-danger" data-crew-delete="${escHtml(c.id)}">Delete</button>` : ""}
+      </div>
+      ${c.memberIds.length ? `<div class="team-chips">${c.memberIds.map(uid => chipFor(c, uid)).join("")}</div>` : `<p class="team-empty">Nobody on this crew yet.</p>`}
+      ${canManage ? addPicker(c) : ""}
+      ${brandEditor(c)}
+      ${rateEditor(c)}
+    </div>`).join("") : `<p class="team-empty">No crews yet${canManage ? " &mdash; add your first one below." : " &mdash; ask an admin to create one."}</p>`;
+
+  body.innerHTML = `
+    <div class="set-card">
+      <div class="team-org-head">
+        <div class="min-w-0">
+          <div class="team-org-name">${escHtml(org.name || "My Company")}</div>
+          <div class="team-org-sub">You&rsquo;re the <b>${escHtml(roleLabel)}</b>${org.plan ? ` &middot; field plan: ${escHtml(org.plan)}` : ""}</div>
+        </div>
+        <button type="button" class="team-act" data-teams-refresh${_orgCtxLoading ? " disabled" : ""}>${_orgCtxLoading ? "Refreshing&hellip;" : "Refresh"}</button>
+      </div>
+      <div class="team-stats">
+        <div class="team-stat"><span>Members</span><b>${ctx.members.length}</b></div>
+        <div class="team-stat"><span>Crews</span><b>${ctx.crews.length}</b></div>
+        <div class="team-stat"><span>Tracked seats</span><b>${seated}${seats ? ` / ${seats}` : ""}</b></div>
+      </div>
+      ${mode ? `<div class="team-mode-row">
+        <div>
+          <div class="team-mode-now">${mode === "subcontract" ? "Subcontracted installs" : "In-house installs"}</div>
+          <div class="team-mode-sub">${mode === "subcontract"
+            ? "Each team is its own subcontractor &mdash; the assigned sub&rsquo;s branding goes on that job&rsquo;s quote."
+            : "Crews are your own people &mdash; quotes always carry your company brand."}</div>
+        </div>
+        ${canSetMode ? `<button type="button" class="team-act" data-mode-switch>Switch</button>` : ""}
+      </div>` : ""}
+    </div>
+    ${mode ? "" : `<div class="set-card mt-4">
+      <div class="team-sec-h">How do you handle installs?</div>
+      <p class="team-empty mb-3">This sets how teams work for your company. You can change it later.</p>
+      ${modeCards}
+    </div>`}
+    <div class="set-card mt-4">
+      <div class="team-sec-h">Crews</div>
+      <div class="team-list">${crewCards}</div>
+      ${canManage ? `<div class="team-add">
+        <input id="crewNewName" type="text" class="control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1" placeholder="New crew name (e.g. North Crew)" maxlength="60" />
+        <button type="button" class="team-add-btn" data-crew-add>+ Add crew</button>
+      </div>` : ""}
+      ${unassigned.length ? `<div class="team-sec-h mt-4">Not on a crew</div><div class="team-chips">${unassigned.map(m => who(m.userId)).join("")}</div>` : ""}
+    </div>
+    <div class="set-card mt-3">
+      <div class="set-sub mb-2">Seats &amp; plan</div>
+      <div id="teamSeats"></div>
+    </div>
+    <div class="set-card mt-3">
+      <div class="set-sub mb-2">Invite links</div>
+      <div id="teamInvites"></div>
+    </div>
+    <p class="team-foot">Crews here are the same crews as in the Anchor Field app &mdash; changes show up in both. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}Assign a job to a team on the Save&nbsp;Job screen: its labor prices at that team&rsquo;s pay, its rate overrides apply, and in subcontracted mode its branding goes on the customer&rsquo;s quote.</p>`;
+  renderSeatPanel(ctx);                                // Teams T8 — report only, no writes
+  if (isOrgAdminRole()) renderInvitePanel(ctx.orgId);   // Teams T7 — lazy, non-blocking
+}
+let _teamBrandOpen = null;   // crew id whose branding form is expanded
+let _teamRatesOpen = null;   // crew id whose rate book is expanded
+let _teamInvitesOpen = false;   // Teams T7: the owner's invite panel
+let _teamInvites = null;        // cached list; null = not loaded yet
+
+/** Owner-side invite panel. Rendered as a placeholder, filled after the fetch,
+    so the Teams pane never blocks on a second round trip. */
+function renderInvitePanel(orgId) {
+  const wrap = document.getElementById("teamInvites");
+  if (!wrap) return;
+  if (_teamInvites === null) {
+    wrap.innerHTML = `<p class="team-empty">Loading invite links&hellip;</p>`;
+    listOrgInvitesWeb(orgId)
+      .then(rows => { _teamInvites = rows; renderInvitePanel(orgId); })
+      .catch(() => { _teamInvites = []; renderInvitePanel(orgId); });
+    return;
+  }
+  const rows = _teamInvites.map(iv => {
+    const left = Math.max(0, (iv.max_uses || 0) - (iv.uses || 0));
+    const days = Math.max(0, Math.ceil((new Date(iv.expires_at) - Date.now()) / 86400000));
+    return `<div class="team-inviterow">
+      <code class="team-invitecode">${escHtml(iv.code)}</code>
+      <span class="team-invitemeta">${escHtml(ROLE_LABEL[iv.role] || iv.role)} &middot; ${left} use${left === 1 ? "" : "s"} left &middot; ${days}d</span>
+      <button type="button" class="team-act" data-invite-copy="${escHtml(iv.code)}">Copy link</button>
+      <button type="button" class="team-act team-act-danger" data-invite-revoke="${escHtml(iv.id)}">Revoke</button>
+    </div>`;
+  }).join("");
+  wrap.innerHTML = (rows || `<p class="team-empty">No active invite links.</p>`) +
+    `<button type="button" class="team-add-btn mt-2" data-invite-new>Create an invite link</button>
+     <p class="team-ratehint mt-2">Send this to a sub or a crew lead. They sign up with their own email, land on the team as an installer, and can then set the prices and pay you quote their work at. Add them to a crew above once they&rsquo;ve joined.</p>`;
+}
+
+
+/** Every account price a team could override: one row per VARIANT (that's where
+    dollars live), or the item itself when it has none. Trim is grid-priced and
+    Labor comes from team pay, so both are excluded — see the T5 header note. */
+function priceableRateEntries() {
+  const out = [];
+  (DATA.costItems || []).forEach(it => {
+    if (it.id === "trim_board" || it.id === "labor") return;
+    if (Array.isArray(it.variants) && it.variants.length) {
+      it.variants.forEach(v => {
+        if (v.unitPrice == null) return;
+        out.push({ key: v.id, item: it.name, label: (it.variants.length > 1 ? (v.brand || v.id) : ""), unit: it.unit, price: v.unitPrice });
+      });
+    } else if (it.unitPrice != null) {
+      out.push({ key: it.id, item: it.name, label: "", unit: it.unit, price: it.unitPrice });
+    }
+  });
+  return out;
+}
+const TEAM_ICON_INHOUSE = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-1.5A4.5 4.5 0 0 1 7.5 15h3A4.5 4.5 0 0 1 15 19.5V21"/><path d="M17 8.5a2.5 2.5 0 1 0-1.5-4.5"/><path d="M18 21v-1a4 4 0 0 0-2-3.4"/></svg>';
+const TEAM_ICON_SUB = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l5-3 5 3v12"/><path d="M13 21V13l6-3v11"/><path d="M6 13h2M6 17h2M16 15h1M16 18h1"/></svg>';
+const TEAM_ICON_CREW = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-1.5A4.5 4.5 0 0 1 7.5 15h3A4.5 4.5 0 0 1 15 19.5V21"/><path d="M17 8.5a2.5 2.5 0 1 0-1.5-4.5"/><path d="M18 21v-1a4 4 0 0 0-2-3.4"/></svg>';
+
+// Delegated Teams wiring (init runs more than once → _wired guard).
+function wireTeamsSettings() {
+  const body = document.getElementById("teamsBody");
+  if (!body || body._wired) return;
+  body._wired = true;
+  body.addEventListener("click", (e) => {
+    if (e.target.closest("[data-team-upsell]")) { try { showUpsellModal("teams_locked"); } catch (_) {} return; }
+    if (e.target.closest("[data-teams-refresh]")) {
+      _orgCtx = null; saveOrgCtxCache(null);
+      openTeamsSettings();
+      return;
+    }
+    const ctx = getOrgContext();
+    // ── Teams T7: installer self-service (runs before the owner-only gate) ──
+    const iSave = e.target.closest("[data-inst-save]");
+    if (iSave) {
+      const cid = iSave.dataset.instSave;
+      const form = body.querySelector(`[data-inst-form="${cid}"]`);
+      if (!form || !ctx) return;
+      // Same sparse rule as the owner's editor: only real differences persist, so
+      // an unset row keeps tracking whatever the company changes its rate to.
+      const acct = {};
+      priceableRateEntries().forEach(en => acct[en.key] = Number(en.price));
+      const prices = {};
+      form.querySelectorAll("[data-irf]").forEach(inp => {
+        const raw = (inp.value || "").trim(); if (!raw) return;
+        const n2 = Number(raw); if (isNaN(n2) || n2 < 0) return;
+        if (n2 === acct[inp.dataset.irf]) return;
+        prices[inp.dataset.irf] = n2;
+      });
+      const LM2 = (DATA.config && DATA.config.laborModel) || {};
+      const acctLabor = { setupMinPerOpening: LM2.setupMinPerOpening ?? 45, mobilizationHours: LM2.mobilizationHours ?? 2 };
+      const labor = {};
+      form.querySelectorAll("[data-irl]").forEach(inp => {
+        const raw = (inp.value || "").trim(); if (!raw) return;
+        const n2 = Number(raw); if (isNaN(n2) || n2 < 0) return;
+        if (n2 === Number(acctLabor[inp.dataset.irl])) return;
+        labor[inp.dataset.irl] = n2;
+      });
+      _instSaving = true; renderTeamsSettings();
+      setCrewSelfServiceWeb(cid, { prices, labor })
+        .then(() => { _instSaving = false; return afterCrewWrite("Your rates are saved"); })
+        .catch((err) => { _instSaving = false; renderTeamsSettings(); fail(err); });
+      return;
+    }
+    const iChk = e.target.closest("[data-inst-check]");
+    if (iChk) {
+      const listId = iChk.dataset.list, itemId = iChk.dataset.instCheck, on = !!iChk.checked;
+      const row = iChk.closest(".inst-shop-item");
+      if (row) row.classList.toggle("is-done", on);
+      // Optimistic: the box is already ticked. On failure put it back and say so.
+      toggleCrewShoppingCheck(listId, itemId, on)
+        .then(() => {
+          const l = (_instLists || []).find(x => x.id === listId);
+          if (l) { l.checked = l.checked || {}; if (on) l.checked[itemId] = true; else delete l.checked[itemId]; }
+          renderInstallerShopping(ctx);
+        })
+        .catch(() => {
+          iChk.checked = !on;
+          if (row) row.classList.toggle("is-done", !on);
+          try { toast("Couldn't save that tick — check your connection."); } catch (_) {}
+        });
+      return;
+    }
+    if (e.target.closest("[data-inst-pay-save]")) {
+      const inp = document.getElementById("instMyRate");
+      if (!inp || !ctx) return;
+      const raw = (inp.value || "").trim();
+      const n2 = raw === "" ? null : Number(raw);
+      if (raw !== "" && (isNaN(n2) || n2 < 0)) { try { toast("Enter an hourly rate like 38"); } catch (_) {} return; }
+      setMyHourlyRateWeb(ctx.orgId, n2)
+        .then(() => { clearRateBookCache(); return afterCrewWrite("Your pay is saved"); })
+        .catch(fail);
+      return;
+    }
+    if (!ctx || !canManageCrews()) return;   // RLS would reject anyway; don't pretend
+    const fail = (e2) => { try { toast((e2 && e2.message) ? "Couldn't save — " + e2.message : "Couldn't save that change."); } catch (_) {} };
+
+    // ── Mode selection / switch (owner+admin only) ──
+    const mc = e.target.closest("[data-team-mode]");
+    if (mc) {
+      if (!isOrgAdminRole()) { try { toast("Only an owner or admin can set this."); } catch (_) {} return; }
+      setOrgTeamModeWeb(ctx.orgId, mc.dataset.teamMode)
+        .then(() => afterCrewWrite(mc.dataset.teamMode === "subcontract" ? "Set to subcontracted installs" : "Set to in-house installs"))
+        .catch(fail);
+      return;
+    }
+    if (e.target.closest("[data-mode-switch]")) {
+      if (!isOrgAdminRole()) { try { toast("Only an owner or admin can set this."); } catch (_) {} return; }
+      const cur = teamModeOf();
+      const next = cur === "subcontract" ? "inhouse" : "subcontract";
+      const msg = next === "subcontract"
+        ? "Switch to subcontracted installs?\n\nTeams become separate subcontractors — each can carry its own name and logo, and the sub assigned to a job supplies that quote's branding. Nothing is deleted."
+        : "Switch to in-house installs?\n\nQuotes will always use YOUR company branding; any per-sub branding you've saved stops being applied (it's kept, not deleted).";
+      if (!confirm(msg)) return;
+      setOrgTeamModeWeb(ctx.orgId, next).then(() => afterCrewWrite("Mode updated")).catch(fail);
+      return;
+    }
+    // ── Per-sub branding editor ──
+    const bOpen = e.target.closest("[data-crew-brand]");
+    if (bOpen) { _teamBrandOpen = bOpen.dataset.crewBrand; renderTeamsSettings(); return; }
+    if (e.target.closest("[data-brand-cancel]")) { _teamBrandOpen = null; renderTeamsSettings(); return; }
+    const pick = e.target.closest("[data-brand-logo-pick]");
+    if (pick) {
+      const inp = body.querySelector(`[data-brand-logo-input="${pick.dataset.brandLogoPick}"]`);
+      if (inp) inp.click();
+      return;
+    }
+    const clr = e.target.closest("[data-brand-logo-clear]");
+    if (clr) {
+      const cid = clr.dataset.brandLogoClear;
+      const cur = (ctx.crews.find(x => x.id === cid) || {}).data || {};
+      const brand = Object.assign({}, cur.brand || {}); delete brand.logo;
+      updateCrewDataWeb(cid, { brand }).then(() => afterCrewWrite("Logo removed")).catch(fail);
+      return;
+    }
+    const save = e.target.closest("[data-brand-save]");
+    if (save) {
+      const cid = save.dataset.brandSave;
+      const form = body.querySelector(`[data-brand-form="${cid}"]`);
+      if (!form) return;
+      const cur = (ctx.crews.find(x => x.id === cid) || {}).data || {};
+      const brand = Object.assign({}, cur.brand || {});
+      form.querySelectorAll("[data-bf]").forEach(inp => { brand[inp.dataset.bf] = (inp.value || "").trim(); });
+      const onQ = !!form.querySelector("[data-bf-onquotes]").checked;
+      save.disabled = true;
+      updateCrewDataWeb(cid, { brand, brandOnQuotes: onQ })
+        .then(() => { _teamBrandOpen = null; return afterCrewWrite("Branding saved"); })
+        .catch(fail).finally(() => { save.disabled = false; });
+      return;
+    }
+    // ── Per-crew rate book (T5) ──
+    const rOpen = e.target.closest("[data-crew-rates]");
+    if (rOpen) { _teamRatesOpen = rOpen.dataset.crewRates; _teamBrandOpen = null; renderTeamsSettings(); return; }
+    if (e.target.closest("[data-rate-cancel]")) { _teamRatesOpen = null; renderTeamsSettings(); return; }
+    const rClear = e.target.closest("[data-rate-clear]");
+    if (rClear) {
+      const cid = rClear.dataset.rateClear;
+      if (!confirm("Clear this team's rate overrides?\n\nThey go back to pricing at your rates. Nothing else about the team changes.")) return;
+      updateCrewDataWeb(cid, { rateBook: null })
+        .then(() => { _teamRatesOpen = null; return afterCrewWrite("Rate overrides cleared"); }).catch(fail);
+      return;
+    }
+    const rSave = e.target.closest("[data-rate-save]");
+    if (rSave) {
+      const cid = rSave.dataset.rateSave;
+      const form = body.querySelector(`[data-rate-form="${cid}"]`);
+      if (!form) return;
+      // SPARSE save: keep a value only when it's a real number that actually
+      // differs from the account's. Anything blank, invalid, or equal to your own
+      // rate is dropped, so it keeps tracking your book instead of freezing a copy.
+      const accountPrice = {};
+      priceableRateEntries().forEach(en => accountPrice[en.key] = Number(en.price));
+      const prices = {};
+      form.querySelectorAll("[data-rf]").forEach(inp => {
+        const raw = (inp.value || "").trim();
+        if (!raw) return;
+        const n = Number(raw);
+        if (isNaN(n) || n < 0) return;
+        if (n === accountPrice[inp.dataset.rf]) return;
+        prices[inp.dataset.rf] = n;
+      });
+      const LM = (DATA.config && DATA.config.laborModel) || {};
+      const acctLabor = { setupMinPerOpening: LM.setupMinPerOpening ?? 45, mobilizationHours: LM.mobilizationHours ?? 2 };
+      const labor = {};
+      form.querySelectorAll("[data-rl]").forEach(inp => {
+        const raw = (inp.value || "").trim();
+        if (!raw) return;
+        const n = Number(raw);
+        if (isNaN(n) || n < 0) return;
+        if (n === Number(acctLabor[inp.dataset.rl])) return;
+        labor[inp.dataset.rl] = n;
+      });
+      const rateBook = (Object.keys(prices).length || Object.keys(labor).length) ? { prices, labor } : null;
+      rSave.disabled = true;
+      updateCrewDataWeb(cid, { rateBook })
+        .then(() => { _teamRatesOpen = null; return afterCrewWrite(rateBook ? "Rates saved" : "Rate overrides cleared"); })
+        .catch(fail).finally(() => { rSave.disabled = false; });
+      return;
+    }
+    // ── Teams T7: invite links ──
+    if (e.target.closest("[data-invite-new]")) {
+      if (!isOrgAdminRole()) { try { toast("Only an owner or admin can invite."); } catch (_) {} return; }
+      createOrgInviteWeb(ctx.orgId, "installer")
+        .then((code) => { _teamInvitesOpen = true; return afterCrewWrite("Invite link created"); })
+        .catch(fail);
+      return;
+    }
+    const iCopy = e.target.closest("[data-invite-copy]");
+    if (iCopy) {
+      const link = inviteLinkFor(iCopy.dataset.inviteCopy);
+      const done = () => { try { toast("Invite link copied"); } catch (_) {} };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done).catch(() => prompt("Copy this link:", link));
+      else prompt("Copy this link:", link);
+      return;
+    }
+    const iRev = e.target.closest("[data-invite-revoke]");
+    if (iRev) {
+      if (!confirm("Revoke this invite link?\n\nAnyone who hasn't used it yet won't be able to join with it. People who already joined stay on the team.")) return;
+      revokeOrgInviteWeb(iRev.dataset.inviteRevoke).then(() => afterCrewWrite("Invite revoked")).catch(fail);
+      return;
+    }
+    const add = e.target.closest("[data-crew-add]");
+    if (add) {
+      const input = document.getElementById("crewNewName");
+      const name = (input && input.value || "").trim();
+      if (!name) { if (input) input.focus(); return; }
+      if (ctx.crews.some(c => (c.name || "").trim().toLowerCase() === name.toLowerCase())) {
+        try { toast("You already have a crew with that name."); } catch (_) {}
+        return;
+      }
+      add.disabled = true;
+      createCrewWeb(ctx.orgId, name).then(() => afterCrewWrite("Crew added")).catch(fail).finally(() => { add.disabled = false; });
+      return;
+    }
+    const rn = e.target.closest("[data-crew-rename]");
+    if (rn) {
+      const c = ctx.crews.find(x => x.id === rn.dataset.crewRename); if (!c) return;
+      const v = prompt("Crew name", c.name);
+      const nm = (v || "").trim();
+      if (!nm || nm === c.name) return;
+      renameCrewWeb(c.id, nm).then(() => afterCrewWrite("Crew renamed")).catch(fail);
+      return;
+    }
+    const del = e.target.closest("[data-crew-delete]");
+    if (del) {
+      const c = ctx.crews.find(x => x.id === del.dataset.crewDelete); if (!c) return;
+      // Deleting CASCADES to crew_members + job_crew_assignments — say so plainly.
+      const msg = `Delete "${c.name}"?\n\nThis removes the crew everywhere, including in the Anchor Field app:\n` +
+        `• its ${c.memberIds.length} member assignment${c.memberIds.length === 1 ? "" : "s"} (the people stay in your company)\n` +
+        `• any field jobs this crew is assigned to\n\nThis can't be undone.`;
+      if (!confirm(msg)) return;
+      deleteCrewWeb(c.id).then(() => afterCrewWrite("Crew deleted")).catch(fail);
+      return;
+    }
+    const rm = e.target.closest("[data-crew-rmmem]");
+    if (rm) {
+      removeCrewMemberWeb(rm.dataset.crewRmmem, rm.dataset.uid).then(() => afterCrewWrite("Removed from crew")).catch(fail);
+      return;
+    }
+  });
+  // Sub logo upload — reuse the app's resizer (320px cap) so a phone photo
+  // can't blow past the crews.data size guard.
+  body.addEventListener("change", async (e) => {
+    const li = e.target.closest("[data-brand-logo-input]");
+    if (!li || !li.files || !li.files[0]) return;
+    const cid = li.dataset.brandLogoInput;
+    try {
+      const url = await resizeImageToDataURL(li.files[0], 320);
+      if (!url) { try { toast("That image is too large — try a smaller file."); } catch (_) {} return; }
+      const cur = ((getOrgContext() || { crews: [] }).crews.find(x => x.id === cid) || {}).data || {};
+      const brand = Object.assign({}, cur.brand || {}, { logo: url });
+      await updateCrewDataWeb(cid, { brand });
+      await afterCrewWrite("Logo saved");
+    } catch (err) {
+      try { toast((err && err.message) || "Couldn't read that image."); } catch (_) {}
+    }
+  });
+  // Add-member picker (change, not click)
+  body.addEventListener("change", (e) => {
+    const sel = e.target.closest("[data-crew-addmem]");
+    if (!sel || !sel.value) return;
+    const ctx = getOrgContext();
+    if (!ctx || !canManageCrews()) return;
+    const crewId = sel.dataset.crewAddmem, uid = sel.value;
+    // Teams T8: joining a crew is free — it's quoting, not tracking. If every
+    // tracked seat is taken, say so once and still add them; they just won't be
+    // trackable in the field app.
+    const s8 = seatSummary(ctx);
+    const seatNote = (s8.total > 0 && s8.freeSeats === 0)
+      ? ` — all ${s8.total} tracked seats are in use, so they can be quoted with but not tracked`
+      : "";
+    sel.disabled = true;
+    addCrewMemberWeb(crewId, ctx.orgId, uid)
+      .then(() => afterCrewWrite("Added to crew" + seatNote))
+      .catch(e2 => { try { toast((e2 && e2.message) || "Couldn't add that member."); } catch (_) {} })
+      .finally(() => { sel.disabled = false; });
+  });
+}
+
 function renderCustomersSettings() {
   const wrap = document.getElementById("customersBody");
   if (!wrap) return;
@@ -23282,41 +25492,84 @@ function closeManageCustomers() {
 }
 
 /* ============================================================
-   ADDRESS MAP PICKER — “Map” next to Job Address opens a full-screen
-   Leaflet map, centers on the device location, keeps a floating pin
-   fixed at the viewport center while the user pans/zooms, reverse-
-   geocodes via Nominatim, and fills the address field on Done.
+   ADDRESS MAP PICKER — Google Maps (best look on web; Hybrid satellite
+   + landmarks by default — Apple-like orientation on job sites).
+   Floating center pin; Google Geocoder fills the address field.
+   Requires a Maps JavaScript API key (referrer-restricted). Set via
+   window.__ANCHOR_GOOGLE_MAPS_KEY, GOOGLE_MAPS_API_KEY below, or the
+   maps-config edge function secret GOOGLE_MAPS_API_KEY. See MAPS_SETUP.md.
    ============================================================ */
 const ADDR_MAP_FALLBACK = { lat: 28.5383, lng: -81.3792 }; // Orlando — FL-first default
-let _addrMapTargetId = null;   // input id to fill
-let _addrMap = null;
-let _addrMapReady = null;
+// Publishable browser key — restrict in Google Cloud to HTTP referrers:
+//   https://anchorquoting.com/*, https://*.netlify.app/*, http://localhost/*
+// Enable: Maps JavaScript API (+ Geocoding API for address lookup).
+const GOOGLE_MAPS_API_KEY = "AIzaSyC4pZ4XSXJS1UsHeiIKov-VIY7sCGSdcaw";
+let _addrMapTargetId = null;
+let _addrMap = null;            // google.maps.Map
+let _addrMapReady = null;       // Promise<google>
 let _addrMapGeocodeTimer = 0;
+let _addrMapGeocoder = null;
 let _addrMapLast = { lat: null, lng: null, label: "", ok: false };
-let _addrMapLayers = { street: null, satellite: null };
-let _addrMapLayerMode = "street"; // "street" | "satellite"
+let _addrMapLayerMode = "satellite"; // "street" | "satellite" (satellite = hybrid)
+let _addrMapIdleListener = null;
+let _addrMapDragListener = null;
+let _addrMapResolvedKey = "";
 
-function ensureLeaflet() {
-  if (window.L) return Promise.resolve(window.L);
-  if (_addrMapReady) return _addrMapReady;
-  _addrMapReady = new Promise((resolve, reject) => {
-    const cssId = "leaflet-css";
-    if (!document.getElementById(cssId)) {
-      const link = document.createElement("link");
-      link.id = cssId; link.rel = "stylesheet";
-      link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-      link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
-      link.crossOrigin = "";
-      document.head.appendChild(link);
+function getGoogleMapsApiKeyLocal() {
+  return String((typeof window !== "undefined" && window.__ANCHOR_GOOGLE_MAPS_KEY) || GOOGLE_MAPS_API_KEY || "").trim();
+}
+
+async function resolveGoogleMapsApiKey() {
+  if (_addrMapResolvedKey) return _addrMapResolvedKey;
+  const local = getGoogleMapsApiKeyLocal();
+  if (local) { _addrMapResolvedKey = local; return local; }
+  // Optional: pull a referrer-restricted key from Supabase secrets (not committed).
+  try {
+    if (typeof SUPABASE_URL === "string" && SUPABASE_URL && typeof SUPABASE_ANON_KEY === "string") {
+      const res = await fetch(SUPABASE_URL + "/functions/v1/maps-config", {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.ok && data.key) {
+          _addrMapResolvedKey = String(data.key).trim();
+          try { window.__ANCHOR_GOOGLE_MAPS_KEY = _addrMapResolvedKey; } catch (_) {}
+          return _addrMapResolvedKey;
+        }
+      }
     }
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
-    s.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
-    s.crossOrigin = "";
-    s.onload = () => resolve(window.L);
-    s.onerror = () => reject(new Error("Couldn't load map"));
-    document.head.appendChild(s);
-  });
+  } catch (_) {}
+  return "";
+}
+
+function ensureGoogleMaps() {
+  if (window.google && window.google.maps) return Promise.resolve(window.google);
+  if (_addrMapReady) return _addrMapReady;
+  _addrMapReady = (async () => {
+    const key = await resolveGoogleMapsApiKey();
+    if (!key) throw new Error("Maps API key missing");
+    await new Promise((resolve, reject) => {
+      const cb = "__anchorGoogleMapsReady";
+      const prev = window[cb];
+      window[cb] = () => {
+        try { if (prev) delete window[cb]; else delete window[cb]; } catch (_) {}
+        if (window.google && window.google.maps) resolve();
+        else reject(new Error("Google Maps failed to initialize"));
+      };
+      const s = document.createElement("script");
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key)
+        + "&v=weekly&callback=" + cb;
+      s.async = true;
+      s.defer = true;
+      s.onerror = () => reject(new Error("Couldn't load Google Maps"));
+      document.head.appendChild(s);
+    });
+    return window.google;
+  })();
+  _addrMapReady = _addrMapReady.catch((err) => { _addrMapReady = null; throw err; });
   return _addrMapReady;
 }
 
@@ -23345,8 +25598,8 @@ function ensureAddressMapModal() {
          </svg>
        </div>
        <div class="addr-map-layers" id="addrMapLayers" role="group" aria-label="Map type">
-         <button type="button" data-addr-layer="street" aria-pressed="true">Map</button>
-         <button type="button" data-addr-layer="satellite" aria-pressed="false">Satellite</button>
+         <button type="button" data-addr-layer="street" aria-pressed="false">Map</button>
+         <button type="button" data-addr-layer="satellite" aria-pressed="true">Satellite</button>
        </div>
        <button type="button" class="addr-map-locate" id="addrMapLocate" aria-label="Use my current location" title="My location">
          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
@@ -23372,34 +25625,46 @@ function ensureAddressMapModal() {
   return m;
 }
 
-function formatNominatimAddress(data) {
-  if (!data) return "";
-  const a = data.address || {};
-  const road = a.road || a.pedestrian || a.footway || a.path || a.residential || "";
-  const line1 = [a.house_number, road].filter(Boolean).join(" ").trim();
-  const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || "";
-  const state = a.state || "";
-  const postcode = a.postcode || "";
+function formatGoogleAddress(result) {
+  if (!result) return "";
+  const comps = result.address_components || [];
+  const get = (type) => {
+    const c = comps.find((x) => (x.types || []).includes(type));
+    return c ? (c.short_name || c.long_name || "") : "";
+  };
+  const getLong = (type) => {
+    const c = comps.find((x) => (x.types || []).includes(type));
+    return c ? (c.long_name || c.short_name || "") : "";
+  };
+  const line1 = [get("street_number"), getLong("route")].filter(Boolean).join(" ").trim();
+  const city = getLong("locality") || getLong("sublocality") || getLong("neighborhood")
+    || getLong("administrative_area_level_3") || getLong("postal_town") || "";
+  const state = get("administrative_area_level_1");
+  const postcode = get("postal_code");
   const parts = [];
   if (line1) parts.push(line1);
-  else if (data.name && data.name !== city) parts.push(data.name);
   const cityState = [city, state].filter(Boolean).join(", ");
-  if (cityState && postcode) parts.push(`${cityState} ${postcode}`);
+  if (cityState && postcode) parts.push(cityState + " " + postcode);
   else if (cityState) parts.push(cityState);
   else if (postcode) parts.push(postcode);
-  return parts.join(", ") || data.display_name || "";
+  if (parts.length) return parts.join(", ");
+  // Prefer a street-level formatted address over plus-codes when possible.
+  const formatted = result.formatted_address || "";
+  if (formatted && !/^\+[A-Z0-9]+/.test(formatted)) return formatted;
+  return formatted;
 }
 
-async function reverseGeocodeLatLng(lat, lng) {
-  const url = "https://nominatim.openstreetmap.org/reverse"
-    + `?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`
-    + "&format=jsonv2&addressdetails=1&zoom=18"
-    + "&email=support%40anchorquoting.com";
-  const res = await fetch(url, {
-    headers: { Accept: "application/json" },
+function reverseGeocodeLatLng(lat, lng) {
+  return new Promise((resolve, reject) => {
+    if (!_addrMapGeocoder && window.google && window.google.maps) {
+      _addrMapGeocoder = new google.maps.Geocoder();
+    }
+    if (!_addrMapGeocoder) return reject(new Error("geocoder unavailable"));
+    _addrMapGeocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === "OK" && results && results.length) resolve(results);
+      else reject(new Error(status || "geocode failed"));
+    });
   });
-  if (!res.ok) throw new Error("geocode failed");
-  return res.json();
 }
 
 function setAddressMapPreview(state, text, coords) {
@@ -23417,27 +25682,40 @@ function setAddressMapPreview(state, text, coords) {
   if (state === "ok") _addrMapLast.label = text;
 }
 
-function scheduleAddressMapGeocode() {
-  if (!_addrMap) return;
+function addrMapCenter() {
+  if (!_addrMap) return null;
   const c = _addrMap.getCenter();
-  const lat = c.lat, lng = c.lng;
+  if (!c) return null;
+  return { lat: c.lat(), lng: c.lng() };
+}
+
+function scheduleAddressMapGeocode() {
+  const c = addrMapCenter();
+  if (!c) return;
+  const { lat, lng } = c;
   _addrMapLast.lat = lat; _addrMapLast.lng = lng;
-  setAddressMapPreview("loading", "Finding address…", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  setAddressMapPreview("loading", "Finding address…", lat.toFixed(5) + ", " + lng.toFixed(5));
   clearTimeout(_addrMapGeocodeTimer);
   _addrMapGeocodeTimer = setTimeout(async () => {
     try {
-      const data = await reverseGeocodeLatLng(lat, lng);
-      // Ignore stale responses if the map moved again.
-      const now = _addrMap && _addrMap.getCenter();
+      const results = await reverseGeocodeLatLng(lat, lng);
+      const now = addrMapCenter();
       if (!now || Math.abs(now.lat - lat) > 0.00005 || Math.abs(now.lng - lng) > 0.00005) return;
-      const label = formatNominatimAddress(data);
+      // Prefer a result that has a street address.
+      let best = results[0];
+      for (const r of results) {
+        const types = r.types || [];
+        if (types.includes("street_address") || types.includes("premise")) { best = r; break; }
+        if (!best && types.includes("route")) best = r;
+      }
+      const label = formatGoogleAddress(best);
       if (!label) {
-        setAddressMapPreview("error", "No address found here — pan or zoom and try again.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        setAddressMapPreview("error", "No address found here — pan or zoom and try again.", lat.toFixed(5) + ", " + lng.toFixed(5));
         return;
       }
-      setAddressMapPreview("ok", label, `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      setAddressMapPreview("ok", label, lat.toFixed(5) + ", " + lng.toFixed(5));
     } catch (_) {
-      setAddressMapPreview("error", "Couldn't look up that spot — check your connection.", `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      setAddressMapPreview("error", "Couldn't look up that spot — check your connection.", lat.toFixed(5) + ", " + lng.toFixed(5));
     }
   }, 450);
 }
@@ -23448,7 +25726,8 @@ function centerAddressMapOnDevice(opts) {
   if (!_addrMap) return;
   if (!navigator.geolocation) {
     if (force) toast("Location isn't available on this device.");
-    _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+    _addrMap.setCenter(ADDR_MAP_FALLBACK);
+    _addrMap.setZoom(12);
     scheduleAddressMapGeocode();
     return;
   }
@@ -23459,7 +25738,8 @@ function centerAddressMapOnDevice(opts) {
       if (btn) btn.disabled = false;
       if (!_addrMap) return;
       const { latitude, longitude } = pos.coords;
-      _addrMap.setView([latitude, longitude], Math.max(_addrMap.getZoom(), 17));
+      _addrMap.setCenter({ lat: latitude, lng: longitude });
+      _addrMap.setZoom(Math.max(_addrMap.getZoom() || 0, 18));
       scheduleAddressMapGeocode();
     },
     (err) => {
@@ -23471,9 +25751,9 @@ function centerAddressMapOnDevice(opts) {
           : "Couldn't get your location — pan the map instead.";
         toast(msg);
       }
-      // Keep current center if we already moved; otherwise fall back to FL.
       if (!_addrMapLast.lat) {
-        _addrMap.setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
+        _addrMap.setCenter(ADDR_MAP_FALLBACK);
+        _addrMap.setZoom(12);
       }
       scheduleAddressMapGeocode();
     },
@@ -23492,18 +25772,18 @@ function syncAddressMapLayerUI() {
 
 function setAddressMapLayer(mode) {
   if (mode !== "street" && mode !== "satellite") return;
-  if (!_addrMap || !_addrMapLayers.street || !_addrMapLayers.satellite) {
-    _addrMapLayerMode = mode;
-    syncAddressMapLayerUI();
-    return;
-  }
-  if (_addrMapLayerMode === mode) { syncAddressMapLayerUI(); return; }
-  const next = mode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street;
-  const prev = mode === "satellite" ? _addrMapLayers.street : _addrMapLayers.satellite;
-  try { if (_addrMap.hasLayer(prev)) _addrMap.removeLayer(prev); } catch (_) {}
-  try { if (!_addrMap.hasLayer(next)) next.addTo(_addrMap); } catch (_) {}
   _addrMapLayerMode = mode;
+  if (_addrMap && window.google && window.google.maps) {
+    // Hybrid = satellite imagery + road/landmark labels (what users expect from
+    // Google/Apple satellite for orientation). Plain "satellite" hides labels.
+    _addrMap.setMapTypeId(mode === "satellite" ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.ROADMAP);
+  }
   syncAddressMapLayerUI();
+}
+
+function resizeAddressMap() {
+  if (!_addrMap || !window.google || !window.google.maps) return;
+  try { google.maps.event.trigger(_addrMap, "resize"); } catch (_) {}
 }
 
 async function openAddressMapPicker(inputId) {
@@ -23516,43 +25796,49 @@ async function openAddressMapPicker(inputId) {
   try { trapDialog(modal, closeAddressMapPicker); } catch (_) {}
   setAddressMapPreview("loading", "Loading map…", "");
   try {
-    const L = await ensureLeaflet();
+    await ensureGoogleMaps();
     const canvas = document.getElementById("addrMapCanvas");
     if (!_addrMap) {
-      _addrMap = L.map(canvas, {
+      _addrMap = new google.maps.Map(canvas, {
+        center: ADDR_MAP_FALLBACK,
+        zoom: 12,
+        mapTypeId: google.maps.MapTypeId.HYBRID,
+        disableDefaultUI: true,
         zoomControl: true,
-        attributionControl: true,
-        maxZoom: 19,
-      }).setView([ADDR_MAP_FALLBACK.lat, ADDR_MAP_FALLBACK.lng], 12);
-      _addrMapLayers.street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP },
+        gestureHandling: "greedy",
+        clickableIcons: true,   // landmarks / POIs help orientation
+        keyboardShortcuts: false,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        rotateControl: false,
       });
-      // Esri World Imagery — free satellite basemap (no API key).
-      _addrMapLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19,
-        attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics',
-      });
-      (_addrMapLayerMode === "satellite" ? _addrMapLayers.satellite : _addrMapLayers.street).addTo(_addrMap);
-      syncAddressMapLayerUI();
-      _addrMap.on("movestart zoomstart", () => { if (pin) pin.classList.add("is-lifted"); });
-      _addrMap.on("moveend zoomend", () => {
+      _addrMapGeocoder = new google.maps.Geocoder();
+      _addrMapDragListener = _addrMap.addListener("dragstart", () => { if (pin) pin.classList.add("is-lifted"); });
+      _addrMapIdleListener = _addrMap.addListener("idle", () => {
         if (pin) pin.classList.remove("is-lifted");
         scheduleAddressMapGeocode();
       });
-    } else {
-      // Re-opened — make sure size is correct after display:none.
-      setAddressMapLayer(_addrMapLayerMode);
-      setTimeout(() => { try { _addrMap.invalidateSize(); } catch (_) {} }, 40);
     }
-    syncAddressMapLayerUI();
+    setAddressMapLayer(_addrMapLayerMode);
     requestAnimationFrame(() => {
-      try { _addrMap.invalidateSize(); } catch (_) {}
-      centerAddressMapOnDevice({ force: false });
+      resizeAddressMap();
+      setTimeout(() => {
+        resizeAddressMap();
+        centerAddressMapOnDevice({ force: false });
+      }, 60);
     });
-  } catch (_) {
-    setAddressMapPreview("error", "Couldn't load the map. Check your connection and try again.", "");
-    toast("Couldn't load the map.");
+  } catch (err) {
+    const missing = /key missing/i.test(String(err && err.message || err || ""));
+    setAddressMapPreview(
+      "error",
+      missing
+        ? "Google Maps isn’t configured yet — see MAPS_SETUP.md for the API key."
+        : "Couldn't load Google Maps. Check your connection and try again.",
+      ""
+    );
+    toast(missing ? "Add a Google Maps API key (MAPS_SETUP.md)" : "Couldn't load the map.");
   }
 }
 
@@ -23606,6 +25892,7 @@ function readSaveJobForm() {
   return {
     name: document.getElementById("saveJobName")?.value || "",
     company: document.getElementById("saveJobCompany")?.value || "",
+    assignedCrewId: document.getElementById("saveJobCrew")?.value || "",
     jobName: document.getElementById("saveJobJobName")?.value || "",
     address: document.getElementById("saveJobAddress")?.value || "",
     phone: document.getElementById("saveJobPhone")?.value || "",
@@ -23623,6 +25910,7 @@ function applySaveJobForm(d) {
   set("saveJobName", d.name);
   set("saveJobCompany", d.company);
   set("saveJobJobName", d.jobName);
+  renderSaveJobCrewPicker(d.assignedCrewId != null ? d.assignedCrewId : (STATE.assignedCrewId || ""));
   set("saveJobAddress", d.address);
   set("saveJobPhone", d.phone);
   set("saveJobEmail", d.email);
@@ -24364,6 +26652,7 @@ function applyJobToState(j) {
   // null → they reprice at the current account default, exactly as before.
   STATE.marginOverride = (j.marginOverride != null && j.marginOverride !== "") ? Number(j.marginOverride) : null;
   STATE.laborOverride = normalizeLaborOverride(j.laborOverride);
+  STATE.assignedCrewId = j.assignedCrewId || null;   // Teams T3a
   STATE.currentJobId = j.id;
   // Swing doors — migrate legacy {single,double,withFlashing} → per-door array.
   STATE.swingDoors = normalizeSwingDoors(j.swingDoors);
@@ -24839,7 +27128,7 @@ function exportCustomerPDF(mode, force) {
   const ensure = (need) => { if (y + need > pageH - 70) { doc.addPage(); y = M; } };
 
   // ---------- Header ----------
-  const brand = DATA.config.brand || {};
+  const brand = effectiveBrand();   // Teams T4: the assigned sub's letterhead, if any
   let y;
   let logoDrawn = false;
   if (brand.logo) {
@@ -25062,7 +27351,7 @@ function exportCustomerPDF(mode, force) {
    ============================================================ */
 async function buildCustomerSharePayload() {
   const r = calculate();
-  const brand = (DATA && DATA.config && DATA.config.brand) || {};
+  const brand = effectiveBrand();   // Teams T4 — also carried into the e-sign snapshot
 
   // Same scope rows the customer PDF prints (kept in sync intentionally)
   const scope = [
@@ -25122,7 +27411,8 @@ async function buildCustomerSharePayload() {
       state:       brand.state || "",
       phone:       brand.phone || "",
       email:       brand.email || "",
-      website:     brand.website || ""
+      website:     brand.website || "",
+      license:     brand.license || ""     // Teams T4: subs carry a license #
     },
     customer:  STATE.customerName || "",
     total:     r.sellingPrice,
@@ -25671,7 +27961,7 @@ function exportPDF(mode) {
   const M = 40;
 
   // ---------- Header ----------
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   let y = M + 8;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
@@ -25868,7 +28158,7 @@ function exportPDF(mode) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(160, 160, 160);
-  const footerParts = [brandFooterLine(false), "Internal cost breakdown — not for customer distribution"]
+  const footerParts = [brandFooterLine(false, mainBrand()), "Internal cost breakdown — not for customer distribution"]
     .filter(Boolean);
   doc.text(footerParts.join("  ·  "), pageW / 2, pageH - 24, { align: "center" });
 
@@ -25935,7 +28225,7 @@ function exportMaterialsPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
 
   // Header
@@ -26065,6 +28355,7 @@ function showSettingsTab(name) {
   if (name === "account") renderSubscriptionPanel();
   if (name === "resources") renderResources();
   if (name === "customers") renderCustomersSettings();
+  if (name === "teams") openTeamsSettings();
   // Keep the active tab visible on the mobile horizontally-scrolling strip (the
   // active pill could sit off-screen with no scroll hint).
   { const at = document.querySelector("#adminModal .set-tab.active"); if (at) try { at.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
@@ -26909,7 +29200,7 @@ function exportChangeOrderPDF(mode, force) {
   const pageH = doc.internal.pageSize.getHeight();
   const M = 56;
   const ensure = (need) => { if (y + need > pageH - 70) { doc.addPage(); y = M; } };
-  const brand = DATA.config.brand || {};
+  const brand = effectiveBrand();   // Teams T4: customer-facing → assigned sub's letterhead
   let y;
   let logoDrawn = false;
 
@@ -30328,22 +32619,56 @@ async function invokePlanExtraction(body) {
   return { ok: true, data };
 }
 
+// Empty-state progress panel — shown on "Set up your job" while AI reads a
+// schedule, so users don't have to open the calculator rail to see activity.
+function setEmptyPlanProgress(busy, msg, pct) {
+  const wrap = document.getElementById("emptyStatePlanProgress");
+  const textEl = document.getElementById("emptyStatePlanProgressText");
+  const fill = document.getElementById("emptyStatePlanProgressFill");
+  const btn = document.getElementById("emptyStateUploadBtn");
+  const dice = document.getElementById("emptyStateDiceBtn");
+  if (!wrap) return;
+  if (!busy) {
+    wrap.classList.add("hidden");
+    wrap.classList.remove("is-indeterminate");
+    if (fill) fill.style.width = "0%";
+    if (btn) { btn.disabled = false; btn.classList.remove("opacity-70", "pointer-events-none"); }
+    if (dice) { dice.disabled = false; dice.classList.remove("opacity-50", "pointer-events-none"); }
+    return;
+  }
+  wrap.classList.remove("hidden");
+  if (textEl) textEl.textContent = msg || "Reading your window schedule…";
+  if (btn) { btn.disabled = true; btn.classList.add("opacity-70", "pointer-events-none"); }
+  if (dice) { dice.disabled = true; dice.classList.add("opacity-50", "pointer-events-none"); }
+  const n = (pct == null || pct === "" || !isFinite(Number(pct))) ? null : Math.max(0, Math.min(100, Number(pct)));
+  if (n == null) {
+    wrap.classList.add("is-indeterminate");
+    if (fill) fill.style.width = "38%";
+  } else {
+    wrap.classList.remove("is-indeterminate");
+    if (fill) fill.style.width = Math.max(6, n) + "%";
+  }
+}
+
 // The rail "Upload Window Schedule" button doubles as the read-flow progress
 // indicator — the upload happens with no modal, so the button shows a spinner.
-function setRailUploadBusy(busy, msg) {
+// Also mirrors progress onto the empty-state panel (the hero upload path).
+function setRailUploadBusy(busy, msg, pct) {
   const lbl = document.getElementById("readFromPlanBtn");
   const input = document.getElementById("readPlanFile");
-  if (!lbl) return;
-  if (busy) {
-    if (lbl.dataset.orig == null) lbl.dataset.orig = lbl.innerHTML;
-    lbl.innerHTML = '<svg class="animate-spin flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><span>' + (msg || "Reading…") + "</span>";
-    lbl.classList.add("opacity-70", "pointer-events-none");
-    if (input) input.disabled = true;
-  } else {
-    if (lbl.dataset.orig != null) { lbl.innerHTML = lbl.dataset.orig; delete lbl.dataset.orig; }
-    lbl.classList.remove("opacity-70", "pointer-events-none");
-    if (input) input.disabled = false;
+  if (lbl) {
+    if (busy) {
+      if (lbl.dataset.orig == null) lbl.dataset.orig = lbl.innerHTML;
+      lbl.innerHTML = '<svg class="animate-spin flex-shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><span>' + (msg || "Reading…") + "</span>";
+      lbl.classList.add("opacity-70", "pointer-events-none");
+      if (input) input.disabled = true;
+    } else {
+      if (lbl.dataset.orig != null) { lbl.innerHTML = lbl.dataset.orig; delete lbl.dataset.orig; }
+      lbl.classList.remove("opacity-70", "pointer-events-none");
+      if (input) input.disabled = false;
+    }
   }
+  try { setEmptyPlanProgress(busy, msg, pct); } catch (_) {}
 }
 
 // Persistent error display (a fleeting toast vanished before users could read
@@ -30434,12 +32759,15 @@ async function handlePlanUpload(files, source) {
   const usingRail = source !== "buck";          // read flow = rail button; buck flow = modal status
   const fileInput = document.getElementById(usingRail ? "readPlanFile" : "buckPlanFile");
   if (fileInput) fileInput.disabled = true;
-  const setBusy = (m) => usingRail ? setRailUploadBusy(true, m) : setPlanUploadStatus("buckPlanUploadStatus", m, "busy");
+  const setBusy = (m, pct) => {
+    if (usingRail) setRailUploadBusy(true, m, pct);
+    else setPlanUploadStatus("buckPlanUploadStatus", m, "busy");
+  };
   const setErr = (m, dbg) => {
     if (usingRail) showPlanError(m, dbg);
     else { setPlanUploadStatus("buckPlanUploadStatus", m, "error"); if (dbg) console.log("[plan] debug", dbg); }
   };
-  setBusy("Preparing…");
+  setBusy("Preparing your upload…", 8);
   try {
     // Render everything to images (Grok reads them with VISION) and combine all
     // pages across all files into one batch — the AI sums the openings for us.
@@ -30448,7 +32776,10 @@ async function handlePlanUpload(files, source) {
     let i = 0;
     for (const file of files) {
       i++;
-      setBusy(files.length > 1 ? `Rendering file ${i} of ${files.length}…` : "Rendering plan pages…");
+      setBusy(
+        files.length > 1 ? `Rendering file ${i} of ${files.length}…` : "Rendering plan pages…",
+        files.length > 1 ? Math.round(8 + (22 * i) / files.length) : 18
+      );
       const remaining = MAX_PLAN_PAGES - allImages.length;
       if (file.type === "application/pdf") {
         const { images, pages } = await pdfToImages(file, remaining);
@@ -30492,6 +32823,7 @@ async function handlePlanUpload(files, source) {
       const rem = getAiReadsRemaining();
       if (rem !== Infinity && !confirm(`This ${allImages.length}-page plan uses ${creditsNeeded} of your ${rem} AI reads (1 per ${PLAN_CHUNK_SIZE} pages). Read it now?`)) {
         if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "");   // review fix: the finally only self-heals the rail — clear the buck spinner on decline
+        else setRailUploadBusy(false);
         return;
       }
     }
@@ -30502,9 +32834,14 @@ async function handlePlanUpload(files, source) {
     // AIPLAN-4: 3 workers run in parallel, so a per-chunk page-range label just clobbers.
     // Show a cumulative "X of N sections read" count that's monotonic and lands on N of N
     // (updated both when a chunk starts and when it completes).
-    const bumpReadProgress = () => { if (chunks.length > 1) setBusy(`Reading your plan — ${okChunks + failChunks} of ${chunks.length} sections read…`); };
+    const bumpReadProgress = () => {
+      if (chunks.length > 1) {
+        const done = okChunks + failChunks;
+        setBusy(`Reading your plan — ${done} of ${chunks.length} sections…`, Math.round(35 + (60 * done) / chunks.length));
+      }
+    };
     const runChunk = async (idx) => {
-      if (chunks.length === 1) setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`);
+      if (chunks.length === 1) setBusy(`Reading ${allImages.length} page${allImages.length === 1 ? "" : "s"} with AI…`, 55);
       else bumpReadProgress();
       let res = await invokePlanExtraction({ images: chunks[idx], mimeType: "image/jpeg" });
       // one retry on a transient failure (timeout / 5xx) — not on cap / auth / too-large
@@ -30548,6 +32885,7 @@ async function handlePlanUpload(files, source) {
     }
 
     const mergedText = mergePlanExtractions(texts.filter(Boolean));
+    setBusy("Finishing your quote…", 96);
     const ok = applyFullExtraction(mergedText, source);   // fills the calc + toasts a summary
     if (!ok) {
       const rem = !adminUser ? getAiReadsRemaining() : Infinity;
@@ -31589,7 +33927,7 @@ function exportCutListPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
   const colorFor = (type) =>
     type.startsWith("Head") ? [200, 50, 50] :
@@ -31866,7 +34204,7 @@ function exportComparisonPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter", orientation });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
 
   // Header — same clean style as the other PDFs
@@ -31933,7 +34271,7 @@ function exportComparisonPDF(mode) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(160, 160, 160);
-  const footerParts = [brandFooterLine(false), "Internal job comparison — not for customer distribution"].filter(Boolean);
+  const footerParts = [brandFooterLine(false, mainBrand()), "Internal job comparison — not for customer distribution"].filter(Boolean);
   doc.text(footerParts.join("  ·  "), pageW / 2, pageH - 24, { align: "center" });
   outputPDF(doc, `Comparison-${Date.now()}.pdf`, mode);
 }
@@ -32475,6 +34813,9 @@ async function syncFromCloud() {
     const { data: { user } } = await sb.auth.getUser();
     currentUser = user;
     if (!user) throw new Error("Not signed in");
+    // Teams T7: a ?join= code stashed before sign-in redeems here, once, as soon
+    // as there's a session. Fire-and-forget so a bad code can't block the sync.
+    redeemPendingInvite().catch(() => {});
 
     const { data: prof, error: pErr } = await sb.from("profiles")
       .select("data, updated_at").eq("id", user.id).maybeSingle();
@@ -32558,7 +34899,8 @@ async function firstLoginMigration(userId) {
   if (localJobs.length) {
     const rows = localJobs.map(j => {
       const id = j.isDraft ? draftIdFor({ id: userId }) : (isUuid(j.id) ? j.id : crypto.randomUUID());
-      return { id, user_id: userId, data: { ...j, id } };
+      const data = { ...j, id };
+      return jobCloudRow(data, userId);   // Teams T6: mirror org/crew into columns
     });
     await sb.from("jobs").upsert(rows);   // upsert (not insert) → safe to re-run
     localStorage.setItem(LS_KEYS.jobs, JSON.stringify(rows.map(r => r.data)));
@@ -32598,6 +34940,39 @@ async function pushProfileToCloud(d) {
   } catch (e) { /* error routed via trackCloud; dirty flag stays set so the next sync re-pushes */ }
 }
 
+/* ── Teams T6: the org/crew columns on `jobs` ──────────────────────────────────
+   The assignment already lives inside the job blob (data.assignedCrewId, T3a).
+   These mirror it into real columns so the server can filter by crew/org — needed
+   for the installer dashboard and any org-wide rollup, neither of which can query
+   inside a jsonb efficiently.
+
+   Both columns carry a FOREIGN KEY, which means a stale id would make the whole
+   upsert fail and lose the save. So both resolve through the org context and fall
+   back to null: a job referencing a crew that has since been deleted (or belonging
+   to an account with no org at all) simply writes null instead of erroring. The
+   jsonb keeps its own copy either way, so nothing is lost if these are null.
+
+   No RLS change accompanies this: `data` is one blob holding sellingPrice, cost,
+   margin and customer contact, and RLS is row-level — a policy letting a crew
+   member read their crew's jobs would hand them the owner's margins too. The
+   installer dashboard will read a narrow projection instead. */
+function jobCloudOrgId() {
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  return (ctx && ctx.orgId) || null;
+}
+function jobCloudCrewId(job) {
+  const id = job && job.assignedCrewId;
+  if (!id) return null;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  if (!ctx) return null;   // can't verify it exists → don't risk the FK
+  return (ctx.crews || []).some(c => c.id === id) ? id : null;
+}
+/** The row we send for a job: blob plus the mirrored columns. */
+function jobCloudRow(job, userId) {
+  return { id: job.id, user_id: userId, data: job,
+           org_id: jobCloudOrgId(), crew_id: jobCloudCrewId(job) };
+}
+
 async function pushJobToCloud(job, silent) {
   if (!sb || !currentUser) return false;
   markWritten(job.id);   // protect a just-saved row from a racing reconcile pull
@@ -32605,7 +34980,7 @@ async function pushJobToCloud(job, silent) {
     // Upsert (not insert) so Cmd+S overwriting an already-uploaded job and
     // explicit-save-upgrades of a draft id both succeed instead of colliding
     // on the primary key.
-    await trackCloud(sb.from("jobs").upsert({ id: job.id, user_id: currentUser.id, data: job }));
+    await trackCloud(sb.from("jobs").upsert(jobCloudRow(job, currentUser.id)));
     removePendingPush(job.id);   // confirmed in the cloud — clear any retry entry
     return true;
   } catch (e) {
@@ -33264,6 +35639,11 @@ const UPSELL_COPY = {
     headline: "AI price updates are a Pro feature",
     body: "Upgrade to Pro or Shop to let Grok search Lowe's, Home Depot & local suppliers near your ZIP and refresh your material prices for you. You can always edit prices by hand on any plan."
   },
+  teams_locked: {
+    eyebrow: "Shop feature",
+    headline: "Teams are a Shop feature",
+    body: "Upgrade to Shop to run teams — assign jobs to a crew or a subcontractor, price labor at that team's real pay, and give leads their own login for shopping lists. Includes the Anchor Field app with 5 tracked members; extra tracked members are per-seat."
+  },
   highrise_locked: {
     eyebrow: "Pro & Shop feature",
     headline: "High-rise mode is a Pro feature",
@@ -33360,6 +35740,84 @@ function showUpsellModal(reason) {
 
 function closeUpsellModal() {
   tvDismiss(document.getElementById("upsellModal"));
+}
+
+/* ============================================================
+   TEAMS T1 — org awareness (READ-ONLY)
+   The team layer is NOT ours: `organizations` / `org_members` / `crews` /
+   `crew_members` / `member_profiles` / `member_field_settings` are owned by the
+   companion Anchor Field mobile app on this same Supabase project, sharing the
+   same auth users. RLS already scopes every one of those tables to the caller's
+   org (helpers user_org_ids() / user_org_role() / is_org_admin()), so plain
+   authenticated reads are safe — we add NO policies and write NOTHING here.
+   Query shapes mirror anchor-field/lib/api.ts getMyMembership() + lib/fleet.ts
+   so both apps stay consistent.
+   Later phases (assignment, per-crew pay, per-team branding) build on this.
+   ============================================================ */
+let _orgCtx = null;            // { orgId, role, hasSeat, org, crews[], members[], fetchedAt }
+let _orgCtxLoading = false;
+
+const ROLE_LABEL = { owner: "Owner", admin: "Admin", dispatcher: "Dispatcher", installer: "Installer" };
+
+function loadOrgCtxCache() {
+  try { const v = JSON.parse(localStorage.getItem(LS_KEYS.orgCtx) || "null"); return (v && v.orgId) ? v : null; }
+  catch (_) { return null; }
+}
+function saveOrgCtxCache(ctx) {
+  try { localStorage.setItem(LS_KEYS.orgCtx, JSON.stringify(ctx || null)); } catch (_) {}
+}
+// Cached context for later phases. Never triggers a fetch on its own.
+function getOrgContext() { return _orgCtx || loadOrgCtxCache(); }
+function orgRole() { const c = getOrgContext(); return c ? c.role : null; }
+function isOrgAdminRole() { return ["owner", "admin"].includes(orgRole()); }
+
+// Pull membership + crews + roster. One await batch; every query is RLS-scoped.
+// Returns null when the user has no org (graceful empty state, not an error).
+async function fetchOrgContext() {
+  if (!sb || !currentUser) return null;
+  // Primary org = the oldest membership, matching the mobile app's getMyMembership().
+  const { data: mem, error: mErr } = await sb.from("org_members")
+    .select("org_id, user_id, role, has_tracker_seat, organization:organizations(id,name,plan,tracker_enabled,included_seats,extra_seats,total_seats,team_mode)")
+    .eq("user_id", currentUser.id)
+    .order("created_at", { ascending: true })
+    .limit(1).maybeSingle();
+  if (mErr) throw mErr;
+  if (!mem || !mem.org_id) return null;
+  const orgId = mem.org_id;
+
+  const [crewsRes, cmRes, memsRes, profRes, rateRes] = await Promise.all([
+    sb.from("crews").select("id,name,created_at,data").eq("org_id", orgId).order("created_at", { ascending: true }),
+    sb.from("crew_members").select("crew_id,user_id").eq("org_id", orgId),
+    sb.from("org_members").select("user_id,role,has_tracker_seat").eq("org_id", orgId),
+    sb.from("member_profiles").select("user_id,display_name").eq("org_id", orgId),
+    // Pay rates: RLS returns every row to an org admin, only your own otherwise.
+    sb.from("member_field_settings").select("user_id,hourly_rate").eq("org_id", orgId),
+  ]);
+  for (const r of [crewsRes, cmRes, memsRes, profRes]) { if (r.error) throw r.error; }
+
+  const nameOf = {}; (profRes.data || []).forEach(r => { if (r.display_name) nameOf[r.user_id] = r.display_name; });
+  const rateOf = {}; (rateRes && !rateRes.error ? (rateRes.data || []) : []).forEach(r => { if (r.hourly_rate != null) rateOf[r.user_id] = Number(r.hourly_rate); });
+  const members = (memsRes.data || []).map(m => ({
+    userId: m.user_id, role: m.role, hasSeat: !!m.has_tracker_seat,
+    name: nameOf[m.user_id] || null, rate: rateOf[m.user_id] != null ? rateOf[m.user_id] : null,
+  }));
+  const byCrew = {}; (cmRes.data || []).forEach(r => { (byCrew[r.crew_id] = byCrew[r.crew_id] || []).push(r.user_id); });
+  const crews = (crewsRes.data || []).map(c => ({
+    id: c.id, name: c.name,
+    data: c.data || {},                 // { brand:{...}, brandOnQuotes, pay:{...} }
+    memberIds: byCrew[c.id] || [],
+  }));
+
+  const ctx = {
+    orgId, role: mem.role, hasSeat: !!mem.has_tracker_seat,
+    org: mem.organization || null,
+    // 'inhouse' | 'subcontract' | null (not chosen yet → the mode picker shows)
+    mode: (mem.organization && mem.organization.team_mode) || null,
+    crews, members, fetchedAt: Date.now(),
+  };
+  _orgCtx = ctx;
+  saveOrgCtxCache(ctx);
+  return ctx;
 }
 
 // --------------------------------------------------------------------
@@ -35473,7 +37931,7 @@ function exportPricingChecklistPDF(mode) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const brand = DATA.config.brand || {};
+  const brand = mainBrand();   // Teams T4: internal doc — always the account's own brand, never a sub's
   const M = 40;
   let y = M + 8;
 
@@ -35877,10 +38335,11 @@ function init() {
     const m = document.getElementById("pfpMenu");
     if (m && !m.classList.contains("hidden") &&
         !e.target.closest("#pfpMenu") && !e.target.closest("#pfpBtn") &&
-        !e.target.closest("#dashPfpBtn")) closePfpMenu();
+        !e.target.closest("#dashPfpBtn") &&
+        !e.target.closest("[data-tabact='more']")) closePfpMenu();
   });
   // Reposition / close the fixed menu if the viewport changes while it's open.
-  window.addEventListener("resize", closePfpMenu);
+  window.addEventListener("resize", () => closePfpMenu(true));
   // (Theme toggle is wired in setupThemeToggles so it works regardless of app init.)
   { const b = document.getElementById("pfpSendFeedback"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openFeedback(); } catch (_) {} }); }
   { const b = document.getElementById("pfpAdmin"); if (b) b.addEventListener("click", () => { closePfpMenu(); try { openAdmin(); showSettingsTab("admin"); } catch (_) {} }); }
@@ -35982,6 +38441,9 @@ function init() {
   // even number of times = no-op. Set from the switch's shown state so it's
   // idempotent even if the listener ever does fire twice.
   try { wireTabBar(); } catch (_) {}   // mobile bottom tab bar (UI refresh P1)
+  try { initAnimatedSelects(); } catch (_) {}   // animated dropdowns everywhere
+  try { captureJoinCode(); } catch (_) {}      // Teams T7: stash + strip ?join=CODE
+  try { wireTeamsSettings(); } catch (_) {}   // Settings → Teams (T1)
   // Lapsed-account paywall actions (2026-07)
   { const _cta = document.getElementById("calcPaywallCta");
     if (_cta && !_cta._wired) { _cta._wired = true; _cta.addEventListener("click", () => { try { showUpsellModal(canGenerate().reason || "subscription_inactive"); } catch (_) {} }); }
