@@ -688,6 +688,37 @@
   .team-inviterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 0;
     border-bottom: 1px dashed rgba(148,163,184,0.18); }
   .team-inviterow:last-of-type { border-bottom: 0; }
+
+  /* ── Crew seat workspace ───────────────────────────────────────────────────
+     A seat under someone else's company never sees the calculator. This covers
+     the app; body.crew-account also strips the quoting chrome underneath so
+     there is nothing to reach even if a route slips past. z-index sits above
+     every screen/modal but BELOW the toast (95) so feedback still lands. */
+  #crewScreen {
+    position: fixed; inset: 0; z-index: 93; overflow-y: auto;
+    background: linear-gradient(180deg, #0b1120 0%, #060a16 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+  #crewScreen.hidden { display: none; }
+  .crew-wrap { max-width: 640px; margin: 0 auto; padding: 22px 18px calc(40px + env(safe-area-inset-bottom)); }
+  .crew-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+  .crew-brand { display: flex; align-items: center; gap: 8px; font-family: Anton, system-ui, sans-serif;
+    letter-spacing: 0.06em; text-transform: uppercase; font-size: 17px; color: #c9a558; }
+  .crew-anchor { font-size: 16px; }
+  .crew-title { font-size: 21px; font-weight: 800; color: #f1f5f9; line-height: 1.25; }
+  .crew-sub { font-size: 13px; color: #94a3b8; margin: 6px 0 18px; line-height: 1.5; }
+  [data-theme="light"] #crewScreen { background: #f3f4f7; }
+  [data-theme="light"] .crew-title { color: #0f172a; }
+  [data-theme="light"] .crew-sub { color: #55606e; }
+  [data-theme="light"] .crew-brand { color: #97772e; }
+  /* Strip every quoting affordance for a crew seat. */
+  body.crew-account .app-tabbar,
+  body.crew-account #mtotalBar,
+  body.crew-account #mtotalPeek,
+  body.crew-account #jobSpecsFab,
+  body.crew-account #jobRail,
+  body.crew-account #jobRailBackdrop,
+  body.crew-account #railHotzone { display: none !important; }
   .team-invitecode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700;
     letter-spacing: 0.08em; color: var(--gold-hi); background: rgba(181,143,74,0.10);
     border: 1px solid rgba(181,143,74,0.30); border-radius: 8px; padding: 4px 9px; }
@@ -24484,7 +24515,8 @@ function renderSaveJobCrewPicker(selectedId) {
 // Refetches on open when the cache is older than 60s; paints the cache first.
 async function openTeamsSettings() {
   renderTeamsSettings();
-  if (typeof planAllows === "function" && !planAllows("unlimited")) return;
+  // A crew seat has no plan of its own — never gate ITS fetch on planAllows.
+  if (!isCrewAccount() && typeof planAllows === "function" && !planAllows("unlimited")) return;
   if (!sb || !currentUser || _orgCtxLoading) return;
   const cached = getOrgContext();
   if (cached && Date.now() - (cached.fetchedAt || 0) < 60000) { _orgCtx = cached; return; }
@@ -24705,7 +24737,14 @@ function renderSeatPanel(ctx) {
 function renderTeamsSettings() {
   const body = document.getElementById("teamsBody");
   if (!body) return;
-  const allowed = (typeof planAllows === "function") ? planAllows("unlimited") : false;
+  // A crew account is a seat on someone else's Shop plan — gate it on THEIR
+  // company, never on the seat's own (deliberately plan-less) entitlement.
+  // Without this the invited installer hits the "Teams are part of Shop" wall
+  // and can never reach the one view they were invited for.
+  const isCrew = (typeof isCrewAccount === "function") && isCrewAccount();
+  const allowed = isCrew
+    ? true
+    : ((typeof planAllows === "function") ? planAllows("unlimited") : false);
   if (!allowed) {
     body.innerHTML = `
       <div class="set-card team-lockcard">
@@ -35251,7 +35290,19 @@ function defaultEntitlements() {
   };
 }
 
+// A crew account (a seat under someone else's company) has no plan of its own and
+// never starts a trial — it is not a customer. Synthesized fresh each call and
+// deliberately NOT persisted, so a seat that later becomes its own customer (or
+// an owner mis-flagged for a moment before org context loads) is never left with
+// a "crew" record written into their profile.
+function crewEntitlements() {
+  return {
+    plan: "crew", subscriptionStatus: "crew", trialStartedAt: null,
+    quotesUsedThisCycle: 0, cycleResetAt: null, planSetAt: null, lastQuoteAt: null,
+  };
+}
 function getEntitlements() {
+  if (typeof isCrewAccount === "function" && isCrewAccount()) return crewEntitlements();
   if (!DATA.config) DATA.config = {};
   if (!DATA.config.entitlements) DATA.config.entitlements = defaultEntitlements();
   return DATA.config.entitlements;
@@ -35261,6 +35312,9 @@ function getEntitlements() {
 // Trial isn't in PLANS, so synthesize a record for it.
 function getPlanDef() {
   const e = getEntitlements();
+  if (e.plan === "crew") {
+    return { id: "crew", name: "Crew seat", quoteLimit: 0, _synthetic: true };
+  }
   if (e.plan === "trial") {
     return { id: "trial", name: "Free trial", quoteLimit: TRIAL.quotes, _synthetic: true };
   }
@@ -35272,7 +35326,9 @@ function getPlanDef() {
 // A client-side gate is UX ONLY (entitlements are user-editable in devtools);
 // anything with real cost MUST also be enforced server-side — see the
 // fetch-material-prices / extract-plan-openings edge functions.
-const PLAN_RANK = { trial: 0, starter: 1, pro: 2, unlimited: 3 };
+// crew ranks BELOW trial: a seat under someone else's company may not use any
+// plan-gated feature on its own account.
+const PLAN_RANK = { crew: -1, trial: 0, starter: 1, pro: 2, unlimited: 3 };
 function planRankOf(id) { return PLAN_RANK[id] != null ? PLAN_RANK[id] : 0; }
 function currentPlanId() { return (getEntitlements() || {}).plan || "trial"; }
 // True if the account may use a feature requiring at least `minPlanId`. Admin
@@ -35285,6 +35341,7 @@ function planAllows(minPlanId) {
 
 function getPlanLimit() {
   const e = getEntitlements();
+  if (e.plan === "crew") return 0;          // crew seats never quote
   if (e.plan === "trial") return TRIAL.quotes;
   if (e.plan === "unlimited") return Infinity;
   const p = PLANS.find(pp => pp.id === e.plan);
@@ -35771,13 +35828,96 @@ function getOrgContext() { return _orgCtx || loadOrgCtxCache(); }
 function orgRole() { const c = getOrgContext(); return c ? c.role : null; }
 function isOrgAdminRole() { return ["owner", "admin"].includes(orgRole()); }
 
+/* ── Crew accounts (seat logins under an owner's account) ─────────────────────
+   A person who joined through an invite link is NOT a customer of the
+   calculator — they are a seat under the inviting company. They get the crew
+   workspace (their crew's material + labor rates, their own hourly pay, the
+   shopping list) and NOTHING that prices a job: no calculator, no saved jobs,
+   no quotes, no margins, no plan of their own, no trial.
+
+   Roles that RUN the business (owner/admin/dispatcher) keep the full app. Only
+   the remaining roles — installer today — are crew accounts. The org owner is
+   always exempt even if their membership row says otherwise, so a data glitch
+   can never lock an owner out of the product they pay for.
+
+   This is a UX boundary. The MONEY boundary is in the database: installers have
+   no read policy on `jobs` (the blob holding cost/margin/selling price), and
+   their writes go through two narrow RPCs. See the Teams T6/T7 notes. */
+const CREW_PRIVILEGED_ROLES = ["owner", "admin", "dispatcher"];
+function isCrewAccount() {
+  const c = getOrgContext();
+  if (!c || !c.orgId || !c.role) return false;
+  if (CREW_PRIVILEGED_ROLES.includes(c.role)) return false;
+  // Never cage the org's actual owner, whatever the membership row claims.
+  const ownerId = c.org && (c.org.owner_id || c.org.ownerId);
+  if (ownerId && currentUser && ownerId === currentUser.id) return false;
+  return true;
+}
+/** The company a crew account belongs to (for copy), or null. */
+function crewAccountOrgName() {
+  const c = getOrgContext();
+  return (c && c.org && c.org.name) || null;
+}
+
+/* The crew workspace. Built in JS (not markup) so there is exactly ONE place that
+   decides what a seat can see, and it renders the SAME installer panel the Teams
+   tab uses — crew rates, labor overrides, own hourly pay, shopping list.
+
+   Lockdown is layered on purpose, because this is the margin boundary:
+     1. this full-screen surface covers the app,
+     2. body.crew-account hides the quoting chrome underneath it,
+     3. entitlements report plan "crew" (rank -1) so every plan-gated feature
+        refuses even if some path slips through,
+     4. the database never lets an installer read `jobs` at all.
+   Any one of those failing still leaves the owner's pricing unreachable. */
+function renderCrewWorkspace() {
+  const ctx = getOrgContext();
+  if (!ctx) return;
+  let scr = document.getElementById("crewScreen");
+  if (!scr) {
+    scr = document.createElement("div");
+    scr.id = "crewScreen";
+    scr.className = "hidden";
+    scr.innerHTML =
+      '<div class="crew-wrap">' +
+        '<div class="crew-head">' +
+          '<div class="crew-brand"><span class="crew-anchor">&#9875;</span><span>Anchor</span></div>' +
+          '<button type="button" id="crewSignOut" class="team-act">Sign out</button>' +
+        '</div>' +
+        '<h1 class="crew-title"></h1>' +
+        '<p class="crew-sub">Your rates, your pay, and the shopping list. Quoting and job pricing stay with the company.</p>' +
+        '<div id="crewBody"></div>' +
+      '</div>';
+    document.body.appendChild(scr);
+    const so = scr.querySelector("#crewSignOut");
+    if (so) so.addEventListener("click", () => { try { signOut(); } catch (_) { location.reload(); } });
+  }
+  const title = scr.querySelector(".crew-title");
+  if (title) title.textContent = crewAccountOrgName() ? ("You're on the " + crewAccountOrgName() + " team") : "Your crew workspace";
+  const body = scr.querySelector("#crewBody");
+  if (body) { try { renderInstallerDashboard(body, ctx); } catch (e) { console.warn("crew render failed", e); } }
+  scr.classList.remove("hidden");
+}
+/** Put the app into crew-seat mode (idempotent; safe to call on every ctx load). */
+function applyCrewLockdown() {
+  if (!isCrewAccount()) {
+    document.body.classList.remove("crew-account");
+    const scr = document.getElementById("crewScreen");
+    if (scr) scr.classList.add("hidden");
+    return;
+  }
+  document.body.classList.add("crew-account");
+  try { closeAdmin(); } catch (_) {}
+  renderCrewWorkspace();
+}
+
 // Pull membership + crews + roster. One await batch; every query is RLS-scoped.
 // Returns null when the user has no org (graceful empty state, not an error).
 async function fetchOrgContext() {
   if (!sb || !currentUser) return null;
   // Primary org = the oldest membership, matching the mobile app's getMyMembership().
   const { data: mem, error: mErr } = await sb.from("org_members")
-    .select("org_id, user_id, role, has_tracker_seat, organization:organizations(id,name,plan,tracker_enabled,included_seats,extra_seats,total_seats,team_mode)")
+    .select("org_id, user_id, role, has_tracker_seat, organization:organizations(id,name,owner_id,plan,tracker_enabled,included_seats,extra_seats,total_seats,team_mode)")
     .eq("user_id", currentUser.id)
     .order("created_at", { ascending: true })
     .limit(1).maybeSingle();
@@ -35817,6 +35957,9 @@ async function fetchOrgContext() {
   };
   _orgCtx = ctx;
   saveOrgCtxCache(ctx);
+  // Single choke point: the instant we know the role, a seat gets caged (and an
+  // owner gets un-caged, so a stale crew cache can't strand a paying customer).
+  try { applyCrewLockdown(); } catch (e) { console.warn("crew lockdown failed", e); }
   return ctx;
 }
 
@@ -37306,6 +37449,13 @@ async function enterApp() {
   const acct = document.getElementById("acctEmail");
   if (acct && currentUser) acct.textContent = currentUser.email;
   init();
+  // Teams: a crew seat must never reach the calculator. Cage immediately from the
+  // CACHED role so there's no flash of the quoting UI, then confirm against the
+  // server (which also un-cages an owner whose cache is stale). Org context was
+  // previously only fetched when Settings → Teams opened, so a seat booted
+  // straight into a full calculator until they happened to open that tab.
+  try { applyCrewLockdown(); } catch (_) {}
+  if (sb && currentUser) { fetchOrgContext().catch(() => {}); }
   renderDemoBanner();
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
