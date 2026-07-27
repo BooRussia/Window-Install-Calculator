@@ -357,6 +357,9 @@
   .toggle-pill .val { font-variant-numeric: tabular-nums; color: #64748b; font-weight: 700; transition: color .2s; }
   .toggle-pill.active .val { color: var(--gold-hi); }
 
+  /* v2 P4: the in-section back button + heading duplicate the sidebar and page bar
+     on desktop. Kept under 900px, where there is no sidebar to go back with. */
+  @media (min-width: 900px) { #dashSectionHead { display: none; } }
   /* ── v2 P3: the overview grid ─────────────────────────────────────────────── */
   .dash-overview { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
   @media (min-width: 1000px) { .dash-overview { grid-template-columns: 2fr 1fr; } }
@@ -9071,7 +9074,10 @@
          active [data-dashview] panel is shown; the rest stay in the DOM (renderers
          keep their element IDs) so nothing below needs rewiring. -->
     <div id="dashSection" class="hidden">
-      <div class="flex items-center gap-3 mb-6">
+      <!-- v2 P4: redundant on desktop — the sidebar says where you are and the page
+           bar carries the title. Hidden at >=900px, kept below that because mobile
+           has no sidebar and still needs a way back. -->
+      <div id="dashSectionHead" class="flex items-center gap-3 mb-6">
         <button id="dashBack" type="button" class="dash-back" aria-label="Back to dashboard">
           <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg>
           <span class="hidden sm:inline">Dashboard</span>
@@ -18166,8 +18172,10 @@ function renderDashboard() {
   renderDashShopping(jobs);
   renderDashFirstRun(jobs);
   renderDashLaunchpad(jobs);
-  try { wireDashNav(); renderDashNav(dashLaunchContext(jobs)); } catch (_) {}   // v2 sidebar
-  try { renderDashTopBar(); } catch (_) {}                                       // v2 page bar + range
+  let _navCtx = null;
+  try { _navCtx = dashLaunchContext(jobs); } catch (_) {}
+  try { wireDashNav(); renderDashNav(_navCtx); } catch (_) {}                     // v2 sidebar
+  try { renderDashTopBar(_navCtx); } catch (_) {}                                // v2 page bar + range
   try { renderDashOverview(jobs); } catch (_) {}                                 // v2 overview panels
   renderDashEditBar();   // keep the customize bar in sync with edit mode (hidden by default)
   // E-sign hits the network, so only refresh it when its card is actually open.
@@ -20103,8 +20111,11 @@ function renderDashRangePicker() {
     });
   }
 }
-/** The page bar's title mirrors the active section. */
-function renderDashTopBar() {
+/** The page bar's title mirrors the active section, and its note carries that
+    section's live one-liner — the SAME preview string its launchpad card shows, so
+    the two can't disagree and no new counting is introduced. On home the note is
+    the company greeting instead (set in renderDashboard). */
+function renderDashTopBar(ctx) {
   const label = document.getElementById("dashTopBarLabel");
   const icon = document.getElementById("dashTopBarIcon");
   if (!label) return;
@@ -20112,6 +20123,13 @@ function renderDashTopBar() {
   const meta = v === "home" ? { title: "Dashboard", icon: DNAV_HOME_ICON } : DASH_CARDS.find(c => c.key === v);
   label.textContent = meta ? meta.title : "Dashboard";
   if (icon) icon.innerHTML = (meta && meta.icon) || DNAV_HOME_ICON;
+  const note = document.getElementById("dashTopBarNote");
+  if (note && v !== "home" && meta && typeof meta.preview === "function" && ctx) {
+    let line = "";
+    try { line = meta.preview(ctx) || ""; } catch (_) {}
+    note.textContent = line;
+    note.classList.toggle("hidden", !line);
+  }
   renderDashRangePicker();
 }
 
