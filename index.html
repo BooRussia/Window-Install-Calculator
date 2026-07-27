@@ -22154,6 +22154,19 @@ function wireDashboard() {
   const shop = document.getElementById("dashShopping");
   if (shop) {
     shop.addEventListener("click", (e) => {
+      const send = e.target.closest("[data-shop-send]");
+      if (send) {
+        const j = loadJobs().find(x => x.id === send.dataset.shopSend);
+        if (!j) return;
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = "Sending\u2026";
+        publishCrewShoppingList(j)
+          .then(ok => { if (ok) toast(`Sent to ${crewLabel(j.assignedCrewId) || "the crew"}`); })
+          .catch(err => { console.warn(err); toast("Couldn't send the list — check your connection."); })
+          .finally(() => { send.disabled = false; send.textContent = label; });
+        return;
+      }
       const pdf = e.target.closest("[data-shop-pdf]");
       if (pdf) { dashGenerateDoc(pdf.dataset.shopJob, "materials", pdf.dataset.shopPdf); return; }
       const tg = e.target.closest("[data-shop-toggle]");
@@ -22176,19 +22189,6 @@ function wireDashboard() {
       }
     });
     shop.addEventListener("change", (e) => {
-      const send = e.target.closest("[data-shop-send]");
-      if (send) {
-        const j = loadJobs().find(x => x.id === send.dataset.shopSend);
-        if (!j) return;
-        send.disabled = true;
-        const label = send.textContent;
-        send.textContent = "Sending\u2026";
-        publishCrewShoppingList(j)
-          .then(ok => { if (ok) toast(`Sent to ${crewLabel(j.assignedCrewId) || "the crew"}`); })
-          .catch(err => { console.warn(err); toast("Couldn't send the list — check your connection."); })
-          .finally(() => { send.disabled = false; send.textContent = label; });
-        return;
-      }
       const cb = e.target.closest("[data-shop-check]");
       if (!cb) return;
       const row = cb.closest("[data-shop-jobrow]");
