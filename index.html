@@ -17861,10 +17861,20 @@ function wireTabBar() {
    Desktop only — under 900px the CSS hides this and the bottom tab bar is the nav. */
 const DASH_NAV_GROUPS = [
   { head: "", items: ["home"] },
-  { head: "Work", items: ["jobs", "pipeline", "followups"] },
+  { head: "Work", items: ["jobs", "pipeline", "followups", "aiplan"] },
   { head: "Money", items: ["insights", "calibration", "esign"] },
-  { head: "Field", items: ["shopping", "aiplan"] },
+  { head: "Field", items: ["shopping", "fl"] },
 ];
+/* Nav entries that aren't DASH_CARDS keys — they open something else rather than
+   swapping a [data-dashview] panel. Keyed the same way so one click handler covers
+   both kinds. */
+const DASH_NAV_EXTRAS = {
+  fl: {
+    title: "FL product approval",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.4-3 8-7 9-4-1-7-4.6-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>`,
+    open: () => { try { openFL(); } catch (_) {} },
+  },
+};
 const DNAV_HOME_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
 const DNAV_SETTINGS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9.6a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9.6a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 const DNAV_COLLAPSE_ICON = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/></svg>';
@@ -17895,9 +17905,12 @@ function renderDashNav(ctx) {
 
   const item = (key) => {
     const isHome = key === "home";
-    const meta = isHome ? { title: "Dashboard", icon: DNAV_HOME_ICON } : DASH_CARDS.find(c => c.key === key);
+    const extra = DASH_NAV_EXTRAS[key];
+    const meta = isHome ? { title: "Dashboard", icon: DNAV_HOME_ICON }
+      : (extra || DASH_CARDS.find(c => c.key === key));
     if (!meta) return "";
-    const active = (_dashView || "home") === key;
+    // An extra opens a modal, so it never becomes the "current page".
+    const active = !extra && (_dashView || "home") === key;
     const c = dashNavCount(key, ctx);
     return `<button type="button" class="dnav-item${active ? " active" : ""}" data-dashnav="${escHtml(key)}"${active ? ' aria-current="page"' : ""}>
       ${meta.icon}<span class="dnav-label">${escHtml(meta.title)}</span>${c ? `<span class="dnav-count${c.alert ? " is-alert" : ""}">${c.n}</span>` : ""}
@@ -17949,7 +17962,10 @@ function wireDashNav() {
     }
     const nav = e.target.closest("[data-dashnav]");
     if (!nav) return;
-    dashGoTo(nav.dataset.dashnav);   // same entry point the cards and tab bar use
+    const key = nav.dataset.dashnav;
+    const extra = DASH_NAV_EXTRAS[key];
+    if (extra) { extra.open(); return; }
+    dashGoTo(key);   // same entry point the cards and tab bar use
   });
 }
 
