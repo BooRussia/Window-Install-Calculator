@@ -19793,6 +19793,11 @@ function renderCustomerStats(c, allStats) {
 let _esignWired = false;
 let _esignRows = {};   // id -> last-rendered row, so action handlers can read status/signer
 let _dashEsignDetail = "summary";   // detail level for the dashboard's "send any job" picker
+// Its own exclusion set — NOT shared with Job Details, since the two workspaces can
+// be aimed at different jobs. Cleared whenever the job or detail level changes,
+// because the row keys only mean anything for the job they were built from.
+let _dashEsignExclude = new Set();
+let _dashEsignCzOpen = false;
 let _dashEsignLastUrl = "";         // last link created from the e-sign page (re-shown across re-renders)
 function esignStatusMeta(s) {
   return ({
@@ -19864,7 +19869,7 @@ async function renderDashEsign() {
     return `<option value="${escHtml(j.id)}">${escHtml(name + cust + price)}</option>`;
   }).join("");
   const resultHTML = _dashEsignLastUrl ? `
-      <div class="esign-send-result">
+      <div id="dashEsignResult" class="esign-send-result">
         <div class="flex items-center gap-2">
           <input id="dashEsignUrl" readonly class="control rounded-lg px-3 py-2 w-full text-xs text-slate-200 font-mono" value="${escHtml(_dashEsignLastUrl)}">
           <button type="button" data-esign-copylink class="btn shrink-0 rounded-lg px-3 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]">Copy</button>
@@ -19880,8 +19885,10 @@ async function renderDashEsign() {
           <button type="button" data-esign-detail="summary" class="jd-detail-btn ${_dashEsignDetail === "summary" ? "active" : ""}">Summary</button>
           <button type="button" data-esign-detail="itemized" class="jd-detail-btn ${_dashEsignDetail === "itemized" ? "active" : ""}">Itemized</button>
         </div>
+        <button type="button" data-esign-cz class="btn rounded-full px-4 py-2.5 text-sm font-bold border border-slate-700 text-slate-300 hover:text-[#c9a558] hover:border-[#b58f4a]/45 shrink-0" aria-expanded="${_dashEsignCzOpen ? "true" : "false"}">${_dashEsignCzOpen ? "Hide" : "Customize"}</button>
         <button type="button" id="dashEsignSendBtn" data-esign-send class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] shrink-0">Create signing link</button>
       </div>
+      <div id="dashEsignCustomize" class="${_dashEsignCzOpen ? "" : "hidden"}"></div>
       ${resultHTML}
       <p class="text-[10px] text-slate-600 mt-2">Pick any saved job and generate a link — the customer reviews and approves with a typed name + drawn signature, no login on their end.</p>
     </div>` : `<div class="esign-send"><div class="jd-section-title mb-1">Send a quote for signature</div><p class="text-[12px] text-slate-500">Save a quote first, then send it for signature right here.</p></div>`;
@@ -19963,7 +19970,23 @@ async function renderDashEsign() {
       // Sender controls (send any job, detail toggle, copy the created link)
       if (e.target.closest("[data-esign-send]")) { dashEsignSend(); return; }
       const det = e.target.closest("[data-esign-detail]");
-      if (det) { _dashEsignDetail = det.dataset.esignDetail; wrap.querySelectorAll("[data-esign-detail]").forEach(b => b.classList.toggle("active", b === det)); return; }
+      if (det) {
+        _dashEsignDetail = det.dataset.esignDetail;
+        wrap.querySelectorAll("[data-esign-detail]").forEach(b => b.classList.toggle("active", b === det));
+        // Summary and itemized expose different rows, so old choices don't carry.
+        _dashEsignExclude.clear();
+        if (_dashEsignCzOpen) dashEsignLoadCustomize();
+        return;
+      }
+      if (e.target.closest("[data-esign-cz]")) {
+        _dashEsignCzOpen = !_dashEsignCzOpen;
+        const box = document.getElementById("dashEsignCustomize");
+        const btn = e.target.closest("[data-esign-cz]");
+        if (box) box.classList.toggle("hidden", !_dashEsignCzOpen);
+        if (btn) { btn.textContent = _dashEsignCzOpen ? "Hide" : "Customize"; btn.setAttribute("aria-expanded", String(_dashEsignCzOpen)); }
+        if (_dashEsignCzOpen) dashEsignLoadCustomize();
+        return;
+      }
       if (e.target.closest("[data-esign-copylink]")) { copyTextToClipboard(_dashEsignLastUrl, e.target.closest("[data-esign-copylink]")); return; }
       // Sent/signed list actions
       const t = e.target.closest("[data-esign-pdf],[data-esign-copy],[data-esign-void],[data-esign-delete],[data-esign-job],[data-esign-audit]");
@@ -19978,8 +20001,31 @@ async function renderDashEsign() {
         if (box) box.classList.toggle("hidden");
       }
     });
+    // Changing the job invalidates every row key — start that job clean.
+    wrap.addEventListener("change", (e) => {
+      if (!e.target.closest("#dashEsignJobPick")) return;
+      _dashEsignExclude.clear();
+      if (_dashEsignCzOpen) dashEsignLoadCustomize();
+    });
     _esignWired = true;
   }
+}
+
+/** Fill the E-signatures customize panel for whichever job is picked. */
+function dashEsignLoadCustomize() {
+  const box = document.getElementById("dashEsignCustomize");
+  if (!box) return;
+  const pick = document.getElementById("dashEsignJobPick");
+  const jobId = pick ? pick.value : "";
+  if (!jobId) {
+    box.innerHTML = `<div class="jd-cz-loading">Choose a job above to see what the customer will get.</div>`;
+    return;
+  }
+  loadSignCustomize(jobId, _dashEsignDetail, {
+    boxId: "dashEsignCustomize",
+    exclude: _dashEsignExclude,
+    resultId: "dashEsignResult",
+  });
 }
 
 // Create a signing link for the job picked in the E-signatures workspace.
@@ -19989,7 +20035,7 @@ function dashEsignSend() {
   if (!jobId) { toast("Choose a job to send"); return; }
   createSignLink(jobId, _dashEsignDetail, {
     btn: document.getElementById("dashEsignSendBtn"),
-    exclude: new Set(),   // send the full quote from the dashboard (no Customize step here)
+    exclude: _dashEsignExclude,   // whatever Customize left unchecked on this page
     onResult: (url) => { _dashEsignLastUrl = url; renderDashEsign(); },
   });
 }
@@ -28424,15 +28470,22 @@ function applySignExclusions(snap, exclude) {
 
 // Render the Customize checklist (scope rows + itemized line items) into the
 // Job Details card. Unchecking a row adds its key to _jdSignExclude.
-async function loadSignCustomize(jobId, detailLevel) {
-  const box = document.getElementById("jdSignCustomize");
+/** Build the "what the customer sees" checklist. Defaults to the Job Details box
+    and its exclude set, so existing callers are unchanged; the E-signatures page
+    passes its own so the two workspaces can't share stale exclusions. */
+async function loadSignCustomize(jobId, detailLevel, opts) {
+  opts = opts || {};
+  const boxId = opts.boxId || "jdSignCustomize";
+  const exclude = opts.exclude || _jdSignExclude;
+  const resultId = opts.resultId || "jdSignResult";
+  const box = document.getElementById(boxId);
   if (!box) return;
   box.innerHTML = `<div class="jd-cz-loading">Loading what the customer will see…</div>`;
   const snap = await buildSignSnapshotForJob(jobId, detailLevel);
   if (!snap) { box.innerHTML = `<div class="jd-cz-loading">Add footage or doors to this job first.</div>`; return; }
 
   const rowHtml = (key, label, right) => {
-    const checked = _jdSignExclude.has(key) ? "" : "checked";
+    const checked = exclude.has(key) ? "" : "checked";
     return `<label class="jd-cz-row">
       <input type="checkbox" data-cz-key="${escHtml(key)}" ${checked}>
       <span class="jd-cz-label">${escHtml(label)}</span>
@@ -28463,8 +28516,8 @@ async function loadSignCustomize(jobId, detailLevel) {
   box.querySelectorAll("[data-cz-key]").forEach((cb) => {
     cb.addEventListener("change", () => {
       const key = cb.dataset.czKey;
-      if (cb.checked) _jdSignExclude.delete(key); else _jdSignExclude.add(key);
-      const res = document.getElementById("jdSignResult");
+      if (cb.checked) exclude.delete(key); else exclude.add(key);
+      const res = document.getElementById(resultId);
       if (res) res.classList.add("hidden"); // changing visibility needs a fresh link
     });
   });
