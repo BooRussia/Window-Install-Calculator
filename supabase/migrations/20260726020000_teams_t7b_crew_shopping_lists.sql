@@ -103,6 +103,9 @@ end;
 $function$;
 
 revoke all on function public.set_crew_shopping_check(uuid, text, boolean) from public;
+-- `revoke ... from public` does NOT drop Supabase's default grant to the
+-- separate `anon` role, so revoke that explicitly too (the advisor flags it).
+revoke execute on function public.set_crew_shopping_check(uuid, text, boolean) from anon;
 grant execute on function public.set_crew_shopping_check(uuid, text, boolean) to authenticated;
 
 comment on table public.crew_shopping_lists is

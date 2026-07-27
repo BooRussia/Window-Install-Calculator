@@ -67,6 +67,9 @@ end;
 $function$;
 
 revoke all on function public.set_crew_self_service(uuid, jsonb, jsonb) from public;
+-- `revoke ... from public` does NOT drop Supabase's default grant to the
+-- separate `anon` role, so revoke that explicitly too (the advisor flags it).
+revoke execute on function public.set_crew_self_service(uuid, jsonb, jsonb) from anon;
 grant execute on function public.set_crew_self_service(uuid, jsonb, jsonb) to authenticated;
 
 comment on function public.set_crew_self_service(uuid, jsonb, jsonb) is
