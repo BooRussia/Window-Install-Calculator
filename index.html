@@ -360,6 +360,14 @@
   /* v2 P4: the in-section back button + heading duplicate the sidebar and page bar
      on desktop. Kept under 900px, where there is no sidebar to go back with. */
   @media (min-width: 900px) { #dashSectionHead { display: none; } }
+  /* A shortcut landing on an overview panel flashes its border so the eye finds it
+     after the scroll — no layout shift, and skipped under reduced motion. */
+  .dash-ovcard-flash { animation: ovFlash 1.4s ease-out 1; }
+  @keyframes ovFlash {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(181,143,74,0); }
+    18%      { box-shadow: 0 0 0 3px rgba(181,143,74,0.45); }
+  }
+  @media (prefers-reduced-motion: reduce) { .dash-ovcard-flash { animation: none; } }
   /* ── v2 P3: the overview grid ─────────────────────────────────────────────── */
   .dash-overview { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
   @media (min-width: 1000px) { .dash-overview { grid-template-columns: 2fr 1fr; } }
@@ -18069,11 +18077,15 @@ function renderDashNav(ctx) {
   const item = (key) => {
     const isHome = key === "home";
     const extra = DASH_NAV_EXTRAS[key];
-    const meta = isHome ? { title: "Dashboard", icon: DNAV_HOME_ICON }
-      : (extra || DASH_CARDS.find(c => c.key === key));
+    const card = DASH_CARDS.find(c => c.key === key);
+    const meta = isHome ? { title: "Dashboard", icon: DNAV_HOME_ICON } : (extra || card);
     if (!meta) return "";
-    // An extra opens a modal, so it never becomes the "current page".
-    const active = !extra && (_dashView || "home") === key;
+    // An extra opens a modal, and a shortcut that leaves the dashboard has no page
+    // of its own — neither can be "current". A shortcut that lands on an in-dash
+    // panel isn't marked active either, or two items would light up at once.
+    const leaves = card && (card.goto === "aiplan" || card.goto === "setup-manufacturers");
+    const shortcut = card && card.goto && card.goto !== key;
+    const active = !extra && !leaves && !shortcut && (_dashView || "home") === key;
     const c = dashNavCount(key, ctx);
     return `<button type="button" class="dnav-item${active ? " active" : ""}" data-dashnav="${escHtml(key)}"${active ? ' aria-current="page"' : ""}>
       ${meta.icon}<span class="dnav-label">${escHtml(meta.title)}</span>${c ? `<span class="dnav-count${c.alert ? " is-alert" : ""}">${c.n}</span>` : ""}
@@ -18128,7 +18140,8 @@ function wireDashNav() {
     const key = nav.dataset.dashnav;
     const extra = DASH_NAV_EXTRAS[key];
     if (extra) { extra.open(); return; }
-    dashGoTo(key);   // same entry point the cards and tab bar use
+    if (key === "home") { dashGoTo("home"); return; }
+    dashOpenCardKey(key);   // honours a card's `goto`, exactly like its launchpad card
   });
 }
 
@@ -18234,7 +18247,7 @@ const DASH_CARDS = [
       ? `${ctx.approvedCount} approved · view activity`
       : "Track sent & signed quotes",
     preview2: (ctx) => ctx.signedCount ? `${ctx.signedCount} signed e-quote${ctx.signedCount === 1 ? "" : "s"}` : "" },
-  { key: "pipeline", title: "Deal pipeline", goto: "jobs",
+  { key: "pipeline", title: "Deal pipeline", goto: "overview-pipeline",
     blurb: "Every saved quote by stage — see where deals pile up, what's landed, and your win rate.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>` },
   { key: "insights", title: "Insights",
@@ -18244,7 +18257,7 @@ const DASH_CARDS = [
       ? `Top cost: ${ctx.topDriver.name} · ${ctx.topDriver.pct}%`
       : "Materials, customers & pipeline",
     preview2: (ctx) => ctx.topCustomer ? `Top client: ${ctx.topCustomer.name} · ${ctx.topCustomer.pct}%` : "" },
-  { key: "revenue", title: "Revenue trend", goto: "insights",
+  { key: "revenue", title: "Revenue trend", goto: "overview-booked",
     blurb: "Your booked revenue and profit month by month — watch the trend and where your margin's going.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 3 3 7-8"/><path d="M16 8h4v4"/></svg>` },
   { key: "manufacturers", title: "Manufacturers", goto: "setup-manufacturers",
@@ -20278,6 +20291,48 @@ function renderDashOverview(jobs) {
       if (open) { try { openJobDetails(open.dataset.attnOpen); } catch (_) { dashGoTo("followups"); } }
     });
   }
+}
+
+/** Open a dashboard destination. Four DASH_CARDS are SHORTCUTS, not panels — they
+    carry a `goto` that differs from their key, and two of them leave the dashboard
+    entirely. This is the single place that knows how to route any of them; the
+    launchpad cards and the v2 sidebar both call it, so they can't drift apart.
+    (They did: the sidebar originally called dashGoTo(key) and landed on views that
+    don't exist, which made Deal pipeline / AI plan read / Revenue trend /
+    Manufacturers render nothing.) */
+function dashOpenCardKey(key) {
+  const card = DASH_CARDS.find(c => c.key === key);
+  dashOpenTarget((card && card.goto) || key);
+}
+function dashOpenTarget(target) {
+  // Manufacturers lives in Settings → Setup → Manufacturers, not in the dashboard.
+  if (target === "setup-manufacturers") {
+    try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {}
+    return;
+  }
+  // AIPLAN-13: the AI card leaves the dashboard and opens the plan picker.
+  if (target === "aiplan") {
+    try { closeDashboard(); document.getElementById("readFromPlanBtn").click(); } catch (_) {}
+    return;
+  }
+  // Deal pipeline and Revenue trend used to be shortcuts onto Jobs/Insights, which
+  // is why two nav rows led to one destination. P3 built what their blurbs actually
+  // describe — the stage table and the booked-by-month chart — so they now land
+  // there: home, with that panel scrolled into view and briefly highlighted.
+  const OVERVIEW_TARGETS = { "overview-pipeline": "dashPipelineCard", "overview-booked": "dashBookedCard" };
+  if (OVERVIEW_TARGETS[target]) {
+    dashGoTo("home");
+    const id = OVERVIEW_TARGETS[target];
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: dashReduceMotion() ? "auto" : "smooth", block: "center" });
+      el.classList.add("dash-ovcard-flash");
+      setTimeout(() => el.classList.remove("dash-ovcard-flash"), 1400);
+    });
+    return;
+  }
+  dashGoTo(target);
 }
 
 function renderDashStats(jobs) {
@@ -22634,16 +22689,7 @@ function wireDashboard() {
         return;
       }
       const c = e.target.closest("[data-dashcard]");
-      if (c) {
-        const target = c.dataset.dashcard;
-        // The Manufacturers card opens Settings → Setup → Manufacturers (where the
-        // brand list + per-brand params live), not an in-dashboard panel.
-        if (target === "setup-manufacturers") { try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {} }
-        // AIPLAN-13: the AI card leaves the dashboard and opens the plan picker (same
-        // path the empty-state scan link uses).
-        else if (target === "aiplan") { try { closeDashboard(); document.getElementById("readFromPlanBtn").click(); } catch (_) {} }
-        else dashGoTo(target);
-      }
+      if (c) dashOpenTarget(c.dataset.dashcard);   // shared router — see dashOpenTarget
     });
     // Keyboard parity for the role=button ⓘ span.
     launchpad.addEventListener("keydown", (e) => {
