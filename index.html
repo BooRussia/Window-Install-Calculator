@@ -271,13 +271,17 @@
     transform: translateY(-6px) scale(0.97);
     transform-origin: top center;
     pointer-events: none;
-    transition: opacity .18s ease, transform .26s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Base rule governs the CLOSE (destination when .open drops): shorter,
+       accelerating — exits leave quicker than entrances arrive. */
+    transition: opacity .14s ease, transform .18s cubic-bezier(0.55, 0, 0.8, 0.4);
     z-index: 40;
   }
   .dd.open .dd-panel {
     opacity: 1;
     transform: translateY(0) scale(1);
     pointer-events: auto;
+    /* Enter: decelerate on the family curve. */
+    transition: opacity .18s ease, transform .26s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .dd-item {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -713,7 +717,11 @@
   .dd-panel--fixed { position: fixed; top: auto; left: auto; right: auto; min-width: 0;
     z-index: 200; pointer-events: auto; }
   .dd-panel--fixed.up { transform-origin: bottom center; transform: translateY(6px) scale(0.97); }
-  .dd-panel--fixed.in { opacity: 1; transform: translateY(0) scale(1); }
+  /* Enter curve, same as `.dd.open .dd-panel` — the base .dd-panel transition
+     is the CLOSE (shorter, accelerating), so the open state must declare its
+     own decelerating one or a portaled panel opens on the exit curve. */
+  .dd-panel--fixed.in { opacity: 1; transform: translateY(0) scale(1);
+    transition: opacity .18s ease, transform .26s cubic-bezier(0.16, 1, 0.3, 1); }
   .dd-item.active { background: rgba(30,41,59,0.7); color: #ffffff; }
   [data-theme="light"] .dd-item.active { background: #f1f5f9; color: #0f172a; }
   .dd-item.selected.active { color: var(--gold-hi); }
@@ -1010,6 +1018,85 @@
   .team-inviterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 0;
     border-bottom: 1px dashed rgba(148,163,184,0.18); }
   .team-inviterow:last-of-type { border-bottom: 0; }
+
+  /* ── Crew seat workspace ───────────────────────────────────────────────────
+     A seat under someone else's company never sees the calculator. This covers
+     the app; body.crew-account also strips the quoting chrome underneath so
+     there is nothing to reach even if a route slips past. z-index sits above
+     every screen/modal but BELOW the toast (95) so feedback still lands. */
+  #crewScreen {
+    position: fixed; inset: 0; z-index: 93; overflow-y: auto;
+    background: linear-gradient(180deg, #0b1120 0%, #060a16 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+  #crewScreen.hidden { display: none; }
+  .crew-wrap { max-width: 640px; margin: 0 auto; padding: 22px 18px calc(40px + env(safe-area-inset-bottom)); }
+  .crew-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+  .crew-brand { display: flex; align-items: center; gap: 8px; font-family: Anton, system-ui, sans-serif;
+    letter-spacing: 0.06em; text-transform: uppercase; font-size: 17px; color: #c9a558; }
+  .crew-anchor { font-size: 16px; }
+  .crew-title { font-size: 21px; font-weight: 800; color: #f1f5f9; line-height: 1.25; }
+  .crew-sub { font-size: 13px; color: #94a3b8; margin: 6px 0 18px; line-height: 1.5; }
+  [data-theme="light"] #crewScreen { background: #f3f4f7; }
+  [data-theme="light"] .crew-title { color: #0f172a; }
+  [data-theme="light"] .crew-sub { color: #55606e; }
+  [data-theme="light"] .crew-brand { color: #97772e; }
+  /* ── Plan gate (shown once, right after signup) ────────────────────────── */
+  #planScreen {
+    position: fixed; inset: 0; z-index: 92; overflow-y: auto;
+    background: linear-gradient(180deg, #0b1120 0%, #060a16 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+  #planScreen.hidden { display: none; }
+  .plan-wrap { max-width: 940px; margin: 0 auto; padding: 22px 18px calc(40px + env(safe-area-inset-bottom)); }
+  .plan-grid { display: grid; gap: 12px; grid-template-columns: 1fr; margin-top: 4px; }
+  @media (min-width: 760px) { .plan-grid { grid-template-columns: repeat(3, 1fr); } }
+  .plan-card { position: relative; border: 1px solid #1e293b; border-radius: 16px; padding: 16px;
+    background: rgba(15,23,42,0.5); display: flex; flex-direction: column; }
+  .plan-card.is-hot { border-color: rgba(181,143,74,0.5); background: rgba(181,143,74,0.06); }
+  .plan-badge { position: absolute; top: -9px; left: 16px; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.08em; color: #0b1120; background: #c9a558;
+    border-radius: 999px; padding: 3px 9px; }
+  .plan-name { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #c9a558; }
+  .plan-price { margin: 6px 0 2px; color: #f1f5f9; }
+  .plan-price b { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+  .plan-price span { font-size: 13px; color: #94a3b8; margin-left: 2px; }
+  .plan-tag { font-size: 12px; color: #94a3b8; line-height: 1.45; min-height: 34px; }
+  .plan-feats { list-style: none; margin: 10px 0 14px; padding: 0; display: grid; gap: 6px; }
+  .plan-feats li { font-size: 12.5px; color: #cbd5e1; padding-left: 16px; position: relative; line-height: 1.4; }
+  .plan-feats li::before { content: "\2713"; position: absolute; left: 0; color: #c9a558; font-weight: 700; }
+  .plan-cta { margin-top: auto; width: 100%; min-height: 44px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.35);
+    background: transparent; color: #e2e8f0; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease; }
+  .plan-cta:hover { border-color: rgba(181,143,74,0.6); color: #dfc07a; }
+  .plan-cta.is-hot { background: linear-gradient(180deg, #dfc07a, #c9a558); border-color: transparent; color: #0b1120; }
+  .plan-trial { margin-top: 16px; border: 1px dashed rgba(148,163,184,0.35); border-radius: 16px; padding: 16px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .plan-trial-h { font-size: 14px; font-weight: 800; color: #f1f5f9; }
+  .plan-trial-p { font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin-top: 3px; max-width: 60ch; }
+  .plan-cta-ghost { width: auto; flex: 0 0 auto; padding: 0 20px; }
+  [data-theme="light"] #planScreen { background: #f3f4f7; }
+  [data-theme="light"] .plan-card { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .plan-card.is-hot { background: rgba(181,143,74,0.07); border-color: #d9c79a; }
+  [data-theme="light"] .plan-name { color: #97772e; }
+  [data-theme="light"] .plan-price { color: #0f172a; }
+  [data-theme="light"] .plan-price span,
+  [data-theme="light"] .plan-tag { color: #55606e; }
+  [data-theme="light"] .plan-feats li { color: #334155; }
+  [data-theme="light"] .plan-feats li::before { color: #97772e; }
+  [data-theme="light"] .plan-cta { color: #0f172a; border-color: #cbd5e1; }
+  [data-theme="light"] .plan-cta.is-hot { color: #0b1120; }
+  [data-theme="light"] .plan-trial-h { color: #0f172a; }
+  [data-theme="light"] .plan-trial-p { color: #55606e; }
+
+  /* Strip every quoting affordance for a crew seat. */
+  body.crew-account .app-tabbar,
+  body.crew-account #mtotalBar,
+  body.crew-account #mtotalPeek,
+  body.crew-account #jobSpecsFab,
+  body.crew-account #jobRail,
+  body.crew-account #jobRailBackdrop,
+  body.crew-account #railHotzone { display: none !important; }
   .team-invitecode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700;
     letter-spacing: 0.08em; color: var(--gold-hi); background: rgba(181,143,74,0.10);
     border: 1px solid rgba(181,143,74,0.30); border-radius: 8px; padding: 4px 9px; }
@@ -1248,6 +1335,14 @@
   #mtotalBar.show { transform: translateY(0); pointer-events: auto; }
   #mtotalBar.show.tucked { transform: translateY(calc(100% + 12px)); pointer-events: none; }
   #mtotalBar.dragging { transition: none !important; }
+  /* A backdrop-filtered element that moves repaints everything behind it every
+     frame — drop the blur while the bar is under a finger or settling (same
+     mitigation as the sheet drag's .jd-top), and promote the moving layer. */
+  #mtotalBar.dragging, #mtotalBar.settling {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    background: rgba(7,12,24,1);
+    will-change: transform;
+  }
   #mtotalBtn {
     width: 100%; min-height: 56px;
     display: flex; align-items: center; gap: 12px;
@@ -1564,7 +1659,9 @@
   body.msheet-open #mtotalSheet { touch-action: auto; }
   body.msheet-open .msheet-panel { touch-action: pan-y; }
   body.msheet-open .msheet-grab { touch-action: none; }
-  .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); touch-action: none; }
+  /* Fades in with the sheet (no fill mode: rest opacity is already 1, and a
+     filled animation would override the drag-dismiss inline opacity writes). */
+  .msheet-backdrop { position: absolute; inset: 0; background: rgba(2,6,16,0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); touch-action: none; animation: aFade .3s cubic-bezier(0.16, 1, 0.3, 1); }
   .msheet-panel {
     position: absolute; left: 0; right: 0; bottom: 0; max-height: 78svh;
     overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
@@ -1586,7 +1683,7 @@
   /* Keep sheetUp from replaying while we settle a drag dismiss/snap-back —
      that replay was the bounce after finger-up. */
   .msheet-panel.settling { animation: none !important; }
-  @media (prefers-reduced-motion: reduce) { .msheet-panel { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .msheet-panel, .msheet-backdrop { animation: none; } }
   .msheet-grab {
     width: 40px; height: 4px; border-radius: 999px; background: rgba(148,163,184,0.45);
     margin: 6px auto 14px; position: relative; touch-action: none; cursor: grab;
@@ -1780,15 +1877,22 @@
     display: flex; flex-direction: column;
   }
   #jobRail.show { transform: translateX(0); }
-  #appBody { transition: padding-left .32s cubic-bezier(0.16,1,0.3,1); }
+  /* No transition on #appBody's padding — animating a layout property on the
+     container of the whole app forces ~19 consecutive full-page reflows per
+     rail pin/unpin. The rail's own transform slide carries the motion cue;
+     the content snaps once. */
   #jobRailBackdrop {
     position: fixed; top: 3.5rem; left: 0; right: 0; bottom: 0; z-index: 29;
     background: rgba(2,6,23,0.65);
-    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+    /* Base = close: quicker, accelerating (family exit). */
+    opacity: 0; pointer-events: none; transition: opacity .24s cubic-bezier(0.55, 0, 0.8, 0.4);
   }
-  #jobRailBackdrop.open { opacity: 1; pointer-events: auto; }
+  #jobRailBackdrop.open { opacity: 1; pointer-events: auto; transition: opacity .3s cubic-bezier(0.16, 1, 0.3, 1); }
   #railHotzone { display: none; }
   .rail-toggle-chev { transition: transform .25s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    #jobRail, #appBody, .rail-toggle-chev { transition: none; }
+  }
   body:not(.rail-pinned) .rail-toggle-chev { transform: rotate(180deg); }
   @media (min-width: 1024px) {
     body.rail-pinned #jobRail { transform: translateX(0); }
@@ -1976,7 +2080,12 @@
     max-height: 0; overflow: hidden; padding: 0 15px;
     transition: max-height .32s cubic-bezier(0.16,1,0.3,1), padding .2s ease;
   }
-  body.rail-tidy #jobRail .rail-acc.open .rail-acc-body { max-height: 4000px; padding: 2px 15px 16px; }
+  /* No 4000px max-height sentinel: a sentinel that far past the real height
+     makes the .32s ease finish the visible travel in ~2 frames (progress is
+     distance-based). setAccOpen() (JS) animates to the section's real
+     scrollHeight via inline max-height, then rests here at none — which is
+     also the safe fallback if .open is toggled without the helper. */
+  body.rail-tidy #jobRail .rail-acc.open .rail-acc-body { max-height: none; padding: 2px 15px 16px; }
   /* When a dropdown (e.g. Manufacturer) opens inside an accordion, let it spill
      out over the sections below instead of being clipped by the collapse overflow. */
   body.rail-tidy #jobRail .rail-acc.open:has(.dd.open) { overflow: visible; }
@@ -2957,28 +3066,58 @@
      All disabled under prefers-reduced-motion (block at the bottom). ─── */
   @keyframes aFade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes aFadeOut { from { opacity: 1; } to { opacity: 0; } }
-  @keyframes aScreenIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* transform-only: opacity rides the separate aFade track (fade leads, geometry settles) */
+  @keyframes aScreenIn { from { transform: translateY(10px); } to { transform: none; } }
   @keyframes aSwap { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
-  /* Popups power on/off like a CRT/box: a bright slit snaps open and expands to
-     full on open, then folds back into a line and a point on close. The panel is
-     the div right after the .modal-backdrop in every modal; tvDismiss() (JS) adds
-     .tv-off + .modal-closing to drive the close, then hides it on animationend. */
-  @keyframes aTvOn {
-    0%   { opacity: 0; transform: scaleX(0.64) scaleY(0.008); }
-    46%  { opacity: 1; transform: scaleX(1) scaleY(0.016); }
-    100% { opacity: 1; transform: scaleX(1) scaleY(1); }
+  /* ── "Materialize" — the app's signature overlay motion (Apple-grade). ──
+     Popups don't power on like a CRT anymore; they MATERIALIZE: the fade leads
+     on its own fast track (~240ms) while the geometry settles on a longer,
+     gently damped spring (~380ms — rises 14px, scales 0.965→1, with a
+     sub-pixel settle past rest). Exit is the reverse but quicker and
+     accelerating (~210ms, recede down-and-away) — enter slow-out, exit
+     fast-in, never symmetric. Transform + opacity only (compositor-safe);
+     the frosted backdrop's blur rides its opacity ramp. The panel is the div
+     right after the .modal-backdrop in every modal; tvDismiss() (JS) adds
+     .tv-off + .modal-closing to drive the close, then hides on animationend. */
+  :root {
+    /* Damped-spring settle for overlay geometry. Fallback: one gentle
+       overshoot; upgraded to a real decaying spring via linear() below. */
+    --mo-spring: cubic-bezier(0.26, 1.09, 0.42, 1);
   }
-  @keyframes aTvOff {
-    0%   { opacity: 1; transform: scaleX(1) scaleY(1); filter: brightness(1); }
-    52%  { opacity: 1; transform: scaleX(1) scaleY(0.016); filter: brightness(1.4); }
-    100% { opacity: 0; transform: scaleX(0) scaleY(0.014); filter: brightness(1.7); }
+  @supports (animation-timing-function: linear(0, 1)) {
+    :root {
+      --mo-spring: linear(
+        0, 0.033 2.6%, 0.122 5.8%, 0.252 9%, 0.4 12.2%, 0.551 15.5%,
+        0.692 18.9%, 0.817 22.6%, 0.919 26.7%, 0.996 31.4%, 1.045 36.6%,
+        1.067 42.4%, 1.068 48.6%, 1.053 55.6%, 1.032 63%, 1.013 70.9%,
+        0.999 79.3%, 0.994 88.2%, 1
+      );
+    }
   }
-  .modal-backdrop { animation: aFade .22s ease both; }
-  .modal-backdrop + div { animation: aTvOn .4s cubic-bezier(0.2, 0.8, 0.25, 1) both; transform-origin: center center; }
-  .modal-closing .modal-backdrop { animation: aFadeOut .3s ease forwards; }
-  .modal-backdrop + div.tv-off { animation: aTvOff .34s cubic-bezier(0.5, 0, 0.7, 0.35) forwards; transform-origin: center center; }
-  /* Bottom sheets must NOT use the CRT aTvOn open — it leaves a scaleY fill
-     that snaps on the first dismiss-drag frame (the hitch users felt). */
+  @keyframes aPopIn {
+    from { transform: translateY(14px) scale(0.965); }
+    to   { transform: none; }
+  }
+  @keyframes aPopOut {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 0; transform: translateY(10px) scale(0.97); }
+  }
+  .modal-backdrop { animation: aFade .3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .modal-backdrop + div {
+    animation: aPopIn .38s var(--mo-spring) both, aFade .24s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: center center;
+  }
+  /* Backdrop exit must COMPLETE before the card's 210ms animationend hides the
+     modal — a longer fade would have its tail chopped off in one frame. */
+  .modal-closing .modal-backdrop { animation: aFadeOut .2s cubic-bezier(0.55, 0, 0.8, 0.4) forwards; }
+  .modal-backdrop + div.tv-off {
+    animation: aPopOut .21s cubic-bezier(0.55, 0, 0.8, 0.4) forwards;
+    transform-origin: center center;
+  }
+  /* Bottom sheets must NOT use the desktop materialize (aPopIn) open — a
+     fill-mode transform left on the card snaps on the first dismiss-drag
+     frame (the hitch users felt with the old CRT open). Sheets slide up and
+     the drag system owns their transform from there. */
   @media (max-width: 639px) {
     .sheet-on-mobile > .modal-backdrop + div,
     .sheet-on-mobile > .card {
@@ -3003,18 +3142,69 @@
       background: rgba(8, 13, 24, 1) !important;
     }
     .sheet-on-mobile.sheet-drag-active > .modal-backdrop {
+      /* Kill the filled aFade while a drag owns the scrim — a both-fill
+         animation beats inline style in the cascade, so without this the JS
+         opacity writes during drag-dismiss do nothing and the scrim vanishes
+         in one frame at the end instead of fading with the card. */
+      animation: none !important;
       transition: opacity .08s linear;
     }
+    /* After a settled (aborted) dismiss drag, the entrance must not replay —
+       swap-in class from wireMobileSheetDismiss; cleared by tvDismiss finish()
+       so the next OPEN plays sheetUp again. :not(.tv-off) keeps the sheetDown
+       close animation winning while closing. */
+    .sheet-on-mobile > .modal-backdrop + div.sheet-opened:not(.tv-off),
+    .sheet-on-mobile > .card.sheet-opened:not(.tv-off) {
+      animation: none !important;
+    }
+    /* Backdrop counterpart: removing .sheet-drag-active after an aborted
+       dismiss flips the backdrop's animation-name none → aFade, restarting the
+       fill-both fade from opacity 0 (scrim flashes clear, then re-fades). This
+       matches in the same style recalc that adds .sheet-opened, so the name
+       stays none continuously. :not(.tv-off) releases it during an animated
+       close so aFadeOut still plays. */
+    .sheet-on-mobile:has(> .sheet-opened:not(.tv-off)) > .modal-backdrop {
+      animation: none !important;
+    }
   }
-  /* Page changes: the overlay screens ease in when shown. */
+  /* Page changes: overlay screens materialize with the same physics family —
+     fade leads (fast, its own track), the rise settles on the spring.
+     #adminModal (Settings) is a full-screen panel with no .modal-backdrop, so
+     it never rode the modal materialize — give its panel the screen treatment
+     (open only; closeAdmin's tvDismiss finds no card and hides instantly,
+     same as the other screens). */
   #dashboardScreen:not(.hidden), #learnScreen:not(.hidden),
-  #pricingScreen:not(.hidden), #setupScreen:not(.hidden) { animation: aScreenIn .32s cubic-bezier(0.22, 0.7, 0.3, 1) both; }
-  /* Insights tab swap: the newly-shown panel fades/rises in. */
-  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden), #dashCrewsPanel:not(.hidden) { animation: aSwap .24s ease both; }
+  #pricingScreen:not(.hidden), #setupScreen:not(.hidden), #legalScreen:not(.hidden),
+  #adminModal:not(.hidden) > div {
+    animation: aScreenIn .34s var(--mo-spring) both, aFade .24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  /* Insights tab swap: small local move — decelerate only, no spring (a spring
+     on a 5px hop reads as noise, not physics). */
+  #dashMaterials:not(.hidden), #dashCustomers:not(.hidden), #dashPipelinePanel:not(.hidden), #dashCrewsPanel:not(.hidden) { animation: aSwap .26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  /* Account menu: pops from its anchor (top right) like a macOS menu. */
+  #pfpMenu:not(.hidden) {
+    animation: aMenuIn .22s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: top right;
+  }
+  /* Scale + fade only (no translate): direction-agnostic, so it reads
+     correctly both when the menu drops below the avatar (origin top right,
+     the CSS default) and when positionPfpMenu flips it ABOVE the bottom
+     tab-bar trigger (JS sets transform-origin bottom right inline). */
+  @keyframes aMenuIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .modal-backdrop, .modal-backdrop + div, .modal-backdrop + div.tv-off, .modal-closing .modal-backdrop,
-    #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen,
-    #dashMaterials, #dashCustomers, #dashPipelinePanel, #dashCrewsPanel { animation: none !important; }
+    #dashboardScreen, #learnScreen, #pricingScreen, #setupScreen, #legalScreen, #pfpMenu, #adminModal > div,
+    #dashMaterials, #dashCustomers, #dashPipelinePanel, #dashCrewsPanel, .set-panel { animation: none !important; }
+  }
+  /* Sheets under reduced motion: must come AFTER the sheetUp !important rule
+     above (equal specificity+importance — source order decides), or reduced-
+     motion users still get the full-height slide. */
+  @media (max-width: 639px) and (prefers-reduced-motion: reduce) {
+    .sheet-on-mobile > .modal-backdrop + div,
+    .sheet-on-mobile > .card { animation: none !important; }
   }
   /* Dashboard insight charts — spin/scale pivots for the WAAPI-driven entrance:
      donut rings rotate around the donut center, trend dots pop from their own
@@ -3044,12 +3234,15 @@
     position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: rgba(15,23,42,0.95); border: 1px solid rgba(181,143,74,0.5);
     color: #fdf6e3; padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 600;
-    opacity: 0; transition: opacity .2s ease, transform .2s ease;
+    /* Same physics family as the overlays: the fade is quick, the rise settles
+       on the longer decelerating track (and recedes on the way out). */
+    opacity: 0; transition: opacity .22s ease, transform .34s cubic-bezier(0.16, 1, 0.3, 1);
     /* Above every overlay (dashboard 74, legal 80, auth 90, Settings 79) so a
        toast like "Settings saved" is never hidden behind an open screen. */
     pointer-events: none; z-index: 95;
   }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: opacity .15s ease; } }
 
   /* E-sign Phase C: signed-quote alert (top-center, above all overlays) */
   .sign-alert {
@@ -3060,9 +3253,11 @@
     border: 1px solid rgba(16,185,129,0.45);
     border-radius: 14px; padding: 13px 14px;
     box-shadow: 0 18px 48px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(16,185,129,0.08);
-    opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease;
+    /* Same physics family as the toast: quick fade, longer settling drop. */
+    opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .34s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .sign-alert.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  @media (prefers-reduced-motion: reduce) { .sign-alert { transition: opacity .15s ease; } }
   .sign-alert-icon {
     flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
@@ -4310,7 +4505,7 @@
     box-shadow: 0 0 0 1px rgba(181,143,74,0.3) inset;
   }
   .set-panel { display: none; }
-  .set-panel.active { display: block; animation: fadeIn .25s ease both; }
+  .set-panel.active { display: block; animation: aSwap .26s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .set-h { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: #f1f5f9; }
   .set-sub { font-size: 12px; color: #7e8ca0; margin-top: 2px; }  /* was #64748b (4.2:1, sub-AA); #7e8ca0 clears AA on the dark modal */
   /* ── Settings: one shared component layer (redesign Phase 1) ───────────────
@@ -4347,13 +4542,107 @@
   /* settings inputs ride >=16px to stop iOS zoom-on-focus + keep one size */
   .set-field input, .set-field select, .set-field textarea { font-size: 16px; }
   /* Rates leaf sub-navigation (redesign: split Rates into focused leaves) */
-  .rleaf-nav { display: flex; gap: 6px; margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  /* ── Second-level menu (iOS Settings style) ────────────────────────────────
+     Was a horizontal pill strip across the top of a panel; now a VERTICAL list
+     that reads as the next layer in from the tab rail. Desktop shows rail →
+     list → content side by side (iPad Settings); narrow screens drill down one
+     level at a time with a back button (iPhone Settings). Same buttons, same
+     showRatesLeaf/showSetupLeaf/showAccountLeaf handlers — only the presentation
+     changed, so deep links, search and nav-restore all keep working. */
+  .rleaf-nav { display: flex; flex-direction: column; gap: 2px; margin-bottom: 20px; }
   .rleaf-nav::-webkit-scrollbar { display: none; }
-  /* Edge-fade the horizontally-scrolling tab strips on mobile so it's visible that
-     more tabs continue off-screen (paired with scroll-active-into-view in the JS). */
-  @media (max-width: 639px) {
-    #settingsNav, .rleaf-nav { -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); }
+  /* Two-class selector so these beat the old pill rule AND the coarse-pointer
+     touch-target rule further down the sheet (both are single-class). */
+  .rleaf-nav .rleaf-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; flex: 0 0 auto; text-align: left; white-space: normal;
+    border-radius: 9px; border: 1px solid transparent; background: transparent;
+    padding: 9px 10px; gap: 10px; min-height: 40px;
   }
+  /* Chevron marks each row as "opens another layer", like an iOS disclosure. */
+  .rleaf-nav .rleaf-btn::after {
+    content: ""; flex: 0 0 auto; width: 6px; height: 6px; margin-right: 3px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg); opacity: .35;
+  }
+  .rleaf-nav .rleaf-btn:hover { background: rgba(148,163,184,0.08); color: #e2e8f0; border-color: transparent; }
+  .rleaf-nav .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.35); }
+  .rleaf-nav .rleaf-btn.active::after { opacity: .85; }
+  /* Light: the inherited #94a3b8 was ~2.5:1 on the light surface — fine for a
+     small pill, not for a primary nav column. Slate-600 clears AA. */
+  [data-theme="light"] .rleaf-nav .rleaf-btn { color: #475569; }
+  [data-theme="light"] .rleaf-nav .rleaf-btn:hover { background: rgba(15,23,42,0.05); color: #0f172a; }
+
+  @media (min-width: 860px) {
+    /* Rail → list → content. The panel heading spans the full width; the leaf
+       list takes column 1 and everything else flows into column 2. */
+    .set-panel.active[data-panel="setup"],
+    .set-panel.active[data-panel="rates"],
+    .set-panel.active[data-panel="account"] {
+      display: grid;
+      grid-template-columns: 186px minmax(0, 1fr);
+      column-gap: 26px;
+      align-items: start;
+    }
+    .set-panel[data-panel="setup"] > .set-h,   .set-panel[data-panel="setup"] > .set-sub,
+    .set-panel[data-panel="rates"] > .set-h,   .set-panel[data-panel="rates"] > .set-sub,
+    .set-panel[data-panel="account"] > .set-h, .set-panel[data-panel="account"] > .set-sub { grid-column: 1 / -1; }
+    .set-panel > .rleaf-nav {
+      grid-column: 1; grid-row: auto; margin-bottom: 0;
+      position: sticky; top: 0;
+      border-right: 1px solid rgba(30,41,59,0.9); padding-right: 12px;
+    }
+    .set-panel[data-panel="setup"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav),
+    .set-panel[data-panel="rates"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav),
+    .set-panel[data-panel="account"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav) { grid-column: 2; }
+    [data-theme="light"] .set-panel > .rleaf-nav { border-right-color: #e6e8ec; }
+  }
+
+  /* ── Drill-down on narrow screens ─────────────────────────────────────────
+     One layer at a time: tabs → sections → the settings themselves. The level
+     lives as a class on #adminModal (set-l1/2/3), driven by setSettingsLevel(). */
+  @media (max-width: 859px) {
+    #adminModal.set-l1 #settingsContent { display: none; }
+    #adminModal.set-l1 #settingsNav { width: 100%; flex: 1 1 auto; border-right: 0; }
+
+    #adminModal.set-l2 #settingsNav { display: none; }
+    #adminModal.set-l2 .set-panel.active > *:not(.set-h):not(.set-sub):not(.rleaf-nav) { display: none !important; }
+
+    #adminModal.set-l3 #settingsNav { display: none; }
+    #adminModal.set-l3 .set-panel.active > .rleaf-nav { display: none; }
+    /* The panel's own heading + blurb describe the LEVEL-2 list, so they'd just
+       repeat the header once you're inside a section. */
+    #adminModal.set-l3 .set-panel.active > .set-h,
+    #adminModal.set-l3 .set-panel.active > .set-sub { display: none; }
+
+    /* The rail becomes a plain vertical list at level 1. */
+    #settingsNav { display: block; overflow-x: visible; }
+    #settingsNav .set-tab { width: 100%; flex: 1 1 auto; justify-content: space-between; }
+    #settingsNav .set-tab::after {
+      content: ""; width: 6px; height: 6px; border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor; transform: rotate(-45deg); opacity: .45;
+    }
+  }
+  @media (min-width: 860px) { #settingsBack { display: none !important; } }
+  /* Back control — only meaningful in the drill-down. */
+  #settingsBack {
+    display: none; align-items: center; gap: 5px; background: transparent; border: 0;
+    color: #c9a558; font-size: 13px; font-weight: 700; cursor: pointer; padding: 6px 4px; min-height: 44px;
+  }
+  #adminModal.set-l2 #settingsBack, #adminModal.set-l3 #settingsBack { display: inline-flex; }
+  #settingsBack svg { flex: 0 0 auto; }
+  /* Back sits leftmost (iOS order), and the anchor mark steps aside for it so a
+     long section title has room on a 375px header instead of wrapping. */
+  #settingsBack { order: -1; }
+  @media (max-width: 859px) {
+    #adminModal.set-l2 #settingsAnchorIcon,
+    #adminModal.set-l3 #settingsAnchorIcon { display: none; }
+    #adminModal.set-l2 #settingsTitle,
+    #adminModal.set-l3 #settingsTitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  }
+  /* Phone-width: the back label costs more than it earns — the chevron alone is
+     understood, and the section title stops truncating to "Job Co…". */
+  @media (max-width: 460px) { #settingsBackLabel { display: none; } }
   .rleaf-btn { flex: 0 0 auto; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(51,65,85,0.7); background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
   .rleaf-btn:hover { color: #e2e8f0; border-color: #475569; }
   .rleaf-btn.active { background: var(--gold-soft); color: var(--gold-hi); border-color: rgba(181,143,74,0.45); }
@@ -5247,7 +5536,11 @@
   .dash-nav-btn { font-size: 13px; font-weight: 600; color: #94a3b8; padding: 8px 11px; border-radius: 9999px; background: transparent; border: 0; cursor: pointer; transition: color .15s ease; white-space: nowrap; }
   .dash-nav-btn:hover { color: #c9a558; }
   @media (max-width: 480px) { .dash-nav-btn { font-size: 12.5px; padding: 8px 6px; } }
-  .dash-job-card { border: 1px solid #1e293b; border-radius: 16px; background: rgba(15,23,42,0.5); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
+  /* No box-shadow in the transition: tweening a 36px-blur shadow repaints on
+     every hover frame across the whole grid. The shadow snaps on; the tweened
+     translateY lift masks it. (overflow:hidden here clips ::after, so the
+     launch cards' pseudo-shadow trick can't be used on these.) */
+  .dash-job-card { border: 1px solid #1e293b; border-radius: 16px; background: rgba(15,23,42,0.5); overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s ease, transform .15s ease; }
   .dash-job-card:hover { border-color: rgba(181,143,74,0.4); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
   .dash-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; background: rgba(2,6,23,0.6); border: 0; padding: 0; overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .dash-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
@@ -5337,8 +5630,12 @@
   [data-theme="light"] .dash-check-dismiss { color: #94a3b8; }
   [data-theme="light"] .dash-firstrun-note { color: #64748b; }
   /* ---- Launchpad cards (modular dashboard home) ---- */
-  .dash-launch-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
-  .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); }
+  /* Hover shadow lives on ::after and animates via opacity (compositor-cheap)
+     instead of tweening box-shadow, which repaints the card every frame. */
+  .dash-launch-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease; }
+  .dash-launch-card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+  .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); }
+  .dash-launch-card:hover::after { opacity: 1; }
   .dash-launch-card:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
   /* ---- Dashboard customize / edit mode ---- */
   .dash-customize-row {
@@ -5549,6 +5846,7 @@
   [data-theme="light"] .shop-list { border-color: #e6e8ec; }
   [data-theme="light"] .shop-item { border-color: #eef1f5; }
   [data-theme="light"] .dash-launch-card { background: #ffffff; border-color: #e6e8ec; }
+  [data-theme="light"] .dash-launch-card::after { box-shadow: 0 16px 36px -20px rgba(15,23,42,0.18); }
   [data-theme="light"] .dash-launch-title { color: #0f172a; }
   [data-theme="light"] .dash-launch-preview { color: #64748b; }
   [data-theme="light"] .dash-launch-preview2 { color: #94a3b8; }
@@ -6172,7 +6470,9 @@
   .learn-keynum-stat > b { font-size: 13px; color: #c9a558; font-weight: 800; font-variant-numeric: tabular-nums; }
   .learn-nav-toc.active { color: #c9a558; background: rgba(181,143,74,0.10); }
   .learn-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; }
-  .learn-progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #b58f4a, #c9a558); transition: width .15s linear; }
+  /* Driven by transform, not width — the scroll listener retargets this every
+     scroll event, and a width transition would relayout the bar per frame. */
+  .learn-progress span { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #b58f4a, #c9a558); transition: transform .15s linear; }
   .learn-pn { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
   .learn-pn-btn { text-align: left; border: 1px solid rgba(148,163,184,0.16); border-radius: 14px; padding: 14px 16px; background: rgba(15,23,42,0.4); cursor: pointer; display: flex; flex-direction: column; gap: 3px; transition: border-color .15s ease, transform .15s ease; -webkit-tap-highlight-color: transparent; }
   .learn-pn-btn:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-1px); }
@@ -10689,13 +10989,17 @@
     <!-- Header -->
     <div class="px-5 sm:px-8 py-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
       <div class="flex items-center gap-2.5">
-        <span class="text-[#c9a558]">
+        <span id="settingsAnchorIcon" class="text-[#c9a558]">
           <svg viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="50" cy="20" r="9"/><line x1="50" y1="29" x2="50" y2="82"/><line x1="33" y1="40" x2="67" y2="40"/>
             <path d="M22 60 C 22 78 38 86 50 86 C 62 86 78 78 78 60"/><path d="M22 60 L 13 52"/><path d="M78 60 L 87 52"/>
           </svg>
         </span>
-        <h3 class="text-base font-bold text-slate-100 tracking-tight">Settings</h3>
+        <h3 id="settingsTitle" class="text-base font-bold text-slate-100 tracking-tight">Settings</h3>
+        <button type="button" id="settingsBack" aria-label="Back">
+          <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="13 4 7 10 13 16"/></svg>
+          <span id="settingsBackLabel">Settings</span>
+        </button>
       </div>
       <div class="flex items-center gap-3">
         <span id="settingsSavedFlag" class="settings-saved" role="status" aria-live="polite" aria-atomic="true">
@@ -10737,7 +11041,7 @@
       </nav>
 
       <!-- Content -->
-      <div class="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
+      <div id="settingsContent" class="flex-1 overflow-y-auto px-5 sm:px-8 py-6">
 
         <!-- Setup: Brand · Job Defaults · Manufacturers grouped as leaves -->
         <div class="set-panel active" data-panel="setup">
@@ -10907,7 +11211,8 @@
             <button type="button" class="rleaf-btn active" data-rleaf-btn="money" onclick="showRatesLeaf('money')">Money &amp; Tax</button>
             <button type="button" class="rleaf-btn" data-rleaf-btn="crew" onclick="showRatesLeaf('crew')">Crew</button>
             <button type="button" class="rleaf-btn" data-rleaf-btn="labor" onclick="showRatesLeaf('labor')">Labor</button>
-            <button type="button" class="rleaf-btn" data-rleaf-btn="materials" onclick="showRatesLeaf('materials')">Window Rates</button>
+            <button type="button" class="rleaf-btn" data-rleaf-btn="materials" onclick="showRatesLeaf('materials')">Materials</button>
+            <button type="button" class="rleaf-btn" data-rleaf-btn="jobcosts" onclick="showRatesLeaf('jobcosts')">Job Costs</button>
             <button type="button" class="rleaf-btn" data-rleaf-btn="doors" onclick="showRatesLeaf('doors')">Doors</button>
           </div>
 
@@ -11096,9 +11401,9 @@
             <!-- ═══ Section: Materials (the dynamic list — each card gets
                  id="rates-item-<itemId>" from the renderer so the nav can
                  jump to it) ═══ -->
-            <section id="rates-section-materials" data-rleaf="materials" style="display:none" data-rates-section data-nav-label="Window Rates" data-nav-group="true">
+            <section id="rates-section-materials" data-rleaf="materials" style="display:none" data-rates-section data-nav-label="Materials" data-nav-group="true">
               <div class="flex items-center justify-between mb-3 gap-3">
-                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Window Rates</h4>
+                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Materials</h4>
                 <div class="flex items-center gap-1.5 flex-shrink-0">
                   <button type="button" id="adminChecklistView" class="btn rounded-full px-2.5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-[#c9a558] uppercase tracking-[0.1em]">View</button>
                   <button type="button" id="adminChecklistBtn" class="btn rounded-full px-3 py-1.5 text-[10px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/50 hover:bg-[#b58f4a]/10 uppercase tracking-[0.1em]">Checklist PDF</button>
@@ -11112,14 +11417,22 @@
               <div id="adminRatesBody" class="space-y-3"></div>
             </section>
 
+            <!-- ═══ Section: Job Costs ═══
+                 What a job costs you besides the materials you buy per opening:
+                 disposal, permits, and access equipment (lift rental + swing
+                 stage). Rendered from the same card builder as Materials — see
+                 JOB_COST_IDS in renderAdminRates(). -->
+            <section id="rates-section-jobcosts" data-rleaf="jobcosts" style="display:none" data-rates-section data-nav-label="Job Costs" data-nav-group="true">
+              <div class="flex items-center justify-between mb-3 gap-3">
+                <h4 class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-bold">Job Costs</h4>
+              </div>
+              <p class="text-[11px] text-slate-500 mb-3">Disposal, permits and access equipment &mdash; what the job costs you beyond the materials themselves.</p>
+              <div id="adminFeesBody" class="space-y-3"></div>
+            </section>
+
             <!-- ═══ Section: Swing Doors ═══ -->
-            <div class="rleaf-doornav" data-rleaf="doors" style="display:none">
-              <button type="button" class="rdoor-btn active" data-rdoor-btn="swing" onclick="showDoorType('swing')">Swing</button>
-              <button type="button" class="rdoor-btn" data-rdoor-btn="sliding" onclick="showDoorType('sliding')">Sliding</button>
-              <button type="button" class="rdoor-btn" data-rdoor-btn="bifold" onclick="showDoorType('bifold')">Bifold</button>
-            </div>
             <section id="rates-section-doors" data-rleaf="doors" data-dtype="swing" style="display:none" data-rates-section data-nav-label="Swing Doors">
-            <details class="set-collapse group" id="sc-rates-doors-swing" data-collapse-key="rates-doors-swing" data-collapse-open>
+            <details class="set-collapse group" id="sc-rates-doors-swing" data-collapse-key="rates-doors-swing">
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Swing Doors</span>
@@ -11208,7 +11521,7 @@
 
             <!-- ═══ Section: Sliding Glass Doors ═══ -->
             <section id="rates-section-sliders" data-rleaf="doors" data-dtype="sliding" style="display:none" data-rates-section data-nav-label="Sliding Glass Doors">
-            <details class="set-collapse group" id="sc-rates-doors-sliding" data-collapse-key="rates-doors-sliding" data-collapse-open>
+            <details class="set-collapse group" id="sc-rates-doors-sliding" data-collapse-key="rates-doors-sliding">
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Sliding Glass Doors</span>
@@ -11291,7 +11604,7 @@
 
             <!-- ═══ Section: Bifold Doors ═══ -->
             <section id="rates-section-bifold" data-rleaf="doors" data-dtype="bifold" style="display:none" data-rates-section data-nav-label="Bifold Doors">
-            <details class="set-collapse group" id="sc-rates-doors-bifold" data-collapse-key="rates-doors-bifold" data-collapse-open>
+            <details class="set-collapse group" id="sc-rates-doors-bifold" data-collapse-key="rates-doors-bifold">
             <summary class="set-collapse-summary">
               <svg class="set-collapse-chev group-open:rotate-90" width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 4 13 10 7 16"/></svg>
               <span class="set-collapse-title">Bifold Doors</span>
@@ -11429,7 +11742,7 @@
             <!-- DEV ONLY — enable by pasting `window.__ANCHOR_DEV = true` in DevTools console, then reopen Settings. -->
             <div id="subDevTools" class="hidden mt-7 pt-5 border-t border-slate-800 max-w-2xl">
               <div class="text-[11px] uppercase tracking-[0.16em] text-amber-400/80 font-bold mb-1">Dev tools</div>
-              <p class="text-[11px] text-slate-600 mb-3">Reset your entitlement record to a fresh trial — for testing the badge + upsell flow.</p>
+              <p class="text-[11px] text-slate-600 mb-3">Reset to a brand-new account — brings back the plan chooser, for testing the signup, badge + upsell flow.</p>
               <button id="subResetEntitlements" type="button" class="btn text-xs text-slate-500 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-full px-3 py-2">↻ Reset entitlements (DEV)</button>
             </div>
             </div><!-- /set-collapse-body -->
@@ -12643,6 +12956,10 @@ const DEFAULT_DATA = {
 };
 
 // Cost items that are brand-variant materials (vs. labor / job fees)
+// Rates → "Job Costs" leaf: what a job costs you BESIDES the materials you buy
+// per opening. Everything not listed here (and not labor) stays in Materials.
+// Swing stage has no costItems row — it's a special card that follows lift_rental.
+const JOB_COST_IDS = ["disposal", "permit", "lift_rental"];
 const MATERIAL_IDS = ["caulking", "shims", "backer_rod", "flashing_tape",
   "wood_bucking", "block_sealer", "screws", "concrete_anchors"];
 
@@ -15476,7 +15793,7 @@ function calculate() {
   // plus any one-off floor with its own Trim checkbox — so a trimmed lobby
   // under an untrimmed tower (or the reverse) prices exactly. The board price
   // and brand come from the trim_board rate item (variant-aware, editable in
-  // Settings → Window Rates); both rows stay taxed like other materials.
+  // Settings → Materials); both rows stay taxed like other materials.
   {
     const tb = computeTrimBreakdown();
     const trimLF = tb ? tb.trimLF : 0;
@@ -15842,9 +16159,57 @@ function applyBrandToUI() {
   renderPfp();
 }
 
-// Profile avatar — the company logo, or initials / anchor fallback. Rendered
-// into BOTH the app-header avatar (#pfpInner) and the dashboard avatar
-// (#dashPfpInner). Also gates the admin-only menu section.
+// Default profile avatars — cute ocean creatures (Anchor-themed), assigned once
+// per account until the user uploads a company logo. Served from /avatars/*.png.
+const CREW_AVATARS = [
+  { id: "coral-fish",   src: "/avatars/coral-fish.png",   label: "Coral fish" },
+  { id: "baby-octopus", src: "/avatars/baby-octopus.png", label: "Baby octopus" },
+  { id: "sea-turtle",   src: "/avatars/sea-turtle.png",   label: "Sea turtle" },
+  { id: "seahorse",     src: "/avatars/seahorse.png",     label: "Seahorse" },
+  { id: "hermit-crab",  src: "/avatars/hermit-crab.png",  label: "Hermit crab" },
+  { id: "whale",        src: "/avatars/whale.png",        label: "Whale" },
+  { id: "stingray",     src: "/avatars/stingray.png",     label: "Stingray" },
+  { id: "dolphin",      src: "/avatars/dolphin.png",      label: "Dolphin" },
+  { id: "starfish",     src: "/avatars/starfish.png",     label: "Starfish" },
+];
+
+function hashPickAvatar(seed, n) {
+  let h = 2166136261;
+  const s = String(seed || "anchor");
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) % n;
+}
+
+// Pick (and remember) a default ocean avatar for this account. Stable per user
+// id so the same creature comes back across devices even before the first save.
+function ensureCrewAvatarId() {
+  if (!DATA || !DATA.config) return CREW_AVATARS[0].id;
+  if (!DATA.config.brand) DATA.config.brand = {};
+  const b = DATA.config.brand;
+  if (b.avatarId && CREW_AVATARS.some(a => a.id === b.avatarId)) return b.avatarId;
+  const seed = (typeof currentUser !== "undefined" && currentUser && currentUser.id)
+    ? currentUser.id
+    : ((b.companyName || "") + "|" + (b.email || "") || "guest");
+  const id = CREW_AVATARS[hashPickAvatar(seed, CREW_AVATARS.length)].id;
+  b.avatarId = id;
+  // Persist lazily so cloud/local keep the choice without blocking paint.
+  try {
+    queueMicrotask(() => { try { if (DATA && DATA.config) saveData(DATA); } catch (_) {} });
+  } catch (_) {
+    try { saveData(DATA); } catch (__) {}
+  }
+  return id;
+}
+
+function crewAvatarSrc(id) {
+  const a = CREW_AVATARS.find(x => x.id === id) || CREW_AVATARS[0];
+  return a.src;
+}
+
+// Profile avatar — uploaded company logo, else a randomly-assigned ocean
+// creature (replaces the old "PW" initials from the demo brand name).
+// Rendered into BOTH the app-header avatar (#pfpInner) and the dashboard
+// avatar (#dashPfpInner). Also gates the admin-only menu section.
 function renderPfp() {
   const b = (DATA && DATA.config && DATA.config.brand) || {};
   let html;
@@ -15852,11 +16217,10 @@ function renderPfp() {
   if (b.logo && /^data:image\//i.test(b.logo)) {
     html = `<img src="${escHtml(b.logo)}" alt="" class="w-full h-full object-cover">`;
   } else {
-    const name = (b.companyName || "").trim();
-    const initials = name
-      ? name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()
-      : "";
-    html = `<span class="text-[11px] font-black text-[#c9a558]">${initials ? escHtml(initials) : "&#9875;"}</span>`;
+    const id = ensureCrewAvatarId();
+    const src = crewAvatarSrc(id);
+    const label = (CREW_AVATARS.find(a => a.id === id) || {}).label || "Profile";
+    html = `<img src="${escHtml(src)}" alt="${escHtml(label)}" class="w-full h-full object-cover" decoding="async">`;
   }
   ["pfpInner", "dashPfpInner"].forEach(id => {
     const el = document.getElementById(id); if (el) el.innerHTML = html;
@@ -16029,10 +16393,14 @@ function positionPfpMenu(trigger) {
     m.style.top = "auto";
     m.style.bottom = (vh - r.top + 8) + "px";
     m.style.maxHeight = Math.max(200, r.top - 16) + "px";
+    // Flipped above the trigger: the aMenuIn scale must grow from the anchor
+    // edge (bottom right), not the CSS-default top right.
+    m.style.transformOrigin = "bottom right";
   } else {
     m.style.bottom = "auto";
     m.style.top = (r.bottom + 8) + "px";
     m.style.maxHeight = "";
+    m.style.transformOrigin = "";
   }
 }
 function pfpRollRows(m) {
@@ -17294,10 +17662,51 @@ function renderRailAccSummaries() {
   });
 }
 // One section open at a time. Wires once; default-opens the first section once.
+// Animated accordion toggle. The CSS has no max-height sentinel (a 4000px
+// target collapsed the .32s ease into ~2 visible frames) — this animates to
+// the section's REAL height via inline max-height, then rests at none so the
+// body stays auto-height (and :has(.dd.open) dropdown spill keeps working).
+// Falls back to a plain class toggle when there's no body to animate.
+function setAccOpen(acc, open) {
+  const b = acc.querySelector(".rail-acc-body");
+  const was = acc.classList.contains("open");
+  if (!b || was === open || !document.body.classList.contains("rail-tidy")) {
+    acc.classList.toggle("open", open);
+    return;
+  }
+  // Tear down BOTH cleanup channels from any in-flight open before starting a
+  // new direction. An interrupted open fires transitioncancel (not -end), so a
+  // stale listener/timer would fire rest() when the CLOSE's transition ends —
+  // setting max-height:none on a closed section and snapping it fully open.
+  if (b._accT) { clearTimeout(b._accT); b._accT = 0; }
+  if (b._accTe) { b.removeEventListener("transitionend", b._accTe); b._accTe = null; }
+  if (open) {
+    // Measure BEFORE .open applies, then add the .open rule's vertical padding
+    // (2 + 16 — keep in sync with `.rail-acc.open .rail-acc-body`): once the
+    // content overflows, scrollHeight omits padding-bottom, so measuring after
+    // the class lands ~18px short and the section bottom pops in at rest.
+    const target = b.scrollHeight + 18;
+    acc.classList.add("open");
+    b.style.maxHeight = target + "px";
+    const rest = () => {
+      if (b._accT) { clearTimeout(b._accT); b._accT = 0; }
+      if (b._accTe) { b.removeEventListener("transitionend", b._accTe); b._accTe = null; }
+      b.style.maxHeight = "none";
+    };
+    const te = (e) => { if (e.propertyName === "max-height") rest(); };
+    b.addEventListener("transitionend", te); b._accTe = te;
+    b._accT = setTimeout(rest, 420);   // safety: rest at auto even if transitionend is lost
+  } else {
+    b.style.maxHeight = b.scrollHeight + "px";   // pin current height (from none)…
+    void b.offsetHeight;                          // …flush it…
+    acc.classList.remove("open");
+    b.style.maxHeight = "";                       // …then release to the base 0 → animates shut
+  }
+}
 function setAllAccordions(open) {
   // :not(.hidden) — a section with no applicable content (e.g. Materials when nothing
   // applies) shouldn't be force-opened or counted in the expand/collapse state.
-  document.querySelectorAll("#jobRail .rail-acc:not(.hidden)").forEach(a => a.classList.toggle("open", open));
+  document.querySelectorAll("#jobRail .rail-acc:not(.hidden)").forEach(a => setAccOpen(a, open));
   updateExpandAllBtn();
 }
 function updateExpandAllBtn() {
@@ -17329,8 +17738,8 @@ function initRailAccordion() {
             if (b) collapseAbove = b.getBoundingClientRect().height;
           }
         }
-        accs.forEach(a => a.classList.remove("open"));
-        if (!wasOpen) acc.classList.add("open");
+        accs.forEach(a => { if (a !== acc) setAccOpen(a, false); });
+        setAccOpen(acc, !wasOpen);
         updateExpandAllBtn();
         // On open, land the section's header near the top of the rail so its
         // beginning is always visible — scroll to its PROJECTED resting position
@@ -17409,8 +17818,8 @@ function jumpToRailField(target) {
   const accKey = target === "access" ? "extras" : "openings";
   const acc = document.querySelector(`#jobRail .rail-acc[data-acc="${accKey}"]`);
   if (acc && document.body.classList.contains("rail-tidy")) {
-    document.querySelectorAll("#jobRail .rail-acc").forEach(a => a.classList.remove("open"));
-    acc.classList.add("open");
+    document.querySelectorAll("#jobRail .rail-acc").forEach(a => { if (a !== acc) setAccOpen(a, false); });
+    setAccOpen(acc, true);
     if (typeof updateExpandAllBtn === "function") updateExpandAllBtn();
   }
   const el = document.getElementById(target === "access" ? "liftToggleBtn" : "windowCountInput");
@@ -17829,7 +18238,10 @@ function openDashboard(opts) {
   // an iOS touch-offset containing block over the fixed tab bar.
   if (wasHidden) {
     const clearAnim = (e) => {
-      if (e && e.target !== d) return;
+      // The screen runs TWO comma animations (aScreenIn 340ms + aFade 240ms);
+      // only the longer entrance ending may clear — reacting to aFade's end
+      // would chop the spring settle 100ms early.
+      if (e && (e.target !== d || e.animationName !== "aScreenIn")) return;
       d.classList.add("dash-anim-done");
       d.removeEventListener("animationend", clearAnim);
     };
@@ -19619,17 +20031,31 @@ function tvDismiss(modalEl, onDone) {
   if (card && card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; }
   const finish = () => {
     if (modalEl._tvCloseTimer) { clearTimeout(modalEl._tvCloseTimer); modalEl._tvCloseTimer = 0; }
-    if (card) { card.classList.remove("tv-off"); if (card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; } }
+    // sheet-opened is the drag-settle "entrance already played" marker — strip
+    // it on every close so the next OPEN replays the sheet slide-up.
+    if (card) { card.classList.remove("tv-off", "sheet-opened"); if (card._tvEnd) { card.removeEventListener("animationend", card._tvEnd); card._tvEnd = null; } }
     modalEl.classList.add("hidden");
     modalEl.classList.remove("flex", "modal-closing");
     releaseDialog(modalEl);   // Phase 4c: restore focus + pop the dialog stack (no-op if not trapped)
     if (onDone) onDone();
   };
-  if (!card || dashReduceMotion()) { finish(); return; }
+  // Already hidden (e.g. the Escape catch-all closes every registered modal
+  // unconditionally): clean up + callback synchronously. Without this, .tv-off
+  // sits armed on a display:none card with a 520ms timer — reopening inside
+  // that window played the exit animation and self-hid the fresh modal.
+  if (!card || modalEl.classList.contains("hidden") || dashReduceMotion()) { finish(); return; }
   modalEl.classList.add("modal-closing");
   card.classList.add("tv-off");
   let fired = false;
-  const end = () => { if (fired) return; fired = true; finish(); };
+  // Only the card's own exit animation may finish the close (aPopOut on
+  // desktop, sheetDown for mobile bottom sheets) — animationend BUBBLES, so a
+  // child animation ending mid-close (spinner, content flourish) would
+  // otherwise cut the exit short. The 520ms timer below still backstops.
+  const end = (e) => {
+    if (fired) return;
+    if (e && (e.target !== card || (e.animationName !== "aPopOut" && e.animationName !== "sheetDown"))) return;
+    fired = true; finish();
+  };
   card._tvEnd = end;
   card.addEventListener("animationend", end);
   modalEl._tvCloseTimer = setTimeout(end, 520);   // safety net if animationend doesn't fire
@@ -23939,7 +24365,7 @@ function closeJobDetailsInstant() {
   if (m._tvCloseTimer) { clearTimeout(m._tvCloseTimer); m._tvCloseTimer = 0; }
   const card = m.querySelector(".modal-backdrop + div, :scope > .card");
   if (card) {
-    card.classList.remove("tv-off", "sheet-dragging", "sheet-settling");
+    card.classList.remove("tv-off", "sheet-dragging", "sheet-settling", "sheet-opened");
     card.style.transform = ""; card.style.transition = "";
   }
   const bd = m.querySelector(":scope > .modal-backdrop");
@@ -24732,7 +25158,8 @@ function wireLearn() {
       const fill = document.getElementById("learnProgressFill");
       if (!fill) return;
       const max = screenEl.scrollHeight - screenEl.clientHeight;
-      fill.style.width = (max > 0 ? Math.min(100, (screenEl.scrollTop / max) * 100) : 0) + "%";
+      // scaleX, not width — a width write relayouts the bar on every scroll event
+      fill.style.transform = "scaleX(" + (max > 0 ? Math.min(1, screenEl.scrollTop / max) : 0) + ")";
     }, { passive: true });
   }
   const close = document.getElementById("learnClose"); if (close) close.addEventListener("click", closeLearn);
@@ -25501,16 +25928,27 @@ function newInviteCode() {
 function inviteLinkFor(code) {
   return `${location.origin}${location.pathname}?join=${encodeURIComponent(code)}`;
 }
-async function createOrgInviteWeb(orgId, role) {
+/* Packaging limits. Crews are capped in the app only — `crews` is owned by the
+   anchor-field app too, and a DB trigger there would start rejecting crew
+   creation inside the mobile app. The INVITE cap is enforced in the database
+   (trigger trg_crew_invite_cap), because that's this app's own table and it is
+   the limit that actually needs to hold. */
+const MAX_CREWS_PER_ORG = 3;
+const MAX_INVITES_PER_CREW = 5;
+
+async function createOrgInviteWeb(orgId, role, crewId) {
   const code = newInviteCode();
-  const { error } = await sb.from("org_invites")
-    .insert({ org_id: orgId, code, role: role || "installer", created_by: currentUser.id });
+  const row = { org_id: orgId, code, role: role || "installer", created_by: currentUser.id };
+  // Crew-scoped link: redeem_org_invite seats them on that crew automatically,
+  // so nobody has to be hand-picked into a crew after joining.
+  if (crewId) row.crew_id = crewId;
+  const { error } = await sb.from("org_invites").insert(row);
   if (error) throw error;
   return code;
 }
 async function listOrgInvitesWeb(orgId) {
   const { data, error } = await sb.from("org_invites")
-    .select("id,code,role,uses,max_uses,expires_at")
+    .select("id,code,role,uses,max_uses,expires_at,crew_id")
     .eq("org_id", orgId).gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -25692,7 +26130,8 @@ function renderSaveJobCrewPicker(selectedId) {
 // Refetches on open when the cache is older than 60s; paints the cache first.
 async function openTeamsSettings() {
   renderTeamsSettings();
-  if (typeof planAllows === "function" && !planAllows("unlimited")) return;
+  // A crew seat has no plan of its own — never gate ITS fetch on planAllows.
+  if (!isCrewAccount() && typeof planAllows === "function" && !planAllows("unlimited")) return;
   if (!sb || !currentUser || _orgCtxLoading) return;
   const cached = getOrgContext();
   if (cached && Date.now() - (cached.fetchedAt || 0) < 60000) { _orgCtx = cached; return; }
@@ -25913,7 +26352,14 @@ function renderSeatPanel(ctx) {
 function renderTeamsSettings() {
   const body = document.getElementById("teamsBody");
   if (!body) return;
-  const allowed = (typeof planAllows === "function") ? planAllows("unlimited") : false;
+  // A crew account is a seat on someone else's Shop plan — gate it on THEIR
+  // company, never on the seat's own (deliberately plan-less) entitlement.
+  // Without this the invited installer hits the "Teams are part of Shop" wall
+  // and can never reach the one view they were invited for.
+  const isCrew = (typeof isCrewAccount === "function") && isCrewAccount();
+  const allowed = isCrew
+    ? true
+    : ((typeof planAllows === "function") ? planAllows("unlimited") : false);
   if (!allowed) {
     body.innerHTML = `
       <div class="set-card team-lockcard">
@@ -26162,7 +26608,12 @@ function renderInvitePanel(orgId) {
       .catch(() => { _teamInvites = []; renderInvitePanel(orgId); });
     return;
   }
-  const rows = _teamInvites.map(iv => {
+  // Links belong to a crew, so the panel is grouped by crew: each crew gets its
+  // own list and its own "create" button, capped at MAX_INVITES_PER_CREW live.
+  const ctx = getOrgContext();
+  const crews = (ctx && ctx.crews) || [];
+  const isLive = (iv) => new Date(iv.expires_at) > new Date() && (iv.uses || 0) < (iv.max_uses || 1);
+  const rowHtml = (iv) => {
     const left = Math.max(0, (iv.max_uses || 0) - (iv.uses || 0));
     const days = Math.max(0, Math.ceil((new Date(iv.expires_at) - Date.now()) / 86400000));
     return `<div class="team-inviterow">
@@ -26171,10 +26622,26 @@ function renderInvitePanel(orgId) {
       <button type="button" class="team-act" data-invite-copy="${escHtml(iv.code)}">Copy link</button>
       <button type="button" class="team-act team-act-danger" data-invite-revoke="${escHtml(iv.id)}">Revoke</button>
     </div>`;
-  }).join("");
-  wrap.innerHTML = (rows || `<p class="team-empty">No active invite links.</p>`) +
-    `<button type="button" class="team-add-btn mt-2" data-invite-new>Create an invite link</button>
-     <p class="team-ratehint mt-2">Send this to a sub or a crew lead. They sign up with their own email, land on the team as an installer, and can then set the prices and pay you quote their work at. Add them to a crew above once they&rsquo;ve joined.</p>`;
+  };
+  if (!crews.length) {
+    wrap.innerHTML = `<p class="team-empty">Add a crew first — invite links belong to a crew, so whoever joins lands on it automatically.</p>`;
+    return;
+  }
+  // Links made before links were crew-scoped have no crew — still listed, so
+  // they can be copied or revoked, just not grouped.
+  const legacy = _teamInvites.filter(iv => !iv.crew_id);
+  wrap.innerHTML = crews.map(c => {
+    const mine = _teamInvites.filter(iv => iv.crew_id === c.id);
+    const live = mine.filter(isLive).length;
+    const full = live >= MAX_INVITES_PER_CREW;
+    return `<div class="set-card mb-2">
+      <div class="set-sub mb-1">${escHtml(c.name)} <span class="team-invitemeta">&middot; ${live}/${MAX_INVITES_PER_CREW} active</span></div>
+      ${mine.map(rowHtml).join("") || `<p class="team-empty">No links yet.</p>`}
+      <button type="button" class="team-add-btn mt-2" data-invite-new="${escHtml(c.id)}"${full ? " disabled" : ""}>${full ? "Link limit reached" : "Create an invite link"}</button>
+    </div>`;
+  }).join("") +
+    (legacy.length ? `<div class="set-card mb-2"><div class="set-sub mb-1">Older links <span class="team-invitemeta">&middot; not tied to a crew</span></div>${legacy.map(rowHtml).join("")}</div>` : "") +
+    `<p class="team-ratehint mt-2">Send a crew&rsquo;s link to its lead or sub. They sign up with their own email and land straight on that crew &mdash; where they set the prices and pay you quote their work at, and see the shopping list. They never get the calculator. ${MAX_INVITES_PER_CREW} live links per crew, ${MAX_CREWS_PER_ORG} crews for now.</p>`;
 }
 
 
@@ -26381,9 +26848,19 @@ function wireTeamsSettings() {
       return;
     }
     // ── Teams T7: invite links ──
-    if (e.target.closest("[data-invite-new]")) {
+    const iNew = e.target.closest("[data-invite-new]");
+    if (iNew) {
       if (!isOrgAdminRole()) { try { toast("Only an owner or admin can invite."); } catch (_) {} return; }
-      createOrgInviteWeb(ctx.orgId, "installer")
+      // Links belong to a crew: the invitee is seated on it the moment they join.
+      const crewId = iNew.dataset.inviteNew || null;
+      if (!crewId) { try { toast("Add a crew first — invite links belong to a crew."); } catch (_) {} return; }
+      const live = (_teamInvites || []).filter(v => v.crew_id === crewId
+        && new Date(v.expires_at) > new Date() && (v.uses || 0) < (v.max_uses || 1)).length;
+      if (live >= MAX_INVITES_PER_CREW) {
+        try { toast(`That crew already has ${MAX_INVITES_PER_CREW} active invite links — revoke one to make room.`); } catch (_) {}
+        return;
+      }
+      createOrgInviteWeb(ctx.orgId, "installer", crewId)
         .then((code) => { _teamInvitesOpen = true; return afterCrewWrite("Invite link created"); })
         .catch(fail);
       return;
@@ -26409,6 +26886,10 @@ function wireTeamsSettings() {
       if (!name) { if (input) input.focus(); return; }
       if (ctx.crews.some(c => (c.name || "").trim().toLowerCase() === name.toLowerCase())) {
         try { toast("You already have a crew with that name."); } catch (_) {}
+        return;
+      }
+      if ((ctx.crews || []).length >= MAX_CREWS_PER_ORG) {
+        try { toast(`You can run ${MAX_CREWS_PER_ORG} crews for now — rename or remove one to add another.`); } catch (_) {}
         return;
       }
       add.disabled = true;
@@ -29516,6 +29997,11 @@ const adminModal = document.getElementById("adminModal");
 function openAdmin() {
   window.track("settings_opened");
   buildAdminUI();
+  // Drill-down back button — wire once (init() can run more than once).
+  { const bk = document.getElementById("settingsBack");
+    if (bk && !bk._wired) { bk.addEventListener("click", settingsBack); bk._wired = true; } }
+  // The level is set by showSettingsTab() below, which honours last-tab memory —
+  // so re-opening lands where you left off instead of back at the root list.
   const acct = document.getElementById("acctEmailSettings");
   if (acct) acct.textContent = (currentUser && currentUser.email) || "Offline mode";
   document.getElementById("adminTabBtn").classList.toggle("hidden", !isAdmin());
@@ -29558,6 +30044,59 @@ function closeAdmin() {
 
 // Switch the active Settings tab + panel; the Save/Restore footer only
 // shows on the editable data tabs.
+/* ── Settings drill-down (narrow screens) ─────────────────────────────────────
+   Wide screens show all three layers at once (rail → section list → content),
+   so the level is a no-op there. Narrow screens move one layer at a time like
+   iPhone Settings, and the header's back button walks it back.
+   Only these tabs have a second layer; the rest go straight to their content. */
+const SETTINGS_TABS_WITH_LEAVES = ["setup", "rates", "account"];
+const SETTINGS_TAB_LABEL = { setup: "Setup", customers: "Customers", rates: "Rates & Pricing",
+  teams: "Teams", account: "Account & Plan", feedback: "Feedback", resources: "Resources", admin: "Admin" };
+let _setLevel = 1;
+function settingsIsNarrow() { return window.matchMedia("(max-width: 859px)").matches; }
+function setSettingsLevel(n) {
+  _setLevel = n;
+  const m = document.getElementById("adminModal");
+  if (!m) return;
+  m.classList.remove("set-l1", "set-l2", "set-l3");
+  m.classList.add("set-l" + n);
+  // Title reflects where you are; back says where it returns to.
+  const tabName = (document.querySelector("#adminModal .set-tab.active") || {}).dataset?.tab;
+  const title = document.getElementById("settingsTitle");
+  const backLabel = document.getElementById("settingsBackLabel");
+  const tabLabel = SETTINGS_TAB_LABEL[tabName] || "Settings";
+  // iOS convention: the title is where you ARE, the back button is where it
+  // returns to. At level 3 that means the section name, not the tab again.
+  const leafBtn = document.querySelector("#adminModal .set-panel.active .rleaf-btn.active");
+  const leafLabel = leafBtn ? leafBtn.textContent.trim() : "";
+  if (title) {
+    title.textContent = (n === 1 || !tabName) ? "Settings"
+      : (n === 3 && leafLabel && SETTINGS_TABS_WITH_LEAVES.includes(tabName)) ? leafLabel
+      : tabLabel;
+  }
+  if (backLabel) {
+    backLabel.textContent = (n === 3 && SETTINGS_TABS_WITH_LEAVES.includes(tabName)) ? tabLabel : "Settings";
+  }
+}
+/** Back one layer. Level 3 → the section list (only if this tab has one). */
+function settingsBack() {
+  const tabName = (document.querySelector("#adminModal .set-tab.active") || {}).dataset?.tab;
+  if (_setLevel === 3 && SETTINGS_TABS_WITH_LEAVES.includes(tabName)) setSettingsLevel(2);
+  else setSettingsLevel(1);
+}
+/** Called by the leaf switchers — picking a section opens it. */
+function settingsEnterLeaf() { if (settingsIsNarrow()) setSettingsLevel(3); }
+/* Crossing the breakpoint (resize / rotate) must re-sync the level, or a stale
+   set-l2 from a narrow session hides the section list once it's wide again. */
+window.addEventListener("resize", () => {
+  const m = document.getElementById("adminModal");
+  if (!m || m.classList.contains("hidden")) return;
+  if (!settingsIsNarrow()) { setSettingsLevel(1); return; }
+  // Coming back to narrow: land on the deepest layer that has content.
+  const tabName = (document.querySelector("#adminModal .set-tab.active") || {}).dataset?.tab;
+  setSettingsLevel(SETTINGS_TABS_WITH_LEAVES.includes(tabName) ? 2 : 3);
+});
+
 function showSettingsTab(name) {
   document.querySelectorAll("#adminModal .set-tab").forEach(t =>
     t.classList.toggle("active", t.dataset.tab === name));
@@ -29576,6 +30115,9 @@ function showSettingsTab(name) {
   { const at = document.querySelector("#adminModal .set-tab.active"); if (at) try { at.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
   // Remember the last main tab (owner-only tabs excluded) so re-opening returns here.
   if (!["feedback", "resources", "admin"].includes(name)) { try { localStorage.setItem("settings_last_tab", name); } catch (_) {} }
+  // Drill in: to the section list when this tab has one, else straight to content.
+  if (settingsIsNarrow()) setSettingsLevel(SETTINGS_TABS_WITH_LEAVES.includes(name) ? 2 : 3);
+  else setSettingsLevel(1);
   scheduleSaveNav();
 }
 
@@ -29647,11 +30189,15 @@ function openSettingsToItem(itemId) {
     let _leaf = "materials";
     if (itemId === "labor") _leaf = "labor";
     else if (String(itemId).startsWith("swing_doors")) _leaf = "doors";
+    // Disposal / permit / lift rental (and the swing-stage card that follows
+    // lift rental) live in the Job Costs leaf, not Materials.
+    else if (JOB_COST_IDS.includes(itemId) || itemId === "swing_stage") _leaf = "jobcosts";
     if (typeof showRatesLeaf === "function") showRatesLeaf(_leaf);
     if (_leaf === "doors" && typeof showDoorType === "function") showDoorType("swing");
   } catch (_) {}
   try {
-    const det = document.querySelector(`#adminRatesBody details[data-cat="${itemId}"], #adminRatesBody details[id="rates-item-${itemId}"]`);
+    // Search both list bodies — Materials and Job Costs render from the same builder.
+    const det = document.querySelector(`#adminRatesBody details[data-cat="${itemId}"], #adminRatesBody details[id="rates-item-${itemId}"], #adminFeesBody details[data-cat="${itemId}"], #adminFeesBody details[id="rates-item-${itemId}"]`);
     if (det && !det.open) det.open = true;
     // Also force-open the static .set-collapse that holds non-material targets
     // (labor section + door editors), so the scroll/highlight lands on a visible field.
@@ -29693,7 +30239,7 @@ function openSettingsToItem(itemId) {
       // Scroll to the section card, not the tiny input
       target = highlight ? highlight.closest("[data-swing-leaf]") || highlight : null;
     } else if (itemId === "trim_board") {
-      // Interior Trim lives in its own Window Rates card (the material×width
+      // Interior Trim lives in its own Materials card (the material×width
       // grid), NOT the dynamic #adminRatesBody list — land on the grid.
       const c = document.getElementById("rates-item-trim_board");
       target = c;
@@ -29711,8 +30257,9 @@ function openSettingsToItem(itemId) {
                     card.querySelector("input[data-key]") ||
                     card;
       } else {
-        // Job-fee / labor-style item — one unit-price input.
-        highlight = wrap.querySelector(`[data-unitprice="${itemId}"]`);
+        // Job-cost item (disposal / permit / lift rental) — one unit-price
+        // input, and it lives in the Job Costs body, not the materials list.
+        highlight = document.querySelector(`#adminRatesBody [data-unitprice="${itemId}"], #adminFeesBody [data-unitprice="${itemId}"]`);
         target = highlight;
       }
     }
@@ -30365,7 +30912,7 @@ function closeChangeOrderInstant() {
   if (!changeOrderModal) return;
   if (changeOrderModal._tvCloseTimer) { clearTimeout(changeOrderModal._tvCloseTimer); changeOrderModal._tvCloseTimer = 0; }
   const card = changeOrderModal.querySelector(".modal-backdrop + div, :scope > .card");
-  if (card) { card.classList.remove("tv-off"); card.style.transform = ""; card.style.opacity = ""; }
+  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling", "sheet-opened"); card.style.transform = ""; card.style.opacity = ""; }
   changeOrderModal.classList.add("hidden");
   changeOrderModal.classList.remove("flex", "modal-closing");
   try { releaseDialog(changeOrderModal); } catch (_) {}
@@ -30749,6 +31296,11 @@ function wireMobileSheetDismiss(overlayEl, closeFn, opts) {
         card.style.transform = "translate3d(0, 0, 0)";
         if (backdrop) backdrop.style.opacity = "1";
         setTimeout(() => {
+          // Swap settling → sheet-opened in the same sync block (no style flush
+          // between, so sheetUp can't restart): the entrance must NOT replay
+          // after an aborted dismiss drag. tvDismiss finish() strips
+          // sheet-opened on close so the next open animates again.
+          card.classList.add("sheet-opened");
           card.classList.remove("sheet-settling");
           card.style.transition = ""; card.style.transform = "";
           clearBackdropFade();
@@ -30789,7 +31341,7 @@ function closeFLInstant() {
   if (!flModal) return;
   if (flModal._tvCloseTimer) { clearTimeout(flModal._tvCloseTimer); flModal._tvCloseTimer = 0; }
   const card = flModal.querySelector(".modal-backdrop + div, :scope > .card");
-  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling"); card.style.transform = ""; card.style.transition = ""; }
+  if (card) { card.classList.remove("tv-off", "sheet-dragging", "sheet-settling", "sheet-opened"); card.style.transform = ""; card.style.transition = ""; }
   flModal.classList.add("hidden");
   flModal.classList.remove("flex", "modal-closing");
   try { releaseDialog(flModal); } catch (_) {}
@@ -31801,7 +32353,7 @@ function mfrCardHTML(name, rate, opts) {
           <input class="mfr-tf-i ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.impact}" />
           <input class="mfr-tf-n mfr-ni ${numCls}" type="number" step="0.1" min="0" value="${r.throughFrame.nonImpact}" />
         </div>
-        <p class="text-[10.5px] text-slate-600 mt-2">Not sure yet? Keep the defaults &mdash; you can fine-tune anytime in Settings &rarr; Window Rates.</p>
+        <p class="text-[10.5px] text-slate-600 mt-2">Not sure yet? Keep the defaults &mdash; you can fine-tune anytime in Settings &rarr; Materials.</p>
       </div>
     </details>`;
 }
@@ -32056,7 +32608,7 @@ function swingStageCardHTML(collapsePrefs) {
     </details>`;
 }
 
-// Filter the Window Rates material list by name (reads #adminRatesFilter). Matches
+// Filter the Materials list by name (reads #adminRatesFilter). Matches
 // each card's title (material cards use .text-sm.font-semibold; fee/trim/swing cards
 // use .set-collapse-title). Called on input + re-applied after each list re-render.
 function applyAdminRatesFilter() {
@@ -32128,7 +32680,7 @@ function buildAdminUI() {
   { const el = document.getElementById("adminRepeatFloorEff"); if (el) el.value = Math.round((LM.repeatFloorEfficiency ?? 0.85) * 100); }
   { const el = document.getElementById("adminHeightPremium"); if (el) el.value = Math.round((LM.heightPremiumPerStoryAbove3 ?? 0.05) * 100); }
   // Swing-stage + interior-trim fields now render (with values baked in) as their
-  // own Window Rates cards (trimRatesCardHTML / swingStageCardHTML). Only height-cap
+  // own cards (trimRatesCardHTML in Materials, swingStageCardHTML in Job Costs). Only height-cap
   // (a labor multiplier) still populates a static Labor input here.
   { const hc = document.getElementById("adminHeightCap"); if (hc) hc.value = LM.heightPremiumCap ?? 2.0; }
   updateEffReadout();
@@ -32194,6 +32746,7 @@ function buildAdminUI() {
   if (bfLift) bfLift.checked = bfInsp.extraLiftDay !== false;
 
   const wrap = document.getElementById("adminRatesBody");
+  const feeWrap = document.getElementById("adminFeesBody");
   // Per-card collapsed state lives in localStorage so it survives reloads.
   // Default: collapsed when 2+ variants (cards get tall fast); expanded
   // otherwise. User can toggle each card and we remember.
@@ -32203,7 +32756,14 @@ function buildAdminUI() {
   // Labor is rendered in its own "Labor" section (see #adminLaborRateBody), so
   // exclude it here. Interior Trim (trim_board) IS included and special-cased into
   // its own material×width-grid card, in place right after Wood Bucking.
-  wrap.innerHTML = DATA.costItems.filter(item => item.id !== "labor").map(item => {
+  //
+  // The list is built once and then SPLIT into two leaves: what you buy
+  // (Materials) vs what the job costs you besides materials (Job Costs —
+  // disposal, permit, lift rental, and the swing stage card that rides along
+  // with lift rental). Splitting the RENDER rather than moving DOM afterwards
+  // keeps every `#adminRatesBody [data-cat]` query and the delegated click
+  // handler working exactly as before for the material cards.
+  const cardHTMLFor = (item) => {
     if (item.id === "trim_board") return trimRatesCardHTML(collapsePrefs);
     const rateRows = Object.entries(item.rates).map(([k, v]) => `
       <div class="flex items-center gap-2">
@@ -32292,9 +32852,16 @@ function buildAdminUI() {
         </div>
       </details>
     `;
-    // Swing Stage pricing card sits right after Lift Rental in Window Rates.
+    // Swing Stage pricing card rides along with Lift Rental (both are access
+    // equipment), so it lands in Job Costs with it.
     return item.id === "lift_rental" ? _npCard + swingStageCardHTML(collapsePrefs) : _npCard;
-  }).join("");
+  };
+
+  // Everything you buy per opening → Materials. Everything else the job costs
+  // you → Job Costs.
+  const _rateItems = DATA.costItems.filter(item => item.id !== "labor");
+  wrap.innerHTML = _rateItems.filter(item => !JOB_COST_IDS.includes(item.id)).map(cardHTMLFor).join("");
+  if (feeWrap) feeWrap.innerHTML = _rateItems.filter(item => JOB_COST_IDS.includes(item.id)).map(cardHTMLFor).join("");
   // The Interior Trim card (with #adminTrimGrid + #adminTrimFetchBtn) is now part of
   // the list above, so wire its AI button + fetched stamp AFTER the list renders.
   updateTrimFetchedStamp();
@@ -32341,19 +32908,27 @@ function buildAdminUI() {
 // filter-by-typing in the search box. Per-card variant collapse is remembered
 // in localStorage (see rates_collapse key).
 // Rates leaf switcher — show one focused group at a time (Money & Tax / Labor /
-// Window Rates / Doors). Replaces the old in-panel section-nav + filter. Wired via
+// Materials / Job Costs / Doors). Replaces the old in-panel section-nav + filter. Wired via
 // inline onclick so it works regardless of the (sign-in-gated) init().
 function showRatesLeaf(name) {
   document.querySelectorAll('#ratesLeafNav [data-rleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.rleafBtn === name));
   document.querySelectorAll('#ratesShell [data-rleaf]').forEach(el => { el.style.display = (el.dataset.rleaf === name) ? '' : 'none'; });
   { const a = document.querySelector('#ratesLeafNav [data-rleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
-  if (name === 'doors') showDoorType(window._rDoorType || 'swing');
+  settingsEnterLeaf();
+  // Doors no longer swaps between types — all three dropdowns render together.
   scheduleSaveNav();
 }
+// Doors used to be three swappable tabs (Swing / Sliding / Bifold) that hid two
+// of the three sections. They're now three collapsed dropdowns stacked in the
+// one Doors leaf, so you can see all three at once and open what you need.
+// This survives as the DEEP-LINK entry point: it opens (and scrolls to) the
+// requested type instead of hiding its siblings.
 function showDoorType(type) {
   window._rDoorType = type;
-  document.querySelectorAll('#ratesShell [data-rdoor-btn]').forEach(b => b.classList.toggle('active', b.dataset.rdoorBtn === type));
-  document.querySelectorAll('#ratesShell [data-dtype]').forEach(el => { el.style.display = (el.dataset.dtype === type) ? '' : 'none'; });
+  const det = document.getElementById("sc-rates-doors-" + type);
+  if (!det) return;
+  det.open = true;
+  try { det.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (_) { }
   scheduleSaveNav();
 }
 
@@ -32362,6 +32937,7 @@ function showSetupLeaf(name) {
   document.querySelectorAll('#setupLeafNav [data-setupleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.setupleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="setup"] [data-setupleaf]').forEach(el => { el.style.display = (el.dataset.setupleaf === name) ? '' : 'none'; });
   { const a = document.querySelector('#setupLeafNav [data-setupleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
+  settingsEnterLeaf();
   scheduleSaveNav();
 }
 
@@ -32370,6 +32946,7 @@ function showAccountLeaf(name) {
   document.querySelectorAll('#accountLeafNav [data-accountleaf-btn]').forEach(b => b.classList.toggle('active', b.dataset.accountleafBtn === name));
   document.querySelectorAll('.set-panel[data-panel="account"] [data-accountleaf]').forEach(el => { el.style.display = (el.dataset.accountleaf === name) ? '' : 'none'; });
   { const a = document.querySelector('#accountLeafNav [data-accountleaf-btn].active'); if (a) try { a.scrollIntoView({ inline: "nearest", block: "nearest" }); } catch (_) {} }
+  settingsEnterLeaf();
   if (name === "appearance") { try { applyGlassTransparency(getGlassTransparency(), { persist: false }); } catch (_) {} }
   scheduleSaveNav();
 }
@@ -32456,8 +33033,10 @@ function buildSettingsSearchIndex() {
     go: () => jump("rates", { ratesLeaf: "labor", targetId: "adminSetupMinPerOpening", pulse: "highlight" }) });
   add({ label: "Travel & setup hours", kind: "Field", path: "Rates › Labor", keywords: "mobilization drive stage",
     go: () => jump("rates", { ratesLeaf: "labor", targetId: "adminMobilizationHours", pulse: "highlight" }) });
-  add({ label: "Window Rates", kind: "Leaf", path: "Rates & Pricing", keywords: "materials consumption variants brand price",
+  add({ label: "Materials", kind: "Leaf", path: "Rates & Pricing", keywords: "window rates materials consumption variants brand price caulk shims bucking",
     go: () => jump("rates", { ratesLeaf: "materials", targetId: "rates-section-materials", block: "start" }) });
+  add({ label: "Job Costs", kind: "Leaf", path: "Rates & Pricing", keywords: "disposal permit fee lift rental swing stage scaffold access equipment",
+    go: () => jump("rates", { ratesLeaf: "jobcosts", targetId: "rates-section-jobcosts", block: "start" }) });
   add({ label: "Doors", kind: "Leaf", path: "Rates & Pricing", keywords: "swing sliding bifold glass door",
     go: () => jump("rates", { ratesLeaf: "doors", targetId: "rates-section-doors", block: "start" }) });
 
@@ -32488,13 +33067,14 @@ function buildSettingsSearchIndex() {
     if (item.id === "labor") return;                      // labor handled as a leaf/field above
     const cardId = "rates-item-" + item.id;
     if (MATERIAL_IDS.includes(item.id)) {
-      add({ label: item.name, kind: "Material", path: "Rates › Window Rates",
+      add({ label: item.name, kind: "Material", path: "Rates › Materials",
         keywords: (item.variants || []).map(v => v.brand).join(" "),
         go: () => jump("rates", { ratesLeaf: "materials", targetId: cardId, pulse: "highlight" }) });
     } else {
-      // Job fee (disposal / permit / lift rental) — single unit-price card
-      add({ label: item.name, kind: "Fee", path: "Rates › Window Rates", keywords: item.unit,
-        go: () => jump("rates", { ratesLeaf: "materials", targetId: cardId, pulse: "highlight" }) });
+      // Job cost (disposal / permit / lift rental) — single unit-price card,
+      // now in its own leaf alongside the swing-stage card.
+      add({ label: item.name, kind: "Job cost", path: "Rates › Job Costs", keywords: item.unit,
+        go: () => jump("rates", { ratesLeaf: "jobcosts", targetId: cardId, pulse: "highlight" }) });
     }
   });
 
@@ -32870,7 +33450,7 @@ function applyStaticCollapseState() {
   document.querySelectorAll("#adminModal .set-collapse[data-collapse-key]").forEach(el => {
     const pref = prefs["sc:" + el.getAttribute("data-collapse-key")];
     // Single-section leaves (data-collapse-open) start expanded — no point hiding
-    // the only thing in the leaf; multi-card areas (Labor, Doors, Window Rates
+    // the only thing in the leaf; multi-card areas (Labor, Doors, Materials
     // fees) start collapsed. An explicit saved open/closed choice always wins.
     el.open = (pref != null) ? !pref : el.hasAttribute("data-collapse-open");
   });
@@ -36436,7 +37016,7 @@ const PLANS = [
       "Unlimited quotes",
       "Everything in Pro, plus:",
       "Unlimited AI plan reads",
-      "Team members (coming soon)",
+      "Crews with their own logins, rates & shopping lists",
       "Custom branding on shared quotes",
       "White-glove onboarding call",
       "Priority phone support"
@@ -36460,7 +37040,24 @@ const PLANS = [
 const DAY_MS = 86400 * 1000;
 const CYCLE_MS = 30 * DAY_MS;
 
+// A brand-new account has NOT chosen anything yet. The trial used to start
+// itself the first time any code read entitlements, so people landed in the
+// calculator with a 14-day clock already running and nothing telling them.
+// Now the clock starts only when someone deliberately starts it
+// (startFreeTrial), which is what makes the countdown honest.
 function defaultEntitlements() {
+  return {
+    plan: "none",
+    subscriptionStatus: "unchosen",
+    trialStartedAt: null,
+    quotesUsedThisCycle: 0,
+    cycleResetAt: null,
+    planSetAt: null,
+    lastQuoteAt: null
+  };
+}
+/** A fresh 14-day trial, stamped from the moment it is actually chosen. */
+function freshTrialEntitlements() {
   const now = Date.now();
   return {
     plan: "trial",
@@ -36472,8 +37069,91 @@ function defaultEntitlements() {
     lastQuoteAt: null
   };
 }
+/** True when this account still has to pick a plan (or start the trial). */
+function needsPlanChoice() {
+  if (!currentUser) return false;
+  if (typeof isCrewAccount === "function" && isCrewAccount()) return false;   // seats have no plan by design
+  return (getEntitlements() || {}).plan === "none";
+}
 
+/** Start the trial — the ONLY place the clock is stamped. */
+function startFreeTrial() {
+  if (!DATA.config) DATA.config = {};
+  DATA.config.entitlements = freshTrialEntitlements();
+  saveData(DATA);
+  try { if (typeof window.track === "function") window.track("trial_started", { plan: "trial" }); } catch (_) {}
+  hidePlanChoice();
+  try { updateUsageBadge(); } catch (_) {}
+  try { toast(`Your ${TRIAL.days}-day free trial has started — ${TRIAL.quotes} quotes included`); } catch (_) {}
+}
+function hidePlanChoice() {
+  const s = document.getElementById("planScreen");
+  if (s) s.classList.add("hidden");
+  document.body.classList.remove("plan-choosing");
+}
+
+/* The plan gate. Shown once, right after signup, INSTEAD of dropping straight
+   into the calculator: paid plans first, the free trial as a deliberate choice
+   that spells out its length and limits. Built in JS (like the crew workspace)
+   so there is one place that owns it. */
+function renderPlanChoice() {
+  if (!needsPlanChoice()) { hidePlanChoice(); return; }
+  let scr = document.getElementById("planScreen");
+  if (!scr) {
+    scr = document.createElement("div");
+    scr.id = "planScreen";
+    scr.className = "hidden";
+    document.body.appendChild(scr);
+    scr.addEventListener("click", (e) => {
+      const buy = e.target.closest("[data-plan-buy]");
+      if (buy) { try { startStripeCheckout(buy.dataset.planBuy, "monthly"); } catch (_) { toast("Checkout unavailable"); } return; }
+      if (e.target.closest("[data-plan-trial]")) { startFreeTrial(); return; }
+      if (e.target.closest("[data-plan-signout]")) { try { signOut(); } catch (_) { location.reload(); } return; }
+    });
+  }
+  const cards = PLANS.map(p => `
+    <div class="plan-card${p.highlighted ? " is-hot" : ""}">
+      ${p.badge ? `<span class="plan-badge">${escHtml(p.badge)}</span>` : ""}
+      <div class="plan-name">${escHtml(p.name)}</div>
+      <div class="plan-price"><b>$${p.monthlyPrice}</b><span>/mo</span></div>
+      <div class="plan-tag">${escHtml(p.tagline)}</div>
+      <ul class="plan-feats">${p.features.slice(0, 4).map(f => `<li>${escHtml(f)}</li>`).join("")}</ul>
+      <button type="button" class="plan-cta${p.highlighted ? " is-hot" : ""}" data-plan-buy="${escHtml(p.id)}">${escHtml(p.cta)}</button>
+    </div>`).join("");
+  scr.innerHTML =
+    `<div class="plan-wrap">
+      <div class="crew-head">
+        <div class="crew-brand"><span class="crew-anchor">&#9875;</span><span>Anchor</span></div>
+        <button type="button" class="team-act" data-plan-signout>Sign out</button>
+      </div>
+      <h1 class="crew-title">Pick the plan that fits your shop</h1>
+      <p class="crew-sub">Cancel anytime. Prices are per month &mdash; annual billing saves about two months.</p>
+      <div class="plan-grid">${cards}</div>
+      <div class="plan-trial">
+        <div>
+          <div class="plan-trial-h">Not ready to pick?</div>
+          <p class="plan-trial-p">Try it free for <b>${TRIAL.days} days</b> &mdash; ${TRIAL.quotes} quotes with full Pro access. <b>No credit card.</b> Your trial starts when you tap this, and we'll show the days left in the header.</p>
+        </div>
+        <button type="button" class="plan-cta plan-cta-ghost" data-plan-trial>Start my ${TRIAL.days}-day free trial</button>
+      </div>
+    </div>`;
+  scr.classList.remove("hidden");
+  document.body.classList.add("plan-choosing");
+}
+
+// A crew account (a seat under someone else's company) has no plan of its own and
+// never starts a trial — it is not a customer. Synthesized fresh each call and
+// deliberately NOT persisted, so a seat that later becomes its own customer (or
+// an owner mis-flagged for a moment before org context loads) is never left with
+// a "crew" record written into their profile.
+function crewEntitlements() {
+  return {
+    plan: "crew", subscriptionStatus: "crew", trialStartedAt: null,
+    quotesUsedThisCycle: 0, cycleResetAt: null, planSetAt: null, lastQuoteAt: null,
+  };
+}
 function getEntitlements() {
+  if (typeof isCrewAccount === "function" && isCrewAccount()) return crewEntitlements();
   if (!DATA.config) DATA.config = {};
   if (!DATA.config.entitlements) DATA.config.entitlements = defaultEntitlements();
   return DATA.config.entitlements;
@@ -36483,6 +37163,12 @@ function getEntitlements() {
 // Trial isn't in PLANS, so synthesize a record for it.
 function getPlanDef() {
   const e = getEntitlements();
+  if (e.plan === "crew") {
+    return { id: "crew", name: "Crew seat", quoteLimit: 0, _synthetic: true };
+  }
+  if (e.plan === "none") {
+    return { id: "none", name: "No plan yet", quoteLimit: 0, _synthetic: true };
+  }
   if (e.plan === "trial") {
     return { id: "trial", name: "Free trial", quoteLimit: TRIAL.quotes, _synthetic: true };
   }
@@ -36494,7 +37180,11 @@ function getPlanDef() {
 // A client-side gate is UX ONLY (entitlements are user-editable in devtools);
 // anything with real cost MUST also be enforced server-side — see the
 // fetch-material-prices / extract-plan-openings edge functions.
-const PLAN_RANK = { trial: 0, starter: 1, pro: 2, unlimited: 3 };
+// crew ranks BELOW trial: a seat under someone else's company may not use any
+// plan-gated feature on its own account.
+// "none" = hasn't chosen yet, "crew" = a seat under someone else's company.
+// Both rank below trial so nothing plan-gated opens before a real choice.
+const PLAN_RANK = { none: -1, crew: -1, trial: 0, starter: 1, pro: 2, unlimited: 3 };
 function planRankOf(id) { return PLAN_RANK[id] != null ? PLAN_RANK[id] : 0; }
 function currentPlanId() { return (getEntitlements() || {}).plan || "trial"; }
 // True if the account may use a feature requiring at least `minPlanId`. Admin
@@ -36507,6 +37197,8 @@ function planAllows(minPlanId) {
 
 function getPlanLimit() {
   const e = getEntitlements();
+  if (e.plan === "crew") return 0;          // crew seats never quote
+  if (e.plan === "none") return 0;          // nothing until a plan is chosen
   if (e.plan === "trial") return TRIAL.quotes;
   if (e.plan === "unlimited") return Infinity;
   const p = PLANS.find(pp => pp.id === e.plan);
@@ -36581,7 +37273,11 @@ function renderAiReadsMeter() {
 function getCycleDaysRemaining() {
   const e = getEntitlements();
   const ms = (e.cycleResetAt || 0) - Date.now();
-  return Math.max(0, Math.floor(ms / DAY_MS));
+  // ceil, not floor: a 14-day trial has 13.99… days left one second in, and
+  // flooring made it announce "13 days left" the moment it started. Ceil counts
+  // a part-day as a day (so the final day reads "1 day left") and still hits 0
+  // exactly when the clock runs out.
+  return Math.max(0, Math.ceil(ms / DAY_MS));
 }
 
 function isTrialExpired() {
@@ -36602,6 +37298,10 @@ function cycleNeedsReset() {
   // A canceled subscription has no live billing cycle — don't auto-roll its
   // counter (that would hand a lapsed customer a fresh quota every 30 days).
   // The real reset comes from the invoice.paid webhook on renewal.
+  // "none"/"crew" have no billing cycle at all — a null cycleResetAt reads as
+  // expired, and rolling it would write a phantom 30-day cycle onto an account
+  // that hasn't bought anything.
+  if (e.plan === "none" || e.plan === "crew") return false;
   if (isCycleExpired() && e.plan !== "trial" && e.subscriptionStatus !== "canceled") {
     e.quotesUsedThisCycle = 0;
     e.cycleResetAt = Date.now() + CYCLE_MS;
@@ -36993,13 +37693,96 @@ function getOrgContext() { return _orgCtx || loadOrgCtxCache(); }
 function orgRole() { const c = getOrgContext(); return c ? c.role : null; }
 function isOrgAdminRole() { return ["owner", "admin"].includes(orgRole()); }
 
+/* ── Crew accounts (seat logins under an owner's account) ─────────────────────
+   A person who joined through an invite link is NOT a customer of the
+   calculator — they are a seat under the inviting company. They get the crew
+   workspace (their crew's material + labor rates, their own hourly pay, the
+   shopping list) and NOTHING that prices a job: no calculator, no saved jobs,
+   no quotes, no margins, no plan of their own, no trial.
+
+   Roles that RUN the business (owner/admin/dispatcher) keep the full app. Only
+   the remaining roles — installer today — are crew accounts. The org owner is
+   always exempt even if their membership row says otherwise, so a data glitch
+   can never lock an owner out of the product they pay for.
+
+   This is a UX boundary. The MONEY boundary is in the database: installers have
+   no read policy on `jobs` (the blob holding cost/margin/selling price), and
+   their writes go through two narrow RPCs. See the Teams T6/T7 notes. */
+const CREW_PRIVILEGED_ROLES = ["owner", "admin", "dispatcher"];
+function isCrewAccount() {
+  const c = getOrgContext();
+  if (!c || !c.orgId || !c.role) return false;
+  if (CREW_PRIVILEGED_ROLES.includes(c.role)) return false;
+  // Never cage the org's actual owner, whatever the membership row claims.
+  const ownerId = c.org && (c.org.owner_id || c.org.ownerId);
+  if (ownerId && currentUser && ownerId === currentUser.id) return false;
+  return true;
+}
+/** The company a crew account belongs to (for copy), or null. */
+function crewAccountOrgName() {
+  const c = getOrgContext();
+  return (c && c.org && c.org.name) || null;
+}
+
+/* The crew workspace. Built in JS (not markup) so there is exactly ONE place that
+   decides what a seat can see, and it renders the SAME installer panel the Teams
+   tab uses — crew rates, labor overrides, own hourly pay, shopping list.
+
+   Lockdown is layered on purpose, because this is the margin boundary:
+     1. this full-screen surface covers the app,
+     2. body.crew-account hides the quoting chrome underneath it,
+     3. entitlements report plan "crew" (rank -1) so every plan-gated feature
+        refuses even if some path slips through,
+     4. the database never lets an installer read `jobs` at all.
+   Any one of those failing still leaves the owner's pricing unreachable. */
+function renderCrewWorkspace() {
+  const ctx = getOrgContext();
+  if (!ctx) return;
+  let scr = document.getElementById("crewScreen");
+  if (!scr) {
+    scr = document.createElement("div");
+    scr.id = "crewScreen";
+    scr.className = "hidden";
+    scr.innerHTML =
+      '<div class="crew-wrap">' +
+        '<div class="crew-head">' +
+          '<div class="crew-brand"><span class="crew-anchor">&#9875;</span><span>Anchor</span></div>' +
+          '<button type="button" id="crewSignOut" class="team-act">Sign out</button>' +
+        '</div>' +
+        '<h1 class="crew-title"></h1>' +
+        '<p class="crew-sub">Your rates, your pay, and the shopping list. Quoting and job pricing stay with the company.</p>' +
+        '<div id="crewBody"></div>' +
+      '</div>';
+    document.body.appendChild(scr);
+    const so = scr.querySelector("#crewSignOut");
+    if (so) so.addEventListener("click", () => { try { signOut(); } catch (_) { location.reload(); } });
+  }
+  const title = scr.querySelector(".crew-title");
+  if (title) title.textContent = crewAccountOrgName() ? ("You're on the " + crewAccountOrgName() + " team") : "Your crew workspace";
+  const body = scr.querySelector("#crewBody");
+  if (body) { try { renderInstallerDashboard(body, ctx); } catch (e) { console.warn("crew render failed", e); } }
+  scr.classList.remove("hidden");
+}
+/** Put the app into crew-seat mode (idempotent; safe to call on every ctx load). */
+function applyCrewLockdown() {
+  if (!isCrewAccount()) {
+    document.body.classList.remove("crew-account");
+    const scr = document.getElementById("crewScreen");
+    if (scr) scr.classList.add("hidden");
+    return;
+  }
+  document.body.classList.add("crew-account");
+  try { closeAdmin(); } catch (_) {}
+  renderCrewWorkspace();
+}
+
 // Pull membership + crews + roster. One await batch; every query is RLS-scoped.
 // Returns null when the user has no org (graceful empty state, not an error).
 async function fetchOrgContext() {
   if (!sb || !currentUser) return null;
   // Primary org = the oldest membership, matching the mobile app's getMyMembership().
   const { data: mem, error: mErr } = await sb.from("org_members")
-    .select("org_id, user_id, role, has_tracker_seat, organization:organizations(id,name,plan,tracker_enabled,included_seats,extra_seats,total_seats,team_mode)")
+    .select("org_id, user_id, role, has_tracker_seat, organization:organizations(id,name,owner_id,plan,tracker_enabled,included_seats,extra_seats,total_seats,team_mode)")
     .eq("user_id", currentUser.id)
     .order("created_at", { ascending: true })
     .limit(1).maybeSingle();
@@ -37039,6 +37822,9 @@ async function fetchOrgContext() {
   };
   _orgCtx = ctx;
   saveOrgCtxCache(ctx);
+  // Single choke point: the instant we know the role, a seat gets caged (and an
+  // owner gets un-caged, so a stale crew cache can't strand a paying customer).
+  try { applyCrewLockdown(); } catch (e) { console.warn("crew lockdown failed", e); }
   return ctx;
 }
 
@@ -37107,13 +37893,14 @@ function renderSubscriptionPanel() {
 
 function resetEntitlementsDev() {
   if (!window.__ANCHOR_DEV) return;
-  if (!confirm("Reset your entitlement record to a fresh 14-day trial?\n\nThis is a dev-only tool. Brand info, rates, and saved jobs are kept.")) return;
+  if (!confirm("Reset your entitlement record to a brand-new account?\n\nYou'll get the plan chooser again, exactly like a fresh signup — the trial only starts if you pick it. Dev-only tool: brand info, rates, and saved jobs are kept.")) return;
   DATA.config.entitlements = defaultEntitlements();
   saveData(DATA);
   _entitlementsInitTracked = false;
   updateUsageBadge();
   renderSubscriptionPanel();
-  toast("Entitlements reset to fresh trial");
+  try { renderPlanChoice(); } catch (_) {}
+  toast("Reset — pick a plan to continue");
 }
 
 // =========================================================
@@ -38528,6 +39315,17 @@ async function enterApp() {
   const acct = document.getElementById("acctEmail");
   if (acct && currentUser) acct.textContent = currentUser.email;
   init();
+  // Teams: a crew seat must never reach the calculator. Cage immediately from the
+  // CACHED role so there's no flash of the quoting UI, then confirm against the
+  // server (which also un-cages an owner whose cache is stale). Org context was
+  // previously only fetched when Settings → Teams opened, so a seat booted
+  // straight into a full calculator until they happened to open that tab.
+  try { applyCrewLockdown(); } catch (_) {}
+  if (sb && currentUser) { fetchOrgContext().catch(() => {}); }
+  // Plan gate: a brand-new account picks a plan (or deliberately starts the
+  // trial) before reaching the calculator. Existing accounts already carry a
+  // plan, so this is a no-op for them.
+  try { renderPlanChoice(); } catch (e) { console.warn("plan gate failed", e); }
   renderDemoBanner();
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
@@ -38592,7 +39390,14 @@ function renderLogoPreview(previewId, removeId, dataUrl) {
     prev.innerHTML = `<img src="${dataUrl}" alt="logo" class="w-full h-full object-contain">`;
     if (rm) rm.classList.remove("hidden");
   } else {
-    prev.innerHTML = `<span class="text-[8px] text-slate-600 uppercase tracking-wide text-center px-1">No logo</span>`;
+    // Show the assigned ocean creature so empty logo preview matches the
+    // account avatar (instead of a blank "No logo" stub).
+    let creature = "";
+    try {
+      const id = ensureCrewAvatarId();
+      creature = `<img src="${escHtml(crewAvatarSrc(id))}" alt="" class="w-full h-full object-cover">`;
+    } catch (_) { creature = ""; }
+    prev.innerHTML = creature || `<span class="text-[8px] text-slate-600 uppercase tracking-wide text-center px-1">No logo</span>`;
     if (rm) rm.classList.add("hidden");
   }
 }
@@ -38964,7 +39769,7 @@ function showSetupStep(n) {
       // "Other" is the calculator's generic fallback (AI plan reads map unknown
       // brands to it), not a brand the installer chose — hide it here so the
       // wizard only shows THEIR brands. It's re-added on save (see below) and
-      // stays editable in Settings → Window Rates.
+      // stays editable in Settings → Materials.
       body.innerHTML = (DATA.manufacturers || []).filter(n => n !== "Other").map(name =>
         mfrCardHTML(name, mr[name])).join("");
       body.dataset.filled = "1";
@@ -40296,6 +41101,7 @@ function init() {
     function clearInlineMotion() {
       _mbar.style.transition = "";
       _mbar.style.transform = "";
+      _mbar.classList.remove("settling");   // blur (dropped while moving) returns at rest
     }
     function onStart(e) {
       if (_msheet && _msheet.classList.contains("open")) return;
@@ -40350,6 +41156,7 @@ function init() {
             commitTuck();
           } else {
             _mbar.style.transition = "transform .28s cubic-bezier(0.22, 1, 0.36, 1)";
+            _mbar.classList.add("settling");     // keep the blur off while the bar glides
             _mbar.classList.remove("dragging");
             _mbar.style.transform = `translateY(${dy}px)`;
             void _mbar.offsetWidth;
@@ -40368,6 +41175,7 @@ function init() {
         } else {
           // Spring back to shown — stay in pixel space so CSS .show doesn't pop.
           _mbar.style.transition = "transform .28s cubic-bezier(0.16, 1, 0.3, 1)";
+          _mbar.classList.add("settling");     // keep the blur off while the bar glides
           _mbar.classList.remove("dragging");
           _mbar.style.transform = `translateY(${dy}px)`;
           void _mbar.offsetWidth;
@@ -40496,17 +41304,22 @@ function init() {
           if (dismiss) {
             panel.style.transform = `translate3d(0, ${Math.max(releaseY + 120, panel.getBoundingClientRect().height * 1.05)}px, 0)`;
             const bd = _msheet.querySelector(".msheet-backdrop");
-            if (bd) { bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
+            // animation:none — if the dismiss drag starts inside the first
+            // 300ms, the still-running aFade would beat the inline opacity.
+            if (bd) { bd.style.animation = "none"; bd.style.transition = "opacity .3s ease"; bd.style.opacity = "0"; }
             setTimeout(() => {
               closeMtotalSheet(true);
               panel.classList.remove("settling");
               panel.style.transition = ""; panel.style.transform = "";
-              if (bd) { bd.style.transition = ""; bd.style.opacity = ""; }
+              if (bd) { bd.style.animation = ""; bd.style.transition = ""; bd.style.opacity = ""; }
             }, 300);
           } else {
             panel.style.transform = "translate3d(0, 0, 0)";
             setTimeout(() => {
-              panel.classList.remove("settling");
+              // Keep .settling for the rest of this open session — removing it
+              // re-arms the sheetUp entrance, which replayed the whole slide-up
+              // after every aborted dismiss drag. closeMtotalSheet strips it
+              // (while display:none), so the next open still animates.
               panel.style.transition = ""; panel.style.transform = "";
             }, 300);
           }
