@@ -4260,6 +4260,40 @@
     [data-theme="light"] .set-panel > .rleaf-nav { border-right-color: #e6e8ec; }
   }
 
+  /* ── Wide monitors: use the screen, don't float in the middle of it ───────
+     The shell was capped at max-w-6xl and centred, so on a 1920px display the
+     two nav columns ate a third of a ~1150px box while both margins sat empty.
+     Past 1280 the shell goes full-bleed: the tab rail pins to the left edge as
+     a real sidebar, the section list sits right beside it, and the settings
+     themselves get the rest. The content is still capped — a rate card
+     stretched across 1500px is worse to read, not better — so it lands as a
+     wide, roughly centred column with the nav tucked off to the left. */
+  @media (min-width: 1280px) {
+    #settingsShell { max-width: none; }
+    .set-panel.active[data-panel="setup"],
+    .set-panel.active[data-panel="rates"],
+    .set-panel.active[data-panel="account"] {
+      grid-template-columns: 210px minmax(0, 1fr);
+      column-gap: 44px;
+    }
+    /* A single cap, not a set of breakpoints: below ~1800px the column is
+       already limited by the space left over from the nav, so the cap only
+       bites on genuinely large displays. Content grows with the monitor and
+       then stops at a readable measure. */
+    .set-panel[data-panel="setup"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav),
+    .set-panel[data-panel="rates"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav),
+    .set-panel[data-panel="account"] > *:not(.set-h):not(.set-sub):not(.rleaf-nav) { max-width: 1320px; }
+    /* Panels with no section list (Customers, Teams, Feedback…) have nothing to
+       stop them running edge to edge. */
+    .set-panel:not([data-panel="setup"]):not([data-panel="rates"]):not([data-panel="account"]) { max-width: 1400px; }
+    /* A COLLAPSED rate row reads well full width (name left, price right), but
+       its expanded body is a form — label + a ~90px number field. Left to span
+       1300px it flings "Unit Price 250" to the far right with a dead gap in the
+       middle, so the form gets a much tighter measure than its card. */
+    #adminRatesBody .set-collapse-body,
+    #adminFeesBody .set-collapse-body { max-width: 780px; }
+  }
+
   /* ── Drill-down on narrow screens ─────────────────────────────────────────
      One layer at a time: tabs → sections → the settings themselves. The level
      lives as a class on #adminModal (set-l1/2/3), driven by setSettingsLevel(). */
@@ -10465,7 +10499,7 @@
      job-details (z-78), so it must sit ABOVE them — but below legal (z-80) and
      the auth gate (z-90). At z-50 it opened invisibly behind the dashboard. -->
 <div id="adminModal" class="fixed inset-0 hidden z-[79]" style="background:#020617;">
-  <div class="h-full max-w-6xl mx-auto flex flex-col">
+  <div id="settingsShell" class="h-full max-w-6xl mx-auto flex flex-col">
 
     <!-- Header -->
     <div class="px-5 sm:px-8 py-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
