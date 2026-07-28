@@ -16577,6 +16577,16 @@ function effectiveBrand() {
   return out;
 }
 
+/* Brand gold for PRINT, as an [r,g,b] triple for jsPDF.
+   The screen gold #b58f4a measures exactly 3.00:1 on white — it scrapes the floor
+   for a graphical object with zero margin, and a 1.5pt hairline at that ratio is
+   the first thing to disappear on a tired office printer, a greyscale print, or a
+   photocopy. These are customer documents that get printed and re-copied, so the
+   print gold is a shade deeper: 4.18:1, still unmistakably gold.
+   Nine call sites used to hardcode (181,143,74) individually — this is the one
+   knob now, same reasoning as --gold-ink for the light theme. */
+const PDF_GOLD = [154, 118, 54];
+
 // Build a human-readable brand line for PDFs ("Acme Windows  ·  Phoenix, AZ  ·  555-1234")
 function brandFooterLine(includeContact, brandOverride) {
   const b = brandOverride || effectiveBrand();
@@ -28846,7 +28856,7 @@ function exportCustomerPDF(mode, force) {
     y = M + 26;
   }
   // Thin gold accent — single low-ink mark
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y, M + 96, y);
   y += 22;
@@ -29533,7 +29543,7 @@ function renderSignedQuotePDF(row) {
     doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(20, 20, 20);
     doc.text((brand.companyName || "").toUpperCase(), M, M + 12); y = M + 26;
   }
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5); doc.line(M, y, M + 96, y); y += 22;
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5); doc.line(M, y, M + 96, y); y += 22;
   if (brand.tagline) {
     doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(120, 120, 120);
     doc.text(brand.tagline, M, y); y += 16;
@@ -29672,7 +29682,7 @@ function exportPDF(mode) {
   y += 18;
 
   // Gold accent line under brand
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
 
@@ -29932,7 +29942,7 @@ function exportMaterialsPDF(mode) {
   doc.text("MATERIALS LIST", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleDateString(), pageW - M, y + 8, { align: "right" });
   y += 16;
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
   doc.line(M, y, pageW - M, y);
@@ -29952,7 +29962,7 @@ function exportMaterialsPDF(mode) {
 
   // Estimate warning for wood bucking — low-ink: a gold rule + two text lines
   if (estimatedBucking) {
-    doc.setDrawColor(181, 143, 74); doc.setLineWidth(2);
+    doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(2);
     doc.line(M, y - 8, M, y + 12);
     doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(70, 70, 70);
     doc.text("Wood bucking below is a rough estimate — not sized for minimal waste.", M + 8, y);
@@ -31013,7 +31023,7 @@ function exportChangeOrderPDF(mode, force, scope) {
     doc.text((brand.companyName || "CHANGE ORDER").toUpperCase(), M, M + 12);
     y = M + 26;
   }
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y, M + 96, y);
   y += 22;
@@ -35743,7 +35753,7 @@ function exportCutListPDF(mode) {
   doc.text("WINDOW BUCK CUT LIST", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleString(), pageW - M, y + 8, { align: "right" });
   y += 16;
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
   doc.line(M, y, pageW - M, y);
@@ -36021,7 +36031,7 @@ function exportComparisonPDF(mode) {
   doc.text("JOB COMPARISON", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleString(), pageW - M, y + 8, { align: "right" });
   y += 18;
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210);
@@ -39968,7 +39978,7 @@ function exportPricingChecklistPDF(mode) {
   doc.text("MATERIALS PRICING CHECKLIST", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleDateString(), pageW - M, y + 8, { align: "right" });
   y += 16;
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
   doc.line(M, y, pageW - M, y);
