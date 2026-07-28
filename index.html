@@ -152,6 +152,14 @@
     --gold-hi: #c9a558;
     --gold-pale: #dfc07a;
     --gold-lo: #8a6a2e;
+    /* INK tokens: the accent when it colours TEXT. Everything else about the gold
+       is a surface/border and lives on the 3:1 UI floor, but text needs 4.5:1 —
+       and light mode has gold-TINTED backgrounds (bg-[#b58f4a]/10 lands around
+       #e6e2db) that are darker than white, so "gold on light" is the worst case
+       in the whole app. Dark mode keeps the bright gold; the light override below
+       is the single knob. Never hardcode a gold hex on a `color:` again. */
+    --gold-ink: #c9a558;
+    --amber-ink: #fcd34d;
     --gold-glow: rgba(181, 143, 74, 0.28);
     --gold-soft: rgba(181, 143, 74, 0.10);
     /* Surface + motion tokens, promoted from the landing page's scoped set so
@@ -361,6 +369,328 @@
   .toggle-pill .val { font-variant-numeric: tabular-nums; color: #64748b; font-weight: 700; transition: color .2s; }
   .toggle-pill.active .val { color: var(--gold-hi); }
 
+  /* v2 P4: the in-section back button + heading duplicate the sidebar and page bar
+     on desktop. Kept under 900px, where there is no sidebar to go back with. */
+  @media (min-width: 900px) { #dashSectionHead { display: none; } }
+  /* A shortcut landing on an overview panel flashes its border so the eye finds it
+     after the scroll — no layout shift, and skipped under reduced motion. */
+  .dash-ovcard-flash { animation: ovFlash 1.4s ease-out 1; }
+  @keyframes ovFlash {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(181,143,74,0); }
+    18%      { box-shadow: 0 0 0 3px rgba(181,143,74,0.45); }
+  }
+  @media (prefers-reduced-motion: reduce) { .dash-ovcard-flash { animation: none; } }
+  /* ── Dedicated pages: pipeline / revenue / manufacturers ─────────────────── */
+  .dpp-group { border-top: 1px solid rgba(51,65,85,0.4); padding-top: 10px; margin-top: 10px; }
+  .dpp-group:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  .dpp-grouphead { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800;
+    letter-spacing: 0.06em; text-transform: uppercase; color: #e2e8f0; margin-bottom: 4px; }
+  .dpp-groupn { margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: 0; text-transform: none; color: #94a3b8; }
+  .dpp-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; min-height: 44px;
+    padding: 7px 2px; background: none; border: 0; border-top: 1px solid rgba(51,65,85,0.25); cursor: pointer; }
+  .dpp-row:first-of-type { border-top: 0; }
+  .dpp-row:hover .dpp-name { color: var(--gold-hi); }
+  .dpp-name { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 700; color: #e2e8f0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dpp-meta { flex: 0 0 auto; font-size: 10.5px; font-weight: 600; color: #94a3b8; }
+  .dpp-val { flex: 0 0 auto; font-size: 12.5px; font-weight: 800; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+  /* profit band inside a booked bar */
+  .dash-bar-fill { position: relative; }
+  .rev-bar-profit { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0 0 6px 6px;
+    background: rgba(11,17,32,0.42); }
+  /* manufacturer availability */
+  .mfg-switch { display: flex; align-items: center; gap: 9px; cursor: pointer; min-height: 34px; }
+  .mfg-switch input { width: 17px; height: 17px; flex: 0 0 auto; accent-color: #b58f4a; cursor: pointer; }
+  .mfg-name { font-size: 12.5px; font-weight: 800; color: #f1f5f9; }
+  .mfg-table tr.is-off .mfg-name { color: #64748b; }
+  .mfg-table tr.is-off td:not(.mfg-check) { opacity: 0.45; }
+  /* change order: form on the left, the number you'll charge on the right */
+  .dco-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 1000px) { .dco-grid { grid-template-columns: 1.35fr 1fr; align-items: start; } }
+  .dco-field { margin-bottom: 14px; }
+  .dco-field:last-child { margin-bottom: 0; }
+  .dco-label { display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #94a3b8; margin-bottom: 5px; }
+  .dco-hint { font-size: 11px; line-height: 1.5; font-weight: 600; color: #94a3b8; margin-top: 6px; }
+  .dco-pair { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 560px) { .dco-pair { grid-template-columns: 1fr 1fr; } }
+  .dco-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .dco-chip { font-size: 11px; font-weight: 800; color: #cbd5e1; background: rgba(51,65,85,0.4);
+    border: 1px solid rgba(51,65,85,0.7); border-radius: 9999px; padding: 5px 11px; cursor: pointer;
+    min-height: 30px; }
+  /* A shortcut next to a real number input, so it stays compact with a mouse —
+     but on a phone it's a target like any other and gets the 44px floor. */
+  @media (pointer: coarse) { .dco-chip { min-height: 44px; padding: 5px 15px; } }
+  .dco-chip:hover { color: var(--gold-hi); border-color: rgba(181,143,74,0.5); }
+  .dco-chip.is-on { color: #0f172a; background: var(--gold-hi); border-color: var(--gold-hi); }
+  .dco-reset { align-self: flex-start; margin-top: 14px; font-size: 11.5px; font-weight: 800;
+    color: #94a3b8; background: none; border: 0; padding: 4px 0; cursor: pointer; min-height: 32px; }
+  .dco-reset:hover { color: #fb7185; text-decoration: underline; }
+  /* Keep the amount in view while they fill the form on a tall desktop window. */
+  @media (min-width: 1000px) { .dco-outcard { position: sticky; top: 12px; } }
+  .dco-result { border: 1px solid rgba(51,65,85,0.55); border-radius: 14px;
+    background: rgba(2,6,23,0.45); padding: 13px 15px 15px; }
+  .dco-line { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 11.5px; font-weight: 600; color: #94a3b8; padding: 4px 0; }
+  .dco-line-v { font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums;
+    text-align: right; min-width: 0; }
+  .dco-total { border-top: 1px solid rgba(51,65,85,0.6); margin-top: 8px; padding-top: 12px; }
+  .dco-total-lbl { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #94a3b8; }
+  .dco-amount { font-size: clamp(1.9rem, 1.4rem + 1.6vw, 2.4rem); font-weight: 900; letter-spacing: -0.025em;
+    line-height: 1.05; margin-top: 4px; color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+  .dco-total-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px;
+    font-size: 11px; font-weight: 600; color: #94a3b8; }
+  .dco-foot-v { font-weight: 800; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .dco-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .dco-rowsub { display: block; font-size: 10.5px; font-weight: 600; color: #94a3b8; }
+  /* .dpt cells are nowrap, which on a phone pushed the "You charge" column — the
+     one number the table exists to show — off the right edge. Wrapping the label
+     and its sub-line lets all three columns fit at 375px. */
+  @media (max-width: 620px) {
+    #dashChangeOrderBasis .dpt td, #dashChangeOrderBasis .dpt th { white-space: normal; }
+    #dashChangeOrderBasis .dpt td { padding-right: 6px; }
+  }
+  [data-theme="light"] .dpp-group, [data-theme="light"] .dpp-row { border-top-color: #e2e8f0; }
+  [data-theme="light"] .dpp-grouphead { color: #0f172a; }
+  [data-theme="light"] .dpp-groupn, [data-theme="light"] .dpp-meta { color: #64748b; }
+  [data-theme="light"] .dpp-name { color: #1e293b; }
+  [data-theme="light"] .dpp-row:hover .dpp-name { color: var(--gold-ink); }
+  [data-theme="light"] .dpp-val, [data-theme="light"] .mfg-name { color: #0f172a; }
+  [data-theme="light"] .rev-bar-profit { background: rgba(255,255,255,0.5); }
+  [data-theme="light"] .mfg-table tr.is-off .mfg-name { color: #94a3b8; }
+  [data-theme="light"] .dco-label, [data-theme="light"] .dco-hint,
+  [data-theme="light"] .dco-line, [data-theme="light"] .dco-total-lbl,
+  [data-theme="light"] .dco-total-foot, [data-theme="light"] .dco-reset { color: #64748b; }
+  [data-theme="light"] .dco-line-v, [data-theme="light"] .dco-foot-v { color: #0f172a; }
+  [data-theme="light"] .dco-result { background: #f8fafc; border-color: #e2e8f0; }
+  [data-theme="light"] .dco-total { border-top-color: #e2e8f0; }
+  /* --gold-hi (#c9a558) is only ~2.1:1 on white — the light theme's darker gold. */
+  [data-theme="light"] .dco-amount { color: var(--gold-ink); }
+  [data-theme="light"] .dco-chip { color: #334155; background: #f1f5f9; border-color: #cbd5e1; }
+  [data-theme="light"] .dco-chip:hover { color: var(--gold-ink); border-color: #d9c79a; }
+  [data-theme="light"] .dco-chip.is-on { color: #ffffff; background: #8a6a2e; border-color: #8a6a2e; }
+  [data-theme="light"] .dco-reset:hover { color: #be123c; }
+  [data-theme="light"] .dco-rowsub { color: #64748b; }
+  /* ── v2 P3: the overview grid ─────────────────────────────────────────────── */
+  .dash-overview { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
+  @media (min-width: 1000px) { .dash-overview { grid-template-columns: 2fr 1fr; } }
+  /* Flex column so a shorter panel's content can stretch to the row height the
+     taller neighbour sets — otherwise the chart floats at the top of dead space. */
+  .dash-ovcard { border: 1px solid rgba(51,65,85,0.55); border-radius: 16px; background: #0b1120;
+    padding: 15px 16px 16px; min-width: 0; display: flex; flex-direction: column; }
+  .dash-ovcard-full { grid-column: 1 / -1; }
+  .dash-ovhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    margin-bottom: 12px; }
+  .dash-ovtitle { font-size: 13.5px; font-weight: 900; letter-spacing: -0.01em; color: #f1f5f9; }
+  .dash-ovsub { font-size: 11.5px; font-weight: 600; color: #94a3b8; margin-top: 2px; }
+  .dash-ovpill { flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #cbd5e1; background: rgba(51,65,85,0.55);
+    border-radius: 9999px; padding: 3px 9px; }
+  .dash-ovlink { flex: 0 0 auto; font-size: 11.5px; font-weight: 800; color: var(--gold-hi);
+    background: none; border: 0; cursor: pointer; padding: 2px 0; }
+  .dash-ovlink:hover { text-decoration: underline; }
+  .dash-ovempty { font-size: 11.5px; line-height: 1.6; color: #94a3b8; }
+  .dash-ovfoot { font-size: 11px; font-weight: 700; color: #64748b; padding-top: 8px; }
+  /* Booked-by-month bars: CSS heights, so no redraw on resize or theme flip. */
+  .dash-bars { display: flex; align-items: flex-end; gap: 5px; flex: 1 1 auto; min-height: 132px; }
+  .dash-bar-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
+  .dash-bar-track { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end;
+    background: rgba(51,65,85,0.22); border-radius: 6px; overflow: hidden; }
+  .dash-bar-fill { width: 100%; border-radius: 6px 6px 0 0;
+    background: linear-gradient(180deg, var(--gold-hi), rgba(181,143,74,0.55)); }
+  .dash-bar-fill.is-empty { background: transparent; }
+  /* #64748b measured 3.96:1 on the card at 9.5px — under the floor. January keeps a
+     brighter tint so the year boundary still reads. */
+  .dash-bar-lbl { flex: 0 0 auto; font-size: 9.5px; font-weight: 700; color: #94a3b8; }
+  .dash-bar-lbl.is-year { color: #e2e8f0; }
+  /* Needs-attention rail */
+  .dash-attn-list { display: flex; flex-direction: column; }
+  .dash-attn-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+    padding: 8px 2px; background: none; border: 0; border-top: 1px solid rgba(51,65,85,0.35);
+    cursor: pointer; min-height: 44px; }
+  .dash-attn-row:first-child { border-top: 0; }
+  .dash-attn-row:hover .dash-attn-name { color: var(--gold-hi); }
+  .dash-attn-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 9999px; }
+  .dash-attn-dot.tone-warn { background: #fbbf24; }
+  .dash-attn-dot.tone-ok { background: #34d399; }
+  .dash-attn-main { flex: 1 1 auto; min-width: 0; }
+  .dash-attn-name { display: block; font-size: 12.5px; font-weight: 700; color: #e2e8f0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-attn-note { display: block; font-size: 10.5px; font-weight: 600; color: #94a3b8; }
+  .dash-attn-pill { flex: 0 0 auto; font-size: 10px; font-weight: 800; border-radius: 9999px; padding: 2px 8px; }
+  .dash-attn-pill.tone-warn { color: #fbbf24; background: rgba(251,191,36,0.12); }
+  .dash-attn-pill.tone-ok { color: #34d399; background: rgba(16,185,129,0.12); }
+  /* Pipeline table */
+  .dpt-wrap { overflow-x: auto; }
+  .dpt { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .dpt th { text-align: left; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #94a3b8; padding: 0 10px 8px 0; white-space: nowrap; }
+  .dpt th:last-child, .dpt .dpt-val { text-align: right; }
+  .dpt th:nth-child(2), .dpt .dpt-n { text-align: right; }
+  .dpt td { padding: 9px 10px 9px 0; border-top: 1px solid rgba(51,65,85,0.4);
+    color: #cbd5e1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dpt-stage { font-weight: 800; color: #f1f5f9; }
+  .dpt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 8px; }
+  .dpt-bar { width: 55%; }
+  .dpt-track { display: inline-block; width: calc(100% - 46px); height: 7px; border-radius: 9999px;
+    background: rgba(51,65,85,0.5); overflow: hidden; vertical-align: middle; }
+  .dpt-fill { display: block; height: 100%; border-radius: 9999px; }
+  .dpt-share { display: inline-block; width: 38px; text-align: right; font-size: 11px;
+    font-weight: 700; color: #94a3b8; }
+  .dpt-val { font-weight: 800; color: #f1f5f9; }
+  [data-theme="light"] .dash-ovcard { background: #ffffff; border-color: #e2e8f0; }
+  [data-theme="light"] .dash-ovtitle, [data-theme="light"] .dpt-stage,
+  [data-theme="light"] .dpt-val { color: #0f172a; }
+  [data-theme="light"] .dash-ovsub, [data-theme="light"] .dash-ovempty,
+  [data-theme="light"] .dash-attn-note, [data-theme="light"] .dpt th,
+  [data-theme="light"] .dpt-share { color: #64748b; }
+  [data-theme="light"] .dash-ovpill { color: #475569; background: #eef1f6; }
+  [data-theme="light"] .dash-ovlink { color: var(--gold-ink); }
+  [data-theme="light"] .dash-ovfoot { color: #64748b; }
+  [data-theme="light"] .dash-bar-track { background: #eef1f6; }
+  [data-theme="light"] .dash-bar-lbl { color: #64748b; }
+  [data-theme="light"] .dash-bar-lbl.is-year { color: #334155; }
+  [data-theme="light"] .dash-attn-row { border-top-color: #e2e8f0; }
+  [data-theme="light"] .dash-attn-name { color: #1e293b; }
+  [data-theme="light"] .dash-attn-row:hover .dash-attn-name { color: var(--gold-ink); }
+  [data-theme="light"] .dash-attn-pill.tone-warn { color: #92400e; background: #fffbeb; }
+  [data-theme="light"] .dash-attn-pill.tone-ok { color: #047857; background: #ecfdf5; }
+  [data-theme="light"] .dpt td { border-top-color: #e2e8f0; color: #334155; }
+  [data-theme="light"] .dpt-track { background: #e2e8f0; }
+  /* ── v2 P2: page bar + the divided KPI strip ─────────────────────────────── */
+  .dash-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; padding-bottom: 14px; margin-bottom: 18px;
+    border-bottom: 1px solid rgba(51,65,85,0.5); }
+  .dash-topbar-title { display: flex; align-items: center; gap: 9px; min-width: 0;
+    font-size: 15px; font-weight: 900; letter-spacing: -0.01em; color: #f1f5f9; }
+  .dash-topbar-icon { display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 9px; color: var(--gold-hi);
+    background: rgba(181,143,74,0.12); border: 1px solid rgba(181,143,74,0.28); }
+  .dash-topbar-icon svg { width: 16px; height: 16px; }
+  .dash-topbar-note { font-size: 12px; font-weight: 600; color: #94a3b8; padding-left: 10px;
+    margin-left: 2px; border-left: 1px solid rgba(51,65,85,0.7); min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 560px) { .dash-topbar-note { display: none; } }
+  /* #64748b is only 4.33:1 on the light page background at 12px — same trap as
+     .team-foot. Slate-600 clears it. */
+  [data-theme="light"] .dash-topbar-note { color: #475569; border-left-color: #e2e8f0; }
+  .dash-topbar-tools { display: flex; align-items: center; gap: 8px; }
+  /* One hairline grid: gap:1px over a border-coloured background gives perfect
+     dividers however the cells wrap, with no nth-child border juggling. */
+  .dash-kpi { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1px;
+    background: rgba(51,65,85,0.5); border: 1px solid rgba(51,65,85,0.5);
+    border-radius: 16px; overflow: hidden; }
+  @media (min-width: 700px)  { .dash-kpi { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  @media (min-width: 1150px) { .dash-kpi { grid-template-columns: repeat(5, minmax(0,1fr)); } }
+  .dash-kpi-cell { background: #0b1120; padding: 13px 15px 14px; min-width: 0; }
+  .dash-kpi-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .dash-kpi-label { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #94a3b8; padding-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-kpi-ico { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; display: inline-flex;
+    align-items: center; justify-content: center; }
+  .dash-kpi-ico svg { width: 14px; height: 14px; }
+  .dash-kpi-ico.tone-gold { color: var(--gold-hi); background: rgba(181,143,74,0.16); }
+  .dash-kpi-ico.tone-emerald { color: #6ee7b7; background: rgba(16,185,129,0.14); }
+  .dash-kpi-ico.tone-sky { color: #7dd3fc; background: rgba(14,165,233,0.14); }
+  .dash-kpi-ico.tone-violet { color: #c4b5fd; background: rgba(139,92,246,0.16); }
+  .dash-kpi-ico.tone-slate { color: #cbd5e1; background: rgba(100,116,139,0.18); }
+  .dash-kpi-num { font-size: clamp(1.35rem, 1.1rem + 1vw, 1.7rem); font-weight: 900; letter-spacing: -0.02em;
+    line-height: 1.1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .dash-kpi-foot { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; margin-top: 5px; }
+  .dash-kpi-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 800;
+    font-variant-numeric: tabular-nums; }
+  .dash-kpi-delta.up { color: #34d399; }
+  .dash-kpi-delta.down { color: #fb7185; }
+  /* #64748b measured 3.96:1 on the cell background at 11px — under the 4.5:1 floor.
+     Slate-400 clears it; the label above stays bolder/uppercase so hierarchy holds. */
+  .dash-kpi-sub { font-size: 11px; font-weight: 600; color: #94a3b8; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-theme="light"] .dash-topbar { border-bottom-color: #e2e8f0; }
+  [data-theme="light"] .dash-topbar-title { color: #0f172a; }
+  [data-theme="light"] .dash-topbar-icon { color: var(--gold-ink); background: rgba(181,143,74,0.10); border-color: #d9c79a; }
+  [data-theme="light"] .dash-kpi { background: #e2e8f0; border-color: #e2e8f0; }
+  [data-theme="light"] .dash-kpi-cell { background: #ffffff; }
+  [data-theme="light"] .dash-kpi-label { color: #64748b; }
+  [data-theme="light"] .dash-kpi-sub { color: #64748b; }
+  [data-theme="light"] .dash-kpi-delta.up { color: #047857; }
+  [data-theme="light"] .dash-kpi-delta.down { color: #be123c; }
+  [data-theme="light"] .dash-kpi-ico.tone-emerald { color: #047857; background: rgba(16,185,129,0.12); }
+  [data-theme="light"] .dash-kpi-ico.tone-sky { color: #0369a1; background: rgba(14,165,233,0.12); }
+  [data-theme="light"] .dash-kpi-ico.tone-violet { color: #6d28d9; background: rgba(139,92,246,0.12); }
+  [data-theme="light"] .dash-kpi-ico.tone-slate { color: #475569; background: rgba(100,116,139,0.14); }
+  [data-theme="light"] .dash-kpi-ico.tone-gold { color: var(--gold-ink); background: rgba(181,143,74,0.12); }
+  /* ═══ Dashboard v2 — workspace shell (P1) ═════════════════════════════════
+     Orion-style persistent sidebar, in Anchor's dark palette. Desktop only:
+     under 900px it is display:none and the bottom tab bar remains the nav. */
+  #dashLayout { display: flex; height: 100%; min-height: 0; }
+  #dashSidebar { display: none; }
+  #dashScroll { flex: 1 1 auto; min-width: 0; }
+  @media (min-width: 900px) {
+    #dashSidebar { display: flex; flex-direction: column; flex: 0 0 264px; width: 264px;
+      border-right: 1px solid rgba(51,65,85,0.55); background: rgba(8,13,24,0.72);
+      overflow-y: auto; overscroll-behavior: contain; padding: 14px 12px 12px;
+      transition: flex-basis .2s ease, width .2s ease; }
+    body.dashnav-collapsed #dashSidebar { flex-basis: 76px; width: 76px; padding-left: 10px; padding-right: 10px; }
+    body.dashnav-collapsed .dnav-label,
+    body.dashnav-collapsed .dnav-grouphead,
+    body.dashnav-collapsed .dnav-count,
+    body.dashnav-collapsed .dnav-usermeta { display: none; }
+    body.dashnav-collapsed .dnav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+    body.dashnav-collapsed .dnav-brandrow { justify-content: center; }
+    body.dashnav-collapsed .dnav-brandmark { display: none; }
+  }
+  .dnav-brandrow { display: flex; align-items: center; gap: 8px; padding: 2px 6px 12px; }
+  .dnav-brandmark { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 900; letter-spacing: -0.01em;
+    color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dnav-collapse { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; display: inline-flex;
+    align-items: center; justify-content: center; color: #64748b; background: transparent;
+    border: 1px solid transparent; cursor: pointer; }
+  .dnav-collapse:hover { color: #cbd5e1; border-color: rgba(51,65,85,0.7); }
+  .dnav-group { margin-bottom: 14px; }
+  .dnav-grouphead { font-size: 9.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #94a3b8; padding: 0 8px 6px; }
+  .dnav-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px;
+    padding: 7px 9px; margin-bottom: 2px; border-radius: 10px; border: 1px solid transparent;
+    background: transparent; color: #94a3b8; font-size: 13px; font-weight: 700; cursor: pointer;
+    text-align: left; transition: background .15s ease, color .15s ease; }
+  .dnav-item:hover { background: rgba(30,41,59,0.6); color: #e2e8f0; }
+  .dnav-item svg { flex: 0 0 auto; width: 17px; height: 17px; }
+  .dnav-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dnav-item.active { background: rgba(181,143,74,0.14); color: var(--gold-hi);
+    border-color: rgba(181,143,74,0.34); }
+  .dnav-item:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+  .dnav-count { flex: 0 0 auto; min-width: 20px; text-align: center; font-size: 10.5px; font-weight: 800;
+    color: #cbd5e1; background: rgba(51,65,85,0.6); border-radius: 9999px; padding: 1px 6px;
+    font-variant-numeric: tabular-nums; }
+  .dnav-item.active .dnav-count { color: #0b1120; background: var(--gold-hi); }
+  .dnav-count.is-alert { color: #0b1120; background: #fbbf24; }
+  .dnav-spacer { flex: 1 1 auto; min-height: 8px; }
+  .dnav-user { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px;
+    border-radius: 12px; border: 1px solid rgba(51,65,85,0.55); background: rgba(15,23,42,0.6);
+    cursor: pointer; text-align: left; }
+  .dnav-user:hover { border-color: rgba(100,116,139,0.75); }
+  .dnav-useravatar { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 9999px; overflow: hidden;
+    display: inline-flex; align-items: center; justify-content: center; background: #1e293b;
+    color: #cbd5e1; font-size: 11px; font-weight: 900; }
+  .dnav-usertext { flex: 1 1 auto; min-width: 0; }
+  .dnav-username { display: block; font-size: 12px; font-weight: 800; color: #f1f5f9;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dnav-userplan { display: block; font-size: 10px; font-weight: 700; color: #94a3b8; }
+  [data-theme="light"] #dashSidebar { background: #f8fafc; border-right-color: #e2e8f0; }
+  [data-theme="light"] .dnav-brandmark { color: #0f172a; }
+  [data-theme="light"] .dnav-grouphead { color: #64748b; }
+  [data-theme="light"] .dnav-item { color: #475569; }
+  [data-theme="light"] .dnav-item:hover { background: #eef1f6; color: #0f172a; }
+  [data-theme="light"] .dnav-item.active { background: rgba(181,143,74,0.12); color: var(--gold-ink);
+    border-color: #d9c79a; }
+  [data-theme="light"] .dnav-count { color: #475569; background: #e2e8f0; }
+  [data-theme="light"] .dnav-item.active .dnav-count { color: #ffffff; background: #8a6a2e; }
+  [data-theme="light"] .dnav-user { background: #ffffff; border-color: #e2e8f0; }
+  [data-theme="light"] .dnav-username { color: #0f172a; }
+  [data-theme="light"] .dnav-userplan { color: #64748b; }
+  [data-theme="light"] .dnav-collapse:hover { color: #334155; border-color: #d6dae1; }
+
   /* One height/radius/type for every control in the Jobs toolbar so the button,
      the two dropdowns and the search field align on a single baseline. 16px type on
      the search input on phones keeps iOS from zooming on focus. */
@@ -395,7 +725,7 @@
   .dd-item.active { background: rgba(30,41,59,0.7); color: #ffffff; }
   [data-theme="light"] .dd-item.active { background: #f1f5f9; color: #0f172a; }
   .dd-item.selected.active { color: var(--gold-hi); }
-  [data-theme="light"] .dd-item.selected.active { color: var(--gold-lo); }
+  [data-theme="light"] .dd-item.selected.active { color: var(--gold-ink); }
   @media (prefers-reduced-motion: reduce) { .dd-panel--fixed { transition: none; } }
 
   /* ------- Segmented Control (tabs) ------- */
@@ -503,7 +833,7 @@
   [data-theme="light"] .mat-swipe-x:hover, [data-theme="light"] .mat-swipe-x:active {
     color: #be123c; background: rgba(190,18,60,0.08);
   }
-  [data-theme="light"] .mat-swipe-restore { color: #8a6a2e; background: rgba(201,165,88,0.12); }
+  [data-theme="light"] .mat-swipe-restore { color: var(--gold-ink); background: rgba(201,165,88,0.12); }
   [data-theme="light"] .mat-swipe.excluded .mat-strike { color: #64748b !important; }
   /* Block sealer gallons row under the Materials rail toggle */
   .sealer-qty {
@@ -530,7 +860,7 @@
   .trim-rate { grid-column: 1 / -1; margin-top: 1px; font-size: 11px; font-weight: 700; color: #c9a558; text-align: right; }
   [data-theme="light"] .trim-pick > span { color: #64748b; }
   [data-theme="light"] .trim-sel { background: #fff; border-color: #cbd5e1; color: #1e293b; }
-  [data-theme="light"] .trim-rate { color: #9a7636; }
+  [data-theme="light"] .trim-rate { color: var(--gold-ink); }
   /* Head/jamb/sill split — secondary toggle + per-run board pickers. */
   .trim-split-switch { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
     margin-top: 8px; padding: 8px 11px; border-radius: 11px; background: rgba(15,23,42,0.4);
@@ -578,12 +908,12 @@
   [data-theme="light"] .trim-src-seg button.on { background: #b58f4a; color: #fff; }
   [data-theme="light"] .trim-lf-chip { background: #fff; border-color: #e2e8f0; }
   [data-theme="light"] .trim-lf-chip b { color: #1e293b; }
-  [data-theme="light"] .trim-comp-rate { color: #9a7636; }
+  [data-theme="light"] .trim-comp-rate { color: var(--gold-ink); }
   [data-theme="light"] .trim-split-hint { color: #64748b; }
   [data-theme="light"] .trim-split-hint b { color: #334155; }
   [data-theme="light"] .trim-split-total { border-top-color: #e2e8f0; }
   [data-theme="light"] .trim-split-total span { color: #64748b; }
-  [data-theme="light"] .trim-split-total b { color: #9a7636; }
+  [data-theme="light"] .trim-split-total b { color: var(--gold-ink); }
   /* Settings 3×3 trim price grid ($/LF by material × width). */
   /* Trim price matrix: material rows × board-width columns. grid-template-columns
      is set in JS from widths.length (the old hardcoded 4-col template scrambled
@@ -663,7 +993,7 @@
   [data-theme="light"] .inst-shop-note { color: #64748b; }
   [data-theme="light"] .inst-shop-name { color: #1e293b; }
   [data-theme="light"] .inst-shop-qty { color: #334155; }
-  [data-theme="light"] .inst-shop-count { color: #8a6a2e; }
+  [data-theme="light"] .inst-shop-count { color: var(--gold-ink); }
   [data-theme="light"] .inst-shop-item.is-done .inst-shop-name,
   [data-theme="light"] .inst-shop-item.is-done .inst-shop-qty { color: #94a3b8; }
   .team-seatgrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
@@ -772,7 +1102,7 @@
     border: 1px solid rgba(181,143,74,0.30); border-radius: 8px; padding: 4px 9px; }
   .team-invitemeta { flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 600; color: #94a3b8; }
   [data-theme="light"] .team-inviterow { border-bottom-color: #e2e8f0; }
-  [data-theme="light"] .team-invitecode { color: #8a6a2e; background: rgba(181,143,74,0.08); border-color: #d9c79a; }
+  [data-theme="light"] .team-invitecode { color: var(--gold-ink); background: rgba(181,143,74,0.08); border-color: #d9c79a; }
   [data-theme="light"] .team-invitemeta { color: #64748b; }
   .team-rategrid { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 8px 0 4px; }
   @media (min-width: 640px) { .team-rategrid { grid-template-columns: 1fr 1fr; gap: 6px 14px; } }
@@ -806,7 +1136,7 @@
   [data-theme="light"] .tmc-t, [data-theme="light"] .tmc-d-top, [data-theme="light"] .team-mode-now { color: #0f172a; }
   [data-theme="light"] .tmc-d, [data-theme="light"] .team-mode-sub { color: #64748b; }
   [data-theme="light"] .team-brandname, [data-theme="light"] .team-brandtoggle { color: #334155; }
-  [data-theme="light"] .team-brandflag.is-on { color: #9a7636; border-color: #b58f4a; }
+  [data-theme="light"] .team-brandflag.is-on { color: var(--gold-ink); border-color: #b58f4a; }
   .team-act-danger:hover { color: #fb7185; border-color: rgba(251,113,133,0.55); }
   .team-chip-x { background: transparent; border: 0; color: #64748b; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 5px; }
   .team-chip-x:hover { color: #fb7185; }
@@ -822,7 +1152,7 @@
   [data-theme="light"] .team-lock-p, [data-theme="light"] .team-org-sub, [data-theme="light"] .team-empty { color: #64748b; }
   [data-theme="light"] .team-stat, [data-theme="light"] .team-row { background: #ffffff; border-color: #e2e8f0; }
   [data-theme="light"] .team-chip-m { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
-  [data-theme="light"] .team-rate { color: #9a7636; }
+  [data-theme="light"] .team-rate { color: var(--gold-ink); }
   [data-theme="light"] .team-act { color: #475569; border-color: #d6dae1; }
   [data-theme="light"] .team-tag { color: #64748b; border-color: #d6dae1; }
 
@@ -835,12 +1165,12 @@
   .ai-price-btn.loading svg { animation:apb-spin 0.9s linear infinite; }
   .ai-price-btn.locked::after { content:"PRO"; font-size:8.5px; font-weight:800; letter-spacing:0.06em; background:#c9a558; color:#0b1220; border-radius:4px; padding:1px 4px; margin-left:2px; }
   .toggle-pill .val.val-pro { color:#c9a558; font-weight:800; letter-spacing:0.02em; }
-  [data-theme="light"] .toggle-pill .val.val-pro { color:#9a7636; }
+  [data-theme="light"] .toggle-pill .val.val-pro { color:var(--gold-ink); }
   @keyframes apb-spin { to { transform:rotate(360deg); } }
   .ai-price-note { margin-top:6px; font-size:10.5px; line-height:1.4; color:#64748b; }
   .ai-price-stamp { color:#c9a558; font-weight:600; }
-  [data-theme="light"] .ai-price-btn { background:#faf3e2; color:#9a7636; border-color:#e4cd95; }
-  [data-theme="light"] .ai-price-stamp { color:#9a7636; }
+  [data-theme="light"] .ai-price-btn { background:#faf3e2; color:var(--gold-ink); border-color:#e4cd95; }
+  [data-theme="light"] .ai-price-stamp { color:var(--gold-ink); }
   .tpr-overlay { position:fixed; inset:0; z-index:2000; background:rgba(2,6,16,0.72); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; }
   .tpr-modal { width:100%; max-width:520px; max-height:88vh; overflow:auto; background:linear-gradient(180deg,#0d1426,#0a0f1e); border:1px solid rgba(51,65,85,0.7); border-radius:18px; box-shadow:0 30px 80px -20px rgba(0,0,0,0.8); padding:18px; }
   .tpr-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
@@ -871,7 +1201,7 @@
   [data-theme="light"] .tpr-modal { background:#fff; border-color:#e2e8f0; }
   [data-theme="light"] .tpr-title, [data-theme="light"] .tpr-mat { color:#1e293b; }
   [data-theme="light"] .tpr-table td { color:#334155; }
-  [data-theme="light"] .tpr-new { color:#9a7636; }
+  [data-theme="light"] .tpr-new { color:var(--gold-ink); }
   [data-theme="light"] .tpr-apply { color:#fff; }
   /* Wood-bucking in-quote toggle: a full-width tappable row with a sliding switch,
      so it clearly reads as an interactive control (not a static badge). */
@@ -894,7 +1224,7 @@
   [data-theme="light"] .buck-switch-name { color: #1e293b; }
   [data-theme="light"] .buck-switch-track { background: rgba(148,163,184,0.45); border-color: #cbd5e1; }
   [data-theme="light"] .buck-switch.on .buck-switch-track { background: #b58f4a; border-color: #9a7636; }
-  [data-theme="light"] .buck-switch.on .buck-switch-state { color: #9a7636; }
+  [data-theme="light"] .buck-switch.on .buck-switch-state { color: var(--gold-ink); }
   .seg-btn.active {
     background: rgba(181,143,74,0.18);
     color: var(--gold-hi);
@@ -1139,7 +1469,7 @@
   #jobSpecsFab { display: none !important; }
   [data-theme="light"] body.tabbar-on .app-tabbar { background: rgba(255,255,255,0.96); border-top-color: #e2e6ec; }
   [data-theme="light"] .app-tab { color: #64748b; }
-  [data-theme="light"] .app-tab.active { color: #9a7636; }
+  [data-theme="light"] .app-tab.active { color: var(--gold-ink); }
   [data-theme="light"] .app-fab-circle { color: #ffffff; box-shadow: 0 10px 26px -8px rgba(154,118,54,0.5), 0 0 0 6px rgba(255,255,255,0.96); }
 
   /* Bottom-chrome offsets: one var feeds every element that must clear the bar.
@@ -1150,6 +1480,14 @@
   #dashboardScreen .dash-scroll {
     position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+  /* Dashboard v2: on desktop the scroller joins the flex row beside the sidebar
+     instead of covering the screen. It stays position:absolute below 900px, where
+     the cloned tab bar relies on that anchoring to stay put on iOS — so the mobile
+     chrome is byte-identical. Declared here (not with the other v2 rules) because
+     it has to win against the absolute rule directly above it. */
+  @media (min-width: 900px) {
+    #dashboardScreen .dash-scroll { position: relative; inset: auto; height: 100%; }
   }
   /* Drop the open animation’s sticky transform so it can’t create an iOS
      touch-offset containing block over the fixed tab bar. */
@@ -1199,7 +1537,7 @@
   .dash-chip.active .dash-chip-n { color: inherit; }
   [data-theme="light"] .dash-chip { background: #ffffff; border-color: #d6dae1; color: #64748b; }
   [data-theme="light"] .dash-chip:hover { color: #334155; }
-  [data-theme="light"] .dash-chip.active { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
+  [data-theme="light"] .dash-chip.active { color: var(--gold-ink); background: rgba(181,143,74,0.10); border-color: #b58f4a; }
 
   /* ── Address map picker (Job Address → Pick on map) ── */
   .addr-map-btn {
@@ -1302,7 +1640,7 @@
   /* Keep Google’s own zoom control; lift our chrome above the map tiles. */
   #addrMapModal .gm-style { font-family: inherit; }
   #addrMapCanvas .gm-style-cc, #addrMapCanvas .gmnoprint a { display: none !important; }
-  [data-theme="light"] .addr-map-btn { color: #8a6a2e; border-color: rgba(138,106,46,0.4); background: rgba(181,143,74,0.1); }
+  [data-theme="light"] .addr-map-btn { color: var(--gold-ink); border-color: rgba(138,106,46,0.4); background: rgba(181,143,74,0.1); }
 
   /* ── Expandable live-total sheet (UI refresh P5) ── tap the selling-price bar
      for an itemized peek (mobile-patterns §7: the collapsed bar expands into an
@@ -1373,10 +1711,10 @@
   [data-theme="light"] .msheet-panel { background: #ffffff; border-top-color: rgba(154,118,54,0.45); }
   [data-theme="light"] .msheet-cap { color: #64748b; }
   [data-theme="light"] .msheet-num { color: #0f172a; }
-  [data-theme="light"] .msheet-margin { color: #9a7636; }
+  [data-theme="light"] .msheet-margin { color: var(--gold-ink); }
   [data-theme="light"] .msheet-tile { background: #f8fafc; border-color: #e2e8f0; }
   [data-theme="light"] .msheet-tile b { color: #0f172a; }
-  [data-theme="light"] .msheet-tile b.msheet-gold { color: #9a7636; }
+  [data-theme="light"] .msheet-tile b.msheet-gold { color: var(--gold-ink); }
   [data-theme="light"] .msheet-rows { border-color: #e2e8f0; }
   [data-theme="light"] .msheet-row + .msheet-row, [data-theme="light"] .msheet-more { border-top-color: #eef1f5; }
   [data-theme="light"] .msheet-row-name { color: #475569; }
@@ -1660,7 +1998,7 @@
   .job-crew-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
   .job-crew-sel option { color: #0f172a; font-weight: 700; }
   [data-theme="light"] .job-crew-sel { color: #64748b; background: #f1f5f9; border-color: #d6dae1; }
-  [data-theme="light"] .job-crew-sel.is-set { color: #9a7636; background: rgba(181,143,74,0.10); border-color: #b58f4a; }
+  [data-theme="light"] .job-crew-sel.is-set { color: var(--gold-ink); background: rgba(181,143,74,0.10); border-color: #b58f4a; }
   /* Job-extras pills stack full-width inside the rail */
   #jobRail .margin-pill, #jobRail .toggle-pill {
     width: 100%; justify-content: space-between;
@@ -1771,7 +2109,7 @@
   }
   .rail-feedback-link:hover { color: #c9a558; }
   [data-theme="light"] .rail-feedback-link { color: #5b6a7d; }  /* was #94a3b8 = 2.3:1; #5b6a7d = 5.0:1, clears AA on the light page */
-  [data-theme="light"] .rail-feedback-link:hover { color: #97772e; }
+  [data-theme="light"] .rail-feedback-link:hover { color: var(--gold-ink); }
   /* Admin feedback list */
   .fb-resolved { margin-top: 12px; border-top: 1px solid rgba(51,65,85,0.55); padding-top: 6px; }
   .fb-resolved-sum { cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; list-style: none; padding: 6px 0; -webkit-tap-highlight-color: transparent; }
@@ -1990,7 +2328,7 @@
   [data-theme="light"] #emptyStatePlanProgress {
     background: rgba(181,143,74,0.12); border-color: rgba(138,106,46,0.35);
   }
-  [data-theme="light"] .empty-plan-progress-label { color: #8a6a2e; }
+  [data-theme="light"] .empty-plan-progress-label { color: var(--gold-ink); }
   [data-theme="light"] .empty-plan-progress-track { background: rgba(226,232,240,0.9); }
   /* Live-recap band in the main panel — replaces the old big LF input */
   #liveRecap {
@@ -2114,7 +2452,7 @@
   .mfr-ta-icon { transition: transform .15s ease; }
   .mfr-toggle-all[data-act="collapse"] .mfr-ta-icon { transform: rotate(180deg); }
   [data-theme="light"] .mfr-toggle-all { color: #64748b; }
-  [data-theme="light"] .mfr-toggle-all:hover { color: #b58f4a; background: rgba(181,143,74,0.1); }
+  [data-theme="light"] .mfr-toggle-all:hover { color: var(--gold-ink); background: rgba(181,143,74,0.1); }
 
   /* ------- Collapsible result cards (Full Breakdown / Labor Detail / Job Files):
      left-aligned title when open, compact title-left + summary-right when
@@ -2183,7 +2521,7 @@
   [data-theme="light"] .rcard.rcard-hint {
     box-shadow: 0 0 0 1px rgba(181,143,74,0.5), 0 10px 24px -14px rgba(181,143,74,0.35);
   }
-  [data-theme="light"] .rcard-expand-hint { color: #9a7636; }
+  [data-theme="light"] .rcard-expand-hint { color: var(--gold-ink); }
   @keyframes rcardHintGlow {
     0%, 100% { box-shadow: 0 0 0 1px rgba(181,143,74,0.28), 0 8px 20px -16px rgba(181,143,74,0.2); }
     50% { box-shadow: 0 0 0 1px rgba(181,143,74,0.55), 0 12px 30px -14px rgba(181,143,74,0.5); }
@@ -3391,17 +3729,17 @@
   [data-theme="light"] .labor-edit-input, [data-theme="light"] .labor-crew-name {
     background: #fff; border-color: #cbd5e1; color: #0f172a;
   }
-  [data-theme="light"] .labor-edit-input.is-override { color: #8a6a2e; border-color: rgba(138,106,46,0.5); }
+  [data-theme="light"] .labor-edit-input.is-override { color: var(--gold-ink); border-color: rgba(138,106,46,0.5); }
   [data-theme="light"] .labor-crew-block { background: rgba(241,245,249,0.7); }
 
   [data-theme="light"] .margin-lever { border-color: rgba(100,116,139,0.35); background: rgba(241,245,249,0.7); }
   [data-theme="light"] .margin-lever.is-override { border-color: rgba(138,106,46,0.5); background: rgba(201,165,88,0.12); }
   [data-theme="light"] .margin-step { color: #475569; }
   [data-theme="light"] .margin-step:hover { background: rgba(100,116,139,0.14); color: #0f172a; }
-  [data-theme="light"] #marginInput { color: #8a6a2e; }
+  [data-theme="light"] #marginInput { color: var(--gold-ink); }
   [data-theme="light"] .margin-lever-unit { color: #64748b; }
   [data-theme="light"] .margin-reset { color: #64748b; }
-  [data-theme="light"] .margin-reset:hover { color: #8a6a2e; }
+  [data-theme="light"] .margin-reset:hover { color: var(--gold-ink); }
   /* OUT-14: Present mode — one tap hides every internal-only number so the installer
      can turn the screen to the customer. Presentation-only (CSS visibility); the
      render path keeps writing to the hidden nodes harmlessly. */
@@ -3417,9 +3755,9 @@
   @media (pointer: coarse) { .present-toggle { min-height: 44px; padding: 8px 15px; } }
   [data-theme="light"] .present-toggle { background: #fff; border-color: #d6dae1; color: #64748b; }
   [data-theme="light"] .present-toggle:hover,
-  [data-theme="light"] body.present-mode .present-toggle { color: #8a6a2e; border-color: rgba(138,106,46,0.5); background: rgba(201,165,88,0.1); }
+  [data-theme="light"] body.present-mode .present-toggle { color: var(--gold-ink); border-color: rgba(138,106,46,0.5); background: rgba(201,165,88,0.1); }
   /* FLR-11 building summary — darker gold in light mode for contrast on the light rail */
-  [data-theme="light"] #buildingSummary { color: #8a6a2e !important; }
+  [data-theme="light"] #buildingSummary { color: var(--gold-ink) !important; }
 
   /* Info tooltip */
   .info-tip {
@@ -4361,7 +4699,7 @@
     background: rgba(181,143,74,0.14); border: 1px solid rgba(181,143,74,0.35);
   }
   [data-theme="light"] .cust-tag-badge {
-    color: #9a7636; background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.4);
+    color: var(--gold-ink); background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.4);
   }
   .cust-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 14px; font-size: 13px; font-weight: 600; color: #94a3b8; background: none; border: 0; cursor: pointer; padding: 4px 0; }
   .cust-back:hover { color: var(--gold-hi); }
@@ -4532,7 +4870,7 @@
   /* Header theme-toggle buttons: dark defaults (slate-400 icon / slate-700 ring)
      fail on a light nav, so mirror the established light icon-button token. */
   [data-theme="light"] [data-theme-toggle] { color: #64748b; border-color: #d6dae1; }
-  [data-theme="light"] [data-theme-toggle]:hover { color: #97772e; border-color: #b58f4a; }
+  [data-theme="light"] [data-theme-toggle]:hover { color: var(--gold-ink); border-color: #b58f4a; }
 
   /* Account / More menu — snappy Apple-style spring carpet-roll.
      Open: fast unfurl + overshoot bounce settle. Close: little lift
@@ -4821,7 +5159,14 @@
      gold accents darkened slightly for contrast on white. */
   html[data-theme="light"], html[data-theme="light"] body { background: #f3f4f7; }
   [data-theme="light"] body { color: #0f172a; }
-  [data-theme="light"] { color-scheme: light; --gold-soft: rgba(181,143,74,0.12); --gold-glow: rgba(181,143,74,0.22); }
+  [data-theme="light"] { color-scheme: light; --gold-soft: rgba(181,143,74,0.12); --gold-glow: rgba(181,143,74,0.22);
+    /* Measured against all 17 light surfaces the app actually renders gold text on
+       (white cards through to the #e6e2db gold tint): #755a25 clears 4.5:1 on every
+       one, worst case 5.01. The values this replaced did not — #97772e bottomed out
+       at 3.26 and #8a6a2e at 3.89. --amber-ink keeps warnings amber rather than
+       collapsing them into the brand gold; #92400e is the same ink the warn pills
+       already use, worst case 5.49. */
+    --gold-ink: #755a25; --amber-ink: #92400e; }
 
   /* surfaces */
   [data-theme="light"] .card {
@@ -4936,7 +5281,7 @@
   [data-theme="light"] .dd-menu { background: #ffffff; border-color: #e2e8f0; box-shadow: 0 20px 44px -14px rgba(15,23,42,0.22); }
   [data-theme="light"] .dd-item { color: #334155; }
   [data-theme="light"] .dd-item:hover { background: #f1f5f9; color: #0f172a; }
-  [data-theme="light"] .dd-item.selected { color: var(--gold-lo); background: var(--gold-soft); }
+  [data-theme="light"] .dd-item.selected { color: var(--gold-ink); background: var(--gold-soft); }
   [data-theme="light"] .row-alt:nth-child(even) { background: rgba(15,23,42,0.035); }
   [data-theme="light"] .pfp-item { color: #334155; }
   [data-theme="light"] .pfp-item:hover { background: #f1f5f9; color: #0f172a; }
@@ -4959,7 +5304,7 @@
   [data-theme="light"] .seg-btn { color: #64748b; }
   [data-theme="light"] .seg-btn:hover { color: #334155; }
   [data-theme="light"] .seg-btn.active {
-    background: #ffffff; color: #97772e;
+    background: #ffffff; color: var(--gold-ink);
     box-shadow: 0 1px 2px rgba(15,23,42,0.08), 0 0 0 1px rgba(181,143,74,0.32) inset;
   }
 
@@ -5011,7 +5356,7 @@
   [data-theme="light"] .margin-pill input { background: transparent !important; color: #0f172a !important; }
   [data-theme="light"] .toggle-pill.active { background: #fff8ec; border-color: var(--gold-hi); box-shadow: 0 0 0 3px var(--gold-soft); }
   [data-theme="light"] .toggle-pill.active .val,
-  [data-theme="light"] .margin-pill .pct { color: #97772e; }
+  [data-theme="light"] .margin-pill .pct { color: var(--gold-ink); }
 
   /* pricing page: plan price number + billing toggle */
   [data-theme="light"] .lp-plan-price .num { color: #0f172a; }
@@ -5020,7 +5365,56 @@
 
   /* gold text reads too light on white — darken it */
   [data-theme="light"] .accent-glow,
-  [data-theme="light"] .text-\[\#c9a558\] { color: #97772e !important; }
+  /* Inline warm-accent utilities. Tailwind emits an /opacity variant as its OWN
+     class (.text-amber-300\/90), so remapping the base class does nothing for it —
+     that is how "You're using sample rates" ended up at 1.2:1 on the light page,
+     effectively invisible. Every variant actually used in the markup is listed. */
+  [data-theme="light"] .text-\[\#c9a558\],
+  [data-theme="light"] .text-\[\#c9a558\]\/90,
+  [data-theme="light"] .text-\[\#c9a558\]\/85,
+  [data-theme="light"] .text-\[\#c9a558\]\/70,
+  [data-theme="light"] .text-\[\#dfc07a\],
+  [data-theme="light"] .text-\[\#d8b96a\],
+  [data-theme="light"] .text-\[\#e3c577\],
+  [data-theme="light"] .text-\[\#b58f4a\] { color: var(--gold-ink) !important; }
+  /* Amber means WARNING here, so it keeps its own darker ink instead of collapsing
+     into the brand gold and reading as decoration. */
+  [data-theme="light"] .text-amber-200,
+  [data-theme="light"] .text-amber-200\/90,
+  [data-theme="light"] .text-amber-300,
+  [data-theme="light"] .text-amber-300\/80,
+  [data-theme="light"] .text-amber-300\/90,
+  [data-theme="light"] .text-amber-400,
+  [data-theme="light"] .text-amber-400\/60,
+  [data-theme="light"] .text-amber-400\/80,
+  [data-theme="light"] .text-amber-500\/70 { color: var(--amber-ink) !important; }
+  /* These set gold text in the BASE stylesheet and had no light override at all,
+     so light mode kept the dark-mode gold on a light gold tint (2.08:1 / 2.12:1). */
+  [data-theme="light"] .dash-card-load { color: var(--gold-ink); }
+  [data-theme="light"] .calib-chip.todo { color: var(--gold-ink); }
+  [data-theme="light"] .crew-summary-pill b { color: var(--gold-ink); }
+  [data-theme="light"] .fbc-pdf-open { color: var(--gold-ink); }
+  /* #id #id beats a plain class, so this override has to be just as specific. */
+  [data-theme="light"] #jobSummaryBar #jobSummaryEdit { color: var(--gold-ink); }
+  /* Gold text declared as var(--gold-hi) with no light override. A hex-scanning
+     audit cannot see these — the declaration contains no hex — and a rendered
+     sweep misses the :hover / :focus-visible ones because those states are never
+     captured, and misses the rest when the component has no data to render. */
+  [data-theme="light"] .crew-av-initials,
+  [data-theme="light"] .crew-loaded b,
+  [data-theme="light"] .cust-logo-btn,
+  [data-theme="light"] .rates-nav-link.active,
+  [data-theme="light"] .rates-show-all.rates-show-all-active,
+  [data-theme="light"] .rates-show-all-mobile.rates-show-all-active,
+  [data-theme="light"] .edit-rate-btn:hover,
+  [data-theme="light"] .edit-rate-btn:focus-visible,
+  [data-theme="light"] .doc-line-gold { color: var(--gold-ink); }
+  /* Icons carry meaning here (an included-feature tick, an expand chevron, the
+     collapsed running-total glyph) so they owe the 3:1 graphical-object floor —
+     #c9a558 gives 2.33 on white. */
+  [data-theme="light"] .lp-plan-features li:not(.muted) svg,
+  [data-theme="light"] .lp-faq summary .chev,
+  [data-theme="light"] #mtotalPeek svg { color: var(--gold-ink); }
 
   /* text — invert brightness (bright-on-dark → dark-on-light) */
   [data-theme="light"] .text-white,
@@ -5105,7 +5499,7 @@
   [data-theme="light"] .rail-add-btn:hover { border-color: rgba(181,143,74,0.55); color: #9c7a36; }
   [data-theme="light"] .ef-row { border-color: #cbd5e1; }
   [data-theme="light"] .ef-remove { border-color: #cbd5e1; color: #475569; }
-  [data-theme="light"] .sug-chip { color: #8a6a2e; background: rgba(138,106,46,0.08); border-color: rgba(138,106,46,0.4); }
+  [data-theme="light"] .sug-chip { color: var(--gold-ink); background: rgba(138,106,46,0.08); border-color: rgba(138,106,46,0.4); }
 
   /* Pricing tier cards: the feature list under each plan was #cbd5e1 — nearly
      invisible on white. Darken the list text and the divider. */
@@ -5199,7 +5593,7 @@
   .dash-card-compare:hover { color: #c9a558; border-color: rgba(181,143,74,0.55); }
   .dash-card-compare.is-on { background: rgba(181,143,74,0.16); color: #c9a558; border-color: #c9a558; }
   [data-theme="light"] .dash-card-compare { color: #475569; border-color: #cbd5e1; }
-  [data-theme="light"] .dash-card-compare.is-on { color: #8a6a2e; border-color: #b58f4a; background: rgba(181,143,74,0.12); }
+  [data-theme="light"] .dash-card-compare.is-on { color: var(--gold-ink); border-color: #b58f4a; background: rgba(181,143,74,0.12); }
   /* ---- First-run activation checklist (DASH-1 / ONBD-2) ---- */
   .dash-checklist { border: 1px solid rgba(181,143,74,0.35); border-radius: 18px; background: rgba(181,143,74,0.05); padding: 18px 18px 8px; }
   .dash-check-head { display: flex; align-items: center; gap: 10px; }
@@ -5221,10 +5615,10 @@
   .dash-firstrun-note { font-size: 12.5px; color: #94a3b8; margin: 14px 2px 0; text-align: center; }
   .dash-firstrun-link { display: inline; font-size: 12.5px; font-weight: 700; color: #c9a558; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
   .dash-firstrun-link:hover { color: #dfc07a; }
-  [data-theme="light"] .dash-firstrun-link { color: #8a6a2e; }
+  [data-theme="light"] .dash-firstrun-link { color: var(--gold-ink); }
   [data-theme="light"] .dash-checklist { border-color: #e6d9bd; background: #fbf8f0; }
   [data-theme="light"] .dash-check-title { color: #0f172a; }
-  [data-theme="light"] .dash-check-progress { color: #8a6a2e; }
+  [data-theme="light"] .dash-check-progress { color: var(--gold-ink); }
   [data-theme="light"] .dash-check-bar { background: #e2e8f0; }
   [data-theme="light"] .dash-check-bar > span { background: #b58f4a; }
   [data-theme="light"] .dash-check-item { border-top-color: #eceef1; }
@@ -5232,7 +5626,7 @@
   [data-theme="light"] .dash-check-item.is-done .dash-check-label { color: #94a3b8; }
   [data-theme="light"] .dash-check-mark { color: #fff; background: #b58f4a; }
   [data-theme="light"] .dash-check-item:not(.is-done) .dash-check-mark { border-color: #cbd5e1; background: transparent; color: transparent; }
-  [data-theme="light"] .dash-check-cta { color: #8a6a2e; border-color: #b58f4a; background: rgba(181,143,74,0.1); }
+  [data-theme="light"] .dash-check-cta { color: var(--gold-ink); border-color: #b58f4a; background: rgba(181,143,74,0.1); }
   [data-theme="light"] .dash-check-dismiss { color: #94a3b8; }
   [data-theme="light"] .dash-firstrun-note { color: #64748b; }
   /* ---- Launchpad cards (modular dashboard home) ---- */
@@ -5262,7 +5656,7 @@
   .dash-customize-btn:hover { border-color: rgba(181,143,74,0.5); color: #e2e8f0; }
   .dash-customize-btn.active { background: rgba(181,143,74,0.18); color: #c9a558; border-color: #c9a558; }
   [data-theme="light"] .dash-customize-btn { background: #eef1f5; color: #64748b; border-color: #d6dae1; }
-  [data-theme="light"] .dash-customize-btn.active { background: #faf3e2; color: #9a7636; border-color: #b58f4a; }
+  [data-theme="light"] .dash-customize-btn.active { background: #faf3e2; color: var(--gold-ink); border-color: #b58f4a; }
   .dash-editbar { border: 1px dashed rgba(181,143,74,0.5); border-radius: 16px; background: rgba(181,143,74,0.05); padding: 12px 14px; margin-bottom: 16px; }
   .dash-editbar-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .dash-editbar-title { font-size: 12px; font-weight: 700; color: #c9a558; }
@@ -5382,7 +5776,7 @@
   .dash-launch-cell.tip-open .dash-tip { opacity: 1; transform: translateY(0) scale(1); visibility: visible; pointer-events: auto; transition-delay: 0s; }
   [data-theme="light"] .dash-tip { background: #ffffff; color: #334155; border-color: rgba(181,143,74,0.5); box-shadow: 0 16px 32px -16px rgba(15,23,42,0.28); }
   [data-theme="light"] .dash-tip::after { border-color: rgba(181,143,74,0.5); }
-  [data-theme="light"] .dash-tip-btn { color: #b58f4a; }
+  [data-theme="light"] .dash-tip-btn { color: var(--gold-ink); }
   @media (prefers-reduced-motion: reduce) { .dash-tip { transition: opacity .001s, visibility 0s; transform: none !important; } .dash-tip-btn:hover ~ .dash-tip { transition-delay: 0s; } }
   /* ---- Section back button ---- */
   .dash-back { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; font-size: 13px; font-weight: 700; color: #94a3b8; padding: 9px 14px 9px 11px; border-radius: 9999px; background: rgba(15,23,42,0.6); border: 1px solid #1e293b; transition: all .15s ease; min-height: 44px; }
@@ -5466,10 +5860,10 @@
   [data-theme="light"] .dlb-hero-l, [data-theme="light"] .dlb-ratio-l { color: #64748b; }
   [data-theme="light"] .dlb-hero-n { color: #059669; }
   [data-theme="light"] .dlb-pill.green { color: #047857; }
-  [data-theme="light"] .dlb-pill.gold { color: #97772e; }
+  [data-theme="light"] .dlb-pill.gold { color: var(--gold-ink); }
   [data-theme="light"] .dlb-tl { color: #64748b; }
   [data-theme="light"] .dlb-stackbar { background: rgba(15,23,42,0.10); }
-  [data-theme="light"] .dash-stat-badge { color: #b58f4a; background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.4); }
+  [data-theme="light"] .dash-stat-badge { color: var(--gold-ink); background: rgba(181,143,74,0.12); border-color: rgba(181,143,74,0.4); }
   [data-theme="light"] .dash-stat-label,
   [data-theme="light"] .dash-stat-sub,
   [data-theme="light"] .dash-stat-vs { color: #64748b; }
@@ -5598,7 +5992,7 @@
     color: #334155; border-color: #d6dae1; background: #fff;
   }
   [data-theme="light"] .jd-footer-secondary:hover {
-    color: #8a6a2e; border-color: rgba(181,143,74,0.55); background: rgba(181,143,74,0.06);
+    color: var(--gold-ink); border-color: rgba(181,143,74,0.55); background: rgba(181,143,74,0.06);
   }
   [data-theme="light"] .jd-footer-danger { color: #64748b; }
   [data-theme="light"] .jd-footer-danger:hover { color: #e11d48; }
@@ -5611,7 +6005,7 @@
   .jd-ver-link:hover { color: #c9a558; border-color: rgba(201,165,88,0.5); }
   [data-theme="light"] .jd-ver-row { color: #64748b; }
   [data-theme="light"] .jd-ver-link { background: #fff; border-color: #d6dae1; color: #475569; }
-  [data-theme="light"] .jd-ver-cur { color: #8a6a2e; border-color: rgba(138,106,46,0.4); }
+  [data-theme="light"] .jd-ver-cur { color: var(--gold-ink); border-color: rgba(138,106,46,0.4); }
   .jd-photo { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: rgba(2,6,23,0.6); border: 1px solid #1e293b; cursor: pointer; padding: 0; }
   .jd-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .jd-photo-empty { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
@@ -5709,8 +6103,8 @@
     .jd-gallery-hint { display: none; } /* reclaim vertical space for bigger photos on phone */
   }
   [data-theme="light"] .jd-fan-empty { color: #64748b; border-color: #d6dae1; }
-  [data-theme="light"] .jd-fan-empty:hover { color: #8a6a2e; border-color: rgba(138,106,46,0.4); }
-  [data-theme="light"] .jd-fan-empty.is-uploading { color: #8a6a2e; border-color: rgba(138,106,46,0.45); background: rgba(181,143,74,0.08); }
+  [data-theme="light"] .jd-fan-empty:hover { color: var(--gold-ink); border-color: rgba(138,106,46,0.4); }
+  [data-theme="light"] .jd-fan-empty.is-uploading { color: var(--gold-ink); border-color: rgba(138,106,46,0.45); background: rgba(181,143,74,0.08); }
   [data-theme="light"] .jd-gallery-progress { background: rgba(181,143,74,0.1); border-color: rgba(138,106,46,0.35); }
   [data-theme="light"] .jd-gallery-progress-track { background: rgba(226,232,240,0.9); }
   @media (pointer: coarse) { #jdAddPhotos { min-height: 44px; padding-left: 6px; padding-right: 6px; } }
@@ -6104,14 +6498,14 @@
   [data-theme="light"] .learn-nav-toc { color:#475569; }
   [data-theme="light"] .learn-card { background:#ffffff; border-color:#e6e8ec; box-shadow:0 1px 2px rgba(15,23,42,0.04), 0 12px 30px -22px rgba(15,23,42,0.18); }
   [data-theme="light"] .learn-pc > div { background:#f8fafc; }
-  [data-theme="light"] .learn-fig { color:#9a7636; }
+  [data-theme="light"] .learn-fig { color:var(--gold-ink); }
   [data-theme="light"] .learn-sec-head { background:radial-gradient(420px 190px at 8% -10%, rgba(154,118,54,0.08), transparent 70%); }
-  [data-theme="light"] .learn-nav-toc.active { color:#9a7636; background:rgba(154,118,54,0.08); }
-  [data-theme="light"] .learn-keynum-stat > b { color:#9a7636; }
+  [data-theme="light"] .learn-nav-toc.active { color:var(--gold-ink); background:rgba(154,118,54,0.08); }
+  [data-theme="light"] .learn-keynum-stat > b { color:var(--gold-ink); }
   [data-theme="light"] .learn-pn-btn { background:#ffffff; border-color:#e6e8ec; }
   [data-theme="light"] .learn-pn-t { color:#0f172a; }
-  [data-theme="light"] .learn-pn-k { color:#9a7636; }
-  [data-theme="light"] .learn-cta { color:#9a7636; border-color:rgba(154,118,54,0.5); }
+  [data-theme="light"] .learn-pn-k { color:var(--gold-ink); }
+  [data-theme="light"] .learn-cta { color:var(--gold-ink); border-color:rgba(154,118,54,0.5); }
   [data-theme="light"] .learn-cta:hover { background:rgba(154,118,54,0.08); }
   @media (max-width: 767px) { [data-theme="light"] #learnScreen aside { background:#f3f4f7; } }
   .legal-foot-link { color: inherit; background: transparent; border: 0; cursor: pointer; padding: 0; font: inherit; transition: color .15s ease; }
@@ -6139,7 +6533,7 @@
   [data-theme="light"] .jd-head-title { color: #0f172a; }
   [data-theme="light"] .jd-head-sub { color: #64748b; }
   [data-theme="light"] .jd-gen-thumb {
-    color: #8a6a2e; background: rgba(181,143,74,0.08); border-color: rgba(181,143,74,0.4);
+    color: var(--gold-ink); background: rgba(181,143,74,0.08); border-color: rgba(181,143,74,0.4);
   }
   [data-theme="light"] .jd-photo { background: #eef0f3; border-color: #e6e8ec; }
   [data-theme="light"] .jd-photo-empty { color: #94a3b8; }
@@ -6183,14 +6577,14 @@
   [data-theme="light"] #mtotalBar .mtotal-cap,
   [data-theme="light"] #mtotalBar .mtotal-sub { color: #64748b; }
   [data-theme="light"] #mtotalBar .mtotal-amount { color: #0f172a; }
-  [data-theme="light"] #mtotalBar .mtotal-chev { color: #97772e; }
+  [data-theme="light"] #mtotalBar .mtotal-chev { color: var(--gold-ink); }
   [data-theme="light"] #mtotalPeek {
     background: rgba(255,255,255,0.96); border-color: rgba(181,143,74,0.45); color: #0f172a;
   }
   [data-theme="light"] #jobSummaryBar { background: rgba(255,255,255,0.85); border-bottom-color: rgba(15,23,42,0.08); }
   [data-theme="light"] #jobSummaryBar #jobSpecSummary .jss-size { color: #0f172a; }
   [data-theme="light"] #jobSummaryBar #jobSpecSummary .jss-spec { color: #64748b; }
-  [data-theme="light"] #jobSummaryBar #jobSpecSummary.is-empty { color: #97772e; }
+  [data-theme="light"] #jobSummaryBar #jobSpecSummary.is-empty { color: var(--gold-ink); }
   [data-theme="light"] .info-pop {
     background: #ffffff; color: #334155;
     border-color: rgba(181,143,74,0.45);
@@ -6199,7 +6593,7 @@
   [data-theme="light"] .info-pop::after { border-top-color: #ffffff; }
   [data-theme="light"] #jobRail .info-pop::after { border-top-color: transparent; border-bottom-color: #ffffff; }
   [data-theme="light"] .tip-tag.high { background: rgba(225,29,72,0.10); color: #be123c; border-color: rgba(225,29,72,0.35); }
-  [data-theme="light"] .tip-tag.med  { background: rgba(181,143,74,0.14); color: #8a6a2e; border-color: rgba(181,143,74,0.45); }
+  [data-theme="light"] .tip-tag.med  { background: rgba(181,143,74,0.14); color: var(--gold-ink); border-color: rgba(181,143,74,0.45); }
   [data-theme="light"] .tip-tag.low  { background: rgba(100,116,139,0.12); color: #475569; border-color: rgba(100,116,139,0.40); }
 
   /* ---- P0: Dashboard / compare — deal-status & e-sign pills ---- */
@@ -6227,13 +6621,13 @@
   }
   [data-theme="light"] .job-status-sel.text-\[\#c9a558\],
   [data-theme="light"] .dash-thumb-badge.text-\[\#c9a558\] {
-    color: #8a6a2e !important; background-color: rgba(181,143,74,0.14) !important; border-color: rgba(181,143,74,0.5) !important;
+    color: var(--gold-ink) !important; background-color: rgba(181,143,74,0.14) !important; border-color: rgba(181,143,74,0.5) !important;
   }
   [data-theme="light"] #dashEsign .bg-emerald-500\/10.text-emerald-300 {
     background-color: rgba(5,150,105,0.12) !important; border-color: rgba(5,150,105,0.45) !important;
   }
   [data-theme="light"] #dashEsign .bg-\[\#b58f4a\]\/10.text-\[\#c9a558\] {
-    color: #8a6a2e !important; border-color: rgba(181,143,74,0.5) !important;
+    color: var(--gold-ink) !important; border-color: rgba(181,143,74,0.5) !important;
   }
 
   /* ---- P0: global success-color text ---- */
@@ -6251,7 +6645,7 @@
   [data-theme="light"] .set-sr-kind { color: #64748b; background: #eef1f5; }
   [data-theme="light"] .set-sr-empty { color: #64748b; }
   [data-theme="light"] .set-sr-opt:hover .set-sr-label,
-  [data-theme="light"] .set-sr-opt.active .set-sr-label { color: var(--gold-lo); }
+  [data-theme="light"] .set-sr-opt.active .set-sr-label { color: var(--gold-ink); }
   [data-theme="light"] .cust-row { background: #f8fafc; border-color: #e2e8f0; }
   [data-theme="light"] .cust-row:hover { background: #fbf6ec; border-color: rgba(181,143,74,0.45); }
   [data-theme="light"] .cust-row-name,
@@ -6263,16 +6657,16 @@
   [data-theme="light"] .county-combo-list { background: #ffffff; border-color: #e2e8f0; box-shadow: 0 20px 44px -14px rgba(15,23,42,0.22); }
   [data-theme="light"] .county-combo-opt { color: #334155; }
   [data-theme="light"] .county-combo-opt:hover,
-  [data-theme="light"] .county-combo-opt.active { background: var(--gold-soft); color: var(--gold-lo); }
+  [data-theme="light"] .county-combo-opt.active { background: var(--gold-soft); color: var(--gold-ink); }
   [data-theme="light"] .county-combo-opt .ct-tax { color: #64748b; }
   [data-theme="light"] .county-combo-opt:hover .ct-tax,
-  [data-theme="light"] .county-combo-opt.active .ct-tax { color: var(--gold-lo); }
+  [data-theme="light"] .county-combo-opt.active .ct-tax { color: var(--gold-ink); }
   [data-theme="light"] .offline-pill { color: #92400e; background: rgba(245,158,11,0.14); border-color: #d8a342; }
   [data-theme="light"] .offline-pill svg { color: #b45309; }
   [data-theme="light"] #signOutBtn { color: #be123c; }
   [data-theme="light"] #signOutBtn:hover { color: #9f1239; }
   [data-theme="light"] .aim-ok,
-  [data-theme="light"] .aim-unlimited { color: #8a6a2e; }
+  [data-theme="light"] .aim-unlimited { color: var(--gold-ink); }
   [data-theme="light"] .aim-low { color: #b45309; }
   [data-theme="light"] .aim-limit { color: #be123c; }
 
@@ -6293,7 +6687,7 @@
 
   /* ---- P1: Calculator & rail ---- */
   [data-theme="light"] #jobRail .rail-acc-title,
-  [data-theme="light"] .rail-section-header { color: #97772e; }
+  [data-theme="light"] .rail-section-header { color: var(--gold-ink); }
   [data-theme="light"] .rail-section-header::before,
   [data-theme="light"] .rail-section-header::after {
     background: linear-gradient(90deg, transparent, rgba(181,143,74,0.5), transparent);
@@ -6302,7 +6696,7 @@
   [data-theme="light"] #liveRecap .recap-size { color: #334155; }
   [data-theme="light"] #liveRecap .recap-spec { color: #64748b; }
   [data-theme="light"] .dd-chev { color: #64748b; }
-  [data-theme="light"] .dd.open .dd-chev { color: #97772e; }
+  [data-theme="light"] .dd.open .dd-chev { color: var(--gold-ink); }
   [data-theme="light"] .info-tip { color: #64748b; }
   [data-theme="light"] .sgd-head label { color: #475569; }
   [data-theme="light"] .sgd-remove { color: #94a3b8; }
@@ -6328,41 +6722,41 @@
   [data-theme="light"] #adminModal .text-\[10px\].text-slate-500 { color: #55606e !important; }
   [data-theme="light"] .set-tab.active,
   [data-theme="light"] .rleaf-btn.active,
-  [data-theme="light"] .rdoor-btn.active { color: var(--gold-lo); background: #fff8ec; }
+  [data-theme="light"] .rdoor-btn.active { color: var(--gold-ink); background: #fff8ec; }
   [data-theme="light"] .rleaf-btn.active,
   [data-theme="light"] .rdoor-btn.active { border-color: rgba(181,143,74,0.5); }
   [data-theme="light"] .set-tab:hover { background: #eef1f5; color: #0f172a; }
   [data-theme="light"] .rleaf-btn:hover,
   [data-theme="light"] .rdoor-btn:hover { color: #0f172a; border-color: #cbd5e1; }
   [data-theme="light"] .cust-job-price,
-  [data-theme="light"] .cust-avatar-initials { color: var(--gold-lo); }
-  [data-theme="light"] .cust-back:hover { color: var(--gold-lo); }
-  [data-theme="light"] .mat-count { color: var(--gold-lo); background: rgba(181,143,74,0.16); }
+  [data-theme="light"] .cust-avatar-initials { color: var(--gold-ink); }
+  [data-theme="light"] .cust-back:hover { color: var(--gold-ink); }
+  [data-theme="light"] .mat-count { color: var(--gold-ink); background: rgba(181,143,74,0.16); }
 
   /* ---- P1: Overlays ---- */
-  [data-theme="light"] .ai-pop b { color: #8a6a2e; }
+  [data-theme="light"] .ai-pop b { color: var(--gold-ink); }
   [data-theme="light"] .text-rose-400 { color: #e11d48 !important; }
   [data-theme="light"] .text-rose-300 { color: #be123c !important; }
-  [data-theme="light"] .jd-doc-btn { color: #8a6a2e; background: rgba(181,143,74,0.10); border-color: rgba(181,143,74,0.45); }
+  [data-theme="light"] .jd-doc-btn { color: var(--gold-ink); background: rgba(181,143,74,0.10); border-color: rgba(181,143,74,0.45); }
   [data-theme="light"] .jd-doc-btn:disabled { color: #94a3b8; border-color: #e2e8f0; }
   [data-theme="light"] .jd-detail-btn { color: #64748b; }
   [data-theme="light"] .jd-detail-btn:hover { color: #334155; }
-  [data-theme="light"] .jd-detail-btn.active { color: #8a6a2e; }
+  [data-theme="light"] .jd-detail-btn.active { color: var(--gold-ink); }
   [data-theme="light"] .jd-detail-btn + .jd-detail-btn { border-left-color: #e2e8f0; }
 
   /* ---- P1: Marketing ---- */
-  [data-theme="light"] .lp-eyebrow { color: #8a6a2e; border-color: rgba(138,106,46,0.4); }
+  [data-theme="light"] .lp-eyebrow { color: var(--gold-ink); border-color: rgba(138,106,46,0.4); }
   [data-theme="light"] .lp-plan-name,
-  [data-theme="light"] .res-gh { color: #8a6a2e; }
-  [data-theme="light"] .res-num { color: #8a6a2e; background: rgba(138,106,46,0.16); }
+  [data-theme="light"] .res-gh { color: var(--gold-ink); }
+  [data-theme="light"] .res-num { color: var(--gold-ink); background: rgba(138,106,46,0.16); }
   [data-theme="light"] .lp-logo-tile { color: #64748b; background: #ffffff; border-color: #e6e8ec; }
   [data-theme="light"] .lp-logo-tile:hover { color: #475569; border-color: rgba(181,143,74,0.4); background: #fbfaf7; }
 
   /* ---- P2: polish ---- */
   [data-theme="light"] body.rail-tidy #jobRail .rail-acc-chev { color: #94a3b8; }
-  [data-theme="light"] body.rail-tidy #jobRail .rail-acc.open .rail-acc-chev { color: #97772e; }
+  [data-theme="light"] body.rail-tidy #jobRail .rail-acc.open .rail-acc-chev { color: var(--gold-ink); }
   [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all { color: #64748b; }
-  [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: #97772e; }
+  [data-theme="light"] body.rail-tidy #jobRail .rail-expand-all:hover { color: var(--gold-ink); }
   /* CALC-10 / FLR-13 — actionable nudges: readable gold (was 55% opacity, sub-AA),
      tappable (opens + focuses the field they point at), announced via aria-live. */
   /* Rail audit: cautions wear TRUE AMBER (#fbbf24), not the brand gold — gold means
@@ -6380,20 +6774,23 @@
   [data-theme="light"] .rail-nudge { color: #92400e; background: rgba(245,158,11,0.12); border-color: rgba(180,83,9,0.35); }
   [data-theme="light"] .rail-nudge:hover { background: rgba(245,158,11,0.2); }
   [data-theme="light"] .rail-nudge:focus-visible { outline-color: #b45309; }
-  [data-theme="light"] #lfFloorTotalHint { color: #8a6a2e !important; }
-  [data-theme="light"] .text-\[\#dfc07a\] { color: #8a6a2e !important; }
+  /* Dark base restored here because the inline style="color:var(--gold-hi)" it
+     used to carry was removed — inline beats any non-!important override. */
+  #lfFloorTotalHint { color: var(--gold-hi); }
+  [data-theme="light"] #lfFloorTotalHint { color: var(--gold-ink) !important; }
+  [data-theme="light"] .text-\[\#dfc07a\] { color: var(--gold-ink) !important; }
   [data-theme="light"] .modal-close { color: #64748b; }
   [data-theme="light"] .modal-close:hover,
   [data-theme="light"] .modal-close:focus-visible { color: #0f172a; background: #eef1f5; }
-  [data-theme="light"] #viewComparisonPdf:hover { background: #eef1f5 !important; color: #97772e !important; }
+  [data-theme="light"] #viewComparisonPdf:hover { background: #eef1f5 !important; color: var(--gold-ink) !important; }
   [data-theme="light"] #compareBody .cmp-table td.text-slate-700 { color: #94a3b8 !important; }
   [data-theme="light"] .set-collapse-summary:hover { background: rgba(15,23,42,0.04); }
   [data-theme="light"] .set-collapse-chev,
   [data-theme="light"] .mat-chev { color: #94a3b8; }
-  [data-theme="light"] .lp-why-icon { color: #8a6a2e; border-color: rgba(138,106,46,0.35); }
-  [data-theme="light"] .lp-trust-glyph { color: #8a6a2e; }
-  [data-theme="light"] .lp-rating-star { color: #b58f4a; filter: none; }
-  [data-theme="light"] .lp-bill-save { color: #8a6a2e; border-color: rgba(138,106,46,0.4); }
+  [data-theme="light"] .lp-why-icon { color: var(--gold-ink); border-color: rgba(138,106,46,0.35); }
+  [data-theme="light"] .lp-trust-glyph { color: var(--gold-ink); }
+  [data-theme="light"] .lp-rating-star { color: var(--gold-ink); filter: none; }
+  [data-theme="light"] .lp-bill-save { color: var(--gold-ink); border-color: rgba(138,106,46,0.4); }
   [data-theme="light"] .lp-range { background: rgba(100,116,139,0.30); }
   [data-theme="light"] .lp-status-sub { color: #7c5e12; }
 
@@ -6959,6 +7356,10 @@
 #landingScreen .doc-body { margin-top: 12px; font-size: 11px; font-weight: 600; color: var(--ink-3); }
 #landingScreen .paper-doc .doc-body { color: #3c4c6e; }
 #landingScreen .doc-line { display: flex; justify-content: space-between; padding: 4.5px 0; border-bottom: 1px solid rgba(148,163,184,0.14); font-variant-numeric: tabular-nums; }
+/* Was an inline style="color:var(--gold-hi)", which no [data-theme="light"] rule
+   can override without !important. Kept a plain class (not #landingScreen-scoped)
+   so the light override's specificity actually beats it. */
+.doc-line-gold { color: var(--gold-hi); }
 #landingScreen .paper-doc .doc-line { border-color: rgba(16,32,60,0.12); }
 #landingScreen .doc-badge { display: inline-block; margin-top: 10px; padding: 3px 8px; border-radius: 5px;
   font-size: 8.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
@@ -7295,7 +7696,7 @@
 [data-theme="light"] #landingScreen .ticket { background: rgba(15,23,42,0.04); }
 [data-theme="light"] #landingScreen .cell { background: rgba(15,23,42,0.04); border-color: rgba(15,23,42,0.10); }
 [data-theme="light"] #landingScreen .cell.err { color: #b91c1c; border-color: rgba(185,28,28,0.35); }
-[data-theme="light"] #landingScreen .cue-label { color: #8a6a2e; text-shadow: none; }
+[data-theme="light"] #landingScreen .cue-label { color: var(--gold-ink); text-shadow: none; }
 [data-theme="light"] #landingScreen .cue-line { background: #8a6a2e; filter: drop-shadow(0 0 4px rgba(138,106,46,0.5)); }
 /* "Try me!" pill is a gold BACKGROUND (not text) — keep it bright on light so it still pops */
 [data-theme="light"] #landingScreen .try-pill { background: #dfc07a; color: #1b1206; }
@@ -8357,7 +8758,7 @@
           <div class="doc-line"><span>Materials</span><span>$1,521.42</span></div>
           <div class="doc-line"><span>Labor</span><span>$9,109.53</span></div>
           <div class="doc-line"><span>True cost</span><span>$10,630.95</span></div>
-          <div class="doc-line" style="color:var(--gold-hi)"><span>Markup · 35%</span><span>+ $3,720.83</span></div>
+          <div class="doc-line doc-line-gold"><span>Markup · 35%</span><span>+ $3,720.83</span></div>
         </div>
         <span class="doc-badge">Not for customer</span>
       </article>
@@ -9057,6 +9458,12 @@
      "Open Calculator" / "Load" close it to reveal the calculator.
      ============================================================ -->
 <div id="dashboardScreen" class="fixed inset-0 z-[74] hidden" style="background:#020617;">
+  <!-- Dashboard v2 P1: a workspace shell. The sidebar is a real sibling of the
+       scroller (desktop only, >=900px) so every section is one click away instead
+       of a card you drill into and Back out of. Mobile keeps the approved bottom
+       tab bar as its nav and never renders this sidebar. -->
+  <div id="dashLayout">
+  <aside id="dashSidebar" aria-label="Dashboard sections"></aside>
   <div id="dashScroll" class="dash-scroll">
   <nav class="lp-nav sticky top-0 z-30">
     <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
@@ -9086,23 +9493,32 @@
   </nav>
 
   <div class="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
-    <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
-    <div id="dashHero" class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
-      <div>
-        <span class="lp-eyebrow">Dashboard</span>
-        <h1 id="dashGreeting" class="text-2xl sm:text-4xl font-black tracking-tightest text-slate-100 mt-3">Welcome back</h1>
-        <p class="text-slate-400 mt-2 text-sm sm:text-base">Your pipeline, your jobs, and where your money's going.</p>
+    <!-- Dashboard v2 P2: the page bar — which section you're on, and the range
+         every number on the page is measured over. -->
+    <div id="dashTopBar" class="dash-topbar">
+      <div class="dash-topbar-title">
+        <span id="dashTopBarIcon" class="dash-topbar-icon" aria-hidden="true"></span>
+        <span id="dashTopBarLabel">Dashboard</span>
+        <span id="dashTopBarNote" class="dash-topbar-note hidden"></span>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-sm font-bold px-6 py-3.5 inline-flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
+      <div class="dash-topbar-tools">
+        <select id="dashRangeSel" class="control jobs-ctl text-slate-300" title="The period every number on this page covers"></select>
+        <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-[12.5px] font-bold px-4 inline-flex items-center gap-1.5 jobs-ctl">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
           New quote
         </button>
       </div>
     </div>
-
+    <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
     <div id="dashStats" class="mb-4 hidden"></div>
+    <!-- v2 P3: the overview. Booked-by-month + what needs attention, then the
+         pipeline table. Home view only; all three read the active date range. -->
+    <div id="dashOverview" class="dash-overview hidden">
+      <div class="dash-ovcard dash-ovcard-wide" id="dashBookedCard"></div>
+      <div class="dash-ovcard" id="dashAttentionCard"></div>
+      <div class="dash-ovcard dash-ovcard-full" id="dashPipelineCard"></div>
+    </div>
 
     <!-- Customize sits under the KPI glance tiles and above the Jobs card —
          that's the launchpad it edits, so the control belongs with those cards. -->
@@ -9131,7 +9547,10 @@
          active [data-dashview] panel is shown; the rest stay in the DOM (renderers
          keep their element IDs) so nothing below needs rewiring. -->
     <div id="dashSection" class="hidden">
-      <div class="flex items-center gap-3 mb-6">
+      <!-- v2 P4: redundant on desktop — the sidebar says where you are and the page
+           bar carries the title. Hidden at >=900px, kept below that because mobile
+           has no sidebar and still needs a way back. -->
+      <div id="dashSectionHead" class="flex items-center gap-3 mb-6">
         <button id="dashBack" type="button" class="dash-back" aria-label="Back to dashboard">
           <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg>
           <span class="hidden sm:inline">Dashboard</span>
@@ -9204,7 +9623,7 @@
         <div id="dashEsign"></div>
       </div>
 
-      <!-- Pricing calibration view (estimated → actual → suggested rate updates) -->
+      <!-- Calibration view (estimated → actual → suggested rate updates) -->
       <div data-dashview="calibration" class="hidden">
         <div id="dashCalibration"></div>
       </div>
@@ -9212,6 +9631,105 @@
       <!-- Follow-ups view (stale quotes + finished jobs to calibrate) -->
       <div data-dashview="followups" class="hidden">
         <div id="dashFollowups"></div>
+      </div>
+
+      <!-- Deal pipeline view (stage funnel + conversion + per-stage jobs) -->
+      <div data-dashview="pipeline" class="hidden">
+        <div id="dashPipelinePage"></div>
+      </div>
+
+      <!-- Revenue trend view (booked/profit by month + bests + margin) -->
+      <div data-dashview="revenue" class="hidden">
+        <div id="dashRevenuePage"></div>
+      </div>
+
+      <!-- Manufacturers view (which brands are available + their rates + usage) -->
+      <div data-dashview="manufacturers" class="hidden">
+        <div id="dashMfgPage"></div>
+      </div>
+
+      <!-- Change order view (price a fix / back-charge / T&M off the job's crew rate).
+           The inputs are STATIC markup, not rendered: renderDashboard() runs on all
+           sorts of events, and re-templating this panel would wipe whatever the user
+           was mid-way through typing. The renderer only refreshes the job list and
+           the computed numbers around them. -->
+      <div data-dashview="changeorder" class="hidden">
+        <div class="dco-grid">
+          <div class="dash-ovcard">
+            <div class="dash-ovhead"><div>
+              <div class="dash-ovtitle">What happened</div>
+              <div class="dash-ovsub">Bill a fix, a back-charge, or time &amp; materials at this job&rsquo;s own crew rate.</div>
+            </div></div>
+            <div class="dco-field">
+              <label for="dcoJob" class="dco-label">Job</label>
+              <select id="dcoJob" class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100"></select>
+              <p id="dcoCrewHint" class="dco-hint">Select a job to use its crew $/hr.</p>
+            </div>
+            <div class="dco-field">
+              <label for="dcoParty" class="dco-label">Bill to / party</label>
+              <input id="dcoParty" type="text" autocomplete="organization" placeholder="e.g. supplier who shipped wrong"
+                class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+              <p class="dco-hint">Who&rsquo;s paying — the homeowner, the GC, or the supplier you&rsquo;re charging back.</p>
+            </div>
+            <div class="dco-field">
+              <label for="dcoDesc" class="dco-label">Description</label>
+              <textarea id="dcoDesc" rows="3" maxlength="800" placeholder="Wrong size, damaged unit, missed opening…"
+                class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" style="resize:vertical;min-height:76px;"></textarea>
+              <p class="dco-hint">Prints on the PDF, so write it the way the customer should read it.</p>
+            </div>
+            <div class="dco-pair">
+              <div class="dco-field">
+                <label for="dcoHours" class="dco-label">Hours to fix</label>
+                <input id="dcoHours" type="number" inputmode="decimal" min="0" step="0.25" placeholder="0"
+                  class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+                <div class="dco-chips">
+                  <button type="button" class="dco-chip" data-dco-hours="1">1h</button>
+                  <button type="button" class="dco-chip" data-dco-hours="2">2h</button>
+                  <button type="button" class="dco-chip" data-dco-hours="4">Half day</button>
+                  <button type="button" class="dco-chip" data-dco-hours="8">Full day</button>
+                </div>
+              </div>
+              <div class="dco-field">
+                <label for="dcoExtra" class="dco-label">Extra costs</label>
+                <input id="dcoExtra" type="number" inputmode="decimal" min="0" step="1" placeholder="0"
+                  class="control rounded-xl px-3.5 py-3 w-full text-sm text-slate-100 placeholder:text-slate-600" />
+                <p class="dco-hint">What the fix cost you in materials, a replacement unit, trips.</p>
+              </div>
+            </div>
+            <button type="button" class="dco-reset" data-dco-reset>Clear this change order</button>
+          </div>
+
+          <div class="dash-ovcard dco-outcard">
+            <div class="dash-ovhead"><div>
+              <div class="dash-ovtitle">What to charge</div>
+              <div class="dash-ovsub">Your cost, plus this job&rsquo;s markup.</div>
+            </div></div>
+            <div class="dco-result">
+              <div class="dco-line"><span class="dco-line-k">Labor</span><span id="dcoLaborLine" class="dco-line-v">&mdash;</span></div>
+              <div class="dco-line"><span class="dco-line-k">Extra costs</span><span id="dcoExtraLine" class="dco-line-v">$0.00</span></div>
+              <div class="dco-line"><span class="dco-line-k">Markup</span><span id="dcoMarginLine" class="dco-line-v">&mdash;</span></div>
+              <div class="dco-total">
+                <div class="dco-total-lbl">Change order amount</div>
+                <div id="dcoQuote" class="dco-amount">$0.00</div>
+                <div class="dco-total-foot">
+                  <span>Cost <span id="dcoCostLine" class="dco-foot-v">$0.00</span></span>
+                  <span>Profit <span id="dcoProfitLine" class="dco-foot-v">$0.00</span></span>
+                </div>
+              </div>
+            </div>
+            <div class="dco-actions">
+              <button id="dcoPdf" type="button" class="btn rounded-full w-full px-4 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Generate PDF</button>
+              <div class="flex items-center gap-2">
+                <button id="dcoCopyAmt" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Copy amount</button>
+                <button id="dcoCopySummary" type="button" class="btn rounded-full flex-1 px-4 py-2.5 text-sm font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10">Copy summary</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rendered: the arithmetic behind the number above, so the page explains
+             the PDF instead of just producing it. -->
+        <div id="dashChangeOrderBasis" class="dash-ovcard mt-4"></div>
       </div>
 
       <!-- Shopping list view (per-job materials to buy, checkable) -->
@@ -9231,6 +9749,7 @@
       </div>
       <div class="text-center sm:text-right">© 2026 Anchor · Estimates are for reference — verify before use.</div>
     </footer>
+  </div>
   </div>
   </div>
 </div>
@@ -9569,7 +10088,7 @@
           <span class="lf-unit">ft</span>
         </div>
         <div id="lfPerWindowHint" class="hidden mt-2 text-slate-500 text-[10px] tracking-[0.16em] uppercase font-semibold" style="font-variant-numeric: tabular-nums;"></div>
-        <div id="lfFloorTotalHint" class="hidden mt-1 text-[10px] tracking-[0.16em] uppercase font-bold" style="color: var(--gold-hi, #c9a558); font-variant-numeric: tabular-nums;"></div>
+        <div id="lfFloorTotalHint" class="hidden mt-1 text-[10px] tracking-[0.16em] uppercase font-bold" style="font-variant-numeric: tabular-nums;"></div>
         <!-- AIPLAN-5: persistent link to review each opening the AI read (survives the toast). -->
         <button type="button" id="aiReviewChip" class="hidden mt-2 text-[10px] font-bold tracking-[0.12em] uppercase text-[#c9a558] hover:text-[#d8b96a] inline-flex items-center gap-1"></button>
       </div>
@@ -17572,7 +18091,7 @@ function setJobStatus(id, status) {
   try { window.track("job_status_changed", { status }); } catch (_) {}
   // Marking a job Finished is the moment to capture actuals — nudge toward calibration.
   if (status === "Finished" && jobReconcilableRows(j).length && !(j.actuals && Object.keys(j.actuals).length)) {
-    toast("Job finished — log what you actually used in Pricing calibration to sharpen your rates.");
+    toast("Job finished — log what you actually used in Calibration to sharpen your rates.");
   }
   renderSavedJobs();
 }
@@ -18179,6 +18698,127 @@ function wireTabBar() {
   updateTabBar();
 }
 
+/* ── Dashboard v2 P1: the sidebar nav ─────────────────────────────────────────
+   Groups are declared here but the ITEMS resolve against DASH_CARDS, so the
+   "add a card = one DASH_CARDS entry" contract still holds: a new key only needs
+   listing in a group to appear in the nav. Counts reuse the same launchpad ctx the
+   cards already compute, so nothing new is calculated.
+   Desktop only — under 900px the CSS hides this and the bottom tab bar is the nav. */
+const DASH_NAV_GROUPS = [
+  { head: "", items: ["home"] },
+  { head: "Work", items: ["jobs", "followups", "aiplan", "manufacturers"] },
+  { head: "Money", items: ["pipeline", "insights", "revenue", "esign"] },
+  { head: "Field", items: ["shopping", "calibration", "changeorder", "fl"] },
+];
+/* Nav entries that aren't DASH_CARDS keys — they open something else rather than
+   swapping a [data-dashview] panel. Keyed the same way so one click handler covers
+   both kinds. */
+const DASH_NAV_EXTRAS = {
+  fl: {
+    title: "FL product approval",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.4-3 8-7 9-4-1-7-4.6-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>`,
+    open: () => { try { openFL(); } catch (_) {} },
+  },
+};
+const DNAV_HOME_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
+const DNAV_SETTINGS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9.6a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9.6a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
+const DNAV_COLLAPSE_ICON = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/></svg>';
+const LS_DASHNAV = "anchorDashNavCollapsed";
+
+function dashNavCollapsed() { try { return localStorage.getItem(LS_DASHNAV) === "1"; } catch (_) { return false; } }
+function applyDashNavCollapsed() {
+  document.body.classList.toggle("dashnav-collapsed", dashNavCollapsed());
+}
+
+/** Small count badges: only where a number is genuinely actionable. */
+function dashNavCount(key, ctx) {
+  if (!ctx) return null;
+  if (key === "jobs" && ctx.jobCount) return { n: ctx.jobCount };
+  if (key === "followups" && ctx.followupCount) return { n: ctx.followupCount, alert: true };
+  if (key === "shopping" && ctx.shoppingJobs) return { n: ctx.shoppingJobs };
+  if (key === "calibration" && ctx.suggestionCount) return { n: ctx.suggestionCount, alert: true };
+  return null;
+}
+
+function renderDashNav(ctx) {
+  const el = document.getElementById("dashSidebar");
+  if (!el) return;
+  const brand = (DATA.config && DATA.config.brand) || {};
+  const co = brand.companyName || "Your company";
+  const plan = (typeof getEntitlements === "function") ? (getEntitlements().plan || "trial") : "trial";
+  const planName = ({ trial: "Trial", starter: "Starter", pro: "Pro", unlimited: "Shop" })[plan] || plan;
+
+  const item = (key) => {
+    const isHome = key === "home";
+    const extra = DASH_NAV_EXTRAS[key];
+    const card = DASH_CARDS.find(c => c.key === key);
+    const meta = isHome ? { title: "Dashboard", icon: DNAV_HOME_ICON } : (extra || card);
+    if (!meta) return "";
+    // An extra opens a modal, and a shortcut that leaves the dashboard has no page
+    // of its own — neither can be "current". A shortcut that lands on an in-dash
+    // panel isn't marked active either, or two items would light up at once.
+    const leaves = card && (card.goto === "aiplan" || card.goto === "setup-manufacturers");
+    const shortcut = card && card.goto && card.goto !== key;
+    const active = !extra && !leaves && !shortcut && (_dashView || "home") === key;
+    const c = dashNavCount(key, ctx);
+    return `<button type="button" class="dnav-item${active ? " active" : ""}" data-dashnav="${escHtml(key)}"${active ? ' aria-current="page"' : ""}>
+      ${meta.icon}<span class="dnav-label">${escHtml(meta.title)}</span>${c ? `<span class="dnav-count${c.alert ? " is-alert" : ""}">${c.n}</span>` : ""}
+    </button>`;
+  };
+
+  el.innerHTML = `
+    <div class="dnav-brandrow">
+      <span class="dnav-brandmark">${escHtml(co)}</span>
+      <button type="button" class="dnav-collapse" data-dashnav-collapse aria-label="Collapse or expand the sidebar" title="Collapse sidebar">${DNAV_COLLAPSE_ICON}</button>
+    </div>
+    ${DASH_NAV_GROUPS.map(g => `<div class="dnav-group">
+        ${g.head ? `<div class="dnav-grouphead">${escHtml(g.head)}</div>` : ""}
+        ${g.items.map(item).join("")}
+      </div>`).join("")}
+    <div class="dnav-group">
+      <div class="dnav-grouphead">Support</div>
+      <button type="button" class="dnav-item" data-dashnav-settings>${DNAV_SETTINGS_ICON}<span class="dnav-label">Settings</span></button>
+    </div>
+    <div class="dnav-spacer"></div>
+    <button type="button" class="dnav-user" data-dashnav-account aria-label="Account menu">
+      <span class="dnav-useravatar">${escHtml((co.trim()[0] || "A").toUpperCase())}</span>
+      <span class="dnav-usertext dnav-usermeta">
+        <span class="dnav-username">${escHtml(co)}</span>
+        <span class="dnav-userplan">${escHtml(planName)} plan</span>
+      </span>
+    </button>`;
+}
+
+function wireDashNav() {
+  const el = document.getElementById("dashSidebar");
+  if (!el || el._wired) return;
+  el._wired = true;
+  applyDashNavCollapsed();
+  el.addEventListener("click", (e) => {
+    if (e.target.closest("[data-dashnav-collapse]")) {
+      try { localStorage.setItem(LS_DASHNAV, dashNavCollapsed() ? "0" : "1"); } catch (_) {}
+      applyDashNavCollapsed();
+      return;
+    }
+    if (e.target.closest("[data-dashnav-settings]")) {
+      try { openAdmin(); } catch (_) {}
+      return;
+    }
+    if (e.target.closest("[data-dashnav-account]")) {
+      const b = document.getElementById("dashPfpBtn");
+      if (b) b.click();
+      return;
+    }
+    const nav = e.target.closest("[data-dashnav]");
+    if (!nav) return;
+    const key = nav.dataset.dashnav;
+    const extra = DASH_NAV_EXTRAS[key];
+    if (extra) { extra.open(); return; }
+    if (key === "home") { dashGoTo("home"); return; }
+    dashOpenCardKey(key);   // honours a card's `goto`, exactly like its launchpad card
+  });
+}
+
 function renderDashboard() {
   const jobs = loadJobs();
   const brand = (DATA.config && DATA.config.brand) || {};
@@ -18189,6 +18829,16 @@ function renderDashboard() {
   // "Welcome back, <company>"; everyone else gets a first-visit welcome.
   const savedCount = jobs.filter(j => !j.isDraft).length;
   const realBrand = DATA.config && DATA.config.onboarded && brand.companyName && brand.companyName !== DEMO_BRAND.companyName;
+  // v2 P2: the big hero is gone (the KPI strip took its space). The page bar shows
+  // the section name, so the personal greeting now rides in the bar's subtitle slot
+  // on the home view only — a first-time user is still welcomed by name.
+  const barNote = document.getElementById("dashTopBarNote");
+  if (barNote) {
+    const home = (_dashView || "home") === "home";
+    barNote.textContent = !home ? ""
+      : (realBrand ? brand.companyName : (savedCount === 0 ? "Welcome to Anchor" : "Welcome back"));
+    barNote.classList.toggle("hidden", !barNote.textContent);
+  }
   if (greet) {
     if (realBrand) greet.textContent = `Welcome back, ${brand.companyName}`;
     else if (savedCount === 0) greet.textContent = "Welcome to Anchor";
@@ -18211,6 +18861,15 @@ function renderDashboard() {
   renderDashShopping(jobs);
   renderDashFirstRun(jobs);
   renderDashLaunchpad(jobs);
+  let _navCtx = null;
+  try { _navCtx = dashLaunchContext(jobs); } catch (_) {}
+  try { wireDashNav(); renderDashNav(_navCtx); } catch (_) {}                     // v2 sidebar
+  try { renderDashTopBar(_navCtx); } catch (_) {}                                // v2 page bar + range
+  try { renderDashOverview(jobs); } catch (_) {}                                 // v2 overview panels
+  try { renderDashPipelinePage(jobs); } catch (_) {}                             // dedicated pages
+  try { renderDashRevenuePage(jobs); } catch (_) {}
+  try { renderDashMfgPage(jobs); } catch (_) {}
+  try { renderDashChangeOrderPage(); } catch (_) {}
   renderDashEditBar();   // keep the customize bar in sync with edit mode (hidden by default)
   // E-sign hits the network, so only refresh it when its card is actually open.
   if (_dashView === "esign") renderDashEsign();
@@ -18220,7 +18879,7 @@ function renderDashboard() {
 
 /* ============================================================
    LAUNCHPAD — the dashboard is a short grid of cards you click
-   into (Insights / Jobs / Pricing calibration / E-signatures),
+   into (Insights / Jobs / Calibration / E-signatures),
    not one long scroll. Each card shows a live preview metric;
    tapping drills into that section full-width with a back arrow.
    Extensible: add a DASH_CARDS entry + a [data-dashview] panel.
@@ -18245,7 +18904,7 @@ const DASH_CARDS = [
       ? `${ctx.shoppingJobs} job${ctx.shoppingJobs === 1 ? "" : "s"} to shop for`
       : "No materials to buy yet",
     preview2: (ctx) => ctx.shopItemCount ? `${ctx.shopItemCount} material${ctx.shopItemCount === 1 ? "" : "s"} to buy` : "" },
-  { key: "calibration", title: "Pricing calibration",
+  { key: "calibration", title: "Calibration",
     blurb: "Log what your crew actually used and Anchor suggests sharper per-foot rates from it.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>`,
     preview: (ctx) => ctx.suggestionCount
@@ -18266,7 +18925,7 @@ const DASH_CARDS = [
       ? `${ctx.approvedCount} approved · view activity`
       : "Track sent & signed quotes",
     preview2: (ctx) => ctx.signedCount ? `${ctx.signedCount} signed e-quote${ctx.signedCount === 1 ? "" : "s"}` : "" },
-  { key: "pipeline", title: "Deal pipeline", goto: "jobs",
+  { key: "pipeline", title: "Deal pipeline",
     blurb: "Every saved quote by stage — see where deals pile up, what's landed, and your win rate.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>` },
   { key: "insights", title: "Insights",
@@ -18276,10 +18935,17 @@ const DASH_CARDS = [
       ? `Top cost: ${ctx.topDriver.name} · ${ctx.topDriver.pct}%`
       : "Materials, customers & pipeline",
     preview2: (ctx) => ctx.topCustomer ? `Top client: ${ctx.topCustomer.name} · ${ctx.topCustomer.pct}%` : "" },
-  { key: "revenue", title: "Revenue trend", goto: "insights",
+  { key: "revenue", title: "Revenue trend",
     blurb: "Your booked revenue and profit month by month — watch the trend and where your margin's going.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 3 3 7-8"/><path d="M16 8h4v4"/></svg>` },
-  { key: "manufacturers", title: "Manufacturers", goto: "setup-manufacturers",
+  { key: "changeorder", title: "Change order",
+    blurb: "Something went wrong on site? Price the fix off that job's crew rate and send a change order PDF.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h13M4 12h9M4 18h11"/><path d="M17 11l3.5 3.5L17 18"/></svg>`,
+    preview: (ctx) => ctx.coRate
+      ? `${formatMoney(ctx.coRate)}/hr loaded · ${formatMoneyRaw(ctx.coMargin)}% markup`
+      : "Price a fix, back-charge or T&M",
+    preview2: (ctx) => ctx.coRate ? `Bills at ${formatMoney(ctx.coRate * (1 + ctx.coMargin / 100))}/hr` : "" },
+  { key: "manufacturers", title: "Manufacturers",
     blurb: "The window & door brands you quote, ranked by how often you use them — tap to edit a brand's rates.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4 21V11l5 3V11l5 3V8l5 3v10"/></svg>` },
 ];
@@ -18321,8 +18987,14 @@ function dashLaunchContext(jobs) {
   const vals = real.map(j => Number(j.sellingPrice) || 0);
   const avgJobVal = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
   const signedCount = real.filter(j => j.signedAt).length;
+  // Account-level change-order basis (no job selected) — what the card and the
+  // page bar quote before you pick a job.
+  let coRate = 0, coMargin = 0;
+  try { coRate = Math.max(0, Number(resolveCrewCostForJob(null).crewCostPerHr) || 0); } catch (_) {}
+  try { coMargin = Number(resolveMarginForJob(null)) || 0; } catch (_) {}
   return { jobCount: real.length, openCount, approvedCount, topDriver, suggestionCount, actualsJobs,
-           followupCount, staleCount, calibrateCount, shoppingJobs, shopItemCount, topCustomer, avgJobVal, signedCount };
+           followupCount, staleCount, calibrateCount, shoppingJobs, shopItemCount, topCustomer, avgJobVal, signedCount,
+           coRate, coMargin };
 }
 
 // ---- Launchpad card preview bodies: each card shows real mini-content (a chart,
@@ -18416,6 +19088,17 @@ function dashCardBody(key, ctx, jobs) {
     const pct = approved ? Math.round(signed / approved * 100) : 0;
     const ratio = approved ? `<span class="dlb-ratiowrap"><span class="dlb-ratio-l">${signed} of ${approved} signed</span><span class="dlb-track" style="margin:0;"><span class="dlb-fill" style="width:${signed ? Math.max(6, pct) : 0}%;background:#34d399"></span></span></span>` : "";
     return `<span class="dlb-stats"><span class="dlb-stat"><span class="dlb-stat-n">${approved}</span><span class="dlb-stat-l">Approved</span></span><span class="dlb-stat"><span class="dlb-stat-n">${signed}</span><span class="dlb-stat-l">Signed</span></span></span>${ratio}`;
+  }
+  if (key === "changeorder") {
+    // No history to chart — a change order is priced and sent, never stored. What
+    // matters at a glance is the rate it would bill at right now.
+    let rate = 0, margin = 0;
+    try { rate = Math.max(0, Number(resolveCrewCostForJob(null).crewCostPerHr) || 0); } catch (_) {}
+    try { margin = Number(resolveMarginForJob(null)) || 0; } catch (_) {}
+    if (!rate) return dlbEmpty("Set your crew rate in Settings and you can price a fix in seconds.");
+    const bill = rate * (1 + margin / 100);
+    return `<span class="dlb-stats"><span class="dlb-stat"><span class="dlb-stat-n">${formatMoney(rate)}</span><span class="dlb-stat-l">Cost /hr</span></span><span class="dlb-stat"><span class="dlb-stat-n">${formatMoney(bill)}</span><span class="dlb-stat-l">Billed /hr</span></span></span>`
+      + `<span class="dlb-note">A half day comes to ${formatMoney(bill * 4)} at ${formatMoneyRaw(margin)}% markup.</span>`;
   }
   if (key === "revenue") {
     // Booked revenue + profit by month (won jobs, by createdAt) as a dual-line sparkline.
@@ -18712,6 +19395,9 @@ function applyDashView() {
   // checklist (if incomplete) rides above it as a strip.
   if (firstRun) firstRun.classList.toggle("hidden", !home || !_dashChecklistShow);
   if (launch) launch.classList.toggle("hidden", !home || _dashFirstRunActive);
+  // v2 P3: the overview belongs to home, and only once there are jobs to show.
+  const ov = document.getElementById("dashOverview");
+  if (ov) ov.classList.toggle("hidden", !home || _dashFirstRunActive);
   if (section) section.classList.toggle("hidden", home);
   // Customize edits the launchpad — keep it with those cards (under KPIs).
   const custRow = document.getElementById("dashCustomizeRow");
@@ -19773,6 +20459,11 @@ function renderCustomerStats(c, allStats) {
 let _esignWired = false;
 let _esignRows = {};   // id -> last-rendered row, so action handlers can read status/signer
 let _dashEsignDetail = "summary";   // detail level for the dashboard's "send any job" picker
+// Its own exclusion set — NOT shared with Job Details, since the two workspaces can
+// be aimed at different jobs. Cleared whenever the job or detail level changes,
+// because the row keys only mean anything for the job they were built from.
+let _dashEsignExclude = new Set();
+let _dashEsignCzOpen = false;
 let _dashEsignLastUrl = "";         // last link created from the e-sign page (re-shown across re-renders)
 function esignStatusMeta(s) {
   return ({
@@ -19844,7 +20535,7 @@ async function renderDashEsign() {
     return `<option value="${escHtml(j.id)}">${escHtml(name + cust + price)}</option>`;
   }).join("");
   const resultHTML = _dashEsignLastUrl ? `
-      <div class="esign-send-result">
+      <div id="dashEsignResult" class="esign-send-result">
         <div class="flex items-center gap-2">
           <input id="dashEsignUrl" readonly class="control rounded-lg px-3 py-2 w-full text-xs text-slate-200 font-mono" value="${escHtml(_dashEsignLastUrl)}">
           <button type="button" data-esign-copylink class="btn shrink-0 rounded-lg px-3 py-2 text-xs font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-[#b58f4a] hover:text-[#c9a558]">Copy</button>
@@ -19860,8 +20551,10 @@ async function renderDashEsign() {
           <button type="button" data-esign-detail="summary" class="jd-detail-btn ${_dashEsignDetail === "summary" ? "active" : ""}">Summary</button>
           <button type="button" data-esign-detail="itemized" class="jd-detail-btn ${_dashEsignDetail === "itemized" ? "active" : ""}">Itemized</button>
         </div>
+        <button type="button" data-esign-cz class="btn rounded-full px-4 py-2.5 text-sm font-bold border border-slate-700 text-slate-300 hover:text-[#c9a558] hover:border-[#b58f4a]/45 shrink-0" aria-expanded="${_dashEsignCzOpen ? "true" : "false"}">${_dashEsignCzOpen ? "Hide" : "Customize"}</button>
         <button type="button" id="dashEsignSendBtn" data-esign-send class="btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] shrink-0">Create signing link</button>
       </div>
+      <div id="dashEsignCustomize" class="${_dashEsignCzOpen ? "" : "hidden"}"></div>
       ${resultHTML}
       <p class="text-[10px] text-slate-600 mt-2">Pick any saved job and generate a link — the customer reviews and approves with a typed name + drawn signature, no login on their end.</p>
     </div>` : `<div class="esign-send"><div class="jd-section-title mb-1">Send a quote for signature</div><p class="text-[12px] text-slate-500">Save a quote first, then send it for signature right here.</p></div>`;
@@ -19943,7 +20636,23 @@ async function renderDashEsign() {
       // Sender controls (send any job, detail toggle, copy the created link)
       if (e.target.closest("[data-esign-send]")) { dashEsignSend(); return; }
       const det = e.target.closest("[data-esign-detail]");
-      if (det) { _dashEsignDetail = det.dataset.esignDetail; wrap.querySelectorAll("[data-esign-detail]").forEach(b => b.classList.toggle("active", b === det)); return; }
+      if (det) {
+        _dashEsignDetail = det.dataset.esignDetail;
+        wrap.querySelectorAll("[data-esign-detail]").forEach(b => b.classList.toggle("active", b === det));
+        // Summary and itemized expose different rows, so old choices don't carry.
+        _dashEsignExclude.clear();
+        if (_dashEsignCzOpen) dashEsignLoadCustomize();
+        return;
+      }
+      if (e.target.closest("[data-esign-cz]")) {
+        _dashEsignCzOpen = !_dashEsignCzOpen;
+        const box = document.getElementById("dashEsignCustomize");
+        const btn = e.target.closest("[data-esign-cz]");
+        if (box) box.classList.toggle("hidden", !_dashEsignCzOpen);
+        if (btn) { btn.textContent = _dashEsignCzOpen ? "Hide" : "Customize"; btn.setAttribute("aria-expanded", String(_dashEsignCzOpen)); }
+        if (_dashEsignCzOpen) dashEsignLoadCustomize();
+        return;
+      }
       if (e.target.closest("[data-esign-copylink]")) { copyTextToClipboard(_dashEsignLastUrl, e.target.closest("[data-esign-copylink]")); return; }
       // Sent/signed list actions
       const t = e.target.closest("[data-esign-pdf],[data-esign-copy],[data-esign-void],[data-esign-delete],[data-esign-job],[data-esign-audit]");
@@ -19958,8 +20667,31 @@ async function renderDashEsign() {
         if (box) box.classList.toggle("hidden");
       }
     });
+    // Changing the job invalidates every row key — start that job clean.
+    wrap.addEventListener("change", (e) => {
+      if (!e.target.closest("#dashEsignJobPick")) return;
+      _dashEsignExclude.clear();
+      if (_dashEsignCzOpen) dashEsignLoadCustomize();
+    });
     _esignWired = true;
   }
+}
+
+/** Fill the E-signatures customize panel for whichever job is picked. */
+function dashEsignLoadCustomize() {
+  const box = document.getElementById("dashEsignCustomize");
+  if (!box) return;
+  const pick = document.getElementById("dashEsignJobPick");
+  const jobId = pick ? pick.value : "";
+  if (!jobId) {
+    box.innerHTML = `<div class="jd-cz-loading">Choose a job above to see what the customer will get.</div>`;
+    return;
+  }
+  loadSignCustomize(jobId, _dashEsignDetail, {
+    boxId: "dashEsignCustomize",
+    exclude: _dashEsignExclude,
+    resultId: "dashEsignResult",
+  });
 }
 
 // Create a signing link for the job picked in the E-signatures workspace.
@@ -19969,7 +20701,7 @@ function dashEsignSend() {
   if (!jobId) { toast("Choose a job to send"); return; }
   createSignLink(jobId, _dashEsignDetail, {
     btn: document.getElementById("dashEsignSendBtn"),
-    exclude: new Set(),   // send the full quote from the dashboard (no Customize step here)
+    exclude: _dashEsignExclude,   // whatever Customize left unchecked on this page
     onResult: (url) => { _dashEsignLastUrl = url; renderDashEsign(); },
   });
 }
@@ -20109,13 +20841,662 @@ function dashStatTrends(jobs) {
 // Quick-glance pipeline tiles at the top of the dashboard (outside the charts
 // card) so Open pipeline / Won / Win rate / Avg markup are visible at a glance.
 // Each tile carries a gold icon badge + a month-over-month trend delta.
+/* ── Dashboard v2 P2: the date range ──────────────────────────────────────────
+   Every number on the dashboard used to be all-time with no way to scope it.
+   This adds one range that the KPIs (and later the chart and pipeline table) all
+   read from.
+
+   Default is ALL TIME on purpose, not "last 30 days" like the reference. A
+   contractor saves a handful of jobs a month, so defaulting to 30 days would show
+   a near-empty dashboard and silently change every number they already know. The
+   picker is there to narrow; the default preserves today's figures exactly. */
+const DASH_RANGES = [
+  { id: "all",  label: "All time",      days: null },
+  { id: "30d",  label: "Last 30 days",  days: 30 },
+  { id: "90d",  label: "Last 90 days",  days: 90 },
+  { id: "12m",  label: "Last 12 months", days: 365 },
+];
+const LS_DASHRANGE = "anchorDashRange";
+let _dashRange = (() => {
+  try { const v = localStorage.getItem(LS_DASHRANGE); if (DASH_RANGES.some(r => r.id === v)) return v; } catch (_) {}
+  return "all";
+})();
+function dashRangeMeta() { return DASH_RANGES.find(r => r.id === _dashRange) || DASH_RANGES[0]; }
+/** Jobs inside the active range. Anything with no usable date is KEPT — dropping a
+    job because its timestamp is missing would quietly understate the pipeline. */
+function dashRangeJobs(jobs) {
+  const days = dashRangeMeta().days;
+  if (!days) return jobs || [];
+  const cut = Date.now() - days * 86400000;
+  return (jobs || []).filter(j => {
+    const t = Date.parse((j && (j.updatedAt || j.createdAt)) || "");
+    return isNaN(t) ? true : t >= cut;
+  });
+}
+function renderDashRangePicker() {
+  const sel = document.getElementById("dashRangeSel");
+  if (!sel) return;
+  const want = DASH_RANGES.map(r =>
+    `<option value="${r.id}"${r.id === _dashRange ? " selected" : ""}>${escHtml(r.label)}</option>`).join("");
+  if (sel.innerHTML !== want) sel.innerHTML = want;
+  if (!sel._wired) {
+    sel._wired = true;
+    sel.addEventListener("change", () => {
+      _dashRange = sel.value;
+      try { localStorage.setItem(LS_DASHRANGE, _dashRange); } catch (_) {}
+      renderDashboard();
+    });
+  }
+}
+/** The page bar's title mirrors the active section, and its note carries that
+    section's live one-liner — the SAME preview string its launchpad card shows, so
+    the two can't disagree and no new counting is introduced. On home the note is
+    the company greeting instead (set in renderDashboard). */
+function renderDashTopBar(ctx) {
+  const label = document.getElementById("dashTopBarLabel");
+  const icon = document.getElementById("dashTopBarIcon");
+  if (!label) return;
+  const v = _dashView || "home";
+  const meta = v === "home" ? { title: "Dashboard", icon: DNAV_HOME_ICON } : DASH_CARDS.find(c => c.key === v);
+  label.textContent = meta ? meta.title : "Dashboard";
+  if (icon) icon.innerHTML = (meta && meta.icon) || DNAV_HOME_ICON;
+  const note = document.getElementById("dashTopBarNote");
+  if (note && v !== "home" && meta && typeof meta.preview === "function" && ctx) {
+    let line = "";
+    try { line = meta.preview(ctx) || ""; } catch (_) {}
+    note.textContent = line;
+    note.classList.toggle("hidden", !line);
+  }
+  renderDashRangePicker();
+}
+
+/* ── Dashboard v2 P3: the overview ────────────────────────────────────────────
+   Three panels that mirror the reference's main grid, all built from data the app
+   already computes and all honouring the active date range:
+     * Booked by month — saved-job value bucketed by month
+     * Needs attention — the follow-ups rail (stale quotes + jobs to calibrate)
+     * Open pipeline — stage rows with share-of-pipeline bars
+   No new library: the chart is CSS-height divs, which survive theme changes and
+   need no redraw on resize. */
+function dashMonthBuckets(jobs, count) {
+  const now = new Date();
+  const out = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleString(undefined, { month: "short" }),
+      isJan: d.getMonth() === 0, total: 0, n: 0 });
+  }
+  const byKey = {}; out.forEach(b => byKey[b.key] = b);
+  (jobs || []).filter(j => j && !j.isDraft).forEach(j => {
+    const t = Date.parse(j.updatedAt || j.createdAt || "");
+    if (isNaN(t)) return;                       // undated jobs can't be placed on a timeline
+    const d = new Date(t), k = `${d.getFullYear()}-${d.getMonth()}`;
+    if (byKey[k]) { byKey[k].total += Number(j.sellingPrice) || 0; byKey[k].n++; }
+  });
+  return out;
+}
+function renderDashBooked(jobs) {
+  const el = document.getElementById("dashBookedCard");
+  if (!el) return;
+  const months = dashMonthBuckets(jobs, 12);
+  const peak = Math.max(...months.map(m => m.total), 0);
+  const booked = months.reduce((s, m) => s + m.total, 0);
+  const active = months.filter(m => m.n).length;
+  const avg = active ? booked / active : 0;
+  if (!peak) {
+    el.innerHTML = `<div class="dash-ovhead"><div><div class="dash-ovtitle">Booked by month</div>
+      <div class="dash-ovsub">Nothing dated in this range yet.</div></div></div>`;
+    return;
+  }
+  const bars = months.map(m => {
+    const h = peak ? Math.max(m.total ? 4 : 0, Math.round((m.total / peak) * 100)) : 0;
+    const tip = `${m.label}: ${formatMoney(m.total)}${m.n ? ` · ${m.n} job${m.n === 1 ? "" : "s"}` : ""}`;
+    return `<div class="dash-bar-col" title="${escHtml(tip)}">
+      <div class="dash-bar-track"><div class="dash-bar-fill${m.total ? "" : " is-empty"}" style="height:${h}%"></div></div>
+      <span class="dash-bar-lbl${m.isJan ? " is-year" : ""}">${escHtml(m.label)}</span>
+    </div>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="dash-ovhead">
+      <div>
+        <div class="dash-ovtitle">Booked by month</div>
+        <div class="dash-ovsub">${formatMoney(booked)} over ${active} active month${active === 1 ? "" : "s"} &middot; ${formatMoney(avg)} avg</div>
+      </div>
+      <span class="dash-ovpill">Last 12 months</span>
+    </div>
+    <div class="dash-bars">${bars}</div>`;
+}
+function renderDashAttention(jobs) {
+  const el = document.getElementById("dashAttentionCard");
+  if (!el) return;
+  const { stale, calibrate } = computeFollowups(jobs);
+  const items = stale.map(n => ({ job: n.job, tone: "warn", pill: `${n.days}d quiet`,
+      note: "Quoted, no movement" }))
+    .concat(calibrate.map(n => ({ job: n.job, tone: "ok", pill: "Finished", note: "Log what you used" })))
+    .slice(0, 6);
+  const total = stale.length + calibrate.length;
+  if (!total) {
+    el.innerHTML = `<div class="dash-ovhead"><div><div class="dash-ovtitle">Needs attention</div>
+        <div class="dash-ovsub">You&rsquo;re all caught up.</div></div></div>
+      <div class="dash-ovempty">Quotes that go quiet for ${FOLLOWUP_STALE_DAYS}+ days and finished jobs you haven&rsquo;t calibrated land here.</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="dash-ovhead">
+      <div>
+        <div class="dash-ovtitle">Needs attention</div>
+        <div class="dash-ovsub">${total} item${total === 1 ? "" : "s"}${stale.length ? ` &middot; ${stale.length} quiet` : ""}</div>
+      </div>
+      <button type="button" class="dash-ovlink" data-dashnav-jump="followups">All &rarr;</button>
+    </div>
+    <div class="dash-attn-list">${items.map(it => {
+      const name = it.job.name || it.job.customerName || "Untitled job";
+      return `<button type="button" class="dash-attn-row" data-attn-open="${escHtml(it.job.id)}">
+        <span class="dash-attn-dot tone-${it.tone}"></span>
+        <span class="dash-attn-main">
+          <span class="dash-attn-name">${escHtml(name)}</span>
+          <span class="dash-attn-note">${escHtml(it.note)}</span>
+        </span>
+        <span class="dash-attn-pill tone-${it.tone}">${escHtml(it.pill)}</span>
+      </button>`;
+    }).join("")}</div>
+    ${total > items.length ? `<div class="dash-ovfoot">+${total - items.length} more</div>` : ""}`;
+}
+function renderDashPipelineCard(jobs) {
+  const el = document.getElementById("dashPipelineCard");
+  if (!el) return;
+  const { real, groups, sum } = pipelineStats(jobs);
+  if (!real.length) { el.innerHTML = ""; el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  const grand = sum(real) || 0;
+  const rows = JOB_STATUSES.map(st => {
+    const g = groups[st] || [], val = sum(g);
+    const share = grand ? Math.round((val / grand) * 100) : 0;
+    return `<tr>
+      <td class="dpt-stage"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}</td>
+      <td class="dpt-n">${g.length}</td>
+      <td class="dpt-bar">
+        <span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:${STATUS_COLORS[st]}"></span></span>
+        <span class="dpt-share">${share}%</span>
+      </td>
+      <td class="dpt-val">${formatMoney(val)}</td>
+    </tr>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="dash-ovhead">
+      <div>
+        <div class="dash-ovtitle">Open pipeline</div>
+        <div class="dash-ovsub">${real.length} job${real.length === 1 ? "" : "s"} &middot; ${formatMoney(grand)} total</div>
+      </div>
+      <button type="button" class="dash-ovlink" data-dashnav-jump="pipeline">Deal pipeline &rarr;</button>
+    </div>
+    <div class="dpt-wrap">
+      <table class="dpt">
+        <thead><tr><th>Stage</th><th>Jobs</th><th>Share of pipeline</th><th>Value</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+function renderDashOverview(jobs) {
+  const wrap = document.getElementById("dashOverview");
+  if (!wrap) return;
+  const ranged = dashRangeJobs(jobs);
+  renderDashBooked(ranged);
+  renderDashAttention(ranged);
+  renderDashPipelineCard(ranged);
+  if (!wrap._wired) {
+    wrap._wired = true;
+    wrap.addEventListener("click", (e) => {
+      const jump = e.target.closest("[data-dashnav-jump]");
+      if (jump) { dashGoTo(jump.dataset.dashnavJump); return; }
+      const open = e.target.closest("[data-attn-open]");
+      if (open) { try { openJobDetails(open.dataset.attnOpen); } catch (_) { dashGoTo("followups"); } }
+    });
+  }
+}
+
+/** Open a dashboard destination. Four DASH_CARDS are SHORTCUTS, not panels — they
+    carry a `goto` that differs from their key, and two of them leave the dashboard
+    entirely. This is the single place that knows how to route any of them; the
+    launchpad cards and the v2 sidebar both call it, so they can't drift apart.
+    (They did: the sidebar originally called dashGoTo(key) and landed on views that
+    don't exist, which made Deal pipeline / AI plan read / Revenue trend /
+    Manufacturers render nothing.) */
+function dashOpenCardKey(key) {
+  const card = DASH_CARDS.find(c => c.key === key);
+  dashOpenTarget((card && card.goto) || key);
+}
+function dashOpenTarget(target) {
+  // Kept for the Settings deep-link (the rates editor still lives there).
+  if (target === "setup-manufacturers") {
+    try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {}
+    return;
+  }
+  // AIPLAN-13: the AI card leaves the dashboard and opens the plan picker.
+  if (target === "aiplan") {
+    try { closeDashboard(); document.getElementById("readFromPlanBtn").click(); } catch (_) {}
+    return;
+  }
+  // Deal pipeline and Revenue trend used to be shortcuts onto Jobs/Insights, which
+  // is why two nav rows led to one destination. P3 built what their blurbs actually
+  // describe — the stage table and the booked-by-month chart — so they now land
+  // there: home, with that panel scrolled into view and briefly highlighted.
+  const OVERVIEW_TARGETS = { "overview-pipeline": "dashPipelineCard", "overview-booked": "dashBookedCard" };
+  if (OVERVIEW_TARGETS[target]) {
+    dashGoTo("home");
+    const id = OVERVIEW_TARGETS[target];
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: dashReduceMotion() ? "auto" : "smooth", block: "center" });
+      el.classList.add("dash-ovcard-flash");
+      setTimeout(() => el.classList.remove("dash-ovcard-flash"), 1400);
+    });
+    return;
+  }
+  dashGoTo(target);
+}
+
+/* ── Manufacturer availability ─────────────────────────────────────────────────
+   Stored as a DISABLED list, not an enabled one: every account starts with all
+   brands on, and a brand added later (by us or by the user in Settings) is
+   available without needing a migration. The Manufacturers page and the Settings
+   rates editor both read DATA.manufacturers / manufacturerRates, so names and
+   rates can't diverge; this flag is the only extra state. */
+function mfgDisabledList() {
+  const c = (DATA.config && DATA.config.mfgDisabled);
+  return Array.isArray(c) ? c : [];
+}
+function isMfgEnabled(name) { return !mfgDisabledList().includes(name); }
+/** The brands a quote may actually pick. Never returns empty — turning the last
+    one off would leave the calculator with no manufacturer to select. */
+function enabledManufacturers() {
+  const all = DATA.manufacturers || [];
+  const on = all.filter(isMfgEnabled);
+  return on.length ? on : all;
+}
+function setMfgEnabled(name, on) {
+  const all = DATA.manufacturers || [];
+  let list = mfgDisabledList().filter(n => all.includes(n));
+  if (on) list = list.filter(n => n !== name);
+  else if (!list.includes(name)) {
+    // Refuse to disable the last one — the calculator needs something to quote with.
+    if (all.filter(n => !list.includes(n) && n !== name).length === 0) {
+      try { toast("Keep at least one manufacturer available."); } catch (_) {}
+      return false;
+    }
+    list.push(name);
+  }
+  DATA.config.mfgDisabled = list;
+  // If the current pick or the job default just became unavailable, move both to
+  // the first available brand so nothing quotes against a hidden manufacturer.
+  const on2 = enabledManufacturers();
+  if (!on2.includes(STATE.manufacturer)) STATE.manufacturer = on2[0];
+  if (DATA.config.jobDefaults && !on2.includes(DATA.config.jobDefaults.manufacturer)) {
+    DATA.config.jobDefaults.manufacturer = on2[0];
+  }
+  saveData();
+  try { render(); } catch (_) {}
+  return true;
+}
+
+/* ── Deal pipeline page ────────────────────────────────────────────────────────
+   The funnel, honestly: how many deals sit at each stage, what they're worth, and
+   what actually converts. Stage-to-stage conversion is computed on DECIDED deals
+   only (won + lost) — quoting 20 jobs you haven't heard back on isn't a loss, and
+   counting it as one would make the number lie. */
+function renderDashPipelinePage(jobs) {
+  const el = document.getElementById("dashPipelinePage");
+  if (!el) return;
+  const ranged = dashRangeJobs(jobs);
+  const { real, groups, sum, wonCount, lostCount, decided, winRate } = pipelineStats(ranged);
+  if (!real.length) {
+    el.innerHTML = `<div class="dash-ovcard"><div class="dash-ovtitle">No deals in this range</div>
+      <div class="dash-ovsub mt-1">Save a quote, or widen the period at the top of the page.</div></div>`;
+    return;
+  }
+  const grand = sum(real);
+  const avg = real.length ? grand / real.length : 0;
+  const open = groups.Quoted || [], won = (groups.Approved || []).concat(groups.Finished || []);
+  const openVal = sum(open), wonVal = sum(won);
+  const avgWon = won.length ? wonVal / won.length : 0;
+  const avgOpen = open.length ? openVal / open.length : 0;
+  const ageOf = j => { const t = Date.parse(j.updatedAt || j.createdAt || ""); return isNaN(t) ? null : Math.floor((Date.now() - t) / 86400000); };
+  const openAges = open.map(ageOf).filter(n => n != null);
+  const oldestOpen = openAges.length ? Math.max(...openAges) : null;
+  const avgOpenAge = openAges.length ? Math.round(openAges.reduce((a, b) => a + b, 0) / openAges.length) : null;
+
+  const stat = (label, val, sub) => `<div class="dash-kpi-cell">
+      <div class="dash-kpi-head"><span class="dash-kpi-label">${escHtml(label)}</span></div>
+      <div class="dash-kpi-num">${val}</div>
+      <div class="dash-kpi-foot"><span class="dash-kpi-sub">${escHtml(sub)}</span></div>
+    </div>`;
+  const stageRow = (st) => {
+    const g = groups[st] || [], val = sum(g);
+    const share = grand ? Math.round((val / grand) * 100) : 0;
+    const a = g.map(ageOf).filter(n => n != null);
+    const oldest = a.length ? Math.max(...a) : null;
+    return `<tr>
+      <td class="dpt-stage"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}</td>
+      <td class="dpt-n">${g.length}</td>
+      <td class="dpt-bar"><span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:${STATUS_COLORS[st]}"></span></span><span class="dpt-share">${share}%</span></td>
+      <td class="dpt-val">${formatMoney(val)}</td>
+      <td class="dpt-val">${g.length ? formatMoney(val / g.length) : "&mdash;"}</td>
+      <td class="dpt-val">${oldest == null ? "&mdash;" : oldest + "d"}</td>
+    </tr>`;
+  };
+  // The deals in each stage, newest first, so the page answers "which ones?"
+  const jobRows = (st) => {
+    const g = (groups[st] || []).slice().sort((a, b) =>
+      (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0));
+    if (!g.length) return "";
+    return `<div class="dpp-group">
+      <div class="dpp-grouphead"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}
+        <span class="dpp-groupn">${g.length} &middot; ${formatMoney(sum(g))}</span></div>
+      ${g.slice(0, 8).map(j => {
+        const nm = j.name || j.customerName || "Untitled job";
+        const age = ageOf(j);
+        return `<button type="button" class="dpp-row" data-pipe-open="${escHtml(j.id)}">
+          <span class="dpp-name">${escHtml(nm)}</span>
+          <span class="dpp-meta">${j.totalLF ? escHtml(String(j.totalLF)) + " LF" : ""}${age != null ? (j.totalLF ? " &middot; " : "") + age + "d" : ""}</span>
+          <span class="dpp-val">${formatMoney(Number(j.sellingPrice) || 0)}</span>
+        </button>`;
+      }).join("")}
+      ${g.length > 8 ? `<div class="dash-ovfoot">+${g.length - 8} more in ${escHtml(st)}</div>` : ""}
+    </div>`;
+  };
+  el.innerHTML = `
+    <div class="dash-kpi mb-4">
+      ${stat("In play", formatMoney(openVal), `${open.length} open deal${open.length === 1 ? "" : "s"}`)}
+      ${stat("Won", formatMoney(wonVal), `${won.length} landed${avgWon ? " · " + formatMoney(avgWon) + " avg" : ""}`)}
+      ${stat("Win rate", winRate == null ? "&mdash;" : winRate + "%", decided ? `${wonCount}W · ${lostCount}L decided` : "nothing decided yet")}
+      ${stat("Avg deal", formatMoney(avg), `${real.length} job${real.length === 1 ? "" : "s"} in range`)}
+      ${stat("Oldest open", oldestOpen == null ? "&mdash;" : oldestOpen + "d", avgOpenAge == null ? "no open deals" : `${avgOpenAge}d average`)}
+    </div>
+    <div class="dash-ovcard mb-4">
+      <div class="dash-ovhead"><div>
+        <div class="dash-ovtitle">By stage</div>
+        <div class="dash-ovsub">${real.length} job${real.length === 1 ? "" : "s"} &middot; ${formatMoney(grand)} total${avgOpen ? ` &middot; ${formatMoney(avgOpen)} average open deal` : ""}</div>
+      </div></div>
+      <div class="dpt-wrap"><table class="dpt">
+        <thead><tr><th>Stage</th><th>Jobs</th><th>Share of pipeline</th><th>Value</th><th>Avg deal</th><th>Oldest</th></tr></thead>
+        <tbody>${JOB_STATUSES.map(stageRow).join("")}</tbody>
+      </table></div>
+      <p class="team-ratehint mt-3">Win rate counts only deals you&rsquo;ve heard back on &mdash; open quotes aren&rsquo;t losses, so they stay out of it.</p>
+    </div>
+    <div class="dash-ovcard">
+      <div class="dash-ovhead"><div><div class="dash-ovtitle">The deals</div>
+        <div class="dash-ovsub">Newest first in each stage. Tap one to open it.</div></div></div>
+      ${JOB_STATUSES.map(jobRows).join("") || `<div class="dash-ovempty">Nothing to list.</div>`}
+    </div>`;
+  if (!el._wired) {
+    el._wired = true;
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-pipe-open]");
+      if (b) { try { openJobDetails(b.dataset.pipeOpen); } catch (_) {} }
+    });
+  }
+}
+
+/* ── Revenue trend page ───────────────────────────────────────────────────────
+   Booked value and profit month by month, plus where the margin actually landed.
+   Profit comes from each job's stored profit, so it reflects what was quoted, not
+   a recomputation that could drift from the saved figure. */
+function renderDashRevenuePage(jobs) {
+  const el = document.getElementById("dashRevenuePage");
+  if (!el) return;
+  const ranged = dashRangeJobs(jobs).filter(j => j && !j.isDraft);
+  const months = dashMonthBuckets(ranged, 12);
+  // profit per bucket (dashMonthBuckets only totals value)
+  const byKey = {}; months.forEach(m => { m.profit = 0; byKey[m.key] = m; });
+  ranged.forEach(j => {
+    const t = Date.parse(j.updatedAt || j.createdAt || "");
+    if (isNaN(t)) return;
+    const d = new Date(t), k = `${d.getFullYear()}-${d.getMonth()}`;
+    if (byKey[k]) byKey[k].profit += Number(j.profit) || 0;
+  });
+  const booked = months.reduce((a, m) => a + m.total, 0);
+  const profit = months.reduce((a, m) => a + m.profit, 0);
+  const active = months.filter(m => m.n).length;
+  if (!booked && !ranged.length) {
+    el.innerHTML = `<div class="dash-ovcard"><div class="dash-ovtitle">Nothing booked in this range</div>
+      <div class="dash-ovsub mt-1">Save a quote, or widen the period at the top of the page.</div></div>`;
+    return;
+  }
+  const best = months.reduce((b, m) => (m.total > (b ? b.total : -1) ? m : b), null);
+  const marginPct = booked ? Math.round((profit / booked) * 100) : null;
+  const peak = Math.max(...months.map(m => m.total), 0);
+  const stat = (label, val, sub) => `<div class="dash-kpi-cell">
+      <div class="dash-kpi-head"><span class="dash-kpi-label">${escHtml(label)}</span></div>
+      <div class="dash-kpi-num">${val}</div>
+      <div class="dash-kpi-foot"><span class="dash-kpi-sub">${escHtml(sub)}</span></div></div>`;
+  const bars = months.map(m => {
+    const h = peak ? Math.max(m.total ? 4 : 0, Math.round((m.total / peak) * 100)) : 0;
+    const ph = m.total > 0 ? Math.round((Math.max(0, m.profit) / m.total) * 100) : 0;
+    return `<div class="dash-bar-col" title="${escHtml(`${m.label}: ${formatMoney(m.total)} booked, ${formatMoney(m.profit)} profit${m.n ? ` · ${m.n} job${m.n === 1 ? "" : "s"}` : ""}`)}">
+      <div class="dash-bar-track"><div class="dash-bar-fill${m.total ? "" : " is-empty"}" style="height:${h}%">
+        <div class="rev-bar-profit" style="height:${ph}%"></div>
+      </div></div>
+      <span class="dash-bar-lbl${m.isJan ? " is-year" : ""}">${escHtml(m.label)}</span></div>`;
+  }).join("");
+  const rows = months.slice().reverse().filter(m => m.n).map(m => `<tr>
+      <td class="dpt-stage">${escHtml(m.label)}</td>
+      <td class="dpt-n">${m.n}</td>
+      <td class="dpt-val">${formatMoney(m.total)}</td>
+      <td class="dpt-val">${formatMoney(m.profit)}</td>
+      <td class="dpt-val">${m.total ? Math.round((m.profit / m.total) * 100) + "%" : "&mdash;"}</td>
+    </tr>`).join("");
+  el.innerHTML = `
+    <div class="dash-kpi mb-4">
+      ${stat("Booked", formatMoney(booked), `${active} active month${active === 1 ? "" : "s"}`)}
+      ${stat("Profit", formatMoney(profit), marginPct == null ? "no revenue yet" : `${marginPct}% of booked`)}
+      ${stat("Best month", best && best.total ? formatMoney(best.total) : "&mdash;", best && best.total ? best.label : "nothing booked")}
+      ${stat("Monthly average", formatMoney(active ? booked / active : 0), "across active months")}
+    </div>
+    <div class="dash-ovcard mb-4">
+      <div class="dash-ovhead">
+        <div><div class="dash-ovtitle">Booked &amp; profit by month</div>
+          <div class="dash-ovsub">Gold is what you booked; the darker band inside each bar is the profit in it.</div></div>
+        <span class="dash-ovpill">Last 12 months</span>
+      </div>
+      <div class="dash-bars">${bars}</div>
+    </div>
+    <div class="dash-ovcard">
+      <div class="dash-ovhead"><div><div class="dash-ovtitle">Month by month</div>
+        <div class="dash-ovsub">Most recent first. Months with no saved jobs are left out.</div></div></div>
+      ${rows ? `<div class="dpt-wrap"><table class="dpt">
+        <thead><tr><th>Month</th><th>Jobs</th><th>Booked</th><th>Profit</th><th>Margin</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>` : `<div class="dash-ovempty">No dated jobs in this range.</div>`}
+      <p class="team-ratehint mt-3">A job with no saved date can&rsquo;t be placed in a month, so it&rsquo;s left out here even though it still counts in your totals elsewhere.</p>
+    </div>`;
+}
+
+/* ── Manufacturers page ───────────────────────────────────────────────────────
+   Which brands you can quote, how much you actually use each, and their per-LF
+   rates. Names and rates are the SAME data the Settings rates editor writes, so
+   the two pages can't disagree; only the availability checkbox lives here. */
+function renderDashMfgPage(jobs) {
+  const el = document.getElementById("dashMfgPage");
+  if (!el) return;
+  const all = DATA.manufacturers || [];
+  const rates = DATA.manufacturerRates || {};
+  const real = dashRangeJobs(jobs).filter(j => j && !j.isDraft);
+  const used = {}; let usedTotal = 0;
+  real.forEach(j => { const m = j.manufacturer; if (!m) return; used[m] = used[m] || { n: 0, val: 0 };
+    used[m].n++; used[m].val += Number(j.sellingPrice) || 0; usedTotal++; });
+  const onCount = all.filter(isMfgEnabled).length;
+  const rateCell = (r, path) => {
+    const v = r && r[path];
+    if (!v) return "&mdash;";
+    const i = v.impact, ni = v.nonImpact;
+    if (i == null && ni == null) return "&mdash;";
+    return (i === ni) ? `$${i}` : `$${ni ?? "—"} / $${i ?? "—"}`;
+  };
+  const rows = all.map(name => {
+    const on = isMfgEnabled(name), u = used[name], r = rates[name] || {};
+    const share = usedTotal && u ? Math.round((u.n / usedTotal) * 100) : 0;
+    return `<tr class="${on ? "" : "is-off"}">
+      <td class="mfg-check">
+        <label class="mfg-switch">
+          <input type="checkbox" data-mfg-toggle="${escHtml(name)}"${on ? " checked" : ""} aria-label="Available when quoting: ${escHtml(name)}" />
+          <span class="mfg-name">${escHtml(name)}</span>
+        </label>
+      </td>
+      <td class="dpt-n">${u ? u.n : 0}</td>
+      <td class="dpt-bar"><span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:var(--gold-hi)"></span></span><span class="dpt-share">${share}%</span></td>
+      <td class="dpt-val">${u ? formatMoney(u.val) : "&mdash;"}</td>
+      <td class="dpt-val">${rateCell(r, "nailfin")}</td>
+      <td class="dpt-val">${rateCell(r, "throughFrame")}</td>
+      <td class="dpt-val">${r.alwaysImpactSpec ? "Impact only" : "&mdash;"}</td>
+    </tr>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="dash-ovcard mb-4">
+      <div class="dash-ovhead">
+        <div><div class="dash-ovtitle">Available when quoting</div>
+          <div class="dash-ovsub">${onCount} of ${all.length} brand${all.length === 1 ? "" : "s"} on. Unticking one hides it from the manufacturer picker &mdash; it keeps its rates and any job that already used it.</div></div>
+        <button type="button" class="dash-ovlink" data-mfg-settings>Edit rates in Settings &rarr;</button>
+      </div>
+      <div class="dpt-wrap"><table class="dpt mfg-table">
+        <thead><tr><th>Brand</th><th>Jobs</th><th>Share of jobs</th><th>Booked</th>
+          <th>Nail-fin /LF</th><th>Through-frame /LF</th><th>Spec</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <p class="team-ratehint mt-3">Rates show non-impact / impact per linear foot where they differ. Add, rename or re-rate a brand in Settings &rarr; Setup &rarr; Manufacturers &mdash; this page and that editor read the same list.</p>
+    </div>`;
+  if (!el._wired) {
+    el._wired = true;
+    el.addEventListener("click", (e) => {
+      if (e.target.closest("[data-mfg-settings]")) {
+        try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {}
+        return;
+      }
+    });
+    el.addEventListener("change", (e) => {
+      const cb = e.target.closest("[data-mfg-toggle]");
+      if (!cb) return;
+      const ok = setMfgEnabled(cb.dataset.mfgToggle, cb.checked);
+      if (!ok) cb.checked = true;            // refused (last one) — put it back
+      renderDashMfgPage(loadJobs());
+    });
+  }
+}
+
+/* ── Change order page ────────────────────────────────────────────────────────
+   The Tools modal given room to work: the same engine under scope "page", plus
+   the arithmetic spelled out so the number on the PDF is explainable rather than
+   just produced. Nothing is persisted — a change order is priced, printed and
+   sent, exactly as this tool has always behaved.
+   The inputs are static markup (see the panel), so this only refreshes the job
+   list and the numbers; it must never rewrite the fields under the user. */
+function coHoursChipSync() {
+  const hrs = Number((document.getElementById("dcoHours") || {}).value) || 0;
+  document.querySelectorAll("[data-dco-hours]").forEach(c =>
+    c.classList.toggle("is-on", hrs > 0 && Number(c.dataset.dcoHours) === hrs));
+}
+/** Plain-language description of which crew rate is in play. Phrased from the
+    mode the resolver actually returned, so it can't claim a source it guessed. */
+function coCrewSourceLine(crew) {
+  if (crew.mode === "team") return `Crew${crew.teamName ? ` “${crew.teamName}”` : ""} assigned to this job`;
+  if (crew.mode === "roster") return `Crew roster · ${crew.crewSize} on the clock`;
+  return `Flat crew rate · ${crew.crewSize} × ${formatMoney(crew.crewPayPerHrEach)}/hr`;
+}
+function renderDashChangeOrderBasis(L) {
+  const el = document.getElementById("dashChangeOrderBasis");
+  if (!el) return;
+  const crew = L.crew || {};
+  const mult = 1 + L.margin / 100;
+  const billRate = L.rate * mult;
+  const laborCharge = L.hours * billRate;
+  const extraCharge = L.extra * mult;
+  const wage = Number(crew.wageCostPerHr) || 0;
+  const wc = Number(crew.wcCostPerHr) || 0;
+  const row = (k, sub, cost, charge) => `<tr>
+      <td class="dpt-stage">${escHtml(k)}${sub ? `<span class="dco-rowsub">${escHtml(sub)}</span>` : ""}</td>
+      <td class="dpt-val">${cost}</td>
+      <td class="dpt-val">${charge}</td>
+    </tr>`;
+  el.innerHTML = `
+    <div class="dash-ovhead">
+      <div>
+        <div class="dash-ovtitle">How the number is built</div>
+        <div class="dash-ovsub">${escHtml(coCrewSourceLine(crew))} &middot; ${formatMoney(L.rate)}/hr loaded &middot; ${formatMoneyRaw(L.margin)}% markup</div>
+      </div>
+      <button type="button" class="dash-ovlink" data-dco-settings>Crew rates in Settings &rarr;</button>
+    </div>
+    <div class="dpt-wrap"><table class="dpt">
+      <thead><tr><th>Line</th><th>Your cost</th><th>You charge</th></tr></thead>
+      <tbody>
+        ${row("Labor", `${L.hours || 0} hrs × ${formatMoney(L.rate)}/hr cost, billed at ${formatMoney(billRate)}/hr`, formatMoney(L.laborCost), formatMoney(laborCharge))}
+        ${row("Materials & other", L.extra ? `${formatMoneyRaw(L.margin)}% on top` : "Nothing added", formatMoney(L.extra), formatMoney(extraCharge))}
+        ${row("Total", L.quote ? `${formatMoney(L.profit)} profit` : "", formatMoney(L.cost), formatMoney(L.quote))}
+      </tbody>
+    </table></div>
+    <p class="team-ratehint mt-3">${wc > 0
+      ? `The loaded rate is wages ${formatMoney(wage)}/hr plus ${formatMoney(wc)}/hr workers&rsquo; comp — the change order charges what the hour really costs you, not just the wage. `
+      : ""}A job quoted with its own crew uses that crew&rsquo;s rate; otherwise your Settings crew rate applies. The PDF goes out on the letterhead of whoever the job is assigned to.</p>`;
+}
+function renderDashChangeOrderPage() {
+  if (!document.getElementById("dcoJob")) return;
+  populateChangeOrderJobs("page", true);
+  const L = updateChangeOrderQuote("page");
+  coHoursChipSync();
+  renderDashChangeOrderBasis(L);
+  wireDashChangeOrder();
+}
+function wireDashChangeOrder() {
+  const panel = document.querySelector('#dashSection [data-dashview="changeorder"]');
+  if (!panel || panel._wired) return;
+  panel._wired = true;
+  const refresh = () => { coHoursChipSync(); renderDashChangeOrderBasis(updateChangeOrderQuote("page")); };
+  ["dcoJob", "dcoHours", "dcoExtra", "dcoParty", "dcoDesc"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", refresh);
+    el.addEventListener("change", refresh);
+  });
+  panel.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-dco-hours]");
+    if (chip) {
+      const hrs = document.getElementById("dcoHours");
+      if (hrs) {
+        // Tapping the active chip clears it, so a mis-tap doesn't need a manual edit.
+        hrs.value = (Number(hrs.value) || 0) === Number(chip.dataset.dcoHours) ? "" : chip.dataset.dcoHours;
+        refresh();
+      }
+      return;
+    }
+    if (e.target.closest("[data-dco-reset]")) {
+      ["dcoParty", "dcoDesc", "dcoHours", "dcoExtra"].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = "";
+      });
+      refresh();
+      return;
+    }
+    if (e.target.closest("[data-dco-settings]")) {
+      try { openAdmin(); showSettingsTab("rates"); showRatesLeaf("crew"); } catch (_) { try { openAdmin(); } catch (__) {} }
+      return;
+    }
+  });
+  const pdf = document.getElementById("dcoPdf");
+  if (pdf) pdf.addEventListener("click", () => exportChangeOrderPDF("view", false, "page"));
+  const amt = document.getElementById("dcoCopyAmt");
+  if (amt) amt.addEventListener("click", () => copyChangeOrderAmount("page"));
+  const sum = document.getElementById("dcoCopySummary");
+  if (sum) sum.addEventListener("click", () => copyChangeOrderSummary("page"));
+}
+
 function renderDashStats(jobs) {
   const wrap = document.getElementById("dashStats");
   if (!wrap) return;
+  // v2 P2: the strip measures the ACTIVE RANGE. Trends still compare month over
+  // month from the full history, so a narrow range can't distort the delta.
+  const all = jobs;
+  jobs = dashRangeJobs(jobs);
   const p = pipelineStats(jobs);
   if (!p.real.length) { wrap.innerHTML = ""; wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
-  const tr = dashStatTrends(jobs);
+  const tr = dashStatTrends(all);
   const upSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6 4 4 6-7"/><path d="M16 8h4v4"/></svg>';
   const downSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l6 6 4-4 6 7"/><path d="M16 16h4v-4"/></svg>';
   const tiles = [
@@ -20124,17 +21505,43 @@ function renderDashStats(jobs) {
     { key: "winRate", label: "Win rate", val: p.winRate == null ? "—" : p.winRate + "%", raw: p.winRate, fmt: "pct", sub: p.decided ? `${p.wonCount}W · ${p.lostCount}L` : "no decisions yet", accent: "text-slate-100", delta: tr.winRate },
     { key: "markup", label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", raw: p.avgMargin, fmt: "pct", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100", delta: tr.markup },
   ];
-  wrap.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">` + tiles.map(t => {
+  // 5th cell: AI reads left. It's the one number people actually run out of, and
+  // it has no delta (a quota isn't a trend).
+  let aiCell = null;
+  try {
+    if (currentUser && typeof getAiReadsRemaining === "function" && typeof getAiReadCap === "function") {
+      const left = getAiReadsRemaining(), cap = getAiReadCap();
+      aiCell = { key: "aireads", label: "AI reads left",
+        val: (left === Infinity || cap === Infinity) ? "∞" : String(left),
+        raw: null, sub: (cap === Infinity) ? "unlimited on Shop" : `of ${cap} this cycle`,
+        accent: "text-slate-100", icon: KPI_ICONS.aireads, tone: "violet" };
+    }
+  } catch (_) {}
+  const cells = tiles.map(t => Object.assign(t, { icon: KPI_ICONS[t.key], tone: KPI_TONES[t.key] }))
+    .concat(aiCell ? [aiCell] : []);
+  wrap.innerHTML = `<div class="dash-kpi">` + cells.map(t => {
     const d = t.delta;
-    const deltaHTML = d ? `<div class="dash-stat-delta ${d.dir}">${d.dir === "up" ? upSvg : downSvg}${d.label}<span class="dash-stat-vs">vs last mo</span></div>` : "";
-    return `<div class="dash-stat card rounded-2xl p-4 text-center">
-        <span class="dash-stat-label">${escHtml(t.label)}</span>
-        <div class="dash-stat-num ${t.accent}"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
-        ${deltaHTML}
-        <div class="dash-stat-sub">${escHtml(t.sub)}</div>
+    const deltaHTML = d ? `<span class="dash-kpi-delta ${d.dir}">${d.dir === "up" ? upSvg : downSvg}${d.label}</span>` : "";
+    return `<div class="dash-kpi-cell">
+        <div class="dash-kpi-head">
+          <span class="dash-kpi-label">${escHtml(t.label)}</span>
+          <span class="dash-kpi-ico tone-${t.tone || "slate"}" aria-hidden="true">${t.icon || ""}</span>
+        </div>
+        <div class="dash-kpi-num ${t.accent}"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
+        <div class="dash-kpi-foot">${deltaHTML}<span class="dash-kpi-sub">${escHtml(t.sub)}</span></div>
       </div>`;
   }).join("") + `</div>`;
 }
+
+/* Icon chips + tints for the KPI strip, mirroring the reference's coloured chips. */
+const KPI_ICONS = {
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>',
+  won: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>',
+  winRate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>',
+  markup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-7"/></svg>',
+  aireads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 12h6M12 9v6"/></svg>',
+};
+const KPI_TONES = { open: "gold", won: "emerald", winRate: "sky", markup: "slate", aireads: "violet" };
 
 function renderDashJobsPanel(jobs) {
   const wrap = document.getElementById("dashPipelinePanel");
@@ -22433,16 +23840,7 @@ function wireDashboard() {
         return;
       }
       const c = e.target.closest("[data-dashcard]");
-      if (c) {
-        const target = c.dataset.dashcard;
-        // The Manufacturers card opens Settings → Setup → Manufacturers (where the
-        // brand list + per-brand params live), not an in-dashboard panel.
-        if (target === "setup-manufacturers") { try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {} }
-        // AIPLAN-13: the AI card leaves the dashboard and opens the plan picker (same
-        // path the empty-state scan link uses).
-        else if (target === "aiplan") { try { closeDashboard(); document.getElementById("readFromPlanBtn").click(); } catch (_) {} }
-        else dashGoTo(target);
-      }
+      if (c) dashOpenTarget(c.dataset.dashcard);   // shared router — see dashOpenTarget
     });
     // Keyboard parity for the role=button ⓘ span.
     launchpad.addEventListener("keydown", (e) => {
@@ -23873,7 +25271,7 @@ function bindControls() {
   if (DROPDOWNS.ddManufacturer) {
     DROPDOWNS.ddManufacturer.setValue(STATE.manufacturer, false);
   } else {
-    createDropdown("ddManufacturer", DATA.manufacturers, STATE.manufacturer, v => { STATE.manufacturer = v; const _mf = document.getElementById("ddManufacturer"); if (_mf && _mf.closest) clearFieldAi(_mf.closest(".rail-field")); markCalculatorFirstInteraction(); render(); });
+    createDropdown("ddManufacturer", enabledManufacturers(), STATE.manufacturer, v => { STATE.manufacturer = v; const _mf = document.getElementById("ddManufacturer"); if (_mf && _mf.closest) clearFieldAi(_mf.closest(".rail-field")); markCalculatorFirstInteraction(); render(); });
     document.addEventListener("click", () => {
       closeAllDropdowns();
       document.querySelectorAll(".info-tip.show").forEach(t => t.classList.remove("show"));
@@ -27897,15 +29295,22 @@ function applySignExclusions(snap, exclude) {
 
 // Render the Customize checklist (scope rows + itemized line items) into the
 // Job Details card. Unchecking a row adds its key to _jdSignExclude.
-async function loadSignCustomize(jobId, detailLevel) {
-  const box = document.getElementById("jdSignCustomize");
+/** Build the "what the customer sees" checklist. Defaults to the Job Details box
+    and its exclude set, so existing callers are unchanged; the E-signatures page
+    passes its own so the two workspaces can't share stale exclusions. */
+async function loadSignCustomize(jobId, detailLevel, opts) {
+  opts = opts || {};
+  const boxId = opts.boxId || "jdSignCustomize";
+  const exclude = opts.exclude || _jdSignExclude;
+  const resultId = opts.resultId || "jdSignResult";
+  const box = document.getElementById(boxId);
   if (!box) return;
   box.innerHTML = `<div class="jd-cz-loading">Loading what the customer will see…</div>`;
   const snap = await buildSignSnapshotForJob(jobId, detailLevel);
   if (!snap) { box.innerHTML = `<div class="jd-cz-loading">Add footage or doors to this job first.</div>`; return; }
 
   const rowHtml = (key, label, right) => {
-    const checked = _jdSignExclude.has(key) ? "" : "checked";
+    const checked = exclude.has(key) ? "" : "checked";
     return `<label class="jd-cz-row">
       <input type="checkbox" data-cz-key="${escHtml(key)}" ${checked}>
       <span class="jd-cz-label">${escHtml(label)}</span>
@@ -27936,8 +29341,8 @@ async function loadSignCustomize(jobId, detailLevel) {
   box.querySelectorAll("[data-cz-key]").forEach((cb) => {
     cb.addEventListener("change", () => {
       const key = cb.dataset.czKey;
-      if (cb.checked) _jdSignExclude.delete(key); else _jdSignExclude.add(key);
-      const res = document.getElementById("jdSignResult");
+      if (cb.checked) exclude.delete(key); else exclude.add(key);
+      const res = document.getElementById(resultId);
       if (res) res.classList.add("hidden"); // changing visibility needs a fresh link
     });
   });
@@ -29395,6 +30800,18 @@ const flModal = document.getElementById("flModal");
 const changeOrderModal = document.getElementById("changeOrderModal");
 let _coLast = { quote: 0, cost: 0, profit: 0, hours: 0, rate: 0, margin: 0, jobName: "", party: "", desc: "", extra: 0 };
 
+/* The change order lives in two places: the tools MODAL (account menu, reachable
+   from anywhere) and the dashboard's dedicated PAGE. Same engine, two sets of
+   element ids — the page prefixes each one with "d". Everything below takes a
+   scope so the two can't fork; omitting it means the modal, so the original call
+   sites are untouched. The compute fn RETURNS its figures instead of leaving them
+   in _coLast, so a modal opened over the page can't hand the page's PDF the wrong
+   numbers. */
+const CO_PREFIX = { modal: "co", page: "dco" };
+function coEl(scope, name) { return document.getElementById((CO_PREFIX[scope] || CO_PREFIX.modal) + name); }
+function coVal(scope, name) { const el = coEl(scope, name); return el ? el.value : ""; }
+function coSet(scope, name, text) { const el = coEl(scope, name); if (el) el.textContent = text; }
+
 /** Crew $/hr for a saved job (job laborOverride.crew if set, else account Settings). */
 function resolveCrewCostForJob(job) {
   const prev = STATE.laborOverride;
@@ -29411,12 +30828,16 @@ function resolveMarginForJob(job) {
   }
   return (DATA.config && DATA.config.defaultMargin != null) ? Number(DATA.config.defaultMargin) : 35;
 }
-function populateChangeOrderJobs() {
-  const sel = document.getElementById("coJob");
+/** @param keepSelection - the page re-populates on every dashboard render, so it
+    keeps whatever is already showing; the modal re-opens fresh on the open job. */
+function populateChangeOrderJobs(scope, keepSelection) {
+  const sel = coEl(scope, "Job");
   if (!sel) return;
   const jobs = loadJobs().filter(j => j && !j.isDraft);
   jobs.sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
-  const cur = STATE.currentJobId;
+  // options.length distinguishes "never populated" from "the user picked no job",
+  // which a bare sel.value ("" for both) can't — so an explicit deselect sticks.
+  const cur = (keepSelection && sel.options.length) ? sel.value : STATE.currentJobId;
   const opts = ['<option value="">Account crew rate (no job)</option>'];
   for (const j of jobs) {
     const label = (j.name || "Untitled").trim() || "Untitled";
@@ -29427,53 +30848,45 @@ function populateChangeOrderJobs() {
   sel.innerHTML = opts.join("");
   if (cur && !jobs.some(j => j.id === cur)) sel.value = "";
 }
-function updateChangeOrderQuote() {
-  const jobId = (document.getElementById("coJob") && document.getElementById("coJob").value) || "";
+function updateChangeOrderQuote(scope) {
+  const jobId = coVal(scope, "Job") || "";
   const job = jobId ? loadJobs().find(j => j.id === jobId && !j.isDraft) : null;
   const crew = resolveCrewCostForJob(job);
   const rate = Math.max(0, Number(crew.crewCostPerHr) || 0);
-  const hours = Math.max(0, Number(document.getElementById("coHours") && document.getElementById("coHours").value) || 0);
-  const extra = Math.max(0, Number(document.getElementById("coExtra") && document.getElementById("coExtra").value) || 0);
+  const hours = Math.max(0, Number(coVal(scope, "Hours")) || 0);
+  const extra = Math.max(0, Number(coVal(scope, "Extra")) || 0);
   const margin = resolveMarginForJob(job);
   const laborCost = hours * rate;
   const totalCost = laborCost + extra;
   const quote = totalCost * (1 + margin / 100);
   const profit = quote - totalCost;
-  const party = ((document.getElementById("coParty") && document.getElementById("coParty").value) || "").trim();
-  const desc = ((document.getElementById("coDesc") && document.getElementById("coDesc").value) || "").trim();
+  const party = String(coVal(scope, "Party") || "").trim();
+  const desc = String(coVal(scope, "Desc") || "").trim();
 
   const modeLabel = crew.mode === "roster"
     ? `${crew.crewSize} crew · roster`
     : `${crew.crewSize} crew · $${formatMoneyRaw(crew.crewPayPerHrEach)}/hr ea`;
-  const hint = document.getElementById("coCrewHint");
-  if (hint) {
-    hint.textContent = job
-      ? `${job.name || "Job"} · ${modeLabel} · ${formatMoney(rate)}/hr loaded`
-      : `Using account Settings crew · ${modeLabel} · ${formatMoney(rate)}/hr loaded`;
-  }
-  const laborEl = document.getElementById("coLaborLine");
-  if (laborEl) laborEl.textContent = `${hours || 0} hrs × ${formatMoney(rate)}/hr = ${formatMoney(laborCost)}`;
-  const extraEl = document.getElementById("coExtraLine");
-  if (extraEl) extraEl.textContent = formatMoney(extra);
-  const marginEl = document.getElementById("coMarginLine");
-  if (marginEl) marginEl.textContent = `${formatMoneyRaw(margin)}%${job && job.marginOverride != null ? " · this job" : " · account default"}`;
-  const quoteEl = document.getElementById("coQuote");
-  if (quoteEl) quoteEl.textContent = formatMoney(quote);
-  const costEl = document.getElementById("coCostLine");
-  if (costEl) costEl.textContent = formatMoney(totalCost);
-  const profitEl = document.getElementById("coProfitLine");
-  if (profitEl) profitEl.textContent = formatMoney(profit);
+  coSet(scope, "CrewHint", job
+    ? `${job.name || "Job"} · ${modeLabel} · ${formatMoney(rate)}/hr loaded`
+    : `Using account Settings crew · ${modeLabel} · ${formatMoney(rate)}/hr loaded`);
+  coSet(scope, "LaborLine", `${hours || 0} hrs × ${formatMoney(rate)}/hr = ${formatMoney(laborCost)}`);
+  coSet(scope, "ExtraLine", formatMoney(extra));
+  coSet(scope, "MarginLine", `${formatMoneyRaw(margin)}%${job && job.marginOverride != null ? " · this job" : " · account default"}`);
+  coSet(scope, "Quote", formatMoney(quote));
+  coSet(scope, "CostLine", formatMoney(totalCost));
+  coSet(scope, "ProfitLine", formatMoney(profit));
 
   _coLast = {
     quote, cost: totalCost, profit, hours, rate, margin, extra,
     jobName: job ? (job.name || "Untitled") : "Account crew",
-    party, desc,
+    party, desc, laborCost, crew, job, modeLabel,
   };
+  return _coLast;
 }
 function openChangeOrder() {
   try { closePfpMenu(); } catch (_) {}
   if (!changeOrderModal) return;
-  populateChangeOrderJobs();
+  populateChangeOrderJobs("modal");
   const hrs = document.getElementById("coHours");
   const extra = document.getElementById("coExtra");
   const party = document.getElementById("coParty");
@@ -29482,7 +30895,7 @@ function openChangeOrder() {
   if (extra) extra.value = "";
   if (party) party.value = "";
   if (desc) desc.value = "";
-  updateChangeOrderQuote();
+  updateChangeOrderQuote("modal");
   changeOrderModal.classList.remove("hidden");
   changeOrderModal.classList.add("flex");
   trapDialog(changeOrderModal, closeChangeOrder);
@@ -29504,19 +30917,18 @@ function closeChangeOrderInstant() {
   changeOrderModal.classList.remove("flex", "modal-closing");
   try { releaseDialog(changeOrderModal); } catch (_) {}
 }
-async function copyChangeOrderAmount() {
-  updateChangeOrderQuote();
-  const text = formatMoneyRaw(_coLast.quote);
+async function copyChangeOrderAmount(scope) {
+  const L = updateChangeOrderQuote(scope);
+  const text = formatMoneyRaw(L.quote);
   try {
     await navigator.clipboard.writeText(text);
-    toast(`Copied ${formatMoney(_coLast.quote)}`);
+    toast(`Copied ${formatMoney(L.quote)}`);
   } catch (_) {
     toast("Couldn’t copy — select the amount manually");
   }
 }
-async function copyChangeOrderSummary() {
-  updateChangeOrderQuote();
-  const L = _coLast;
+async function copyChangeOrderSummary(scope) {
+  const L = updateChangeOrderQuote(scope);
   const lines = [
     "Change order",
     L.jobName ? `Job: ${L.jobName}` : null,
@@ -29536,19 +30948,24 @@ async function copyChangeOrderSummary() {
   }
 }
 /** Customer-facing Change Order PDF — same brand header/footer as the calculator quote. */
-function exportChangeOrderPDF(mode, force) {
-  updateChangeOrderQuote();
-  const L = _coLast;
+function exportChangeOrderPDF(mode, force, scope) {
+  const L = updateChangeOrderQuote(scope);
   if (!(L.hours > 0 || L.extra > 0 || L.quote > 0)) {
     toast("Enter hours or extra costs first");
     return;
   }
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    toast("PDF library still loading — try again in a moment");
+  // Load the engine and continue, like every other export — this used to bounce
+  // off a "try again in a moment" toast, and it gated on window.jspdf instead of
+  // jsPdfReady() (the trap where the core global is truthy before the autotable
+  // plugin has attached). On the Change order PAGE this is the primary button,
+  // so a first click that just says "try again" reads as broken.
+  if (!jsPdfReady()) {
+    loadJsPdf().then(() => exportChangeOrderPDF(mode, force, scope))
+      .catch(() => toast("Couldn't load the PDF engine — check your connection"));
     return;
   }
   // Same demo-brand/demo-rates gate as customer quotes (force resumes past the modal).
-  if (!force && demoExportBlocked(() => exportChangeOrderPDF(mode, true))) return;
+  if (!force && demoExportBlocked(() => exportChangeOrderPDF(mode, true, scope))) return;
   try { window.track("change_order_pdf"); } catch (_) {}
 
   const { jsPDF } = window.jspdf;
@@ -31235,7 +32652,7 @@ function buildAdminUI() {
     const sel = document.getElementById(id);
     sel.innerHTML = opts.map(o => `<option value="${o}" ${o === current ? "selected" : ""}>${o}</option>`).join("");
   };
-  fillSel("defaultMfg", DATA.manufacturers, jd.manufacturer);
+  fillSel("defaultMfg", enabledManufacturers(), jd.manufacturer);   // hidden brands aren't selectable
   fillSel("defaultApp", DATA.applicationTypes, jd.application);
   fillSel("defaultHouse", DATA.houseTypes, jd.houseType);
   fillSel("defaultConstruction", DATA.constructionTypes, jd.constructionType);
@@ -39216,18 +40633,20 @@ function init() {
       changeOrderModal.addEventListener("click", e => {
         if (e.target.dataset.closeCo !== undefined) { closeChangeOrder(); return; }
       });
+      // Pass the scope explicitly — bare `updateChangeOrderQuote` as a listener
+      // would hand it the Event as its scope argument.
       ["coJob", "coHours", "coExtra", "coParty", "coDesc"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.addEventListener("input", updateChangeOrderQuote);
-        el.addEventListener("change", updateChangeOrderQuote);
+        el.addEventListener("input", () => updateChangeOrderQuote("modal"));
+        el.addEventListener("change", () => updateChangeOrderQuote("modal"));
       });
       const copyAmt = document.getElementById("coCopyAmt");
-      if (copyAmt) copyAmt.addEventListener("click", copyChangeOrderAmount);
+      if (copyAmt) copyAmt.addEventListener("click", () => copyChangeOrderAmount("modal"));
       const copySum = document.getElementById("coCopySummary");
-      if (copySum) copySum.addEventListener("click", copyChangeOrderSummary);
+      if (copySum) copySum.addEventListener("click", () => copyChangeOrderSummary("modal"));
       const pdfBtn = document.getElementById("coPdf");
-      if (pdfBtn) pdfBtn.addEventListener("click", () => exportChangeOrderPDF("view"));
+      if (pdfBtn) pdfBtn.addEventListener("click", () => exportChangeOrderPDF("view", false, "modal"));
       wireMobileSheetDismiss(changeOrderModal, (opts) => {
         if (opts && opts.fromDrag) closeChangeOrderInstant();
         else closeChangeOrder();
