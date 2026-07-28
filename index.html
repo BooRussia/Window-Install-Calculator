@@ -28611,6 +28611,7 @@ function openAdmin() {
     if (saved && ["setup", "customers", "rates", "account"].includes(saved) && DATA.config && DATA.config.onboarded) _startTab = saved;
   } catch (_) {}
   showSettingsTab(_startTab);
+  _setWasNarrow = settingsIsNarrow();   // baseline for the resize re-sync (see the listener)
   // Settings search: wire once, then reset query + force a fresh index next focus.
   wireSettingsSearch();
   _setSearchIdx = null; _setSearchHits = []; _setSearchActive = -1;
@@ -28682,11 +28683,20 @@ function settingsBack() {
 /** Called by the leaf switchers — picking a section opens it. */
 function settingsEnterLeaf() { if (settingsIsNarrow()) setSettingsLevel(3); }
 /* Crossing the breakpoint (resize / rotate) must re-sync the level, or a stale
-   set-l2 from a narrow session hides the section list once it's wide again. */
+   set-l2 from a narrow session hides the section list once it's wide again. But
+   ONLY on a real narrow↔wide crossing — a plain height change (soft keyboard,
+   which resizes the layout here via interactive-widget=resizes-content, or the
+   mobile URL bar collapsing on scroll, or a portrait↔landscape rotate that stays
+   below 860px) must NOT reset the level, or focusing any field on Setup/Rates/
+   Account would bounce the user out of the open section (set-l2 hides content). */
+let _setWasNarrow = null;
 window.addEventListener("resize", () => {
   const m = document.getElementById("adminModal");
   if (!m || m.classList.contains("hidden")) return;
-  if (!settingsIsNarrow()) { setSettingsLevel(1); return; }
+  const narrow = settingsIsNarrow();
+  if (narrow === _setWasNarrow) return;   // height-only change — keep the user's place
+  _setWasNarrow = narrow;
+  if (!narrow) { setSettingsLevel(1); return; }
   // Coming back to narrow: land on the deepest layer that has content.
   const tabName = (document.querySelector("#adminModal .set-tab.active") || {}).dataset?.tab;
   setSettingsLevel(SETTINGS_TABS_WITH_LEAVES.includes(tabName) ? 2 : 3);
