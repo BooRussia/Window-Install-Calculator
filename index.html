@@ -36580,7 +36580,13 @@ async function handleAuthSubmit(e) {
   submitBtn.textContent = "Please wait…";
   try {
     if (authMode === "signup") {
-      const { data, error } = await sb.auth.signUp({ email, password });
+      // Send them back to THIS deployment after they confirm. Without it the
+      // confirmation link falls back to the project's Site URL, which is one
+      // fixed address — so a confirm started on Pages could land on Netlify (or
+      // vice versa) and look like the account didn't stick. Magic-link and
+      // password reset above already do this; signup was the one that didn't.
+      const emailRedirectTo = window.location.origin + window.location.pathname;
+      const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo } });
       if (error) throw error;
       window.track("auth_signup_completed");
       if (data.session) { await enterApp(); await restoreNav(); return; }   // confirmation disabled
