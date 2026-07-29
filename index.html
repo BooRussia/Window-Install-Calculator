@@ -606,6 +606,31 @@
      Slate-400 clears it; the label above stays bolder/uppercase so hierarchy holds. */
   .dash-kpi-sub { font-size: 11px; font-weight: 600; color: #94a3b8; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Mobile home strip: hide Avg markup, promote AI reads into its slot, and swap
+     the orphan bottom row for Change order + Florida lookup shortcuts. Desktop
+     keeps the original 5-tile strip unchanged. */
+  .dash-kpi-mobile-only { display: none !important; }
+  .dash-kpi-action {
+    appearance: none; border: 0; width: 100%; cursor: pointer;
+    text-align: left; font: inherit; color: inherit;
+    transition: background .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dash-kpi-action:active { background: #111827; }
+  .dash-kpi-action .dash-kpi-num {
+    font-size: clamp(1.05rem, 0.95rem + 0.6vw, 1.2rem);
+    letter-spacing: -0.015em;
+  }
+  @media (max-width: 699px) {
+    .dash-kpi-desktop-only { display: none !important; }
+    .dash-kpi-mobile-only { display: block !important; }
+    .dash-kpi > [data-kpi="open"] { order: 1; }
+    .dash-kpi > [data-kpi="won"] { order: 2; }
+    .dash-kpi > [data-kpi="winRate"] { order: 3; }
+    .dash-kpi > [data-kpi="aireads"] { order: 4; }
+    .dash-kpi > [data-kpi-action="changeorder"] { order: 5; }
+    .dash-kpi > [data-kpi-action="fl"] { order: 6; }
+  }
   [data-theme="light"] .dash-topbar { border-bottom-color: #e2e8f0; }
   [data-theme="light"] .dash-topbar-title { color: #0f172a; }
   [data-theme="light"] .dash-topbar-icon { color: var(--gold-ink); background: rgba(181,143,74,0.10); border-color: #d9c79a; }
@@ -620,6 +645,7 @@
   [data-theme="light"] .dash-kpi-ico.tone-violet { color: #6d28d9; background: rgba(139,92,246,0.12); }
   [data-theme="light"] .dash-kpi-ico.tone-slate { color: #475569; background: rgba(100,116,139,0.14); }
   [data-theme="light"] .dash-kpi-ico.tone-gold { color: var(--gold-ink); background: rgba(181,143,74,0.12); }
+  [data-theme="light"] .dash-kpi-action:active { background: #f1f5f9; }
   /* ═══ Dashboard v2 — workspace shell (P1) ═════════════════════════════════
      Orion-style persistent sidebar, in Anchor's dark palette. Desktop only:
      under 900px it is display:none and the bottom tab bar remains the nav. */
@@ -21606,10 +21632,10 @@ function renderDashStats(jobs) {
     { key: "open", label: "Open pipeline", val: formatMoney(p.openVal), raw: p.openVal, fmt: "money", sub: `${p.openCount} open deal${p.openCount === 1 ? "" : "s"}`, accent: "text-[#c9a558]", delta: tr.open },
     { key: "won", label: "Won", val: formatMoney(p.wonVal), raw: p.wonVal, fmt: "money", sub: `${p.wonCount} job${p.wonCount === 1 ? "" : "s"} landed`, accent: "text-emerald-300", delta: tr.won },
     { key: "winRate", label: "Win rate", val: p.winRate == null ? "—" : p.winRate + "%", raw: p.winRate, fmt: "pct", sub: p.decided ? `${p.wonCount}W · ${p.lostCount}L` : "no decisions yet", accent: "text-slate-100", delta: tr.winRate },
-    { key: "markup", label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", raw: p.avgMargin, fmt: "pct", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100", delta: tr.markup },
+    { key: "markup", label: "Avg markup", val: p.avgMargin == null ? "—" : p.avgMargin + "%", raw: p.avgMargin, fmt: "pct", sub: `${p.real.length} saved job${p.real.length === 1 ? "" : "s"}`, accent: "text-slate-100", delta: tr.markup, desktopOnly: true },
   ];
   // 5th cell: AI reads left. It's the one number people actually run out of, and
-  // it has no delta (a quota isn't a trend).
+  // it has no delta (a quota isn't a trend). On phones it takes Avg markup's slot.
   let aiCell = null;
   try {
     if (currentUser && typeof getAiReadsRemaining === "function" && typeof getAiReadCap === "function") {
@@ -21622,10 +21648,30 @@ function renderDashStats(jobs) {
   } catch (_) {}
   const cells = tiles.map(t => Object.assign(t, { icon: KPI_ICONS[t.key], tone: KPI_TONES[t.key] }))
     .concat(aiCell ? [aiCell] : []);
+  const coIco = KPI_ICONS.changeorder;
+  const flIco = KPI_ICONS.fl;
+  const actions = `
+    <button type="button" class="dash-kpi-cell dash-kpi-action dash-kpi-mobile-only" data-kpi-action="changeorder">
+      <div class="dash-kpi-head">
+        <span class="dash-kpi-label">Tools</span>
+        <span class="dash-kpi-ico tone-gold" aria-hidden="true">${coIco}</span>
+      </div>
+      <div class="dash-kpi-num text-slate-100">Change order</div>
+      <div class="dash-kpi-foot"><span class="dash-kpi-sub">Price a fix on site</span></div>
+    </button>
+    <button type="button" class="dash-kpi-cell dash-kpi-action dash-kpi-mobile-only" data-kpi-action="fl">
+      <div class="dash-kpi-head">
+        <span class="dash-kpi-label">Tools</span>
+        <span class="dash-kpi-ico tone-emerald" aria-hidden="true">${flIco}</span>
+      </div>
+      <div class="dash-kpi-num text-slate-100">Florida lookup</div>
+      <div class="dash-kpi-foot"><span class="dash-kpi-sub">FL# / screw pattern</span></div>
+    </button>`;
   wrap.innerHTML = `<div class="dash-kpi">` + cells.map(t => {
     const d = t.delta;
     const deltaHTML = d ? `<span class="dash-kpi-delta ${d.dir}">${d.dir === "up" ? upSvg : downSvg}${d.label}</span>` : "";
-    return `<div class="dash-kpi-cell">
+    const desk = t.desktopOnly ? " dash-kpi-desktop-only" : "";
+    return `<div class="dash-kpi-cell${desk}" data-kpi="${escHtml(t.key)}">
         <div class="dash-kpi-head">
           <span class="dash-kpi-label">${escHtml(t.label)}</span>
           <span class="dash-kpi-ico tone-${t.tone || "slate"}" aria-hidden="true">${t.icon || ""}</span>
@@ -21633,7 +21679,17 @@ function renderDashStats(jobs) {
         <div class="dash-kpi-num ${t.accent}"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
         <div class="dash-kpi-foot">${deltaHTML}<span class="dash-kpi-sub">${escHtml(t.sub)}</span></div>
       </div>`;
-  }).join("") + `</div>`;
+  }).join("") + actions + `</div>`;
+  if (!wrap._kpiWired) {
+    wrap._kpiWired = true;
+    wrap.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-kpi-action]");
+      if (!btn) return;
+      const a = btn.dataset.kpiAction;
+      if (a === "changeorder") { try { dashGoTo("changeorder"); } catch (_) {} }
+      else if (a === "fl") { try { openFL(); } catch (_) {} }
+    });
+  }
 }
 
 /* Icon chips + tints for the KPI strip, mirroring the reference's coloured chips. */
@@ -21643,6 +21699,8 @@ const KPI_ICONS = {
   winRate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>',
   markup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-7"/></svg>',
   aireads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 12h6M12 9v6"/></svg>',
+  changeorder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h13M4 12h9M4 18h11"/><path d="M17 11l3.5 3.5L17 18"/></svg>',
+  fl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.4-3 8-7 9-4-1-7-4.6-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>',
 };
 const KPI_TONES = { open: "gold", won: "emerald", winRate: "sky", markup: "slate", aireads: "violet" };
 
