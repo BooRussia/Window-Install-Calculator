@@ -4658,7 +4658,9 @@
     #settingsNav { display: block; overflow-x: visible; }
     #settingsNav .set-tab { width: 100%; flex: 1 1 auto; justify-content: space-between; }
     #settingsNav .set-tab::after {
-      content: ""; width: 6px; height: 6px; border-right: 2px solid currentColor;
+      /* flex: 0 0 auto or the row's space-between squeezes this 6px box down to
+         its border and the chevron renders as a thin vertical bar. */
+      content: ""; flex: 0 0 auto; width: 6px; height: 6px; border-right: 2px solid currentColor;
       border-bottom: 2px solid currentColor; transform: rotate(-45deg); opacity: .45;
     }
   }
@@ -4675,14 +4677,57 @@
       border: 1px solid rgba(51,65,85,0.6);
       border-radius: 14px; overflow: hidden;
     }
-    #settingsNav { border-bottom-width: 1px; }
+    /* Inset the rail the way the section list is inset by its content padding,
+       so both levels read as the same iOS grouped list instead of the root
+       running edge to edge. */
+    #adminModal.set-l1 #settingsNav { width: auto; margin: 14px 16px 0; }
     #settingsNav .set-tab,
     .rleaf-nav .rleaf-btn {
+      /* display:flex is REQUIRED here — .set-tab is display:block by default
+         (its flex rule lives in a coarse-pointer query), and on a block the
+         chevron's width/height/transform and space-between are all ignored, so
+         it renders as a stray vertical bar next to the label. */
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
       width: 100%; border: 0; border-radius: 0; margin: 0;
-      min-height: 52px; padding: 14px 16px;
+      min-height: 52px; padding: 13px 16px;
       font-size: 17px; font-weight: 500; letter-spacing: -0.01em;
       border-bottom: 1px solid rgba(51,65,85,0.45);
     }
+    /* iOS-style leading glyph in a tinted rounded square. */
+    #settingsNav .set-tab-ico {
+      flex: 0 0 auto; width: 29px; height: 29px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(181,143,74,0.14); color: #c9a558; margin-right: 2px;
+    }
+    #settingsNav .set-tab-label { flex: 1 1 auto; min-width: 0; text-align: left; }
+    #settingsNav .set-tab.active .set-tab-ico { background: rgba(181,143,74,0.24); }
+    [data-theme="light"] #settingsNav .set-tab-ico { background: rgba(181,143,74,0.13); color: var(--gold-ink, #8a6a2e); }
+
+    /* Account card: the person first, then everything else. */
+    .set-acctrow {
+      display: flex; align-items: center; gap: 13px; width: 100%;
+      padding: 14px 16px; background: transparent; border: 0; cursor: pointer;
+      text-align: left; border-bottom: 1px solid rgba(51,65,85,0.45);
+    }
+    .set-acctrow::after {
+      content: ""; flex: 0 0 auto; width: 8px; height: 8px; margin-left: auto;
+      border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+      transform: rotate(-45deg); opacity: .35; color: #94a3b8;
+    }
+    .set-acct-av {
+      flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(30,41,59,0.8); border: 1px solid rgba(51,65,85,0.7);
+    }
+    .set-acct-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .set-acct-name { font-size: 17px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.01em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .set-acct-sub { font-size: 12.5px; color: #7e8ca0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    [data-theme="light"] .set-acct-name { color: #0f172a; }
+    [data-theme="light"] .set-acct-sub { color: #55606e; }
+    [data-theme="light"] .set-acctrow { border-bottom-color: #e6e8ec; }
+    /* The root list inherited #94a3b8 — about 2.5:1 on the light group. */
+    [data-theme="light"] #settingsNav .set-tab { color: #475569; }
     #settingsNav .set-tab:last-child,
     .rleaf-nav .rleaf-btn:last-child { border-bottom: 0; }
     /* The chevron is the affordance at this size — scale it with the type.
@@ -4691,9 +4736,10 @@
        four and the chevron becomes a diamond. */
     #settingsNav .set-tab::after,
     .rleaf-nav .rleaf-btn::after { width: 8px; height: 8px; border-right-width: 2px; border-bottom-width: 2px; }
-    /* Active row reads as a filled row, not a bordered pill. */
+    /* Active row reads as a filled row, not a bordered pill — drop the inset
+       ring .set-tab.active draws, which outlines the row inside the group. */
     #settingsNav .set-tab.active,
-    .rleaf-nav .rleaf-btn.active { border-color: transparent; border-bottom: 1px solid rgba(51,65,85,0.45); }
+    .rleaf-nav .rleaf-btn.active { border-color: transparent; border-bottom: 1px solid rgba(51,65,85,0.45); box-shadow: none; }
     #settingsNav .set-tab.active:last-child,
     .rleaf-nav .rleaf-btn.active:last-child { border-bottom: 0; }
     [data-theme="light"] #settingsNav,
@@ -4703,7 +4749,13 @@
     /* The panel heading is the screen title on a phone — give it room. */
     #adminModal.set-l2 .set-panel.active > .set-h { font-size: 22px; }
   }
-  @media (min-width: 860px) { #settingsBack { display: none !important; } }
+  /* Desktop keeps the plain sidebar: no icons, no account card (the rail is
+     always visible there, so the card would just duplicate a row). */
+  @media (min-width: 860px) {
+    #settingsBack { display: none !important; }
+    .set-acctrow { display: none; }
+    #settingsNav .set-tab-ico { display: none; }
+  }
   /* Back control — only meaningful in the drill-down. */
   #settingsBack {
     display: none; align-items: center; gap: 5px; background: transparent; border: 0;
@@ -11112,14 +11164,24 @@
     <div class="flex-1 flex flex-col sm:flex-row overflow-hidden">
       <!-- Tab rail — horizontal scroll strip on mobile, sidebar on desktop -->
       <nav id="settingsNav" class="flex sm:block flex-shrink-0 sm:w-52 border-b sm:border-b-0 sm:border-r border-slate-800 p-2 sm:p-3 gap-1 sm:gap-0 sm:space-y-1 overflow-x-auto sm:overflow-y-auto">
-        <button type="button" class="set-tab active" data-tab="setup">Setup</button>
-        <button type="button" class="set-tab" data-tab="customers">Customers</button>
-        <button type="button" class="set-tab" data-tab="rates">Rates &amp; Pricing</button>
-        <button type="button" class="set-tab" data-tab="teams">Teams</button>
-        <button type="button" class="set-tab" data-tab="account">Account &amp; Plan</button>
-        <button type="button" class="set-tab hidden" data-tab="feedback" id="feedbackTabBtn">Feedback<span id="feedbackTabBadge" class="fb-badge hidden">0</span></button>
-        <button type="button" class="set-tab hidden" data-tab="resources" id="resourcesTabBtn">Resources</button>
-        <button type="button" class="set-tab hidden" data-tab="admin" id="adminTabBtn">Admin</button>
+        <!-- Account card — phone only (CSS-hidden on desktop, where the rail is
+             a sidebar and this would just duplicate the Account & Plan row).
+             Mirrors iOS: the person, then everything else. -->
+        <button type="button" id="settingsAccountRow" class="set-acctrow" data-tab="account">
+          <span id="settingsPfpInner" class="set-acct-av" aria-hidden="true"></span>
+          <span class="set-acct-txt">
+            <span id="settingsAcctName" class="set-acct-name">Your account</span>
+            <span class="set-acct-sub">Plan, billing, branding &amp; appearance</span>
+          </span>
+        </button>
+        <button type="button" class="set-tab active" data-tab="setup"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21v-4l11-11 4 4L7 21H3Z"/><path d="M14 6l4 4"/></svg></span><span class="set-tab-label">Setup</span></button>
+        <button type="button" class="set-tab" data-tab="customers"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 6.2a3 3 0 0 1 0 5.6"/><path d="M17.5 19a5.2 5.2 0 0 0-2.2-4.2"/></svg></span><span class="set-tab-label">Customers</span></button>
+        <button type="button" class="set-tab" data-tab="rates"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.6 5 3.2 5 1.3 5 3.3-2.2 3.2-5 3.2-5-1.3-5-3.2"/></svg></span><span class="set-tab-label">Rates &amp; Pricing</span></button>
+        <button type="button" class="set-tab" data-tab="teams"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3"/><path d="M6 20a6 6 0 0 1 12 0"/><circle cx="4.5" cy="10.5" r="2"/><circle cx="19.5" cy="10.5" r="2"/></svg></span><span class="set-tab-label">Teams</span></button>
+        <button type="button" class="set-tab" data-tab="account"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19"/></svg></span><span class="set-tab-label">Account &amp; Plan</span></button>
+        <button type="button" class="set-tab hidden" data-tab="feedback" id="feedbackTabBtn"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12Z"/></svg></span><span class="set-tab-label">Feedback</span><span id="feedbackTabBadge" class="fb-badge hidden">0</span></button>
+        <button type="button" class="set-tab hidden" data-tab="resources" id="resourcesTabBtn"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2 2 0 0 1 6 3.5h5v17H6a2 2 0 0 0-2 2v-17Z"/><path d="M20 5.5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2v-17Z"/></svg></span><span class="set-tab-label">Resources</span></button>
+        <button type="button" class="set-tab hidden" data-tab="admin" id="adminTabBtn"><span class="set-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.4-3 8.2-7.5 9.5-4.5-1.3-7.5-5.1-7.5-9.5V6L12 3Z"/></svg></span><span class="set-tab-label">Admin</span></button>
       </nav>
 
       <!-- Content -->
@@ -16304,7 +16366,7 @@ function renderPfp() {
     const label = (CREW_AVATARS.find(a => a.id === id) || {}).label || "Profile";
     html = `<img src="${escHtml(src)}" alt="${escHtml(label)}" class="w-full h-full object-cover" decoding="async">`;
   }
-  ["pfpInner", "dashPfpInner"].forEach(id => {
+  ["pfpInner", "dashPfpInner", "settingsPfpInner"].forEach(id => {
     const el = document.getElementById(id); if (el) el.innerHTML = html;
   });
   // Admin-only menu section visibility (Admin tools / Feedback inbox / Resources).
@@ -30083,6 +30145,17 @@ function openAdmin() {
   { const bk = document.getElementById("settingsBack");
     if (bk && !bk._wired) { bk.addEventListener("click", settingsBack); bk._wired = true; } }
   wireSettingsSwipeBack();
+  // Account card (phone root list): avatar, who's signed in, and a tap through
+  // to Account & Plan. renderPfp() paints the avatar into #settingsPfpInner.
+  { const ar = document.getElementById("settingsAccountRow");
+    if (ar && !ar._wired) { ar.addEventListener("click", () => showSettingsTab("account")); ar._wired = true; }
+    const nm = document.getElementById("settingsAcctName");
+    if (nm) {
+      const brand = (DATA.config && DATA.config.brand) || {};
+      nm.textContent = brand.company || brand.name
+        || (currentUser && currentUser.email) || "Your account";
+    }
+    try { renderPfp(); } catch (_) {} }
   // The level is set by showSettingsTab() below, which honours last-tab memory —
   // so re-opening lands where you left off instead of back at the root list.
   const acct = document.getElementById("acctEmailSettings");
@@ -30099,6 +30172,13 @@ function openAdmin() {
     if (saved && ["setup", "customers", "rates", "account"].includes(saved) && DATA.config && DATA.config.onboarded) _startTab = saved;
   } catch (_) {}
   showSettingsTab(_startTab);
+  // On a phone, last-tab memory must NOT drill you in: showSettingsTab drops
+  // straight to that tab's layer, so opening Settings landed inside (say)
+  // Account & Plan with no sign the root list existed. Restore the tab — it's
+  // what the desktop three-pane shows — but always open ON the root list.
+  // Deep links (openSettingsToItem, search) call showSettingsTab/showRatesLeaf
+  // AFTER this, so they still land deep.
+  if (settingsIsNarrow()) setSettingsLevel(1);
   // Settings search: wire once, then reset query + force a fresh index next focus.
   wireSettingsSearch();
   _setSearchIdx = null; _setSearchHits = []; _setSearchActive = -1;
@@ -33156,7 +33236,10 @@ function buildSettingsSearchIndex() {
   document.querySelectorAll("#settingsNav .set-tab").forEach(btn => {
     if (btn.classList.contains("hidden")) return;        // skip admin-only/hidden tabs
     const tab = btn.dataset.tab;
-    const label = (btn.textContent || "").replace(/\d+$/, "").trim();   // strip badge count
+    // Read the label span when present — the buttons now carry an icon and a
+    // badge, and textContent would sweep those in.
+    const lblEl = btn.querySelector(".set-tab-label");
+    const label = ((lblEl ? lblEl.textContent : btn.textContent) || "").replace(/\d+$/, "").trim();
     if (!tab || !label) return;
     add({ label, kind: "Tab", path: "Settings", keywords: tab, go: () => jump(tab) });
   });
