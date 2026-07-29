@@ -16659,6 +16659,27 @@ function effectiveBrand() {
   return out;
 }
 
+/* Brand gold for PRINT, as an [r,g,b] triple for jsPDF.
+   The screen gold #b58f4a measures exactly 3.00:1 on white — it scrapes the floor
+   for a graphical object with zero margin, and a 1.5pt hairline at that ratio is
+   the first thing to disappear on a tired office printer, a greyscale print, or a
+   photocopy. These are customer documents that get printed and re-copied, so the
+   print gold is a shade deeper: 4.18:1, still unmistakably gold.
+   Nine call sites used to hardcode (181,143,74) individually — this is the one
+   knob now, same reasoning as --gold-ink for the light theme. */
+const PDF_GOLD = [154, 118, 54];
+
+/* Text tones for PDFs. Body copy stays (20,20,20); these two are the only muted
+   tones, and both clear 4.5:1 on white.
+   They REPLACE a five-step grey ramp (120/130/140/150/160) whose bottom rungs were
+   illegible: 160 measured 2.61:1 and it was setting the footer brand line at 7pt.
+   Every one of those 35 sites was 7-9pt, so none qualified for the large-text
+   exemption — they all owed 4.5:1 and none of them met it.
+   Both values were already in use elsewhere in these same documents, so this
+   removes tones rather than inventing them. */
+const PDF_LABEL = [90, 90, 90];    // 6.9:1 — section labels, column headers ("PREPARED FOR")
+const PDF_MUTED = [110, 110, 110]; // 5.1:1 — notes, fine print, footers, timestamps
+
 // Build a human-readable brand line for PDFs ("Acme Windows  ·  Phoenix, AZ  ·  555-1234")
 function brandFooterLine(includeContact, brandOverride) {
   const b = brandOverride || effectiveBrand();
@@ -28928,7 +28949,7 @@ function exportCustomerPDF(mode, force) {
     y = M + 26;
   }
   // Thin gold accent — single low-ink mark
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y, M + 96, y);
   y += 22;
@@ -28936,7 +28957,7 @@ function exportCustomerPDF(mode, force) {
   if (brand.tagline) {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(9);
-    doc.setTextColor(120, 120, 120);
+    doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     doc.text(brand.tagline, M, y);
     y += 16;
   }
@@ -28964,7 +28985,7 @@ function exportCustomerPDF(mode, force) {
   if (name || address) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.setTextColor(140, 140, 140);
+    doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
     doc.text("PREPARED FOR", M, y);
     y += 16;
     doc.setFont("helvetica", "normal");
@@ -28979,7 +29000,7 @@ function exportCustomerPDF(mode, force) {
   ensure(60);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
   doc.text("SCOPE OF WORK", M, y);
   y += 16;
 
@@ -29063,7 +29084,7 @@ function exportCustomerPDF(mode, force) {
   const priceSize = 34;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("TOTAL INSTALLATION PRICE", pageW / 2, y, { align: "center" });
   // Advance by ~price font size so the big number doesn't crash into the label
   y += priceSize + 4;
@@ -29076,7 +29097,7 @@ function exportCustomerPDF(mode, force) {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(120, 120, 120);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("Labor and materials included", pageW / 2, y, { align: "center" });
   y += 36;
 
@@ -29101,7 +29122,7 @@ function exportCustomerPDF(mode, force) {
     doc.setPage(p);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
+    doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     if (contactLine) {
       doc.text(footerLine, pageW / 2, pageH - 42, { align: "center" });
       doc.setFontSize(7);
@@ -29615,9 +29636,9 @@ function renderSignedQuotePDF(row) {
     doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(20, 20, 20);
     doc.text((brand.companyName || "").toUpperCase(), M, M + 12); y = M + 26;
   }
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5); doc.line(M, y, M + 96, y); y += 22;
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5); doc.line(M, y, M + 96, y); y += 22;
   if (brand.tagline) {
-    doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(120, 120, 120);
+    doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     doc.text(brand.tagline, M, y); y += 16;
   }
 
@@ -29631,7 +29652,7 @@ function renderSignedQuotePDF(row) {
 
   // ---------- Prepared for ----------
   if (s.customer) {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
     doc.text("PREPARED FOR", M, y); y += 15;
     doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
     doc.text(String(s.customer), M, y); y += 22;
@@ -29639,7 +29660,7 @@ function renderSignedQuotePDF(row) {
 
   // ---------- Itemized breakdown (if present) ----------
   if (s.detailLevel === "itemized" && Array.isArray(s.lineItems) && s.lineItems.length) {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
     doc.text("QUOTE BREAKDOWN", M, y); y += 16;
     doc.setFontSize(10);
     s.lineItems.forEach(([label, amt]) => {
@@ -29654,7 +29675,7 @@ function renderSignedQuotePDF(row) {
 
   // ---------- Scope of work ----------
   if (Array.isArray(s.scope) && s.scope.length) {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
     doc.text("SCOPE OF WORK", M, y); y += 16;
     doc.setFont("helvetica", "normal"); doc.setFontSize(10);
     const valueX = M + 140;
@@ -29669,7 +29690,7 @@ function renderSignedQuotePDF(row) {
 
   // ---------- Total ----------
   doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5); doc.line(M, y, pageW - M, y); y += 22;
-  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(140, 140, 140);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("TOTAL INSTALLATION PRICE", M, y);
   doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(20, 20, 20);
   doc.text(formatMoney(Number(s.total) || 0), pageW - M, y + 2, { align: "right" }); y += 34;
@@ -29711,7 +29732,7 @@ function renderSignedQuotePDF(row) {
   doc.text(refBits.join("    "), boxX + 18, cy);
 
   // ---------- Footer ----------
-  doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+  doc.setFontSize(7); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   const contactBits = [brand.phone, brand.email, brand.website].filter(Boolean).join("  ·  ");
   // OUT-16: cite the installer's own state from the frozen snapshot, UETA fallback.
   const lawTxt = brand.state ? ("and applicable " + brand.state + " law") : "and applicable state law (UETA)";
@@ -29748,13 +29769,13 @@ function exportPDF(mode) {
   // Doc type + timestamp, right-aligned
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("COST BREAKDOWN", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleString(), pageW - M, y + 8, { align: "right" });
   y += 18;
 
   // Gold accent line under brand
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
 
@@ -29766,7 +29787,7 @@ function exportPDF(mode) {
   // ---------- Project details (compact two-column) ----------
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
   doc.text("PROJECT DETAILS", M, y);
   y += 14;
 
@@ -29899,7 +29920,7 @@ function exportPDF(mode) {
   // ---------- Summary ----------
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
   doc.text("SUMMARY", M, y);
   y += 16;
 
@@ -29935,7 +29956,7 @@ function exportPDF(mode) {
   // ---------- Footer ----------
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(160, 160, 160);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   const footerParts = [brandFooterLine(false, mainBrand()), "Internal cost breakdown — not for customer distribution"]
     .filter(Boolean);
   doc.text(footerParts.join("  ·  "), pageW / 2, pageH - 24, { align: "center" });
@@ -30010,11 +30031,11 @@ function exportMaterialsPDF(mode) {
   let y = M + 8;
   doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(20, 20, 20);
   doc.text(brand.companyName || "", M, y);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("MATERIALS LIST", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleDateString(), pageW - M, y + 8, { align: "right" });
   y += 16;
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
   doc.line(M, y, pageW - M, y);
@@ -30028,13 +30049,13 @@ function exportMaterialsPDF(mode) {
     y += 6;
   }
 
-  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
   doc.text("SHOPPING LIST — CHECK OFF AT THE SUPPLIER", M, y);
   y += 18;
 
   // Estimate warning for wood bucking — low-ink: a gold rule + two text lines
   if (estimatedBucking) {
-    doc.setDrawColor(181, 143, 74); doc.setLineWidth(2);
+    doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(2);
     doc.line(M, y - 8, M, y + 12);
     doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(70, 70, 70);
     doc.text("Wood bucking below is a rough estimate — not sized for minimal waste.", M + 8, y);
@@ -30051,7 +30072,7 @@ function exportMaterialsPDF(mode) {
     doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
     doc.text(mat.qty, M + 24, y);
     doc.text(mat.name, M + 132, y);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     doc.text(mat.detail, M + 132, y + 12);
     doc.setDrawColor(228, 228, 228); doc.setLineWidth(0.5);
     doc.line(M, y + 20, pageW - M, y + 20);
@@ -30065,7 +30086,7 @@ function exportMaterialsPDF(mode) {
   doc.text(formatMoney(total), pageW - M, y, { align: "right" });
 
   // Footer
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text(`${brand.companyName || ""}  ·  Materials list — packs to buy for this job`,
     pageW / 2, pageH - 24, { align: "center" });
 
@@ -31168,7 +31189,7 @@ function exportChangeOrderPDF(mode, force, scope) {
     doc.text((brand.companyName || "CHANGE ORDER").toUpperCase(), M, M + 12);
     y = M + 26;
   }
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y, M + 96, y);
   y += 22;
@@ -31176,7 +31197,7 @@ function exportChangeOrderPDF(mode, force, scope) {
   if (brand.tagline) {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(9);
-    doc.setTextColor(120, 120, 120);
+    doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     doc.text(brand.tagline, M, y);
     y += 16;
   }
@@ -31204,7 +31225,7 @@ function exportChangeOrderPDF(mode, force, scope) {
   if (L.party) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.setTextColor(140, 140, 140);
+    doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
     doc.text("BILL TO", M, y);
     y += 16;
     doc.setFont("helvetica", "normal");
@@ -31252,7 +31273,7 @@ function exportChangeOrderPDF(mode, force, scope) {
   const priceSize = 34;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("CHANGE ORDER AMOUNT", pageW / 2, y, { align: "center" });
   y += priceSize + 4;
 
@@ -31264,7 +31285,7 @@ function exportChangeOrderPDF(mode, force, scope) {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(120, 120, 120);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   const sub = L.hours > 0 && L.extra > 0
     ? `Labor ${formatMoney(laborCharge)}  ·  Additional ${formatMoney(extraCharge)}`
     : (L.hours > 0 ? "Time & materials — labor" : "Additional costs");
@@ -31291,7 +31312,7 @@ function exportChangeOrderPDF(mode, force, scope) {
     doc.setPage(p);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
+    doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     if (contactLine) {
       doc.text(footerLine, pageW / 2, pageH - 42, { align: "center" });
       doc.setFontSize(7);
@@ -35894,11 +35915,11 @@ function exportCutListPDF(mode) {
   let y = M + 8;
   doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(20, 20, 20);
   doc.text(brand.companyName || "", M, y);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("WINDOW BUCK CUT LIST", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleString(), pageW - M, y + 8, { align: "right" });
   y += 16;
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
   doc.line(M, y, pageW - M, y);
@@ -35913,7 +35934,7 @@ function exportCutListPDF(mode) {
   }
 
   // ---- Yard order ----
-  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(PDF_LABEL[0], PDF_LABEL[1], PDF_LABEL[2]);
   doc.text("YARD ORDER", M, y);
   y += 15;
   doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(20, 20, 20);
@@ -35923,7 +35944,7 @@ function exportCutListPDF(mode) {
   doc.text(`${bl.totalBoards} boards of ${buckLumberName()}  ·  ${bl.wastePercent}% waste  ·  ${bl.pieces} pieces from ${bl.openings.length} openings`, M, y);
   y += 13;
   if (bl.consolidated > 0) {
-    doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+    doc.setFontSize(8); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     doc.text(`${bl.consolidated} short board${bl.consolidated === 1 ? "" : "s"} rounded up to 16ft to keep the order to one length.`, M, y);
     y += 13;
   }
@@ -35987,7 +36008,7 @@ function exportCutListPDF(mode) {
   const pages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
     doc.text(`${brand.companyName || ""}  ·  Window Buck Cut List  ·  Page ${p} of ${pages}`,
       pageW / 2, pageH - 20, { align: "center" });
   }
@@ -36172,11 +36193,11 @@ function exportComparisonPDF(mode) {
   doc.text(brand.companyName || "", M, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(140, 140, 140);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("JOB COMPARISON", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleString(), pageW - M, y + 8, { align: "right" });
   y += 18;
-  doc.setDrawColor(181, 143, 74);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]);
   doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210);
@@ -36227,7 +36248,7 @@ function exportComparisonPDF(mode) {
   // Footer
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(160, 160, 160);
+  doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   const footerParts = [brandFooterLine(false, mainBrand()), "Internal job comparison — not for customer distribution"].filter(Boolean);
   doc.text(footerParts.join("  ·  "), pageW / 2, pageH - 24, { align: "center" });
   outputPDF(doc, `Comparison-${Date.now()}.pdf`, mode);
@@ -40119,11 +40140,11 @@ function exportPricingChecklistPDF(mode) {
 
   doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(20, 20, 20);
   doc.text(brand.companyName || "Anchor", M, y);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text("MATERIALS PRICING CHECKLIST", pageW - M, y - 4, { align: "right" });
   doc.text(new Date().toLocaleDateString(), pageW - M, y + 8, { align: "right" });
   y += 16;
-  doc.setDrawColor(181, 143, 74); doc.setLineWidth(1.5);
+  doc.setDrawColor(PDF_GOLD[0], PDF_GOLD[1], PDF_GOLD[2]); doc.setLineWidth(1.5);
   doc.line(M, y - 12, M + 84, y - 12);
   doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.5);
   doc.line(M, y, pageW - M, y);
@@ -40148,7 +40169,7 @@ function exportPricingChecklistPDF(mode) {
     doc.setDrawColor(170, 170, 170); doc.setLineWidth(0.5);
     doc.line(lx, lineY + 2, lx + 72, lineY + 2);
     let endX = lx + 72 + 6;
-    if (per) { doc.setTextColor(120, 120, 120); doc.text(per, endX, lineY); endX += doc.getTextWidth(per) + 6; }
+    if (per) { doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]); doc.text(per, endX, lineY); endX += doc.getTextWidth(per) + 6; }
     return endX + 22;
   }
   function drawChoice(label, opts, x, lineY) {
@@ -40175,7 +40196,7 @@ function exportPricingChecklistPDF(mode) {
     doc.text(item.name, M + 22, y);
     y += 16;
     if (item.note) {
-      doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(130, 130, 130);
+      doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
       doc.text(item.note, M + 22, y);
       y += 13;
     }
@@ -40194,7 +40215,7 @@ function exportPricingChecklistPDF(mode) {
     y += 12;
   });
 
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(PDF_MUTED[0], PDF_MUTED[1], PDF_MUTED[2]);
   doc.text(`${brand.companyName || ""}  ·  Materials pricing checklist`, pageW / 2, pageH - 24, { align: "center" });
 
   outputPDF(doc, `PricingChecklist-${Date.now()}.pdf`, mode);
