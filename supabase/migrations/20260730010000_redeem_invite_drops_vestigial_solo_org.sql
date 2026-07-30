@@ -1,0 +1,16 @@
+-- Superseded same-day by 20260730020000 (which stops blocking on auto-drafts).
+-- Kept for the record: this is the version that first identified the problem.
+--
+-- Every signup gets a solo org from the on_auth_user_created_org trigger. For
+-- someone signing up to run their own shop that is correct. For someone signing
+-- up THROUGH AN INVITE it is noise, and actively harmful:
+--
+--   fetchOrgContext() picks the OLDEST membership. The solo org's membership row
+--   is written at signup; the invited org's at first sign-in seconds later. So
+--   the solo org always won, the invitee read as role "owner", isCrewAccount()
+--   returned false on the CREW_PRIVILEGED_ROLES check, and they got no crew cage,
+--   the plan-choice gate, a free trial, and an app scoped to the wrong org --
+--   which is why no shopping list from the team that invited them.
+--
+-- The trigger is shared with the anchor-field app, so it is left alone; the
+-- cleanup happens at redemption instead.
