@@ -5911,6 +5911,20 @@
   .dash-launch-cell.editing { cursor: grab; }
   .dash-launch-cell.editing.dragging { opacity: 0.4; cursor: grabbing; }
   .dash-edit-controls { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 8; display: flex; align-items: center; gap: 4px; }
+  /* Edit mode overlays a controls row on the card's own header, so the grab
+     handle used to sit right on top of the card icon. Give the header its own
+     lane: clear of the handle on the left and of ↑ ↓ × on the right. */
+  .dash-launch-cell.editing .dash-launch-head { padding-left: 42px; padding-right: 104px; min-height: 40px; }
+  .dash-ovcard.editing .dash-ovhead { padding-right: 104px; }
+  /* Overview panels join edit mode: they need a positioning context for the
+     controls overlay, and a dashed outline so it's obvious they're editable. */
+  .dash-ovcard.editing { position: relative; outline: 1px dashed rgba(181,143,74,0.45); outline-offset: 2px; }
+  .dash-ovcard.editing .dash-edit-controls { top: 10px; right: 10px; left: auto; width: auto; }
+  /* A panel's own "All →" / "Deal pipeline →" link is inert while editing and
+     would crowd the ↑ ↓ × row — take it out of the way rather than overlap it. */
+  .dash-ovcard.editing .dash-ovlink { visibility: hidden; }
+  .dec-btn[disabled] { opacity: .35; cursor: default; }
+  .dec-btn[disabled]:hover { border-color: rgba(148,163,184,0.35); color: #cbd5e1; }
   /* Grab handle drives touch reordering. touch-action:none lets a finger-drag
      that STARTS here move the card instead of scrolling the dashboard; the rest
      of the card keeps default touch-action so it still scrolls. Sized as a real
@@ -19790,8 +19804,11 @@ function dashAdd(key) {
   persistDashLayout(visible.concat([key]), hiddenList.filter(k => k !== key)); refreshDashLaunchpad();
 }
 function dashResetLayout() {
-  if (DATA.config) delete DATA.config.dashLayout;
+  // Reset means the whole dashboard, panels included — otherwise a removed
+  // overview panel would survive a "Reset" and look like the button is broken.
+  if (DATA.config) { delete DATA.config.dashLayout; delete DATA.config.dashOvLayout; }
   saveData(DATA); refreshDashLaunchpad();
+  try { applyDashOvLayout(); } catch (_) {}
 }
 // Read the live DOM order after a drag and persist it (visible cards only; the
 // hidden set is unchanged).
@@ -19804,7 +19821,11 @@ function renderDashEditBar() {
   const bar = document.getElementById("dashEditBar"); if (!bar) return;
   if (!_dashEditMode) { bar.classList.add("hidden"); bar.innerHTML = ""; return; }
   const { hiddenList } = resolveDashLayout();
-  const chips = hiddenList.map(k => {
+  const ovHidden = resolveDashOvLayout().hiddenList;
+  const chips = ovHidden.map(k => {
+    const p = DASH_OV_PANELS.find(x => x.key === k); if (!p) return "";
+    return `<button type="button" class="dash-add-chip" data-dashaddov="${k}">${escHtml(p.title)}<span class="dac-plus">+</span></button>`;
+  }).join("") + hiddenList.map(k => {
     const c = DASH_CARDS.find(x => x.key === k); if (!c) return "";
     return `<button type="button" class="dash-add-chip" data-dashadd="${k}"><span class="dac-ico">${c.icon}</span>${escHtml(c.title)}<span class="dac-plus">+</span></button>`;
   }).join("");
@@ -19816,7 +19837,7 @@ function renderDashEditBar() {
         <button type="button" class="dash-eb-btn dash-eb-done" data-dashdone>Done</button>
       </span>
     </div>
-    ${hiddenList.length
+    ${(hiddenList.length || ovHidden.length)
       ? `<div class="dash-add-tray"><span class="dat-label">Add back</span>${chips}</div>`
       : `<div class="dat-empty">Every card is on your dashboard.</div>`}`;
   bar.classList.remove("hidden");
@@ -19829,8 +19850,13 @@ function toggleDashEdit(on) {
     btn.setAttribute("aria-pressed", _dashEditMode ? "true" : "false");
     const l = btn.querySelector(".dcb-label"); if (l) l.textContent = _dashEditMode ? "Done" : "Customize";
   }
+  // One Done, not two: the edit bar owns Done (next to Reset) while editing, so
+  // the Customize entry button steps aside rather than relabelling itself.
+  const row = document.getElementById("dashCustomizeRow");
+  if (row) row.classList.toggle("hidden", _dashEditMode);
   try { closeAllDashTips(); } catch (_) {}
   refreshDashLaunchpad();
+  try { applyDashOvLayout(); } catch (_) {}
 }
 
 function renderDashLaunchpad(jobs) {
@@ -19916,7 +19942,10 @@ function applyDashView() {
   if (section) section.classList.toggle("hidden", home);
   // Customize edits the launchpad — keep it with those cards (under KPIs).
   const custRow = document.getElementById("dashCustomizeRow");
-  if (custRow) custRow.classList.toggle("hidden", !home || _dashFirstRunActive);
+  // ...and hidden while editing: the edit bar owns Done, so showing this button
+  // too would put two Done buttons on screen. This runs on every render, so the
+  // edit-mode case has to be handled HERE or it would re-appear immediately.
+  if (custRow) custRow.classList.toggle("hidden", !home || _dashFirstRunActive || _dashEditMode);
   // KPI strip belongs to the glance/home; hide it inside a focused section (and for
   // a brand-new account there are no numbers worth showing yet).
   if (stats && (!home || _dashFirstRunActive)) stats.classList.add("hidden");
@@ -21562,12 +21591,111 @@ function renderDashOverview(jobs) {
   if (!wrap._wired) {
     wrap._wired = true;
     wrap.addEventListener("click", (e) => {
+      // Edit-mode controls first — they sit on top of the panels' own links.
+      const mv = e.target.closest("[data-dashovmove]");
+      if (mv) { moveDashOvPanel(mv.dataset.key, mv.dataset.dashovmove); return; }
+      const rm = e.target.closest("[data-dashovremove]");
+      if (rm) { removeDashOvPanel(rm.dataset.dashovremove); return; }
+      if (_dashEditMode) return;   // nothing else is clickable while editing
       const jump = e.target.closest("[data-dashnav-jump]");
       if (jump) { dashGoTo(jump.dataset.dashnavJump); return; }
       const open = e.target.closest("[data-attn-open]");
       if (open) { try { openJobDetails(open.dataset.attnOpen); } catch (_) { dashGoTo("followups"); } }
     });
   }
+  applyDashOvLayout();   // order/hide/spans + edit controls, AFTER the renderers write innerHTML
+}
+
+/* ── Overview panels are customizable too ─────────────────────────────────────
+   The top row used to be three fixed divs, so edit mode could reorder the
+   launchpad cards but not the panels above them. They now share the same
+   contract as the cards: an order, a hidden list, and add-back chips.
+
+   The row stays ADAPTIVE rather than leaving a hole — "Booked by month" and
+   "Needs attention" share a 2fr/1fr row, so if either one goes the other takes
+   the full width. Spans are computed from what's actually visible, not stored,
+   so the layout can never disagree with itself. */
+const DASH_OV_PANELS = [
+  { key: "booked",    id: "dashBookedCard",    title: "Booked by month" },
+  { key: "attention", id: "dashAttentionCard", title: "Needs attention" },
+  { key: "pipeline",  id: "dashPipelineCard",  title: "Open pipeline", full: true },
+];
+function resolveDashOvLayout() {
+  const all = DASH_OV_PANELS.map(p => p.key);
+  const cfg = (DATA.config && DATA.config.dashOvLayout) || {};
+  const order = (Array.isArray(cfg.order) ? cfg.order : []).filter(k => all.includes(k));
+  all.forEach(k => { if (!order.includes(k)) order.push(k); });   // a new panel shows up by default
+  const hidden = (Array.isArray(cfg.hidden) ? cfg.hidden : []).filter(k => all.includes(k));
+  return { order, visible: order.filter(k => !hidden.includes(k)), hiddenList: order.filter(k => hidden.includes(k)) };
+}
+function saveDashOvLayout(order, hidden) {
+  if (!DATA.config) DATA.config = {};
+  DATA.config.dashOvLayout = { order, hidden };
+  saveData(DATA);
+}
+const DEC_HANDLE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
+
+function applyDashOvLayout() {
+  const wrap = document.getElementById("dashOverview");
+  if (!wrap) return;
+  const { order, visible } = resolveDashOvLayout();
+  const byKey = {}; DASH_OV_PANELS.forEach(p => { byKey[p.key] = p; });
+
+  // Re-append in order so the DOM matches the saved order.
+  order.forEach(k => {
+    const p = byKey[k]; const el = p && document.getElementById(p.id);
+    if (el) wrap.appendChild(el);
+  });
+
+  // Which of the two half-width panels survive decides the spans.
+  const halves = visible.filter(k => !byKey[k].full);
+  DASH_OV_PANELS.forEach(p => {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    const on = visible.includes(p.key);
+    el.classList.toggle("hidden", !on);
+    el.classList.toggle("editing", on && _dashEditMode);
+    if (!on) return;
+    // full-width panels, and a lone survivor of the half row, span everything.
+    el.style.gridColumn = (p.full || halves.length === 1) ? "1 / -1" : "";
+    // Controls are injected after the renderers, so they survive a re-render.
+    const old = el.querySelector(":scope > .dash-edit-controls");
+    if (old) old.remove();
+    if (!_dashEditMode) return;
+    const i = visible.indexOf(p.key);
+    const ctl = document.createElement("div");
+    ctl.className = "dash-edit-controls";
+    ctl.innerHTML =
+      `<span class="dec-handle" aria-hidden="true">${DEC_HANDLE_SVG}</span><span class="dec-spacer"></span>`
+      + `<button type="button" class="dec-btn" data-dashovmove="up" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} earlier"${i === 0 ? " disabled" : ""}>&uarr;</button>`
+      + `<button type="button" class="dec-btn" data-dashovmove="down" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} later"${i === visible.length - 1 ? " disabled" : ""}>&darr;</button>`
+      + `<button type="button" class="dec-btn dec-remove" data-dashovremove="${p.key}" aria-label="Remove ${escHtml(p.title)}">&times;</button>`;
+    el.insertBefore(ctl, el.firstChild);
+  });
+}
+function moveDashOvPanel(key, dir) {
+  const { order, hiddenList } = resolveDashOvLayout();
+  const vis = order.filter(k => !hiddenList.includes(k));
+  const i = vis.indexOf(key); if (i < 0) return;
+  const j = dir === "up" ? i - 1 : i + 1;
+  if (j < 0 || j >= vis.length) return;
+  [vis[i], vis[j]] = [vis[j], vis[i]];
+  saveDashOvLayout(vis.concat(hiddenList), hiddenList);
+  applyDashOvLayout();
+  try { renderDashEditBar(); } catch (_) {}
+}
+function removeDashOvPanel(key) {
+  const { order, hiddenList } = resolveDashOvLayout();
+  if (hiddenList.includes(key)) return;
+  saveDashOvLayout(order, hiddenList.concat([key]));
+  applyDashOvLayout();
+  try { renderDashEditBar(); } catch (_) {}
+}
+function addBackDashOvPanel(key) {
+  const { order, hiddenList } = resolveDashOvLayout();
+  saveDashOvLayout(order, hiddenList.filter(k => k !== key));
+  applyDashOvLayout();
+  try { renderDashEditBar(); } catch (_) {}
 }
 
 /** Open a dashboard destination. Four DASH_CARDS are SHORTCUTS, not panels — they
@@ -24345,6 +24473,8 @@ function wireDashboard() {
   if (_editBar) _editBar.addEventListener("click", (e) => {
     if (e.target.closest("[data-dashdone]")) { toggleDashEdit(false); return; }
     if (e.target.closest("[data-dashreset]")) { dashResetLayout(); return; }
+    const addOv = e.target.closest("[data-dashaddov]");
+    if (addOv) { addBackDashOvPanel(addOv.dataset.dashaddov); return; }
     const add = e.target.closest("[data-dashadd]");
     if (add) { dashAdd(add.dataset.dashadd); return; }
   });
