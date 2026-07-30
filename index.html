@@ -5908,13 +5908,32 @@
      text (native drag-and-drop used to suppress selection for us; pointer drag
      doesn't). Scoped to edit mode so normal card text stays selectable. */
   #dashLaunchpad.editing, #dashLaunchpad.editing * { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  .dash-launch-cell.editing { cursor: grab; }
-  .dash-launch-cell.editing.dragging { opacity: 0.4; cursor: grabbing; }
+  .dash-launch-cell.editing, .dash-ovcard.editing { cursor: grab; }
+  /* Picking a tile up should feel like lifting it off the page. Dimming it read
+     as "disabled", not "held", and gave no sense of movement — so the held tile
+     stays fully opaque and rises on a shadow instead. JS owns the transform
+     (translate to follow the pointer + a slight scale); CSS owns the shadow. */
+  .dash-launch-cell.editing.dragging, .dash-ovcard.editing.dragging { cursor: grabbing; z-index: 30; }
+  #dashLaunchpad.editing .dash-launch-cell.dragging .dash-launch-card,
+  #dashOverview .dash-ovcard.editing.dragging {
+    opacity: 1; border-style: solid; border-color: rgba(201,165,88,0.7);
+    box-shadow: 0 24px 50px -12px rgba(0,0,0,0.72), 0 6px 16px rgba(0,0,0,0.42);
+  }
+  #dashLaunchpad.editing .dash-launch-card, #dashOverview .dash-ovcard.editing { transition: box-shadow 180ms ease, border-color 180ms ease; }
+  [data-theme="light"] #dashLaunchpad.editing .dash-launch-cell.dragging .dash-launch-card,
+  [data-theme="light"] #dashOverview .dash-ovcard.editing.dragging {
+    box-shadow: 0 22px 44px -14px rgba(15,23,42,0.30), 0 4px 12px rgba(15,23,42,0.14);
+  }
+  #dashOverview .dash-ovcard.editing, #dashOverview .dash-ovcard.editing * { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .dash-edit-controls { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 8; display: flex; align-items: center; gap: 4px; }
   /* Edit mode overlays a controls row on the card's own header, so the grab
-     handle used to sit right on top of the card icon. Give the header its own
-     lane: clear of the handle on the left and of ↑ ↓ × on the right. */
-  .dash-launch-cell.editing .dash-launch-head { padding-left: 42px; padding-right: 104px; min-height: 40px; }
+     handle used to sit above-left of the card icon — which read as the icon
+     having been pushed down and inward. Sit the row on the header's own
+     centerline instead (16px card padding + 1px border + half the 40px icon,
+     less half the 30px row = 22px) so the handle lands BESIDE the icon, and give
+     the header a purely horizontal lane. Nothing moves down, only over. */
+  .dash-launch-cell.editing .dash-edit-controls { top: 22px; }
+  .dash-launch-cell.editing .dash-launch-head { padding-left: 42px; padding-right: 104px; }
   .dash-ovcard.editing .dash-ovhead { padding-right: 104px; }
   /* Overview panels join edit mode: they need a positioning context for the
      controls overlay, and a dashed outline so it's obvious they're editable. */
@@ -18535,7 +18554,6 @@ let _dashChartType = { materials: "pie", customers: "pie", jobs: "pie" };   // c
 let _dashView = "home";              // home | insights | jobs | esign | calibration — the launchpad drill-in
 let _dashCalibDismissed = new Set(); // itemId|rateKey suggestions the owner waved off this session
 let _dashEditMode = false;           // launchpad "customize" mode (reorder / add / remove)
-let _dashDragKey = null;             // card key being dragged in edit mode
 // Distinct, theme-friendly palette for the material charts.
 const MAT_COLORS = ["#c9a558", "#60a5fa", "#34d399", "#f472b6", "#f59e0b", "#a78bfa", "#22d3ee", "#fb7185", "#94a3b8", "#facc15"];
 
@@ -19816,6 +19834,148 @@ function persistDashOrderFromDOM() {
   const wrap = document.getElementById("dashLaunchpad"); if (!wrap) return;
   const visibleOrder = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(Boolean);
   persistDashLayout(visibleOrder, resolveDashLayout().hiddenList);
+}
+
+/* ── One drag engine, two grids ───────────────────────────────────────────────
+   Edit mode reorders the launchpad cards AND the overview panels, and both have
+   to feel the same, so the pointer mechanics live here once.
+
+   Pointer Events, not HTML5 drag-and-drop (which never fires on touch — that's
+   why dragging used to be desktop-only). Touch/pen must start on the ⋮⋮ handle
+   so the rest of a tile still scrolls the page; a mouse can grab anywhere.
+
+   The held tile follows the pointer and lifts; its neighbours FLIP into their
+   new slots, so the grid visibly reflows *under* what you're holding instead of
+   teleporting when you let go. Every hit-test reads `slots` — each tile's
+   transform-free layout rect, re-measured on each reorder — because a neighbour
+   caught mid-FLIP has a transform on it, and hit-testing its live rect makes
+   tiles oscillate between two slots. */
+function wireDashDragReorder(wrap, sel, onDrop) {
+  if (!wrap || wrap._dragWired) return;
+  wrap._dragWired = true;
+  let ptr = null, lastX = 0, lastY = 0, autoRAF = null, autoDir = 0;
+  let slots = new Map();
+  const tiles = () => Array.from(wrap.querySelectorAll(sel));
+  const scrollEl = () => document.getElementById("dashScroll");
+  const heldTransform = () => `translate(${lastX - ptr.sx}px, ${lastY - ptr.sy}px) scale(1.03)`;
+  // Inline transitions have to keep the lift's shadow animating — an overview
+  // panel carries the shadow itself, so a bare `transition: none` would make it
+  // snap on and off. (Launchpad cards wear it on their inner .dash-launch-card,
+  // which keeps its own transition either way.)
+  const LIFT = ", box-shadow 180ms ease, border-color 180ms ease";
+  // Plain objects, not DOMRects: auto-scroll shifts them in place.
+  const measure = (els) => new Map(els.map(el => {
+    const r = el.getBoundingClientRect();
+    return [el, { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }];
+  }));
+
+  function flip(mutate) {
+    const els = tiles(), held = ptr && ptr.cell;
+    const from = measure(els);                          // where everything looks right now
+    const prevSlot = held ? slots.get(held) : null;     // held: its LAYOUT rect, not its lifted one
+    mutate();
+    els.forEach(el => { el.style.transition = "none"; el.style.transform = ""; });
+    slots = measure(els);                               // pure layout — no transforms in play
+    if (held && prevSlot) {
+      // Its slot moved out from under it; re-baseline so it stays on the pointer.
+      const b = slots.get(held);
+      ptr.sx += b.left - prevSlot.left; ptr.sy += b.top - prevSlot.top;
+    }
+    const moving = dashReduceMotion() ? [] : els.filter(el => {
+      const a = from.get(el), b = slots.get(el);
+      return el !== held && a && b && (a.left !== b.left || a.top !== b.top);
+    });
+    moving.forEach(el => { const a = from.get(el), b = slots.get(el); el.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`; });
+    wrap.getBoundingClientRect();                       // one flush for the whole batch
+    moving.forEach(el => { el.style.transition = "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)" + LIFT; el.style.transform = ""; });
+    if (held) { held.style.transition = "transform 0s" + LIFT; held.style.transform = heldTransform(); }
+  }
+
+  function reorder(x, y) {
+    if (!ptr || !ptr.started) return;
+    const held = ptr.cell, list = tiles();
+    let target = null;
+    list.forEach(c => {
+      if (target || c === held) return;
+      const r = slots.get(c); if (!r) return;
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) target = c;
+    });
+    if (!target) return;
+    const r = slots.get(target);
+    const after = (y - r.top) > r.height / 2 || (x - r.left) > r.width / 2;
+    const hi = list.indexOf(held), ti = list.indexOf(target);
+    if (after ? hi === ti + 1 : hi === ti - 1) return;   // already there — don't restart the FLIP
+    flip(() => { if (after) target.after(held); else target.before(held); });
+  }
+
+  function autoTick() {
+    if (!autoDir) { autoRAF = null; return; }
+    const sc = scrollEl();
+    if (sc) {
+      const before = sc.scrollTop; sc.scrollTop += autoDir * 12;
+      const d = sc.scrollTop - before;
+      if (d) {
+        slots.forEach(r => { r.top -= d; r.bottom -= d; });
+        if (ptr) { ptr.sy -= d; if (ptr.started) ptr.cell.style.transform = heldTransform(); }
+      }
+      reorder(lastX, lastY);
+    }
+    autoRAF = requestAnimationFrame(autoTick);
+  }
+  function autoScroll(y) {
+    const sc = scrollEl(); if (!sc) return;
+    const r = sc.getBoundingClientRect(), edge = 64;
+    autoDir = y < r.top + edge ? -1 : (y > r.bottom - edge ? 1 : 0);
+    if (autoDir && !autoRAF) autoRAF = requestAnimationFrame(autoTick);
+  }
+  function stopScroll() { autoDir = 0; if (autoRAF) { cancelAnimationFrame(autoRAF); autoRAF = null; } }
+
+  wrap.addEventListener("pointerdown", (e) => {
+    if (!_dashEditMode || !e.isPrimary) return;
+    if (e.target.closest(".dec-btn")) return;                 // ↑ ↓ × keep working
+    const cell = e.target.closest(sel); if (!cell) return;
+    if (e.pointerType !== "mouse" && !e.target.closest(".dec-handle")) return;
+    // Suppress the default press behavior so a drag doesn't start highlighting
+    // text or pop the iOS long-press callout. Only reached once we've committed
+    // to a drag candidate — the ↑ ↓ × buttons returned above.
+    e.preventDefault();
+    ptr = { id: e.pointerId, cell, sx: e.clientX, sy: e.clientY, started: false };
+    lastX = e.clientX; lastY = e.clientY;
+    try { wrap.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  wrap.addEventListener("pointermove", (e) => {
+    if (!ptr || e.pointerId !== ptr.id) return;
+    if (!ptr.started) {
+      if (Math.abs(e.clientX - ptr.sx) < 5 && Math.abs(e.clientY - ptr.sy) < 5) return;
+      ptr.started = true;
+      slots = measure(tiles());                 // seed BEFORE the lift transform lands
+      ptr.cell.classList.add("dragging");
+      try { closeAllDashTips(); } catch (_) {}
+    }
+    e.preventDefault();
+    lastX = e.clientX; lastY = e.clientY;
+    ptr.cell.style.transition = "transform 0s" + LIFT;
+    ptr.cell.style.transform = heldTransform();
+    reorder(e.clientX, e.clientY);
+    autoScroll(e.clientY);
+  });
+  const end = (e) => {
+    if (!ptr || e.pointerId !== ptr.id) return;
+    try { wrap.releasePointerCapture(e.pointerId); } catch (_) {}
+    const cell = ptr.cell, dragged = ptr.started;
+    ptr = null; stopScroll();
+    if (!dragged) return;
+    // Set it down: glide into the slot it landed in, then hand over the order.
+    cell.classList.remove("dragging");
+    if (dashReduceMotion()) { cell.style.transition = ""; cell.style.transform = ""; }
+    else { cell.style.transition = "transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1)" + LIFT; cell.style.transform = ""; }
+    // Sweep the inline styles once everything has settled — but never out from
+    // under a drag that has already started again.
+    setTimeout(() => { if (!ptr) tiles().forEach(el => { el.style.transition = ""; el.style.transform = ""; }); }, 300);
+    try { onDrop(); } catch (_) {}
+  };
+  wrap.addEventListener("pointerup", end);
+  wrap.addEventListener("pointercancel", end);
 }
 function renderDashEditBar() {
   const bar = document.getElementById("dashEditBar"); if (!bar) return;
@@ -21602,6 +21762,8 @@ function renderDashOverview(jobs) {
       const open = e.target.closest("[data-attn-open]");
       if (open) { try { openJobDetails(open.dataset.attnOpen); } catch (_) { dashGoTo("followups"); } }
     });
+    // The panels drag exactly like the cards below them — same engine.
+    wireDashDragReorder(wrap, ".dash-ovcard.editing", persistDashOvOrderFromDOM);
   }
   applyDashOvLayout();   // order/hide/spans + edit controls, AFTER the renderers write innerHTML
 }
@@ -21671,6 +21833,23 @@ function applyDashOvLayout() {
       + `<button type="button" class="dec-btn" data-dashovmove="down" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} later"${i === visible.length - 1 ? " disabled" : ""}>&darr;</button>`
       + `<button type="button" class="dec-btn dec-remove" data-dashovremove="${p.key}" aria-label="Remove ${escHtml(p.title)}">&times;</button>`;
     el.insertBefore(ctl, el.firstChild);
+  });
+}
+/* After a drag the DOM already holds the new order — read it back rather than
+   re-running applyDashOvLayout, which would re-append the panels and cut the
+   drop animation short. Only the ↑ ↓ enable-states need catching up. */
+function persistDashOvOrderFromDOM() {
+  const wrap = document.getElementById("dashOverview"); if (!wrap) return;
+  const byId = {}; DASH_OV_PANELS.forEach(p => { byId[p.id] = p.key; });
+  const { hiddenList } = resolveDashOvLayout();
+  const domOrder = Array.from(wrap.children).map(el => byId[el.id]).filter(Boolean);
+  const visible = domOrder.filter(k => !hiddenList.includes(k));
+  saveDashOvLayout(visible.concat(hiddenList), hiddenList);
+  const shown = Array.from(wrap.children).filter(el => el.classList.contains("editing"));
+  shown.forEach((el, i) => {
+    const up = el.querySelector('[data-dashovmove="up"]'), dn = el.querySelector('[data-dashovmove="down"]');
+    if (up) up.disabled = i === 0;
+    if (dn) dn.disabled = i === shown.length - 1;
   });
 }
 function moveDashOvPanel(key, dir) {
@@ -24511,80 +24690,9 @@ function wireDashboard() {
       const cell = e.target.closest(".dash-launch-cell");
       if (cell) positionDashTip(cell);
     });
-    // Edit mode: drag-to-reorder via Pointer Events so it works with BOTH mouse
-    // and touch. (It used to use native HTML5 drag-and-drop, which never fires on
-    // mobile — that's why dragging was desktop-only and touch users were left with
-    // just the ↑ ↓ buttons.) Touch/pen starts a drag only from the ⋮⋮ grab handle
-    // (which sets touch-action:none) so the rest of the card still scrolls the
-    // dashboard; a mouse can grab anywhere on the card.
-    let _dashPtr = null;                 // active drag: {id, cell, key, sx, sy, started}
-    let _dashLastX = 0, _dashLastY = 0;  // latest pointer pos (for edge auto-scroll)
-    let _dashAutoRAF = null, _dashAutoDir = 0;
-    const dashScrollEl = () => document.getElementById("dashScroll");
-    function dashDragReorder(x, y) {
-      if (!_dashPtr || !_dashPtr.started) return;
-      const dragging = _dashPtr.cell;
-      let target = null;
-      launchpad.querySelectorAll(".dash-launch-cell").forEach(c => {
-        if (target || c === dragging) return;
-        const r = c.getBoundingClientRect();
-        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) target = c;
-      });
-      if (!target) return;
-      const r = target.getBoundingClientRect();
-      const after = (y - r.top) > r.height / 2 || (x - r.left) > r.width / 2;
-      if (after) target.after(dragging); else target.before(dragging);
-    }
-    function dashAutoTick() {
-      if (!_dashAutoDir) { _dashAutoRAF = null; return; }
-      const sc = dashScrollEl();
-      if (sc) { sc.scrollTop += _dashAutoDir * 12; dashDragReorder(_dashLastX, _dashLastY); }
-      _dashAutoRAF = requestAnimationFrame(dashAutoTick);
-    }
-    function dashDragAutoScroll(y) {
-      const sc = dashScrollEl(); if (!sc) return;
-      const r = sc.getBoundingClientRect(), edge = 64;
-      _dashAutoDir = y < r.top + edge ? -1 : (y > r.bottom - edge ? 1 : 0);
-      if (_dashAutoDir && !_dashAutoRAF) _dashAutoRAF = requestAnimationFrame(dashAutoTick);
-    }
-    function dashDragStopScroll() { _dashAutoDir = 0; if (_dashAutoRAF) { cancelAnimationFrame(_dashAutoRAF); _dashAutoRAF = null; } }
-    launchpad.addEventListener("pointerdown", (e) => {
-      if (!_dashEditMode || !e.isPrimary) return;
-      if (e.target.closest(".dec-btn")) return;               // ↑ ↓ × keep working
-      const cell = e.target.closest(".dash-launch-cell.editing"); if (!cell) return;
-      // Touch/pen must grab the handle; a mouse can grab the whole card.
-      if (e.pointerType !== "mouse" && !e.target.closest(".dec-handle")) return;
-      // Suppress the browser's default press behavior (text selection / caret)
-      // so a drag doesn't start highlighting card text. Only reached once we've
-      // committed to a drag candidate — the ↑ ↓ × buttons returned above.
-      e.preventDefault();
-      _dashPtr = { id: e.pointerId, cell, key: cell.dataset.cardKey, sx: e.clientX, sy: e.clientY, started: false };
-      try { launchpad.setPointerCapture(e.pointerId); } catch (_) {}
-    });
-    launchpad.addEventListener("pointermove", (e) => {
-      if (!_dashPtr || e.pointerId !== _dashPtr.id) return;
-      if (!_dashPtr.started) {
-        if (Math.abs(e.clientX - _dashPtr.sx) < 5 && Math.abs(e.clientY - _dashPtr.sy) < 5) return;
-        _dashPtr.started = true; _dashDragKey = _dashPtr.key;
-        _dashPtr.cell.classList.add("dragging");
-        try { closeAllDashTips(); } catch (_) {}
-      }
-      e.preventDefault();
-      _dashLastX = e.clientX; _dashLastY = e.clientY;
-      dashDragReorder(e.clientX, e.clientY);
-      dashDragAutoScroll(e.clientY);
-    });
-    const _dashPtrEnd = (e) => {
-      if (!_dashPtr || e.pointerId !== _dashPtr.id) return;
-      try { launchpad.releasePointerCapture(e.pointerId); } catch (_) {}
-      if (_dashPtr.started) {
-        _dashPtr.cell.classList.remove("dragging");
-        if (_dashDragKey) persistDashOrderFromDOM();
-      }
-      _dashDragKey = null; _dashPtr = null; dashDragStopScroll();
-    };
-    launchpad.addEventListener("pointerup", _dashPtrEnd);
-    launchpad.addEventListener("pointercancel", _dashPtrEnd);
+    // Edit mode: drag-to-reorder. Shared with the overview panels — see
+    // wireDashDragReorder for why it's Pointer Events and how the FLIP works.
+    wireDashDragReorder(launchpad, ".dash-launch-cell.editing", persistDashOrderFromDOM);
     // Global dismiss for an open (mobile-tapped) tip.
     document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".dash-launch-cell.tip-open")) closeAllDashTips(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllDashTips(); });
