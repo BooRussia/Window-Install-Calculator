@@ -18242,7 +18242,7 @@ function setJobCrew(id, crewId) {
   j.assignedCrewId = crewId || null;
   saveJobs(jobs);
   try { pushJobToCloud(j, true); } catch (_) {}
-  if (STATE.loadedJobId === id) { STATE.assignedCrewId = j.assignedCrewId; try { render(); } catch (_) {} }
+  if (STATE.currentJobId === id) { STATE.assignedCrewId = j.assignedCrewId; try { render(); } catch (_) {} }
   try { toast(crewId ? `Assigned to ${crewLabel(crewId) || "team"}` : "Unassigned"); } catch (_) {}
 }
 
@@ -24164,6 +24164,19 @@ function wireDashboard() {
   const shop = document.getElementById("dashShopping");
   if (shop) {
     shop.addEventListener("click", (e) => {
+      const send = e.target.closest("[data-shop-send]");
+      if (send) {
+        const j = loadJobs().find(x => x.id === send.dataset.shopSend);
+        if (!j) return;
+        send.disabled = true;
+        const label = send.textContent;
+        send.textContent = "Sending\u2026";
+        publishCrewShoppingList(j)
+          .then(ok => { if (ok) toast(`Sent to ${crewLabel(j.assignedCrewId) || "the crew"}`); })
+          .catch(err => { console.warn(err); toast("Couldn't send the list — check your connection."); })
+          .finally(() => { send.disabled = false; send.textContent = label; });
+        return;
+      }
       const pdf = e.target.closest("[data-shop-pdf]");
       if (pdf) { dashGenerateDoc(pdf.dataset.shopJob, "materials", pdf.dataset.shopPdf); return; }
       const tg = e.target.closest("[data-shop-toggle]");
@@ -24186,19 +24199,6 @@ function wireDashboard() {
       }
     });
     shop.addEventListener("change", (e) => {
-      const send = e.target.closest("[data-shop-send]");
-      if (send) {
-        const j = loadJobs().find(x => x.id === send.dataset.shopSend);
-        if (!j) return;
-        send.disabled = true;
-        const label = send.textContent;
-        send.textContent = "Sending\u2026";
-        publishCrewShoppingList(j)
-          .then(ok => { if (ok) toast(`Sent to ${crewLabel(j.assignedCrewId) || "the crew"}`); })
-          .catch(err => { console.warn(err); toast("Couldn't send the list — check your connection."); })
-          .finally(() => { send.disabled = false; send.textContent = label; });
-        return;
-      }
       const cb = e.target.closest("[data-shop-check]");
       if (!cb) return;
       const row = cb.closest("[data-shop-jobrow]");
@@ -26243,6 +26243,9 @@ async function afterCrewWrite(msg) {
   _orgCtx = null; saveOrgCtxCache(null);
   try { await fetchOrgContext(); } catch (_) {}
   renderTeamsSettings();
+  // A caged crew seat sees the crew workspace, not #teamsBody — repaint it too so
+  // a saved rate / pay / shopping tick shows up where the seat is actually looking.
+  try { if (typeof isCrewAccount === "function" && isCrewAccount()) renderCrewWorkspace(); } catch (_) {}
   if (msg) { try { toast(msg); } catch (_) {} }
 }
 
@@ -26304,7 +26307,10 @@ async function openTeamsSettings() {
   renderTeamsSettings();
   try { await fetchOrgContext(); }
   catch (e) { _orgCtx = _orgCtx || null; console.warn("[teams] load failed", e && e.message); }
-  finally { _orgCtxLoading = false; renderTeamsSettings(); }
+  finally {
+    _orgCtxLoading = false; renderTeamsSettings();
+    try { if (isCrewAccount()) renderCrewWorkspace(); } catch (_) {}
+  }
 }
 
 
@@ -26833,11 +26839,15 @@ const TEAM_ICON_SUB = '<svg width="22" height="22" viewBox="0 0 24 24" fill="non
 const TEAM_ICON_CREW = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-1.5A4.5 4.5 0 0 1 7.5 15h3A4.5 4.5 0 0 1 15 19.5V21"/><path d="M17 8.5a2.5 2.5 0 1 0-1.5-4.5"/><path d="M18 21v-1a4 4 0 0 0-2-3.4"/></svg>';
 
 // Delegated Teams wiring (init runs more than once → _wired guard).
+// The Teams click delegation, held in a shared handler so the caged crew
+// workspace (renderCrewWorkspace) can wire the SAME logic onto its own screen —
+// its installer controls live outside #teamsBody and would otherwise be dead.
+let _teamsClickHandler = null;
 function wireTeamsSettings() {
   const body = document.getElementById("teamsBody");
   if (!body || body._wired) return;
   body._wired = true;
-  body.addEventListener("click", (e) => {
+  _teamsClickHandler = (e) => {
     if (e.target.closest("[data-team-upsell]")) { try { showUpsellModal("teams_locked"); } catch (_) {} return; }
     if (e.target.closest("[data-teams-refresh]")) {
       _orgCtx = null; saveOrgCtxCache(null);
@@ -26849,7 +26859,9 @@ function wireTeamsSettings() {
     const iSave = e.target.closest("[data-inst-save]");
     if (iSave) {
       const cid = iSave.dataset.instSave;
-      const form = body.querySelector(`[data-inst-form="${cid}"]`);
+      // The installer form may live in #teamsBody OR in the caged crew screen —
+      // scope the lookup to whichever surface the click came from.
+      const form = (e.target.closest("#crewScreen, #teamsBody") || body).querySelector(`[data-inst-form="${cid}"]`);
       if (!form || !ctx) return;
       // Same sparse rule as the owner's editor: only real differences persist, so
       // an unset row keeps tracking whatever the company changes its rate to.
@@ -27086,7 +27098,8 @@ function wireTeamsSettings() {
       removeCrewMemberWeb(rm.dataset.crewRmmem, rm.dataset.uid).then(() => afterCrewWrite("Removed from crew")).catch(fail);
       return;
     }
-  });
+  };
+  body.addEventListener("click", _teamsClickHandler);
   // Sub logo upload — reuse the app's resizer (320px cap) so a phone photo
   // can't blow past the crews.data size guard.
   body.addEventListener("change", async (e) => {
@@ -33974,12 +33987,16 @@ function addCrewMemberRow(seed) {
 
 // ── Setup wizard mini crew list ─────────────────────────────────────────────
 function setupCrewRowHTML(m) {
-  m = m || { id: newCrewMemberId(), name: "", hourlyRate: 30 };
+  m = m || { id: newCrewMemberId(), name: "", hourlyRate: null };
+  // Wage is placeholder-only (blank value) unless a real rate is supplied, so an
+  // untouched placeholder row reads as blank and readSetupCrewList() skips it —
+  // otherwise a pre-filled $30 on a nameless row would silently become a phantom
+  // 1-person roster and halve the flat crew cost the quote should fall back to.
   return `<div class="setup-crew-row" data-setup-crew-id="${escHtml(m.id)}">
     <input type="text" class="setup-crew-name control rounded-xl px-3 py-2.5 text-sm text-slate-100" placeholder="Name" value="${escHtml(m.name || "")}" autocomplete="name" />
     <div class="flex items-center gap-1">
       <span class="text-slate-500 text-sm">$</span>
-      <input type="number" step="1" min="0" inputmode="decimal" class="setup-crew-rate control rounded-xl px-3 py-2.5 text-sm text-slate-100" placeholder="30" value="${m.hourlyRate != null ? m.hourlyRate : 30}" />
+      <input type="number" step="1" min="0" inputmode="decimal" class="setup-crew-rate control rounded-xl px-3 py-2.5 text-sm text-slate-100" placeholder="30" value="${m.hourlyRate != null ? m.hourlyRate : ""}" />
       <span class="text-slate-500 text-xs">/hr</span>
     </div>
     <button type="button" class="setup-crew-del btn px-2" data-setup-crew-del aria-label="Remove">×</button>
@@ -33992,8 +34009,10 @@ function renderSetupCrewList(members) {
   const rows = (members && members.length) ? members : [];
   list.innerHTML = rows.map(setupCrewRowHTML).join("");
   if (!rows.length) {
-    // Start with one empty row so the wizard isn't a blank wall
-    list.innerHTML = setupCrewRowHTML({ id: newCrewMemberId(), name: "", hourlyRate: (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30 });
+    // Start with one empty row so the wizard isn't a blank wall. Wage stays
+    // blank (placeholder only) so an untouched row does NOT count as a member —
+    // completing onboarding without adding crew must fall back to flat pay.
+    list.innerHTML = setupCrewRowHTML({ id: newCrewMemberId(), name: "", hourlyRate: null });
   }
 }
 
@@ -34028,7 +34047,7 @@ function wireSetupCrewOnce() {
       list.insertAdjacentHTML("beforeend", setupCrewRowHTML({
         id: newCrewMemberId(),
         name: "",
-        hourlyRate: (DATA.config.laborModel && DATA.config.laborModel.crewPayRatePerHr) ?? 30,
+        hourlyRate: null,
       }));
       const last = list.querySelector(".setup-crew-row:last-child .setup-crew-name");
       if (last) last.focus();
@@ -34042,7 +34061,7 @@ function wireSetupCrewOnce() {
       const row = del.closest(".setup-crew-row");
       if (row) row.remove();
       if (!list.querySelector(".setup-crew-row")) {
-        list.innerHTML = setupCrewRowHTML({ id: newCrewMemberId(), name: "", hourlyRate: 30 });
+        list.innerHTML = setupCrewRowHTML({ id: newCrewMemberId(), name: "", hourlyRate: null });
       }
     });
   }
@@ -38021,6 +38040,12 @@ function renderCrewWorkspace() {
     document.body.appendChild(scr);
     const so = scr.querySelector("#crewSignOut");
     if (so) so.addEventListener("click", () => { try { signOut(); } catch (_) { location.reload(); } });
+    // The crew workspace renders the SAME installer panel as Settings → Teams,
+    // whose controls (save rates, save pay, check off the shopping list) are
+    // delegated to #teamsBody — a surface a caged seat can never reach. Without
+    // wiring the shared handler here every control below is a silent no-op, so
+    // the invited installer can view their rates but never save anything.
+    scr.addEventListener("click", (e) => { if (typeof _teamsClickHandler === "function") _teamsClickHandler(e); });
   }
   const title = scr.querySelector(".crew-title");
   if (title) title.textContent = crewAccountOrgName() ? ("You're on the " + crewAccountOrgName() + " team") : "Your crew workspace";
