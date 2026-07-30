@@ -404,6 +404,38 @@
   .mfg-name { font-size: 12.5px; font-weight: 800; color: #f1f5f9; }
   .mfg-table tr.is-off .mfg-name { color: #64748b; }
   .mfg-table tr.is-off td:not(.mfg-check) { opacity: 0.45; }
+  /* ── Invite landing (?join=CODE, before they have an account) ─────────────── */
+  .inv-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center;
+    padding: 28px 16px; background: var(--navy-0); }
+  .inv-card { width: 100%; max-width: 460px; text-align: center;
+    background: #0b1120; border: 1px solid rgba(51,65,85,0.55); border-radius: 20px;
+    padding: 34px 28px 26px; }
+  .inv-mark { font-size: 20px; font-weight: 900; letter-spacing: 0.18em; color: var(--gold-hi); }
+  .inv-eyebrow { margin-top: 20px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em;
+    text-transform: uppercase; color: #94a3b8; }
+  .inv-title { margin-top: 8px; font-size: clamp(1.5rem, 1.2rem + 2vw, 1.9rem); font-weight: 900;
+    letter-spacing: -0.02em; line-height: 1.15; color: #f8fafc; }
+  .inv-sub { margin-top: 12px; font-size: 14px; line-height: 1.6; color: #94a3b8; }
+  .inv-cta { width: 100%; margin-top: 22px; min-height: 48px; border-radius: 9999px;
+    font-size: 15px; font-weight: 800; color: #0b1120; background: var(--gold-hi);
+    border: 0; cursor: pointer; }
+  .inv-cta:hover { background: #d8b76a; }
+  .inv-alt { width: 100%; margin-top: 10px; min-height: 44px; border-radius: 9999px;
+    font-size: 14px; font-weight: 700; color: var(--gold-hi); background: transparent;
+    border: 1px solid rgba(181,143,74,0.45); cursor: pointer; }
+  .inv-alt:hover { background: rgba(181,143,74,0.10); }
+  .inv-fine { margin-top: 16px; font-size: 11.5px; line-height: 1.5; color: #94a3b8; }
+  .inv-skip { margin-top: 14px; min-height: 36px; font-size: 12px; font-weight: 700;
+    color: #94a3b8; background: none; border: 0; cursor: pointer; }
+  .inv-skip:hover { color: #cbd5e1; text-decoration: underline; }
+  [data-theme="light"] .inv-wrap { background: #f3f4f7; }
+  [data-theme="light"] .inv-card { background: #ffffff; border-color: #e2e8f0; }
+  [data-theme="light"] .inv-mark { color: var(--gold-ink); }
+  [data-theme="light"] .inv-title { color: #0f172a; }
+  [data-theme="light"] .inv-eyebrow, [data-theme="light"] .inv-sub,
+  [data-theme="light"] .inv-fine, [data-theme="light"] .inv-skip { color: #475569; }
+  [data-theme="light"] .inv-alt { color: var(--gold-ink); border-color: #d9c79a; }
+  [data-theme="light"] .inv-skip:hover { color: #0f172a; }
   /* change order: form on the left, the number you'll charge on the right */
   .dco-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
   @media (min-width: 1000px) { .dco-grid { grid-template-columns: 1.35fr 1fr; align-items: start; } }
@@ -13223,7 +13255,48 @@ const LS_KEYS = { data: "wcc.data.v8", state: "wcc.state.v1", jobs: "wcc.jobs.v1
   jobsSyncedOnce: "wcc.jobsSyncedOnce.v1",
   // Teams T1: cached org membership + crew roster (read-only mirror of the
   // shared org layer) so the Teams tab paints instantly before the refetch.
-  orgCtx: "wcc.orgCtx.v1" };
+  orgCtx: "wcc.orgCtx.v1",
+  // Which user id the caches above belong to. Every one of them is per-ACCOUNT
+  // but they live under fixed keys, so without this a second account signing in
+  // on the same browser silently inherits the first one's cache.
+  cacheOwner: "wcc.cacheOwner.v1" };
+
+/* Per-account local caches. These were only ever cleared by an explicit sign-out,
+   and orgCtx was not even in that list — which is how an invited crew seat ended
+   up holding the OWNER's cached `role: "owner"` and walking straight past the crew
+   cage, on top of showing the owner's brand, settings and expired trial.
+   Worse, a brand-new account has no cloud profile, so firstLoginMigration() seeds
+   the cloud FROM local — writing the inherited blob up as the new user's own
+   profile and making the contamination permanent across their devices.
+   One list, used by both sign-out and the account-switch wipe, so the two can't
+   drift apart again. */
+function accountCacheKeys() {
+  return [LS_KEYS.data, LS_KEYS.state, LS_KEYS.jobs, LS_KEYS.profileSyncedAt,
+          LS_KEYS.profileDirty, LS_KEYS.pendingPush, LS_KEYS.jobsSyncedOnce,
+          LS_KEYS.orgCtx, LS_SIGN_SEEN];
+}
+function clearAccountLocalCaches() {
+  accountCacheKeys().forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+  try { _orgCtx = null; } catch (_) {}
+  try { clearNav(); } catch (_) {}
+}
+/** Bind the local caches to a user. Wipes them when the signed-in account is not
+    the one they belong to. Returns true if a wipe happened.
+    An ABSENT stamp is not a mismatch: a pre-existing single-account install has
+    legitimate local data that firstLoginMigration() is supposed to carry up, so
+    that case is stamped, not cleared. */
+function ensureCacheOwner(userId) {
+  if (!userId) return false;
+  let prev = null;
+  try { prev = localStorage.getItem(LS_KEYS.cacheOwner); } catch (_) {}
+  if (prev && prev !== userId) {
+    clearAccountLocalCaches();
+    try { localStorage.setItem(LS_KEYS.cacheOwner, userId); } catch (_) {}
+    return true;
+  }
+  if (!prev) { try { localStorage.setItem(LS_KEYS.cacheOwner, userId); } catch (_) {} }
+  return false;
+}
 
 /* ============================================================
    CREW ROSTER — per-person wages + workers' comp burden
@@ -26163,8 +26236,114 @@ function captureJoinCode() {
   return code || (() => { try { return localStorage.getItem(LS_PENDING_INVITE); } catch (_) { return null; } })();
 }
 function clearPendingInvite() { try { localStorage.removeItem(LS_PENDING_INVITE); } catch (_) {} }
+function hasPendingInvite() {
+  try { return !!localStorage.getItem(LS_PENDING_INVITE); } catch (_) { return false; }
+}
+function pendingInviteCode() {
+  try { return localStorage.getItem(LS_PENDING_INVITE) || null; } catch (_) { return null; }
+}
+
+/* ── The invite landing ───────────────────────────────────────────────────────
+   A ?join= link used to strip its code, stash it silently, and drop the visitor
+   on the marketing home page — no sign they had been invited, no idea which
+   company, and the same "start your free trial" pitch a stranger sees. They then
+   signed up as a normal customer and the seat only appeared later, if at all.
+
+   This names the team before they have an account. org_invites is admin-only and
+   organizations is members-only under RLS, so an anonymous visitor can read
+   neither — peek_org_invite() is a read-only SECURITY DEFINER RPC that returns
+   just the company name, the role, and whether the code is still good. */
+/* Three outcomes, and they must NOT collapse into one: a code we could not check
+   (offline, or sb not up yet) has to be left alone, or a boot-order hiccup would
+   throw away a perfectly good invite and tell the user it expired. */
+async function peekInvite(code) {
+  if (!sb || !code) return { status: "unknown" };
+  try {
+    const { data, error } = await sb.rpc("peek_org_invite", { p_code: code });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || !row.valid) return { status: "invalid" };
+    return { status: "valid", orgName: row.org_name || "", role: row.invite_role || "installer" };
+  } catch (_) {
+    return { status: "unknown" };   // network/RPC failure — keep the code
+  }
+}
+function renderInviteLanding(info) {
+  let scr = document.getElementById("inviteScreen");
+  if (!scr) {
+    scr = document.createElement("div");
+    scr.id = "inviteScreen";
+    scr.className = "fixed inset-0 z-[80] overflow-y-auto";
+    document.body.appendChild(scr);
+    // Create-once, like the crew workspace — re-rendering must never re-bind.
+    scr.addEventListener("click", (e) => {
+      if (e.target.closest("[data-invite-accept]")) {
+        scr.classList.add("hidden");
+        try { openAuth("signup"); } catch (_) {}
+        return;
+      }
+      if (e.target.closest("[data-invite-signin]")) {
+        scr.classList.add("hidden");
+        try { openAuth("login"); } catch (_) {}
+        return;
+      }
+      if (e.target.closest("[data-invite-dismiss]")) {
+        // They'd rather look around first. Keep the code — it still redeems on
+        // whatever account they end up signing in with.
+        scr.classList.add("hidden");
+      }
+    });
+  }
+  const team = info && info.orgName ? info.orgName : "";
+  const roleWord = (info && info.role === "installer") ? "installer" : escHtml(String((info && info.role) || "member"));
+  scr.classList.remove("hidden");
+  scr.innerHTML = `
+    <div class="inv-wrap">
+      <div class="inv-card">
+        <div class="inv-mark">ANCHOR</div>
+        <div class="inv-eyebrow">You&rsquo;ve been invited</div>
+        <h1 class="inv-title">${team ? `Join ${escHtml(team)}` : "Join your team on Anchor"}</h1>
+        <p class="inv-sub">
+          ${team ? `${escHtml(team)} added you as an ${roleWord}.` : `You were added to a team as an ${roleWord}.`}
+          Create your account and your crew workspace is ready &mdash; your rates, your pay, and the materials to pick up.
+        </p>
+        <button type="button" class="inv-cta" data-invite-accept>Create my account</button>
+        <button type="button" class="inv-alt" data-invite-signin>I already have an account</button>
+        <p class="inv-fine">This is a team seat, not a subscription &mdash; there&rsquo;s nothing to pay and no trial to start.</p>
+        <button type="button" class="inv-skip" data-invite-dismiss>Just looking around</button>
+      </div>
+    </div>`;
+}
+/** Show the invite landing when an un-signed-in visitor arrives on a live code. */
+async function maybeShowInviteLanding() {
+  const code = pendingInviteCode();
+  if (!code || currentUser) return false;
+  const info = await peekInvite(code);
+  if (info.status === "unknown") return false;      // couldn't check — keep the code, say nothing
+  if (info.status === "invalid") {
+    // Dead or already-used code: say so rather than silently doing nothing, and
+    // drop it so it can't confuse a later sign-in.
+    clearPendingInvite();
+    try { toast("That invite link has expired — ask for a new one."); } catch (_) {}
+    return false;
+  }
+  try { document.getElementById("landingScreen").classList.add("hidden"); } catch (_) {}
+  try { document.getElementById("bootSplash").classList.add("hidden"); } catch (_) {}
+  renderInviteLanding(info);
+  return true;
+}
+/* syncFromCloud() fires this and enterApp() awaits it, so without a shared
+   in-flight promise the same code could hit redeem_org_invite twice and burn two
+   of the invite's uses. One redemption per page load, whoever asks first. */
+let _redeemInFlight = null;
+function redeemPendingInvite() {
+  if (!_redeemInFlight) {
+    _redeemInFlight = _redeemPendingInviteOnce().finally(() => { _redeemInFlight = null; });
+  }
+  return _redeemInFlight;
+}
 /** Redeem a stashed code once we have a session. Safe to call repeatedly. */
-async function redeemPendingInvite() {
+async function _redeemPendingInviteOnce() {
   if (!sb || !currentUser) return;
   let code = null;
   try { code = localStorage.getItem(LS_PENDING_INVITE); } catch (_) {}
@@ -36737,16 +36916,11 @@ async function handleGoogleSignIn() {
 async function handleSignOut() {
   try { if (_signRealtimeChannel && sb) { sb.removeChannel(_signRealtimeChannel); _signRealtimeChannel = null; } } catch (_) {}
   try { if (sb) await sb.auth.signOut(); } catch (_) {}
-  // Clear the local cache so the next account starts clean
-  localStorage.removeItem(LS_KEYS.data);
-  localStorage.removeItem(LS_KEYS.state);
-  localStorage.removeItem(LS_KEYS.jobs);
-  localStorage.removeItem(LS_KEYS.profileSyncedAt);
-  localStorage.removeItem(LS_KEYS.profileDirty);
-  localStorage.removeItem(LS_KEYS.pendingPush);
-  localStorage.removeItem(LS_KEYS.jobsSyncedOnce);
-  localStorage.removeItem(LS_SIGN_SEEN);
-  clearNav();
+  // Clear the local cache so the next account starts clean. Shares one list with
+  // the account-switch wipe — this used to enumerate the keys inline and had
+  // silently fallen behind by one (orgCtx), which is the whole crew-cage bug.
+  clearAccountLocalCaches();
+  try { localStorage.removeItem(LS_KEYS.cacheOwner); } catch (_) {}
   location.reload();
 }
 
@@ -36899,6 +37073,12 @@ async function syncFromCloud() {
     const { data: { user } } = await sb.auth.getUser();
     currentUser = user;
     if (!user) throw new Error("Not signed in");
+    // FIRST, before anything reads localStorage: if these caches belong to a
+    // different account, drop them. Otherwise this user inherits the previous
+    // one's settings and entitlements — and, having no cloud profile of their
+    // own, firstLoginMigration() below would upload that inherited blob as
+    // theirs.
+    ensureCacheOwner(user.id);
     // Teams T7: a ?join= code stashed before sign-in redeems here, once, as soon
     // as there's a session. Fire-and-forget so a bad code can't block the sync.
     redeemPendingInvite().catch(() => {});
@@ -39445,6 +39625,14 @@ async function boot() {
   if (window.__PUBLIC_SIGN_ROUTE || /^#\/sign\//.test(window.location.hash || "")) {
     return;
   }
+  // Stash ?join=CODE HERE, before anything auth-related. It used to live inside
+  // init(), which only ever runs from enterApp() (needs a session) or the
+  // Supabase-unavailable fallback — so for a logged-out visitor, the exact person
+  // an invite link is for, the code was never captured at all. They landed on the
+  // marketing page, signed up as an ordinary customer, and the seat never
+  // happened. Pure URL + localStorage work with no dependencies, so it is safe
+  // this early.
+  try { captureJoinCode(); } catch (_) {}
   try {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch (e) {
@@ -39543,6 +39731,11 @@ async function boot() {
   } else {
     setAuthMode("login");
     showLanding();
+    // Arrived on a live invite link with no session? Say who invited them and
+    // send them to signup, rather than showing the "start your free trial" pitch
+    // a stranger gets. Runs after showLanding so a dead/unreachable code simply
+    // leaves the normal landing in place.
+    try { maybeShowInviteLanding(); } catch (_) {}
   }
   // Direct URL → pricing page (e.g. someone bookmarked anchor.app/#/pricing)
   handlePricingHashRoute();
@@ -39611,11 +39804,32 @@ async function enterApp() {
   // previously only fetched when Settings → Teams opened, so a seat booted
   // straight into a full calculator until they happened to open that tab.
   try { applyCrewLockdown(); } catch (_) {}
-  if (sb && currentUser) { fetchOrgContext().catch(() => {}); }
+  // FAIL CLOSED. The cage above reads the CACHED role, which a first-time invitee
+  // does not have — so they used to fall through as a normal user, get the full
+  // calculator and Settings, and be offered a trial. When we cannot yet tell what
+  // this session is (a pending invite, or no cached context at all), resolve it
+  // BEFORE showing anything: redeem the invite, fetch the real context, re-cage.
+  // Bounded so a dead network degrades to the old behaviour rather than hanging
+  // on the splash forever.
+  if (sb && currentUser) {
+    if (hasPendingInvite() || !getOrgContext()) {
+      try {
+        await Promise.race([
+          redeemPendingInvite().then(() => fetchOrgContext()),
+          new Promise(res => setTimeout(res, 8000)),
+        ]);
+      } catch (_) {}
+      try { applyCrewLockdown(); } catch (_) {}
+    } else {
+      fetchOrgContext().then(() => { try { applyCrewLockdown(); } catch (_) {} }).catch(() => {});
+    }
+  }
   // Plan gate: a brand-new account picks a plan (or deliberately starts the
   // trial) before reaching the calculator. Existing accounts already carry a
-  // plan, so this is a no-op for them.
-  try { renderPlanChoice(); } catch (e) { console.warn("plan gate failed", e); }
+  // plan, so this is a no-op for them. A crew seat never picks a plan — their
+  // access comes from the owner's, and offering them a trial is what made an
+  // invited installer look like a broken half-signed-up customer.
+  try { if (!isCrewAccount()) renderPlanChoice(); } catch (e) { console.warn("plan gate failed", e); }
   renderDemoBanner();
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
@@ -40759,7 +40973,8 @@ function init() {
   // idempotent even if the listener ever does fire twice.
   try { wireTabBar(); } catch (_) {}   // mobile bottom tab bar (UI refresh P1)
   try { initAnimatedSelects(); } catch (_) {}   // animated dropdowns everywhere
-  try { captureJoinCode(); } catch (_) {}      // Teams T7: stash + strip ?join=CODE
+  // (?join=CODE is captured in boot() now, before any auth decision — init() is
+  // sign-in gated and never ran for the logged-out visitor the link is for.)
   try { wireTeamsSettings(); } catch (_) {}   // Settings → Teams (T1)
   // Lapsed-account paywall actions (2026-07)
   { const _cta = document.getElementById("calcPaywallCta");
