@@ -26327,7 +26327,12 @@ async function maybeShowInviteLanding() {
     try { toast("That invite link has expired — ask for a new one."); } catch (_) {}
     return false;
   }
-  try { document.getElementById("landingScreen").classList.add("hidden"); } catch (_) {}
+  // Leave the marketing landing MOUNTED underneath the invite overlay (which is
+  // opaque and sits at a higher z-index, so it fully covers it). Every way out of
+  // the invite screen — "Just looking around", or opening then cancelling the
+  // auth modal — then reveals the normal landing, exactly like a stranger who
+  // clicked "Log In" and backed out. Hiding it here dropped a logged-out invitee
+  // onto the bare, unauthenticated app shell instead.
   try { document.getElementById("bootSplash").classList.add("hidden"); } catch (_) {}
   renderInviteLanding(info);
   return true;
