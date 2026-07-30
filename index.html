@@ -19148,9 +19148,14 @@ function wireDashNav() {
       try { openFeedback(); } catch (_) {}
       return;
     }
+    // The user card opens Brand settings directly. It used to synthesize a
+    // click on #dashPfpBtn to show the account menu, but that menu opened and
+    // shut in the same gesture: the synthetic click opened it, then the SAME
+    // real click reached the document close-on-outside-click listener, whose
+    // exemptions cover #pfpMenu / #pfpBtn / #dashPfpBtn but not this card.
+    // The avatar in the top bar still opens that menu.
     if (e.target.closest("[data-dashnav-account]")) {
-      const b = document.getElementById("dashPfpBtn");
-      if (b) b.click();
+      try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("brand"); } catch (_) {}
       return;
     }
     const nav = e.target.closest("[data-dashnav]");
