@@ -404,6 +404,16 @@
   .mfg-name { font-size: 12.5px; font-weight: 800; color: #f1f5f9; }
   .mfg-table tr.is-off .mfg-name { color: #64748b; }
   .mfg-table tr.is-off td:not(.mfg-check) { opacity: 0.45; }
+  /* ── Admin → Accounts. Bare Tailwind slate/rose utilities have no light-mode
+     override, so they measured 1.4–2.6:1 on the white settings card. These carry
+     their own light values, same rule as everywhere else in this file. ─────── */
+  .adm-note { color: #94a3b8; }
+  .adm-sub { color: #94a3b8; }
+  .adm-danger { color: #fda4af; line-height: 1.5; }
+  .adm-danger-strong { color: #fecdd3; }
+  [data-theme="light"] .adm-note, [data-theme="light"] .adm-sub { color: #475569; }
+  [data-theme="light"] .adm-danger { color: #9f1239; }
+  [data-theme="light"] .adm-danger-strong { color: #881337; }
   /* ── Invite landing (?join=CODE, before they have an account) ─────────────── */
   .inv-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center;
     padding: 28px 16px; background: var(--navy-0); }
@@ -30824,7 +30834,10 @@ function scheduleFLMissingCheck(query, source) {
 /* ---- Admin panel UI ---- */
 let adminView = "overview";
 let _adminCache = null;
-const ADMIN_PLAN_NAME = { starter: "Starter", pro: "Pro", unlimited: "Shop", trial: "Trial" };
+const ADMIN_PLAN_NAME = { starter: "Starter", pro: "Pro", unlimited: "Shop", trial: "Trial",
+  // A seat has no plan of its own, and a brand-new account has none yet — both
+  // show up in the Accounts list and read as "unknown" without these.
+  crew: "Crew seat", none: "No plan" };
 
 function relTime(ts) {
   const d = Date.now() - new Date(ts).getTime();
@@ -30888,7 +30901,9 @@ function renderAdminPanel() {
   body.querySelectorAll("[data-adminview]").forEach(b =>
     b.addEventListener("click", () => { adminView = b.dataset.adminview; renderAdminPanel(); }));
   const rf = body.querySelector("#adminRefresh");
-  if (rf) rf.addEventListener("click", () => { _adminCache = null; renderAdminPanel(); });
+  // Both caches — the Accounts tab has its own (it reads auth.users through the
+  // admin-users function, not the analytics tables the rest of the panel uses).
+  if (rf) rf.addEventListener("click", () => { _adminCache = null; _adminUsers = null; renderAdminPanel(); });
   const map = { overview: renderAdminOverview, usage: renderAdminUsage, accounts: renderAdminAccounts, sticking: renderAdminSticking, queue: renderAdminQueue };
   (map[adminView] || renderAdminOverview)();
 }
@@ -31062,34 +31077,184 @@ async function renderAdminUsage() {
 }
 
 // ── Accounts — per-user activity, flags dormant / at-risk ──────────────────
-async function renderAdminAccounts() {
+/* ── Accounts: the owner's account-management surface ─────────────────────────
+   This used to infer the account list from event logs, so an account that had
+   never generated activity — a fresh signup, exactly the one you most want to
+   look at — was invisible. It now reads auth.users through the admin-users edge
+   function, which is also the only way to ACT on another account: profiles
+   UPDATE is `auth.uid() = id`, and deleting an auth user needs the service role.
+   The function re-checks the caller against ADMIN_UID/ADMIN_EMAILS server-side,
+   so nothing here is load-bearing for security — this is UI over a guarded API. */
+let _adminUsers = null;
+let _adminUserFilter = "";
+let _adminBusyId = null;
+
+async function adminUsersCall(action, extra) {
+  const { data, error } = await sb.functions.invoke("admin-users", {
+    body: { action, ...(extra || {}) },
+  });
+  if (error) {
+    // supabase-js hides the function's own message inside the response body.
+    let msg = error.message || "request failed";
+    try { const j = await error.context?.json?.(); if (j?.error) msg = j.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  if (!data || data.error) throw new Error((data && data.error) || "request failed");
+  return data;
+}
+
+async function renderAdminAccounts(force) {
   const el = document.getElementById("adminViewBody");
-  let c;
-  try { c = await loadAdminData(); } catch (e) { markCloudError(e); adminErr(el, e.message || String(e)); return; }
-  const users = adminUserRollup(c).sort((a, b) => String(b.last).localeCompare(String(a.last)));
+  if (!_adminUsers || force) {
+    el.innerHTML = `<div class="text-slate-600 text-sm py-10 text-center">Loading accounts…</div>`;
+    try { _adminUsers = (await adminUsersCall("list")).users || []; }
+    catch (e) { adminErr(el, e.message || String(e)); return; }
+  }
   const now = Date.now();
+  const q = _adminUserFilter.trim().toLowerCase();
+  const users = _adminUsers
+    .filter(u => !q || (u.email || "").toLowerCase().includes(q) || (u.company || "").toLowerCase().includes(q))
+    .sort((a, b) => String(b.lastSignInAt || b.createdAt).localeCompare(String(a.lastSignInAt || a.createdAt)));
+
   const planPill = p => {
-    const paid = p && p !== "trial";
-    return `<span class="text-[10px] font-bold rounded-full px-2 py-0.5 ${paid ? "text-[#c9a558] bg-[#b58f4a]/12 border border-[#b58f4a]/30" : "text-slate-400 bg-slate-800 border border-slate-700"}">${ADMIN_PLAN_NAME[p] || p}</span>`;
+    const paid = p && !["trial", "none", "crew"].includes(p);
+    return `<span class="text-[10px] font-bold rounded-full px-2 py-0.5 ${paid ? "text-[#c9a558] bg-[#b58f4a]/12 border border-[#b58f4a]/30" : "text-slate-400 bg-slate-800 border border-slate-700"}">${escHtml(ADMIN_PLAN_NAME[p] || p || "none")}</span>`;
   };
+  const PLAN_OPTS = [["none", "No plan"], ["trial", "Trial"], ["starter", "Starter"],
+                     ["pro", "Pro"], ["unlimited", "Shop"], ["crew", "Crew seat"]];
+
   const rows = users.map(u => {
-    const dormant = u.last && (now - new Date(u.last).getTime()) > 14 * 86400e3;
-    return `<div class="flex items-center gap-3 py-2.5 border-t border-slate-800/60 first:border-t-0">
-      <span style="width:7px;height:7px;border-radius:99px;flex-shrink:0;background:${dormant ? "#64748b" : "#22c55e"}" title="${dormant ? "Dormant 14d+" : "Active"}"></span>
-      <div class="min-w-0 flex-1">
-        <div class="text-xs font-semibold text-slate-200 truncate">${escHtml(u.email)}</div>
-        <div class="text-[10px] text-slate-500">joined ${relTime(u.first)} · last ${relTime(u.last)}</div>
+    const dormant = u.lastSignInAt && (now - new Date(u.lastSignInAt).getTime()) > 14 * 86400e3;
+    const busy = _adminBusyId === u.id;
+    const seat = (u.memberships || []).some(m => !["owner", "admin", "dispatcher"].includes(m.role));
+    return `<div class="py-3 border-t border-slate-800/60 first:border-t-0" data-admin-row="${escHtml(u.id)}">
+      <div class="flex items-center gap-3">
+        <span style="width:7px;height:7px;border-radius:99px;flex-shrink:0;background:${dormant ? "#64748b" : "#22c55e"}" title="${dormant ? "Dormant 14d+" : "Active"}"></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-semibold text-slate-200 truncate">${escHtml(u.email)}${u.isAdmin ? ` <span class="text-[9px] text-[#c9a558]">ADMIN</span>` : ""}</div>
+          <div class="text-[10px] text-slate-500 truncate">
+            ${u.company ? escHtml(u.company) + " · " : ""}joined ${relTime(u.createdAt)} · last ${u.lastSignInAt ? relTime(u.lastSignInAt) : "never"}
+            ${u.confirmed ? "" : ` · <span class="text-amber-300/90">unconfirmed</span>`}
+          </div>
+        </div>
+        <div class="text-right flex-shrink-0 text-[11px] text-slate-400 tabular-nums leading-tight">
+          <div>${u.jobs} job${u.jobs === 1 ? "" : "s"}</div>
+          <div class="adm-sub">${seat ? "crew seat" : `${(u.memberships || []).length} org${(u.memberships || []).length === 1 ? "" : "s"}`}</div>
+        </div>
+        <div class="flex-shrink-0">${planPill(u.plan)}</div>
+        <button type="button" class="btn text-[10px] font-bold text-slate-400 hover:text-[#c9a558] px-1.5" data-admin-toggle="${escHtml(u.id)}" title="Manage this account">${busy ? "…" : "Manage"}</button>
       </div>
-      <div class="text-right flex-shrink-0 text-[11px] text-slate-400 tabular-nums leading-tight">
-        <div>${u.quotes.size} quote${u.quotes.size === 1 ? "" : "s"} · ${u.aiReads} AI</div>
-        <div class="text-slate-600">${u.events} actions</div>
+      <div class="hidden mt-3 pl-5" data-admin-panel="${escHtml(u.id)}">
+        ${u.stripeCustomerId ? `<div class="text-[10px] leading-relaxed text-amber-300/90 mb-2 rounded-lg bg-[#b58f4a]/10 px-2.5 py-2">
+            Billed through Stripe (<span class="font-mono">${escHtml(u.stripeCustomerId)}</span>). A plan set here is overwritten
+            the next time Stripe sends a subscription event, and until then they are billed for one plan and using another.
+            Change it in Stripe unless you are deliberately comping them.
+          </div>` : ""}
+        <div class="flex flex-wrap items-center gap-2">
+          <select class="control rounded-lg px-2 py-1.5 text-[11px] text-slate-100" data-admin-plan="${escHtml(u.id)}">
+            ${PLAN_OPTS.map(([v, l]) => `<option value="${v}"${(u.plan || "none") === v ? " selected" : ""}>${l}</option>`).join("")}
+          </select>
+          <button type="button" class="btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]" data-admin-setplan="${escHtml(u.id)}">Apply plan</button>
+          <button type="button" class="btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-slate-300 border border-slate-700 hover:border-slate-500" data-admin-reset="${escHtml(u.id)}">Reset usage counters</button>
+          ${u.isAdmin ? `<span class="text-[10px] adm-sub">admin accounts can't be deleted here</span>`
+            : `<button type="button" class="btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-transparent text-rose-300 border border-rose-500/40 hover:bg-rose-500/10" data-admin-del="${escHtml(u.id)}">Delete account…</button>`}
+        </div>
+        <div class="hidden mt-2" data-admin-delconfirm="${escHtml(u.id)}">
+          <div class="text-[10px] adm-danger mb-1.5">
+            Permanent. Deletes their jobs and removes them from any team. Type <span class="font-mono adm-danger-strong">${escHtml(u.email)}</span> to confirm.
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="text" autocomplete="off" spellcheck="false" placeholder="${escHtml(u.email)}"
+              class="control rounded-lg px-2 py-1.5 text-[11px] text-slate-100 flex-1 min-w-0" data-admin-delemail="${escHtml(u.id)}" />
+            <button type="button" class="btn rounded-full px-3 py-1.5 text-[11px] font-bold bg-rose-500/80 text-white hover:bg-rose-500" data-admin-delgo="${escHtml(u.id)}">Delete</button>
+          </div>
+        </div>
       </div>
-      <div class="flex-shrink-0">${planPill(u.plan)}</div>
     </div>`;
   }).join("");
+
   el.innerHTML = `
-    <div class="text-[11px] text-slate-500 mb-3">${users.length} known account${users.length === 1 ? "" : "s"}. Green = active, grey = dormant 14+ days. Sorted by last activity.</div>
-    <div class="card rounded-xl p-4">${rows || `<div class="text-slate-600 text-sm py-8 text-center">No accounts with activity yet.</div>`}</div>`;
+    <div class="flex items-center gap-2 mb-3">
+      <input type="search" placeholder="Filter by email or company…" value="${escHtml(_adminUserFilter)}"
+        class="control rounded-lg px-2.5 py-1.5 text-[11px] text-slate-100 flex-1" id="adminUserFilter" />
+      <button type="button" class="btn text-[10px] uppercase tracking-[0.12em] font-bold text-slate-500 hover:text-slate-300" id="adminUsersRefresh">Refresh</button>
+    </div>
+    <div class="text-[11px] adm-note mb-3">${users.length} of ${_adminUsers.length} account${_adminUsers.length === 1 ? "" : "s"}. Green = active, grey = dormant 14+ days.</div>
+    <div class="card rounded-xl p-4">${rows || `<div class="text-slate-600 text-sm py-8 text-center">No accounts match.</div>`}</div>`;
+
+  const f = el.querySelector("#adminUserFilter");
+  if (f) {
+    f.addEventListener("input", () => {
+      _adminUserFilter = f.value;
+      const at = f.selectionStart;
+      renderAdminAccounts();
+      const nf = document.getElementById("adminUserFilter");
+      if (nf) { nf.focus(); try { nf.setSelectionRange(at, at); } catch (_) {} }
+    });
+  }
+  const rf = el.querySelector("#adminUsersRefresh");
+  if (rf) rf.addEventListener("click", () => renderAdminAccounts(true));
+  wireAdminAccountActions(el);
+}
+
+function wireAdminAccountActions(el) {
+  if (el._adminWired) return;
+  el._adminWired = true;
+  el.addEventListener("click", async (e) => {
+    const show = (sel, id) => el.querySelector(`[${sel}="${(window.CSS && CSS.escape) ? CSS.escape(id) : id}"]`);
+
+    const tog = e.target.closest("[data-admin-toggle]");
+    if (tog) { const p = show("data-admin-panel", tog.dataset.adminToggle); if (p) p.classList.toggle("hidden"); return; }
+
+    const del = e.target.closest("[data-admin-del]");
+    if (del) { const c = show("data-admin-delconfirm", del.dataset.adminDel); if (c) c.classList.remove("hidden"); return; }
+
+    const setPlan = e.target.closest("[data-admin-setplan]");
+    if (setPlan) {
+      const id = setPlan.dataset.adminSetplan;
+      const sel = show("data-admin-plan", id);
+      const plan = sel ? sel.value : "";
+      const u = (_adminUsers || []).find(x => x.id === id);
+      if (u && u.stripeCustomerId &&
+          !confirm(`${u.email} bills through Stripe.\n\nSetting them to "${plan}" here will be overwritten at their next subscription event, and until then they'll be billed for one plan and using another.\n\nContinue anyway?`)) return;
+      _adminBusyId = id;
+      try { await adminUsersCall("set_plan", { userId: id, plan }); toast(`Plan set to ${plan}`); await renderAdminAccounts(true); }
+      catch (err) { toast(err.message || "Couldn't set the plan"); }
+      finally { _adminBusyId = null; }
+      return;
+    }
+
+    const reset = e.target.closest("[data-admin-reset]");
+    if (reset) {
+      const id = reset.dataset.adminReset;
+      try { await adminUsersCall("reset_counters", { userId: id }); toast("Usage counters reset"); await renderAdminAccounts(true); }
+      catch (err) { toast(err.message || "Couldn't reset counters"); }
+      return;
+    }
+
+    const go = e.target.closest("[data-admin-delgo]");
+    if (go) {
+      const id = go.dataset.adminDelgo;
+      const input = show("data-admin-delemail", id);
+      const typed = (input && input.value || "").trim();
+      const u = (_adminUsers || []).find(x => x.id === id);
+      // The function re-checks this too — the UI check is only so the mistake is
+      // caught before a destructive round trip, not as the actual guard.
+      if (!u || typed.toLowerCase() !== (u.email || "").toLowerCase()) {
+        toast("Type the account's email exactly to confirm"); return;
+      }
+      go.disabled = true; go.textContent = "Deleting…";
+      try {
+        const r = await adminUsersCall("delete", { userId: id, confirmEmail: typed });
+        toast(`Deleted ${r.deleted || u.email}`);
+        await renderAdminAccounts(true);
+      } catch (err) {
+        toast(err.message || "Couldn't delete that account");
+        go.disabled = false; go.textContent = "Delete";
+      }
+      return;
+    }
+  });
 }
 
 // ── Sticking points — onboarding funnel + friction flags ───────────────────
