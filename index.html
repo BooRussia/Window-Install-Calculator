@@ -696,6 +696,120 @@
     body.dashnav-collapsed .dnav-count,
     body.dashnav-collapsed .dnav-usermeta { display: none; }
     body.dashnav-collapsed .dnav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+
+  /* ── Sidebar hover micro-animations (owner request 2026-08-01, Grok-style) ──
+     Each nav icon plays a small bespoke animation on hover/keyboard focus:
+     the bell rings, the crew's heads pop out, the funnel shakes, and so on.
+     Rules of the set:
+       * transform/opacity/stroke-dash only — no layout, no repaints beyond the
+         22px icon box; each runs ONCE per hover entry (CSS restarts it).
+       * .hover-sim mirrors :hover so tests (and future debugging) can force the
+         state — :hover itself can't be synthesized from JS.
+       * sub-parts are targeted by nth-child against the icon markup in
+         DASH_CARDS, so the SVGs stay shared with the launchpad untouched.
+       * transform-box: fill-box makes each part rotate/scale about ITSELF —
+         without it SVG transform-origin resolves against the whole viewBox.
+       * everything gated behind prefers-reduced-motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    .dnav-item svg, .dnav-item svg * { transform-box: fill-box; transform-origin: center; }
+
+    /* Dashboard: the four tiles pop in a quick stagger. */
+    @keyframes navTilePop { 0% { transform: scale(1); } 35% { transform: scale(0.55); } 100% { transform: scale(1); } }
+    .dnav-item[data-dashnav="home"]:hover svg rect, .dnav-item[data-dashnav="home"]:focus-visible svg rect,
+    .dnav-item[data-dashnav="home"].hover-sim svg rect { animation: navTilePop 0.45s ease; }
+    .dnav-item[data-dashnav="home"]:hover svg rect:nth-child(2), .dnav-item[data-dashnav="home"].hover-sim svg rect:nth-child(2) { animation-delay: 0.06s; }
+    .dnav-item[data-dashnav="home"]:hover svg rect:nth-child(3), .dnav-item[data-dashnav="home"].hover-sim svg rect:nth-child(3) { animation-delay: 0.12s; }
+    .dnav-item[data-dashnav="home"]:hover svg rect:nth-child(4), .dnav-item[data-dashnav="home"].hover-sim svg rect:nth-child(4) { animation-delay: 0.18s; }
+
+    /* Jobs: the calendar's hang-tabs press down like it's being pinned up. */
+    @keyframes navTabsPress { 0%,100% { transform: translateY(0); } 40% { transform: translateY(2.2px); } }
+    @keyframes navBodyBounce { 0%,100% { transform: translateY(0); } 45% { transform: translateY(1.4px); } }
+    .dnav-item[data-dashnav="jobs"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="jobs"]:focus-visible svg path:nth-of-type(2),
+    .dnav-item[data-dashnav="jobs"].hover-sim svg path:nth-of-type(2) { animation: navTabsPress 0.5s ease; }
+    .dnav-item[data-dashnav="jobs"]:hover svg rect, .dnav-item[data-dashnav="jobs"].hover-sim svg rect { animation: navBodyBounce 0.5s ease 0.08s; }
+
+    /* Follow-ups: ring the bell. Body swings from the top hinge, clapper answers. */
+    @keyframes navBellRing { 0% { transform: rotate(0); } 20% { transform: rotate(13deg); } 45% { transform: rotate(-10deg); } 68% { transform: rotate(6deg); } 85% { transform: rotate(-3deg); } 100% { transform: rotate(0); } }
+    @keyframes navClapper { 0% { transform: translateX(0); } 25% { transform: translateX(-1.6px); } 55% { transform: translateX(1.6px); } 80% { transform: translateX(-0.8px); } 100% { transform: translateX(0); } }
+    .dnav-item[data-dashnav="followups"]:hover svg path:nth-of-type(1), .dnav-item[data-dashnav="followups"]:focus-visible svg path:nth-of-type(1),
+    .dnav-item[data-dashnav="followups"].hover-sim svg path:nth-of-type(1) { transform-origin: 50% 12%; animation: navBellRing 0.75s ease; }
+    .dnav-item[data-dashnav="followups"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="followups"].hover-sim svg path:nth-of-type(2) { animation: navClapper 0.75s ease 0.05s; }
+
+    /* Team members: the two side heads pop out from behind the leader. */
+    @keyframes navHeadPop { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes navHeadBob { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-1.6px); } }
+    .dnav-item[data-dashnav="team"]:hover svg circle:nth-of-type(2), .dnav-item[data-dashnav="team"]:focus-visible svg circle:nth-of-type(2),
+    .dnav-item[data-dashnav="team"].hover-sim svg circle:nth-of-type(2) { animation: navHeadPop 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.08s backwards; }
+    .dnav-item[data-dashnav="team"]:hover svg circle:nth-of-type(3), .dnav-item[data-dashnav="team"].hover-sim svg circle:nth-of-type(3) { animation: navHeadPop 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.18s backwards; }
+    .dnav-item[data-dashnav="team"]:hover svg circle:nth-of-type(1), .dnav-item[data-dashnav="team"].hover-sim svg circle:nth-of-type(1) { animation: navHeadBob 0.5s ease; }
+
+    /* AI plan read: the viewfinder brackets breathe out while the crosshair spins. */
+    @keyframes navBracketPulse { 0%,100% { transform: scale(1); } 45% { transform: scale(1.14); } }
+    @keyframes navPlusSpin { 0% { transform: rotate(0); } 100% { transform: rotate(90deg); } }
+    .dnav-item[data-dashnav="aiplan"]:hover svg path:nth-of-type(1), .dnav-item[data-dashnav="aiplan"]:focus-visible svg path:nth-of-type(1),
+    .dnav-item[data-dashnav="aiplan"].hover-sim svg path:nth-of-type(1) { animation: navBracketPulse 0.55s ease; }
+    .dnav-item[data-dashnav="aiplan"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="aiplan"].hover-sim svg path:nth-of-type(2) { animation: navPlusSpin 0.5s cubic-bezier(0.34,1.4,0.64,1); }
+
+    /* Manufacturers: the skyline rises out of the ground line. */
+    @keyframes navSkylineRise { 0% { transform: translateY(4px) scaleY(0.6); opacity: 0.4; } 100% { transform: translateY(0) scaleY(1); opacity: 1; } }
+    .dnav-item[data-dashnav="manufacturers"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="manufacturers"]:focus-visible svg path:nth-of-type(2),
+    .dnav-item[data-dashnav="manufacturers"].hover-sim svg path:nth-of-type(2) { transform-origin: 50% 100%; animation: navSkylineRise 0.45s cubic-bezier(0.34,1.3,0.64,1); }
+
+    /* Deal pipeline: the funnel gives a little pour-shake. */
+    @keyframes navFunnelShake { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-5deg); } 55% { transform: rotate(4deg); } 80% { transform: rotate(-2deg); } }
+    .dnav-item[data-dashnav="pipeline"]:hover svg, .dnav-item[data-dashnav="pipeline"]:focus-visible svg,
+    .dnav-item[data-dashnav="pipeline"].hover-sim svg { transform-origin: 50% 20%; animation: navFunnelShake 0.6s ease; }
+
+    /* Insights: the trend line draws itself across the chart. */
+    @keyframes navLineDraw { 0% { stroke-dasharray: 16; stroke-dashoffset: 16; } 100% { stroke-dasharray: 16; stroke-dashoffset: 0; } }
+    .dnav-item[data-dashnav="insights"]:hover svg path:nth-of-type(3), .dnav-item[data-dashnav="insights"]:focus-visible svg path:nth-of-type(3),
+    .dnav-item[data-dashnav="insights"].hover-sim svg path:nth-of-type(3) { animation: navLineDraw 0.55s ease-out; }
+
+    /* Revenue trend: line draws, arrowhead lands after it. */
+    @keyframes navArrowLand { 0% { transform: translate(-2.5px, 2.5px); opacity: 0; } 100% { transform: translate(0, 0); opacity: 1; } }
+    .dnav-item[data-dashnav="revenue"]:hover svg path:nth-of-type(1), .dnav-item[data-dashnav="revenue"]:focus-visible svg path:nth-of-type(1),
+    .dnav-item[data-dashnav="revenue"].hover-sim svg path:nth-of-type(1) { animation: navLineDraw 0.5s ease-out; }
+    .dnav-item[data-dashnav="revenue"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="revenue"].hover-sim svg path:nth-of-type(2) { animation: navArrowLand 0.35s ease-out 0.28s backwards; }
+
+    /* E-signatures: the signature squiggle writes itself, pen-lift after. */
+    @keyframes navSigDraw { 0% { stroke-dasharray: 22; stroke-dashoffset: 22; } 100% { stroke-dasharray: 22; stroke-dashoffset: 0; } }
+    .dnav-item[data-dashnav="esign"]:hover svg path:nth-of-type(1), .dnav-item[data-dashnav="esign"]:focus-visible svg path:nth-of-type(1),
+    .dnav-item[data-dashnav="esign"].hover-sim svg path:nth-of-type(1) { animation: navSigDraw 0.6s ease-in-out; }
+    .dnav-item[data-dashnav="esign"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="esign"].hover-sim svg path:nth-of-type(2) { animation: navArrowLand 0.3s ease-out 0.5s backwards; }
+
+    /* Shopping list: the cart rocks on its wheels, the tick re-checks itself. */
+    @keyframes navCartRock { 0%,100% { transform: rotate(0); } 30% { transform: rotate(-4deg); } 65% { transform: rotate(3deg); } }
+    @keyframes navCheckDraw { 0% { stroke-dasharray: 9; stroke-dashoffset: 9; } 100% { stroke-dasharray: 9; stroke-dashoffset: 0; } }
+    .dnav-item[data-dashnav="shopping"]:hover svg, .dnav-item[data-dashnav="shopping"]:focus-visible svg,
+    .dnav-item[data-dashnav="shopping"].hover-sim svg { transform-origin: 50% 85%; animation: navCartRock 0.55s ease; }
+    .dnav-item[data-dashnav="shopping"]:hover svg path:nth-of-type(1), .dnav-item[data-dashnav="shopping"].hover-sim svg path:nth-of-type(1) { animation: navCheckDraw 0.4s ease-out 0.15s backwards; }
+
+    /* Calibration: the dial's rays give it a confident quarter-twist. */
+    @keyframes navDialTwist { 0% { transform: rotate(0); } 55% { transform: rotate(48deg); } 100% { transform: rotate(45deg); } }
+    .dnav-item[data-dashnav="calibration"]:hover svg path:nth-of-type(1), .dnav-item[data-dashnav="calibration"]:focus-visible svg path:nth-of-type(1),
+    .dnav-item[data-dashnav="calibration"].hover-sim svg path:nth-of-type(1) { animation: navDialTwist 0.6s cubic-bezier(0.34,1.3,0.64,1); }
+
+    /* Change order: the arrow breaks out to the right and snaps back. */
+    @keyframes navArrowNudge { 0%,100% { transform: translateX(0); } 45% { transform: translateX(2.6px); } }
+    .dnav-item[data-dashnav="changeorder"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="changeorder"]:focus-visible svg path:nth-of-type(2),
+    .dnav-item[data-dashnav="changeorder"].hover-sim svg path:nth-of-type(2) { animation: navArrowNudge 0.45s ease; }
+
+    /* FL approval: the shield swells, the check re-draws inside it. */
+    @keyframes navShieldPulse { 0%,100% { transform: scale(1); } 40% { transform: scale(1.1); } }
+    .dnav-item[data-dashnav="fl"]:hover svg path:nth-of-type(1), .dnav-item[data-dashnav="fl"]:focus-visible svg path:nth-of-type(1),
+    .dnav-item[data-dashnav="fl"].hover-sim svg path:nth-of-type(1) { animation: navShieldPulse 0.5s ease; }
+    .dnav-item[data-dashnav="fl"]:hover svg path:nth-of-type(2), .dnav-item[data-dashnav="fl"].hover-sim svg path:nth-of-type(2) { animation: navCheckDraw 0.4s ease-out 0.12s backwards; }
+
+    /* Settings: the gear turns one satisfying notch. */
+    @keyframes navGearTurn { 0% { transform: rotate(0); } 100% { transform: rotate(60deg); } }
+    .dnav-item[data-dashnav-settings]:hover svg, .dnav-item[data-dashnav-settings]:focus-visible svg,
+    .dnav-item[data-dashnav-settings].hover-sim svg { animation: navGearTurn 0.55s cubic-bezier(0.34,1.3,0.64,1); }
+
+    /* Report a bug: the bug wiggles like it knows it's been spotted. */
+    @keyframes navBugWiggle { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-8deg); } 50% { transform: rotate(7deg); } 75% { transform: rotate(-4deg); } }
+    .dnav-item[data-dashnav-feedback]:hover svg, .dnav-item[data-dashnav-feedback]:focus-visible svg,
+    .dnav-item[data-dashnav-feedback].hover-sim svg { animation: navBugWiggle 0.55s ease; }
+  }
     body.dashnav-collapsed .dnav-brandrow { justify-content: center; }
     body.dashnav-collapsed .dnav-brandmark { display: none; }
   }
