@@ -5957,13 +5957,16 @@
     display: flex; justify-content: flex-end; align-items: center;
     margin: -4px 0 12px;
   }
+  /* Sits in the page bar between "All time" and "New quote" — same 38px pill
+     height and border weight as those neighbours so the row reads as one set
+     (owner: the old chip looked undersized next to them). */
   .dash-customize-btn {
-    background: rgba(148,163,184,0.1); color: #94a3b8;
-    border: 1px solid rgba(148,163,184,0.28);
+    background: transparent; color: #94a3b8;
+    border: 1px solid rgba(51,65,85,0.9);
     border-radius: 9999px;
-    font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
-    padding: 5px 10px; min-height: 0; line-height: 1.2;
-    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 0 14px; min-height: 38px; line-height: 1.2;
+    display: inline-flex; align-items: center; gap: 6px;
     transition: all .15s ease; cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
@@ -9870,6 +9873,10 @@
         </button>
       </div>
     </div>
+    <!-- Customize toolbar + add-back tray. Lives directly under the page bar —
+         with the Customize button up there, its controls belong beside it, not
+         below the overview panels (owner request 2026-07-31). -->
+    <div id="dashEditBar" class="dash-editbar hidden"></div>
     <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
     <div id="dashStats" class="mb-4 hidden"></div>
@@ -9888,7 +9895,6 @@
     <div id="dashFirstRun" class="hidden mb-9"></div>
 
     <!-- Customize toolbar + "add back" tray — only shown in edit mode. -->
-    <div id="dashEditBar" class="dash-editbar hidden"></div>
 
     <!-- Launchpad: modular cards you click into. Extensible — add a DASH_CARDS entry
          + a render fn and a new tile appears here with no layout surgery. Card
@@ -20139,10 +20145,14 @@ function dashResetLayout() {
 }
 // Read the live DOM order after a drag and persist it (visible cards only; the
 // hidden set is unchanged).
-function persistDashOrderFromDOM() {
+function persistDashOrderFromDOM(draggedCell) {
   const wrap = document.getElementById("dashLaunchpad"); if (!wrap) return;
   const visibleOrder = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(Boolean);
-  persistDashLayout(visibleOrder, resolveDashLayout().hiddenList);
+  const { hiddenList, spans } = resolveDashLayout();
+  const draggedKey = draggedCell && draggedCell.dataset ? draggedCell.dataset.cardKey : null;
+  const resized = draggedKey && autoFitSpansOnDrop(visibleOrder, spans, draggedKey);
+  persistDashLayout(visibleOrder, hiddenList, spans);
+  if (resized) refreshDashLaunchpad();   // spans moved — repaint sizes now
 }
 
 /* ── One drag engine, two grids ───────────────────────────────────────────────
@@ -20281,7 +20291,7 @@ function wireDashDragReorder(wrap, sel, onDrop) {
     // Sweep the inline styles once everything has settled — but never out from
     // under a drag that has already started again.
     setTimeout(() => { if (!ptr) tiles().forEach(el => { el.style.transition = ""; el.style.transform = ""; }); }, 300);
-    try { onDrop(); } catch (_) {}
+    try { onDrop(cell); } catch (_) {}
   };
   wrap.addEventListener("pointerup", end);
   wrap.addEventListener("pointercancel", end);
@@ -20300,7 +20310,7 @@ function renderDashEditBar() {
   }).join("");
   bar.innerHTML = `
     <div class="dash-editbar-row">
-      <span class="dash-editbar-title">Customize — drag cards to reorder (or use ↑ ↓), remove with ×.</span>
+      <span class="dash-editbar-title">Customize — drag to reorder (a card makes room by shrinking its neighbour), pick a size, remove with ×.</span>
       <span class="dash-editbar-actions">
         <button type="button" class="dash-eb-btn" data-dashreset>Reset</button>
         <button type="button" class="dash-eb-btn dash-eb-done" data-dashdone>Done</button>
@@ -20343,7 +20353,7 @@ function renderDashLaunchpad(jobs) {
       return `
       <div class="dash-launch-cell editing dlc-span-${spans[c.key] || 1}" data-card-key="${c.key}">
         <div class="dash-edit-controls">
-          ${[1,2,3].map(w => `<button type="button" class="dec-btn dec-span${(spans[c.key]||1)===w ? " on" : ""}" data-dashspan="${w}" data-key="${c.key}" aria-label="${escHtml(c.title)}: ${w} of 3 blocks wide" aria-pressed="${(spans[c.key]||1)===w}" title="${w}/3 wide">${w}</button>`).join("")}
+          ${[1,2,3].map(w => `<button type="button" class="dec-btn dec-span${(spans[c.key]||1)===w ? " on" : ""}" data-dashspan="${w}" data-key="${c.key}" aria-label="${escHtml(c.title)}: ${DEC_SPAN_NAME[w]}" aria-pressed="${(spans[c.key]||1)===w}" title="${DEC_SPAN_NAME[w]}">${DEC_SPAN_ICONS[w]}</button>`).join("")}
           <span class="dec-handle" aria-hidden="true" title="Drag to reorder"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
           <span class="dec-spacer"></span>
           <button type="button" class="dec-btn" data-dashmove="up" data-key="${c.key}" aria-label="Move ${escHtml(c.title)} earlier">&uarr;</button>
@@ -22099,6 +22109,35 @@ const DASH_OV_PANELS = [
    3 blocks of a 3-column grid (owner request 2026-07-31 — "adjust every single
    card to be one block, two blocks, or three blocks wide"). Defaults reproduce
    the layout everyone already has: pipeline full row, booked 2, attention 1. */
+/* Make room on drop (owner request 2026-07-31): dropping a card beside a row it
+   doesn't fit into SHRINKS that row's widest card instead of pushing the dropped
+   one to a new line. Example: drag a 1-wide onto a full-width 3 — the 3 becomes
+   a 2 and they share the row; which side the 1 lands on is the drop order.
+   Rows are simulated with the same greedy fill the grid uses; only OTHER cards
+   ever shrink (never below 1, never the one being dragged), and a full-width
+   card being dragged is left alone — nothing can share a row with a 3. */
+function autoFitSpansOnDrop(visible, spans, draggedKey) {
+  const di = visible.indexOf(draggedKey);
+  if (di <= 0) return false;
+  const dspan = spans[draggedKey] || 1;
+  if (dspan >= 3) return false;
+  // Greedy rows over the cards BEFORE the dragged one.
+  let row = [], sum = 0;
+  for (let i = 0; i < di; i++) {
+    const k = visible[i], sp = spans[k] || 1;
+    if (sum + sp > 3) { row = [k]; sum = sp; } else { row.push(k); sum += sp; }
+  }
+  if (!row.length || sum + dspan <= 3) return false;   // already fits — nothing to do
+  let changed = false;
+  // Shrink the widest neighbour first, one block at a time, until it fits.
+  while (sum + dspan > 3) {
+    let widest = null;
+    row.forEach(k => { if ((spans[k] || 1) > 1 && (!widest || (spans[k] || 1) > (spans[widest] || 1))) widest = k; });
+    if (!widest) return changed;   // everyone is already 1 block — genuinely full
+    spans[widest] = (spans[widest] || 1) - 1; sum -= 1; changed = true;
+  }
+  return changed;
+}
 const DASH_OV_DEFAULT_SPAN = { pipeline: 3, booked: 2, attention: 1 };
 function resolveDashOvLayout() {
   const all = DASH_OV_PANELS.map(p => p.key);
@@ -22125,6 +22164,14 @@ function setDashOvSpan(key, span) {
   saveDashOvLayout(order, hiddenList, spans);
   applyDashOvLayout();
 }
+/* iPhone-widget-style size glyphs: a frame with a fill that grows S -> M -> L.
+   Replaces the bare 1|2|3 digits (owner request 2026-07-31). */
+const DEC_SPAN_ICONS = {
+  1: '<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0.75" y="0.75" width="16.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35"/><rect x="2.4" y="2.4" width="4.4" height="7.2" rx="1.4" fill="currentColor"/></svg>',
+  2: '<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0.75" y="0.75" width="16.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35"/><rect x="2.4" y="2.4" width="8.9" height="7.2" rx="1.4" fill="currentColor"/></svg>',
+  3: '<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0.75" y="0.75" width="16.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35"/><rect x="2.4" y="2.4" width="13.2" height="7.2" rx="1.4" fill="currentColor"/></svg>',
+};
+const DEC_SPAN_NAME = { 1: "Small", 2: "Medium", 3: "Full width" };
 const DEC_HANDLE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 
 function applyDashOvLayout() {
@@ -22159,7 +22206,7 @@ function applyDashOvLayout() {
     ctl.className = "dash-edit-controls";
     const seg = [1, 2, 3].map(n =>
       `<button type="button" class="dec-btn dec-span${spans[p.key] === n ? " on" : ""}" data-dashovspan="${n}" data-key="${p.key}"
-         aria-label="${escHtml(p.title)}: ${n} of 3 blocks wide" aria-pressed="${spans[p.key] === n}" title="${n}/3 wide">${n}</button>`).join("");
+         aria-label="${escHtml(p.title)}: ${DEC_SPAN_NAME[n]}" aria-pressed="${spans[p.key] === n}" title="${DEC_SPAN_NAME[n]}">${DEC_SPAN_ICONS[n]}</button>`).join("");
     ctl.innerHTML =
       `<span class="dec-handle" aria-hidden="true">${DEC_HANDLE_SVG}</span>${seg}<span class="dec-spacer"></span>`
       + `<button type="button" class="dec-btn" data-dashovmove="up" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} earlier"${i === 0 ? " disabled" : ""}>&uarr;</button>`
@@ -22171,13 +22218,17 @@ function applyDashOvLayout() {
 /* After a drag the DOM already holds the new order — read it back rather than
    re-running applyDashOvLayout, which would re-append the panels and cut the
    drop animation short. Only the ↑ ↓ enable-states need catching up. */
-function persistDashOvOrderFromDOM() {
+function persistDashOvOrderFromDOM(draggedCell) {
   const wrap = document.getElementById("dashOverview"); if (!wrap) return;
   const byId = {}; DASH_OV_PANELS.forEach(p => { byId[p.id] = p.key; });
-  const { hiddenList } = resolveDashOvLayout();
+  const { hiddenList, spans } = resolveDashOvLayout();
   const domOrder = Array.from(wrap.children).map(el => byId[el.id]).filter(Boolean);
   const visible = domOrder.filter(k => !hiddenList.includes(k));
-  saveDashOvLayout(visible.concat(hiddenList), hiddenList);
+  // Dropped somewhere it doesn't fit? Shrink the row's widest card to make room.
+  const draggedKey = draggedCell && byId[draggedCell.id];
+  const resized = draggedKey && autoFitSpansOnDrop(visible, spans, draggedKey);
+  saveDashOvLayout(visible.concat(hiddenList), hiddenList, spans);
+  if (resized) { applyDashOvLayout(); return; }   // spans moved — repaint sizes now
   const shown = Array.from(wrap.children).filter(el => el.classList.contains("editing"));
   shown.forEach((el, i) => {
     const up = el.querySelector('[data-dashovmove="up"]'), dn = el.querySelector('[data-dashovmove="down"]');
