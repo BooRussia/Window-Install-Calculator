@@ -515,8 +515,25 @@
   [data-theme="light"] .dco-reset:hover { color: #be123c; }
   [data-theme="light"] .dco-rowsub { color: #64748b; }
   /* ── v2 P3: the overview grid ─────────────────────────────────────────────── */
+  /* 3 equal blocks; every panel spans 1–3 of them (owner-chosen, persisted).
+     dense flow lets a later 1-block card backfill beside a 2-block one instead
+     of leaving a hole. Under 1000px everything stacks and spans are moot. */
   .dash-overview { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
-  @media (min-width: 1000px) { .dash-overview { grid-template-columns: 2fr 1fr; } }
+  @media (min-width: 1000px) { .dash-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; } }
+  @media (max-width: 999.98px) { .dash-overview > .dash-ovcard { grid-column: auto !important; } }
+  .dec-span { min-width: 26px; font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  /* Launchpad card widths. Tailwind gives the grid 1/2/3 columns by breakpoint;
+     the chosen span clamps to what the current breakpoint actually has. */
+  @media (min-width: 640px) { #dashLaunchpad { grid-auto-flow: dense; } }
+  @media (min-width: 640px) and (max-width: 1023.98px) {
+    .dlc-span-2, .dlc-span-3 { grid-column: span 2; }
+  }
+  @media (min-width: 1024px) {
+    .dlc-span-2 { grid-column: span 2; }
+    .dlc-span-3 { grid-column: span 3; }
+  }
+  .dec-span.on { color: var(--gold-hi); border-color: rgba(181,143,74,0.55); background: rgba(181,143,74,0.14); }
+  [data-theme="light"] .dec-span.on { color: var(--gold-ink); border-color: #d9c79a; background: rgba(181,143,74,0.14); }
   /* Flex column so a shorter panel's content can stretch to the row height the
      taller neighbour sets — otherwise the chart floats at the top of dead space. */
   .dash-ovcard { border: 1px solid rgba(51,65,85,0.55); border-radius: 16px; background: #0b1120;
@@ -6010,6 +6027,10 @@
      controls overlay, and a dashed outline so it's obvious they're editable. */
   .dash-ovcard.editing { position: relative; outline: 1px dashed rgba(181,143,74,0.45); outline-offset: 2px; }
   .dash-ovcard.editing .dash-edit-controls { top: 10px; right: 10px; left: auto; width: auto; }
+  /* The 1|2|3 width buttons made the controls row wide enough to collide with
+     the panel's own header (title, "Last 12 months" pill) — push the card body
+     down while editing so the row gets a clear strip of its own. */
+  .dash-ovcard.editing { padding-top: 48px; }
   /* A panel's own "All →" / "Deal pipeline →" link is inert while editing and
      would crowd the ↑ ↓ × row — take it out of the way rather than overlap it. */
   .dash-ovcard.editing .dash-ovlink { visibility: hidden; }
@@ -9833,6 +9854,15 @@
         <span id="dashTopBarNote" class="dash-topbar-note hidden"></span>
       </div>
       <div class="dash-topbar-tools">
+        <!-- Customize moved up here from below the overview (owner request
+             2026-07-31 — it was easy to miss at the bottom of the page). Still
+             home-only: applyDashView hides the row on drill-in. -->
+        <div id="dashCustomizeRow" class="dash-customize-row">
+          <button id="dashCustomizeBtn" type="button" class="dash-customize-btn" aria-pressed="false" title="Reorder, resize, add, or remove dashboard cards">
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14"/><circle cx="7" cy="5.5" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="7" cy="14.5" r="1.6"/></svg>
+            <span class="dcb-label">Customize</span>
+          </button>
+        </div>
         <select id="dashRangeSel" class="control jobs-ctl text-slate-300" title="The period every number on this page covers"></select>
         <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-[12.5px] font-bold px-4 inline-flex items-center gap-1.5 jobs-ctl">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
@@ -9849,15 +9879,6 @@
       <div class="dash-ovcard dash-ovcard-wide" id="dashBookedCard"></div>
       <div class="dash-ovcard" id="dashAttentionCard"></div>
       <div class="dash-ovcard dash-ovcard-full" id="dashPipelineCard"></div>
-    </div>
-
-    <!-- Customize sits under the KPI glance tiles and above the Jobs card —
-         that's the launchpad it edits, so the control belongs with those cards. -->
-    <div id="dashCustomizeRow" class="dash-customize-row">
-      <button id="dashCustomizeBtn" type="button" class="dash-customize-btn" aria-pressed="false" title="Reorder, add, or remove dashboard cards">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/><circle cx="7" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="14" r="1.6" fill="currentColor" stroke="none"/></svg>
-        <span class="dcb-label">Customize</span>
-      </button>
     </div>
 
     <!-- First-run activation (DASH-1/ONBD-2): a brand-new account (no saved jobs)
@@ -19762,7 +19783,7 @@ const DASH_CARDS = [
   { key: "revenue", title: "Revenue trend",
     blurb: "Your booked revenue and profit month by month — watch the trend and where your margin's going.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 3 3 7-8"/><path d="M16 8h4v4"/></svg>` },
-  { key: "changeorder", title: "Change order",
+  { key: "changeorder", title: "Change order", goto: "co-modal",
     blurb: "Something went wrong on site? Price the fix off that job's crew rate and send a change order PDF.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h13M4 12h9M4 18h11"/><path d="M17 11l3.5 3.5L17 18"/></svg>`,
     preview: (ctx) => ctx.coRate
@@ -20072,12 +20093,23 @@ function resolveDashLayout() {
   const hidden = new Set(Array.isArray(cfg.hidden) ? cfg.hidden.filter(k => all.includes(k)) : []);
   const order = (Array.isArray(cfg.order) ? cfg.order.filter(k => all.includes(k)) : []).slice();
   all.forEach(k => { if (!order.includes(k)) order.push(k); });   // new cards → end
-  return { order, visible: order.filter(k => !hidden.has(k)), hiddenList: order.filter(k => hidden.has(k)) };
+  // Per-card width, 1-3 blocks of the 3-column grid. Default 1 = today's look.
+  const spans = {};
+  all.forEach(k => { const raw = cfg.spans && Number(cfg.spans[k]); spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : 1; });
+  return { order, spans, visible: order.filter(k => !hidden.has(k)), hiddenList: order.filter(k => hidden.has(k)) };
 }
-function persistDashLayout(visibleOrder, hiddenList) {
+function persistDashLayout(visibleOrder, hiddenList, spans) {
   DATA.config = DATA.config || {};
-  DATA.config.dashLayout = { order: visibleOrder.concat(hiddenList), hidden: hiddenList.slice() };
+  const prev = DATA.config.dashLayout || {};
+  DATA.config.dashLayout = { order: visibleOrder.concat(hiddenList), hidden: hiddenList.slice(),
+    spans: spans || prev.spans || {} };
   saveData(DATA);
+}
+function setDashCardSpan(key, span) {
+  const { visible, hiddenList, spans } = resolveDashLayout();
+  spans[key] = Math.min(3, Math.max(1, Number(span) || 1));
+  persistDashLayout(visible, hiddenList, spans);
+  refreshDashLaunchpad();
 }
 function refreshDashLaunchpad() { renderDashLaunchpad(loadJobs()); renderDashEditBar(); }
 function dashMove(key, dir) {
@@ -20302,14 +20334,16 @@ function renderDashLaunchpad(jobs) {
   const ctx = dashLaunchContext(jobs);
   const editing = _dashEditMode;
   wrap.classList.toggle("editing", editing);
-  wrap.innerHTML = resolveDashLayout().visible.map(key => {
+  const { visible, spans } = resolveDashLayout();
+  wrap.innerHTML = visible.map(key => {
     const c = DASH_CARDS.find(x => x.key === key);
     if (!c) return "";
     const body = dashCardBody(c.key, ctx, jobs) || "";
     if (editing) {
       return `
-      <div class="dash-launch-cell editing" data-card-key="${c.key}">
+      <div class="dash-launch-cell editing dlc-span-${spans[c.key] || 1}" data-card-key="${c.key}">
         <div class="dash-edit-controls">
+          ${[1,2,3].map(w => `<button type="button" class="dec-btn dec-span${(spans[c.key]||1)===w ? " on" : ""}" data-dashspan="${w}" data-key="${c.key}" aria-label="${escHtml(c.title)}: ${w} of 3 blocks wide" aria-pressed="${(spans[c.key]||1)===w}" title="${w}/3 wide">${w}</button>`).join("")}
           <span class="dec-handle" aria-hidden="true" title="Drag to reorder"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
           <span class="dec-spacer"></span>
           <button type="button" class="dec-btn" data-dashmove="up" data-key="${c.key}" aria-label="Move ${escHtml(c.title)} earlier">&uarr;</button>
@@ -20326,7 +20360,7 @@ function renderDashLaunchpad(jobs) {
       </div>`;
     }
     return `
-    <div class="dash-launch-cell" data-card-key="${c.key}">
+    <div class="dash-launch-cell dlc-span-${spans[c.key] || 1}" data-card-key="${c.key}">
       <button type="button" data-dashcard="${c.goto || c.key}" class="dash-launch-card" aria-describedby="tip-${c.key}">
         <span class="dash-launch-head">
           <span class="dash-launch-icon">${c.icon}</span>
@@ -22029,6 +22063,8 @@ function renderDashOverview(jobs) {
     wrap._wired = true;
     wrap.addEventListener("click", (e) => {
       // Edit-mode controls first — they sit on top of the panels' own links.
+      const sp = e.target.closest("[data-dashovspan]");
+      if (sp) { setDashOvSpan(sp.dataset.key, sp.dataset.dashovspan); return; }
       const mv = e.target.closest("[data-dashovmove]");
       if (mv) { moveDashOvPanel(mv.dataset.key, mv.dataset.dashovmove); return; }
       const rm = e.target.closest("[data-dashovremove]");
@@ -22059,18 +22095,35 @@ const DASH_OV_PANELS = [
   { key: "attention", id: "dashAttentionCard", title: "Needs attention" },
   { key: "pipeline",  id: "dashPipelineCard",  title: "Open pipeline", full: true },
 ];
+/* Card width is now CHOSEN, not computed: every panel carries a span of 1, 2 or
+   3 blocks of a 3-column grid (owner request 2026-07-31 — "adjust every single
+   card to be one block, two blocks, or three blocks wide"). Defaults reproduce
+   the layout everyone already has: pipeline full row, booked 2, attention 1. */
+const DASH_OV_DEFAULT_SPAN = { pipeline: 3, booked: 2, attention: 1 };
 function resolveDashOvLayout() {
   const all = DASH_OV_PANELS.map(p => p.key);
   const cfg = (DATA.config && DATA.config.dashOvLayout) || {};
   const order = (Array.isArray(cfg.order) ? cfg.order : []).filter(k => all.includes(k));
   all.forEach(k => { if (!order.includes(k)) order.push(k); });   // a new panel shows up by default
   const hidden = (Array.isArray(cfg.hidden) ? cfg.hidden : []).filter(k => all.includes(k));
-  return { order, visible: order.filter(k => !hidden.includes(k)), hiddenList: order.filter(k => hidden.includes(k)) };
+  const spans = {};
+  all.forEach(k => {
+    const raw = cfg.spans && Number(cfg.spans[k]);
+    spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : (DASH_OV_DEFAULT_SPAN[k] || 1);
+  });
+  return { order, spans, visible: order.filter(k => !hidden.includes(k)), hiddenList: order.filter(k => hidden.includes(k)) };
 }
-function saveDashOvLayout(order, hidden) {
+function saveDashOvLayout(order, hidden, spans) {
   if (!DATA.config) DATA.config = {};
-  DATA.config.dashOvLayout = { order, hidden };
+  const prev = DATA.config.dashOvLayout || {};
+  DATA.config.dashOvLayout = { order, hidden, spans: spans || prev.spans || {} };
   saveData(DATA);
+}
+function setDashOvSpan(key, span) {
+  const { order, hiddenList, spans } = resolveDashOvLayout();
+  spans[key] = Math.min(3, Math.max(1, Number(span) || 1));
+  saveDashOvLayout(order, hiddenList, spans);
+  applyDashOvLayout();
 }
 const DEC_HANDLE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 
@@ -22086,8 +22139,7 @@ function applyDashOvLayout() {
     if (el) wrap.appendChild(el);
   });
 
-  // Which of the two half-width panels survive decides the spans.
-  const halves = visible.filter(k => !byKey[k].full);
+  const { spans } = resolveDashOvLayout();
   DASH_OV_PANELS.forEach(p => {
     const el = document.getElementById(p.id);
     if (!el) return;
@@ -22095,8 +22147,9 @@ function applyDashOvLayout() {
     el.classList.toggle("hidden", !on);
     el.classList.toggle("editing", on && _dashEditMode);
     if (!on) return;
-    // full-width panels, and a lone survivor of the half row, span everything.
-    el.style.gridColumn = (p.full || halves.length === 1) ? "1 / -1" : "";
+    // The owner picks each panel's width (1–3 blocks); the grid's dense flow
+    // backfills gaps so a 2+1 row, three 1s, or a full-width 3 all pack cleanly.
+    el.style.gridColumn = `span ${spans[p.key] || 1}`;
     // Controls are injected after the renderers, so they survive a re-render.
     const old = el.querySelector(":scope > .dash-edit-controls");
     if (old) old.remove();
@@ -22104,8 +22157,11 @@ function applyDashOvLayout() {
     const i = visible.indexOf(p.key);
     const ctl = document.createElement("div");
     ctl.className = "dash-edit-controls";
+    const seg = [1, 2, 3].map(n =>
+      `<button type="button" class="dec-btn dec-span${spans[p.key] === n ? " on" : ""}" data-dashovspan="${n}" data-key="${p.key}"
+         aria-label="${escHtml(p.title)}: ${n} of 3 blocks wide" aria-pressed="${spans[p.key] === n}" title="${n}/3 wide">${n}</button>`).join("");
     ctl.innerHTML =
-      `<span class="dec-handle" aria-hidden="true">${DEC_HANDLE_SVG}</span><span class="dec-spacer"></span>`
+      `<span class="dec-handle" aria-hidden="true">${DEC_HANDLE_SVG}</span>${seg}<span class="dec-spacer"></span>`
       + `<button type="button" class="dec-btn" data-dashovmove="up" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} earlier"${i === 0 ? " disabled" : ""}>&uarr;</button>`
       + `<button type="button" class="dec-btn" data-dashovmove="down" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} later"${i === visible.length - 1 ? " disabled" : ""}>&darr;</button>`
       + `<button type="button" class="dec-btn dec-remove" data-dashovremove="${p.key}" aria-label="Remove ${escHtml(p.title)}">&times;</button>`;
@@ -22183,6 +22239,14 @@ function dashOpenTarget(target) {
   // Kept for the Settings deep-link (the rates editor still lives there).
   if (target === "setup-manufacturers") {
     try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("manufacturers"); } catch (_) {}
+    return;
+  }
+  // Change order opens the same POPUP as the account menu, over whatever page
+  // you're on — the dedicated page felt heavyweight for a price-a-fix tool
+  // (owner request 2026-07-31). The page + renderer stay dormant so an old
+  // saved-nav state restoring _dashView === "changeorder" still works.
+  if (target === "co-modal") {
+    try { openChangeOrder(); } catch (_) {}
     return;
   }
   // AIPLAN-13: the AI card leaves the dashboard and opens the plan picker.
@@ -24939,6 +25003,8 @@ function wireDashboard() {
   if (launchpad) {
     launchpad.addEventListener("click", (e) => {
       // Edit mode: card move / remove controls, and no drill-in navigation.
+      const sp = e.target.closest("[data-dashspan]");
+      if (sp) { e.preventDefault(); e.stopPropagation(); setDashCardSpan(sp.dataset.key, sp.dataset.dashspan); return; }
       const mv = e.target.closest("[data-dashmove]");
       if (mv) { e.preventDefault(); e.stopPropagation(); dashMove(mv.dataset.key, mv.dataset.dashmove); return; }
       const rm = e.target.closest("[data-dashremove]");
