@@ -18645,6 +18645,14 @@ function openDashboard(opts) {
   const wasHidden = d.classList.contains("hidden");
   wireDashboard();
   d.classList.remove("hidden");
+  // The dashboard is an OVERLAY: the calculator stays in the DOM underneath, so
+  // without this, Tab walks the hidden calculator (its whole tab order comes
+  // before the sidebar) and a keyboard user can type into #totalLF — silently
+  // re-pricing the open job — without ever seeing the field. inert removes the
+  // background from both the tab order and the accessibility tree. The shared
+  // app header and the mobile tab bar stay live on purpose: both are used WITH
+  // the dashboard.
+  ["appBody", "jobRail"].forEach(id => { const el = document.getElementById(id); if (el) el.inert = true; });
   d.classList.remove("dash-anim-done");
   // After the enter animation, clear it so a lingering `transform` can’t create
   // an iOS touch-offset containing block over the fixed tab bar.
@@ -18694,6 +18702,8 @@ function closeDashboard(opts) {
     d.classList.add("hidden");
     d.classList.remove("dash-anim-done");
   }
+  // Un-inert the calculator (see openDashboard) the moment the overlay drops.
+  ["appBody", "jobRail"].forEach(id => { const el = document.getElementById(id); if (el) el.inert = false; });
   // If we opened via a pushed history entry and this close is programmatic
   // (Calculator →, Load job, etc.), pop that entry so Back doesn't re-open dash.
   if (_dashHistPushed && !(opts && (opts.fromPopstate || opts.skipHist))) {
@@ -31230,6 +31240,11 @@ function openAdmin() {
   renderSettingsSearch();
   applyStaticCollapseState();
   adminModal.classList.remove("hidden");
+  // Settings was the ONE modal that never entered the dialog stack: Tab could
+  // wander into the page behind it, and Esc only closed it via the fallback
+  // list rather than the stack (so it lost stacking order to any trapped dialog
+  // opened on top). Same treatment as every other modal now.
+  trapDialog(adminModal, closeAdmin);
   navPushOverlay(adminModal);   // Phase 4d (no-op unless HISTORY_NAV)
   scheduleSaveNav();
 }
@@ -40611,6 +40626,9 @@ async function boot() {
   if (window.__PUBLIC_SIGN_ROUTE || /^#\/sign\//.test(window.location.hash || "")) {
     return;
   }
+  // Keyboard dismissal must exist before any auth decision, for the same reason
+  // as the join-code capture below: signed-out surfaces open modals too.
+  try { wireGlobalEscape(); } catch (_) {}
   // Stash ?join=CODE HERE, before anything auth-related. It used to live inside
   // init(), which only ever runs from enterApp() (needs a session) or the
   // Supabase-unavailable fallback — so for a logged-out visitor, the exact person
@@ -42917,6 +42935,18 @@ function init() {
     _buckUpFile.addEventListener("change", () => { const fs = _buckUpFile.files ? [..._buckUpFile.files] : []; _buckUpFile.value = ""; if (fs.length) handlePlanUpload(fs, "buck"); });
   }
 
+  purgeStaleSW();
+}
+
+/* Global Escape. Wired from boot(), NOT init(): init() only runs with a session
+   (or the offline fallback), so when this lived there every signed-out surface —
+   landing, pricing, auth, FL Lookup, the invite landing — had no keyboard way to
+   close anything. Third bug from the same init()-gating root cause, after the
+   invite capture and the FL button wiring. Guarded so init()'s historical double
+   runs can't stack duplicate listeners. */
+function wireGlobalEscape() {
+  if (document._escWired) return;
+  document._escWired = true;
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") {
       // Phase 4c: if a trapped dialog is on top of the stack, close ONLY it, so a
@@ -42927,8 +42957,6 @@ function init() {
       closePfpMenu(); closeAuth(); closeAdmin(); closeChangeOrder(); closeFL(); closeJobRail(); closeComparison(); closeSaveJobModal(); closeReadPlanModal(); closeBuckModal();
     }
   });
-
-  purgeStaleSW();
 }
 
 
