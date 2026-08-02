@@ -6204,8 +6204,12 @@
   .dec-cluster .dec-row { display: flex; gap: 4px; }
   .dash-launch-cell.editing .dash-launch-head { padding-left: 42px; padding-right: 104px; }
   /* The two-row cluster reaches past the card header — give the body a strip
-     of clearance so nothing sits under the size glyphs. */
+     of clearance so nothing sits under the size glyphs. A fixed-height card
+     absorbs this; a RICH card is content-sized, so it also takes a matching
+     negative margin — otherwise the card grows 26px in edit mode and visibly
+     resizes the moment you hit Done (owner 2026-08-02). */
   .dash-launch-cell.editing .dash-launch-body { padding-top: 26px; }
+  .dash-launch-cell.editing.is-rich .dash-launch-body { margin-bottom: -26px; }
   /* Rich cards (the folded-in overview panels) carry their own interactive rows
      — those are inert while editing so a drag can't fire one. */
   .dash-launch-cell.editing .dash-attn-row { pointer-events: none; }
@@ -20750,7 +20754,7 @@ function renderDashEditBar() {
         <button type="button" class="dash-eb-btn" data-dashreset>Reset</button>
       </span>
     </div>
-    ${(hiddenList.length || ovHidden.length)
+    ${hiddenList.length
       ? `<div class="dash-add-tray"><span class="dat-label">Add back</span>${chips}</div>`
       : `<div class="dat-empty">Every card is on your dashboard.</div>`}`;
   bar.classList.remove("hidden");
@@ -20782,8 +20786,11 @@ function renderDashLaunchpad(jobs) {
     if (!c) return "";
     const body = dashCardBody(c.key, ctx, jobs) || "";
     if (editing) {
+      // `is-rich` MUST match the non-editing branch: it carries the rich card's
+      // height rules, so leaving it off made a card one size while customizing
+      // and another after Done (owner 2026-08-02).
       return `
-      <div class="dash-launch-cell editing dlc-span-${spans[c.key] || 1}" data-card-key="${c.key}">
+      <div class="dash-launch-cell editing${c.rich ? " is-rich" : ""} dlc-span-${spans[c.key] || 1}" data-card-key="${c.key}">
         <div class="dash-edit-controls">
           <span class="dec-handle" aria-hidden="true" title="Drag to reorder"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
           <span class="dec-spacer"></span>
