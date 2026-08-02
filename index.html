@@ -20528,17 +20528,26 @@ function wireDashDragReorder(wrap, sel, onDrop, onPreview) {
     return [el, { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }];
   }));
 
+  // Every layout mutation during a drag MUST go through here — reorders and
+  // span reshapes alike. `mutate` may return false to mean "nothing changed",
+  // which skips the re-measure entirely (pointermove fires constantly).
   function flip(mutate) {
     const els = tiles(), held = ptr && ptr.cell;
     const from = measure(els);                          // where everything looks right now
     const prevSlot = held ? slots.get(held) : null;     // held: its LAYOUT rect, not its lifted one
-    mutate();
+    if (mutate() === false) return false;
     els.forEach(el => { el.style.transition = "none"; el.style.transform = ""; });
     slots = measure(els);                               // pure layout — no transforms in play
-    if (held && prevSlot) {
+    if (held && prevSlot && slots.get(held)) {
       // Its slot moved out from under it; re-baseline so it stays on the pointer.
+      // A span preview can also RESIZE the held tile, so the grab point is kept
+      // proportional — otherwise a 3-wide shrinking to 1 slides out of the hand.
+      // (For a plain reorder the widths match and this is the old top-left delta.)
       const b = slots.get(held);
-      ptr.sx += b.left - prevSlot.left; ptr.sy += b.top - prevSlot.top;
+      const gx = prevSlot.width ? (ptr.sx - prevSlot.left) / prevSlot.width : 0;
+      const gy = prevSlot.height ? (ptr.sy - prevSlot.top) / prevSlot.height : 0;
+      ptr.sx = b.left + gx * b.width;
+      ptr.sy = b.top + gy * b.height;
     }
     const moving = dashReduceMotion() ? [] : els.filter(el => {
       const a = from.get(el), b = slots.get(el);
@@ -20548,6 +20557,7 @@ function wireDashDragReorder(wrap, sel, onDrop, onPreview) {
     wrap.getBoundingClientRect();                       // one flush for the whole batch
     moving.forEach(el => { el.style.transition = "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)" + LIFT; el.style.transform = ""; });
     if (held) { held.style.transition = "transform 0s" + LIFT; held.style.transform = heldTransform(); }
+    return true;
   }
 
   function reorder(x, y) {
@@ -20620,7 +20630,15 @@ function wireDashDragReorder(wrap, sel, onDrop, onPreview) {
     ptr.cell.style.transition = "transform 0s" + LIFT;
     ptr.cell.style.transform = heldTransform();
     reorder(e.clientX, e.clientY);
-    if (onPreview) { try { if (onPreview(ptr.cell, "move", lastX, lastY)) slots = measure(tiles()); } catch (_) {} }
+    // The span preview reshapes the grid, which can move the held tile's own
+    // slot (and even resize it) — so it runs INSIDE flip(), which re-baselines
+    // the tile onto the pointer. Skipping that is what made a resizing tile fly
+    // off away from the cursor while the drop still landed correctly.
+    if (onPreview) {
+      try {
+        flip(() => { if (onPreview(ptr.cell, "move", lastX, lastY) !== true) return false; });
+      } catch (_) {}
+    }
     autoScroll(e.clientY);
   });
   const end = (e) => {
