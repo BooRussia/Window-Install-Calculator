@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,interactive-widget=resizes-content" />
 <meta name="theme-color" content="#020617" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<!-- black-translucent: the installed app draws UNDER the iPhone status bar, so
+     the glass headers (padding-top: env(safe-area-inset-top)) reach the physical
+     top and content visibly scrolls behind the clock / camera island. Screens
+     without an .lp-nav header get the same inset via the safe-area sweep in CSS. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Anchor" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="description" content="Anchor — quote window installs in seconds. Linear-footage costing, Florida product-approval lookup, and instant customer quotes for window & door installers." />
@@ -813,6 +817,32 @@
     body.dashnav-collapsed .dnav-brandrow { justify-content: center; }
     body.dashnav-collapsed .dnav-brandmark { display: none; }
   }
+  /* ── Mobile drawer (owner 2026-08-01): the More tab presents the SAME
+     #dashSidebar as a left slide-in glass sheet under 900px. One nav element,
+     two presentations — items, counts, and groups can never drift apart.
+     Desktop is untouched: these rules only fire with body.dash-drawer-open,
+     which only the sub-900px More tab sets. ── */
+  #dashDrawerScrim { position: fixed; inset: 0; z-index: 95; background: rgba(2,6,23,0.55);
+    opacity: 0; pointer-events: none; transition: opacity .22s ease; }
+  body.dash-drawer-open #dashDrawerScrim { opacity: 1; pointer-events: auto; }
+  @media (max-width: 899.98px) {
+    body.dash-drawer-open #dashSidebar {
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 96;
+      width: min(304px, 85vw);
+      padding: calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 14px);
+      overflow-y: auto; overscroll-behavior: contain;
+      background: rgba(8,13,24,0.9);
+      -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
+      border-right: 1px solid rgba(120,150,200,0.14);
+      animation: dashDrawerIn .24s cubic-bezier(0.16,1,0.3,1);
+    }
+    /* Collapsing to an icon rail makes no sense in a sheet. */
+    body.dash-drawer-open #dashSidebar .dnav-collapse { display: none; }
+  }
+  @keyframes dashDrawerIn { from { transform: translateX(-101%); } to { transform: translateX(0); } }
+  @media (prefers-reduced-motion: reduce) { body.dash-drawer-open #dashSidebar { animation: none; } }
+  [data-theme="light"] body.dash-drawer-open #dashSidebar { background: rgba(248,250,252,0.92); border-right-color: rgba(203,213,225,0.9); }
   .dnav-brandrow { display: flex; align-items: center; gap: 8px; padding: 2px 6px 12px; }
   .dnav-brandmark { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 900; letter-spacing: -0.01em;
     color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1708,9 +1738,11 @@
     display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch;
     /* No bar padding — each button owns its full column down through the home indicator. */
     padding: 0;
-    background: rgba(7,12,24,0.94);
-    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
-    border-top: 1px solid var(--hairline);
+    /* Liquid glass, matching the .lp-nav header: translucent enough that
+       content visibly scrolls behind the dock (owner 2026-08-01). */
+    background: rgba(8,16,30,0.58);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
+    border-top: 1px solid rgba(120,150,200,0.14);
     pointer-events: auto;
     overflow: visible;
   }
@@ -1753,7 +1785,9 @@
     width: 48px; height: 48px; margin-top: -26px; border-radius: 9999px;
     display: flex; align-items: center; justify-content: center;
     background: linear-gradient(180deg, #c9a558, #b58f4a); color: #0b1120;
-    box-shadow: 0 10px 26px -8px var(--gold-glow), 0 0 0 6px rgba(7,12,24,0.94);
+    /* The 6px ring used to fake a cutout against the old solid bar; on glass a
+       solid ring reads as a dark halo, so it's now a faint tint instead. */
+    box-shadow: 0 10px 26px -8px var(--gold-glow), 0 0 0 6px rgba(9,15,28,0.35);
     transition: transform .15s var(--ease-out);
     pointer-events: none;
   }
@@ -1762,10 +1796,10 @@
   body.tabbar-calc .app-fab-circle .fab-ico-plus { display: none; }
   body.tabbar-calc .app-fab-circle .fab-ico-calc { display: block; }
   #jobSpecsFab { display: none !important; }
-  [data-theme="light"] body.tabbar-on .app-tabbar { background: rgba(255,255,255,0.96); border-top-color: #e2e6ec; }
+  [data-theme="light"] body.tabbar-on .app-tabbar { background: rgba(255,255,255,0.62); border-top-color: rgba(15,23,42,0.08); }
   [data-theme="light"] .app-tab { color: #64748b; }
   [data-theme="light"] .app-tab.active { color: var(--gold-ink); }
-  [data-theme="light"] .app-fab-circle { color: #ffffff; box-shadow: 0 10px 26px -8px rgba(154,118,54,0.5), 0 0 0 6px rgba(255,255,255,0.96); }
+  [data-theme="light"] .app-fab-circle { color: #ffffff; box-shadow: 0 10px 26px -8px rgba(154,118,54,0.5), 0 0 0 6px rgba(255,255,255,0.4); }
 
   /* Bottom-chrome offsets: one var feeds every element that must clear the bar.
      Scoped to body.tabbar-on so behavior with the bar off stays byte-identical. */
@@ -2161,7 +2195,9 @@
   }
 
   #jobRail {
-    position: fixed; top: 3.5rem; bottom: 0; left: 0;
+    /* 3.5rem = the appHeader; the header itself grows by the status-bar inset
+       now that the PWA draws under it (black-translucent), so the rail must too. */
+    position: fixed; top: calc(3.5rem + env(safe-area-inset-top)); bottom: 0; left: 0;
     width: 19rem; max-width: 86vw;
     background: linear-gradient(180deg, #0d1426 0%, #060a16 100%);
     border-right: 1px solid rgba(30,41,59,0.95);
@@ -4155,6 +4191,10 @@
     border-bottom: 1px solid rgba(120,150,200,0.14);
     padding-top: env(safe-area-inset-top);
   }
+  /* Safe-area sweep for black-translucent standalone mode: overlays that start
+     content at the very top (no .lp-nav of their own) push below the status bar.
+     Centered-card screens (auth) don't need it. env() is 0 outside the PWA. */
+  #onboardScreen, #setupScreen { padding-top: calc(1.25rem + env(safe-area-inset-top)); }
   .lp-eyebrow {
     display: inline-flex; align-items: center; gap: 7px;
     font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
@@ -6067,13 +6107,9 @@
   .dash-launch-card:hover::after { opacity: 1; }
   .dash-launch-card:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
   /* ---- Dashboard customize / edit mode ---- */
-  .dash-customize-row {
-    display: flex; justify-content: flex-end; align-items: center;
-    margin: -4px 0 12px;
-  }
-  /* In its own slim row the full 38px page-bar pill reads oversized — keep the
-     shape the owner liked, a notch smaller. */
-  .dash-customize-row .dash-customize-btn { min-height: 32px; padding: 0 12px; font-size: 11.5px; }
+  /* Lives inside the page bar now (top-right) — a plain flex wrapper so the
+     pill sits at the same 38px height as All time / New quote beside it. */
+  .dash-customize-row { display: flex; align-items: center; margin: 0; }
   /* Sits in the page bar between "All time" and "New quote" — same 38px pill
      height and border weight as those neighbours so the row reads as one set
      (owner: the old chip looked undersized next to them). */
@@ -9934,6 +9970,8 @@
        scroller (desktop only, >=900px) so every section is one click away instead
        of a card you drill into and Back out of. Mobile keeps the approved bottom
        tab bar as its nav and never renders this sidebar. -->
+  <!-- Scrim behind the mobile sidebar drawer (z 95, under the drawer's 96). -->
+  <div id="dashDrawerScrim" aria-hidden="true"></div>
   <div id="dashLayout">
   <aside id="dashSidebar" aria-label="Dashboard sections"></aside>
   <div id="dashScroll" class="dash-scroll">
@@ -9968,16 +10006,28 @@
     <!-- Dashboard v2 P2: the page bar — which section you're on, and the range
          every number on the page is measured over. -->
     <div id="dashTopBar" class="dash-topbar">
-      <div class="dash-topbar-title">
-        <span id="dashTopBarIcon" class="dash-topbar-icon" aria-hidden="true"></span>
-        <span id="dashTopBarLabel">Dashboard</span>
-        <span id="dashTopBarNote" class="dash-topbar-note hidden"></span>
-      </div>
+      <!-- Tools lead the bar (owner 2026-08-01: range + New quote live on the
+           LEFT; the home view carries no title — the section pages still name
+           themselves on the right, which reads as a breadcrumb chip). -->
       <div class="dash-topbar-tools">
         <select id="dashRangeSel" class="control jobs-ctl text-slate-300" title="The period every number on this page covers"></select>
         <button id="dashNewQuote" type="button" class="lp-btn-gold btn rounded-full text-[12.5px] font-bold px-4 inline-flex items-center gap-1.5 jobs-ctl">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
           New quote
+        </button>
+      </div>
+      <div id="dashTopBarTitle" class="dash-topbar-title">
+        <span id="dashTopBarIcon" class="dash-topbar-icon" aria-hidden="true"></span>
+        <span id="dashTopBarLabel">Dashboard</span>
+        <span id="dashTopBarNote" class="dash-topbar-note hidden"></span>
+      </div>
+      <!-- Customize, back in the page bar's top-right (fourth placement, owner
+           request 2026-08-01). Same show/hide logic as before: home only, and
+           never while the edit bar owns Done. -->
+      <div id="dashCustomizeRow" class="dash-customize-row">
+        <button id="dashCustomizeBtn" type="button" class="dash-customize-btn" aria-pressed="false" title="Reorder, resize, add, or remove dashboard cards">
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14"/><circle cx="7" cy="5.5" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="7" cy="14.5" r="1.6"/></svg>
+          <span class="dcb-label">Customize</span>
         </button>
       </div>
     </div>
@@ -9988,15 +10038,6 @@
     <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
     <div id="dashStats" class="mb-4 hidden"></div>
-    <!-- Customize: its own slim row between the KPIs and the cards it edits —
-         right-aligned in the gap the owner circled. Third placement, by request:
-         bottom of the page (missed), page bar (too high / crowded), here. -->
-    <div id="dashCustomizeRow" class="dash-customize-row">
-      <button id="dashCustomizeBtn" type="button" class="dash-customize-btn" aria-pressed="false" title="Reorder, resize, add, or remove dashboard cards">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14"/><circle cx="7" cy="5.5" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="7" cy="14.5" r="1.6"/></svg>
-        <span class="dcb-label">Customize</span>
-      </button>
-    </div>
     <!-- v2 P3: the overview. Booked-by-month + what needs attention, then the
          pipeline table. Home view only; all three read the active date range. -->
     <div id="dashOverview" class="dash-overview hidden">
@@ -18841,6 +18882,7 @@ function openDashboard(opts) {
   scheduleSaveNav();
 }
 function closeDashboard(opts) {
+  try { setDashDrawer(false); } catch (_) {}   // never leave the mobile drawer orphaned
   const d = document.getElementById("dashboardScreen");
   if (d) {
     d.classList.add("hidden");
@@ -19204,6 +19246,31 @@ function initAnimatedSelects() {
   }).observe(document.body, { childList: true, subtree: true });
 }
 
+/* Mobile More tab → the dashboard sidebar as a slide-in drawer. Esc and focus
+   ride the existing dialog stack (trapDialog), so the drawer closes before the
+   dashboard does and focus returns to the More tab on dismiss. */
+function setDashDrawer(open) {
+  const body = document.body;
+  const want = open === undefined ? !body.classList.contains("dash-drawer-open") : !!open;
+  if (want === body.classList.contains("dash-drawer-open")) return;
+  const sb = document.getElementById("dashSidebar");
+  body.classList.toggle("dash-drawer-open", want);
+  const scrim = document.getElementById("dashDrawerScrim");
+  if (scrim) scrim.setAttribute("aria-hidden", want ? "false" : "true");
+  if (want) {
+    if (scrim && !scrim._wired) { scrim._wired = true; scrim.addEventListener("click", () => setDashDrawer(false)); }
+    try { trapDialog(sb, () => setDashDrawer(false)); } catch (_) {}
+    // trapDialog's own focus pick lands on the collapse button, which the
+    // drawer hides — aim at the first real nav item instead, a beat later.
+    setTimeout(() => {
+      const f = sb && sb.querySelector(".dnav-item");
+      try { f && f.focus({ preventScroll: true }); } catch (_) {}
+    }, 60);
+  } else {
+    try { releaseDialog(sb); } catch (_) {}
+  }
+}
+
 function wireTabBar() {
   const src = document.getElementById("appTabBar");
   if (!src) return;
@@ -19248,7 +19315,18 @@ function wireTabBar() {
       } else if (t === "new") {
         startNewQuote();
       } else if (t === "more") {
-        togglePfpMenu(e, btn);
+        // Under 900px, More opens the sidebar drawer (owner 2026-08-01); the
+        // avatar keeps the account menu. From 900px up the rail is already on
+        // screen (tab bar shows to 1023px), so More keeps its old meaning there.
+        if (window.innerWidth >= 900) {
+          togglePfpMenu(e, btn);
+        } else if (dashOpen) {
+          setDashDrawer();
+        } else {
+          openDashboard({ view: "home" });
+          dashGoTo("home");
+          setDashDrawer(true);
+        }
       }
       updateTabBar();
     });
@@ -19401,11 +19479,16 @@ function wireDashNav() {
       if (grp) grp.classList.toggle("is-collapsed", off);
       return;
     }
+    // Picking any destination dismisses the mobile drawer presentation; folding
+    // a group or collapsing the rail (above) keeps it open.
+    const drawerClose = () => { try { setDashDrawer(false); } catch (_) {} };
     if (e.target.closest("[data-dashnav-settings]")) {
+      drawerClose();
       try { openAdmin(); } catch (_) {}
       return;
     }
     if (e.target.closest("[data-dashnav-feedback]")) {
+      drawerClose();
       try { openFeedback(); } catch (_) {}
       return;
     }
@@ -19416,11 +19499,13 @@ function wireDashNav() {
     // exemptions cover #pfpMenu / #pfpBtn / #dashPfpBtn but not this card.
     // The avatar in the top bar still opens that menu.
     if (e.target.closest("[data-dashnav-account]")) {
+      drawerClose();
       try { openAdmin(); showSettingsTab("setup"); showSetupLeaf("brand"); } catch (_) {}
       return;
     }
     const nav = e.target.closest("[data-dashnav]");
     if (!nav) return;
+    drawerClose();
     const key = nav.dataset.dashnav;
     const extra = DASH_NAV_EXTRAS[key];
     if (extra) { extra.open(); return; }
@@ -20263,17 +20348,26 @@ function dashResetLayout() {
 // Read the live DOM order after a drag and persist it (visible cards only; the
 // hidden set is unchanged).
 let _lpDragOrigin = null;
-function previewDashCardSpans(cell, phase) {
+let _lpDragRects = null;    // drag-start rect snapshot — the stable hit-test map
+function previewDashCardSpans(cell, phase, x, y) {
   const key = cell && cell.dataset ? cell.dataset.cardKey : null; if (!key) return false;
   const wrap = document.getElementById("dashLaunchpad");
   const { hiddenList, spans } = resolveDashLayout();
-  const visible = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(k => k && !hiddenList.includes(k));
+  const saved = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(k => k && !hiddenList.includes(k));
   if (phase === "start") {
-    const row = dashSpanRows(visible, spans).find(r => r.includes(key));
+    const row = dashSpanRows(saved, spans).find(r => r.includes(key));
     _lpDragOrigin = row ? row.filter(k => k !== key) : [];
+    // Freeze the geometry the whole drag hit-tests against (see dashPointerOrder).
+    _lpDragRects = {};
+    saved.forEach(k => { const el = wrap.querySelector(`.dash-launch-cell[data-card-key="${k}"]`);
+      if (el) _lpDragRects[k] = el.getBoundingClientRect(); });
     return false;
   }
-  const preview = computeDragPreviewSpans(visible, spans, key, _lpDragOrigin);
+  const entries = saved.map(k => ({ key: k, rect: _lpDragRects && _lpDragRects[k] })).filter(e => e.rect);
+  if (!entries.length) return false;
+  const po = dashPointerOrder(entries, key, x, y);
+  const visible = po.order;
+  const preview = computeDragPreviewSpans(visible, spans, key, _lpDragOrigin, po.row);
   let changed = false;
   wrap.querySelectorAll(".dash-launch-cell").forEach(el => {
     const k = el.dataset.cardKey; if (!k) return;
@@ -20285,20 +20379,31 @@ function previewDashCardSpans(cell, phase) {
   });
   return changed;
 }
-function persistDashOrderFromDOM(draggedCell) {
+function persistDashOrderFromDOM(draggedCell, dropX, dropY) {
   const wrap = document.getElementById("dashLaunchpad"); if (!wrap) return;
-  const visibleOrder = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(Boolean);
-  const { hiddenList, spans } = resolveDashLayout();
+  const { hiddenList, spans, order } = resolveDashLayout();
   const draggedKey = draggedCell && draggedCell.dataset ? draggedCell.dataset.cardKey : null;
+  let visibleOrder;
+  const savedLp = order.filter(k => !hiddenList.includes(k));
+  const lpEntries = (draggedKey && dropX != null)
+    ? savedLp.map(k => ({ key: k, rect: _lpDragRects && _lpDragRects[k] })).filter(e => e.rect) : [];
+  let lpRow = null;
+  if (lpEntries.length) {
+    // Drop persists exactly what the preview showed — same frozen rects.
+    const po = dashPointerOrder(lpEntries, draggedKey, dropX, dropY);
+    visibleOrder = po.order; lpRow = po.row;
+  } else {
+    visibleOrder = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(Boolean);
+  }
   let resized = false;
   if (draggedKey) {
-    const preview = computeDragPreviewSpans(visibleOrder, spans, draggedKey, _lpDragOrigin);
+    const preview = computeDragPreviewSpans(visibleOrder, spans, draggedKey, _lpDragOrigin, lpRow);
     resized = visibleOrder.some(k => (preview[k] || 1) !== (spans[k] || 1));
     visibleOrder.forEach(k => spans[k] = preview[k] || 1);
   }
-  _lpDragOrigin = null;
+  _lpDragOrigin = null; _lpDragRects = null;
   persistDashLayout(visibleOrder, hiddenList, spans);
-  if (resized) refreshDashLaunchpad();   // spans moved — repaint sizes now
+  refreshDashLaunchpad();   // saved order may differ from DOM (pointer drop) — repaint
 }
 
 /* ── One drag engine, two grids ───────────────────────────────────────────────
@@ -20426,7 +20531,7 @@ function wireDashDragReorder(wrap, sel, onDrop, onPreview) {
     ptr.cell.style.transition = "transform 0s" + LIFT;
     ptr.cell.style.transform = heldTransform();
     reorder(e.clientX, e.clientY);
-    if (onPreview) { try { if (onPreview(ptr.cell, "move")) slots = measure(tiles()); } catch (_) {} }
+    if (onPreview) { try { if (onPreview(ptr.cell, "move", lastX, lastY)) slots = measure(tiles()); } catch (_) {} }
     autoScroll(e.clientY);
   });
   const end = (e) => {
@@ -22076,6 +22181,10 @@ function renderDashTopBar(ctx) {
   const meta = v === "home" ? { title: "Dashboard", icon: DNAV_HOME_ICON } : DASH_CARDS.find(c => c.key === v);
   label.textContent = meta ? meta.title : "Dashboard";
   if (icon) icon.innerHTML = (meta && meta.icon) || DNAV_HOME_ICON;
+  // Home carries no title chip at all (owner 2026-08-01: no "Dashboard", no
+  // company name in the bar) — the tools ARE the bar. Sections keep theirs.
+  const titleWrap = document.getElementById("dashTopBarTitle");
+  if (titleWrap) titleWrap.classList.toggle("hidden", v === "home");
   const note = document.getElementById("dashTopBarNote");
   if (note && v !== "home" && meta && typeof meta.preview === "function" && ctx) {
     let line = "";
@@ -22282,7 +22391,7 @@ function dashSpanRows(visible, spans) {
    back reverts cleanly), grow the row the card left so its survivors reclaim
    the space, then shrink the destination row so the card fits. Returns the
    spans to show — also exactly what gets persisted on drop. */
-function computeDragPreviewSpans(visible, savedSpans, draggedKey, originMates) {
+function computeDragPreviewSpans(visible, savedSpans, draggedKey, originMates, targetMates) {
   const spans = {}; Object.keys(savedSpans).forEach(k => spans[k] = savedSpans[k]);
   // Grow pass: the origin row, only once the dragged card has actually left it.
   if (originMates && originMates.length) {
@@ -22298,7 +22407,23 @@ function computeDragPreviewSpans(visible, savedSpans, draggedKey, originMates) {
       }
     }
   }
-  autoFitSpansOnDrop(visible, spans, draggedKey);   // shrink pass on the destination
+  // Shrink pass. When the pointer says "join THIS row" (targetMates from
+  // dashPointerOrder), the mates shrink to make space — that is what lets a
+  // 1-wide land on a full-width card and squeeze it to a 2 (owner request).
+  // Order-only moves (arrow buttons, drop between rows) fit by order instead.
+  if (targetMates && targetMates.length) {
+    let sum = (spans[draggedKey] || 1) + targetMates.reduce((t, k) => t + (spans[k] || 1), 0);
+    while (sum > 3) {
+      let widest = null;
+      targetMates.forEach(k => { if ((spans[k] || 1) > 1 && (!widest || (spans[k] || 1) > (spans[widest] || 1))) widest = k; });
+      if (widest) { spans[widest] = (spans[widest] || 1) - 1; sum -= 1; continue; }
+      // Mates are all 1-block — the dragged card gives way instead.
+      if ((spans[draggedKey] || 1) > 1) { spans[draggedKey] -= 1; sum -= 1; continue; }
+      break;   // a full row of 1s — the grid flows the overflow to the next row
+    }
+  } else {
+    autoFitSpansOnDrop(visible, spans, draggedKey);
+  }
   return spans;
 }
 function autoFitSpansOnDrop(visible, spans, draggedKey) {
@@ -22375,6 +22500,12 @@ function applyDashOvLayout() {
   DASH_OV_PANELS.forEach(p => {
     const el = document.getElementById(p.id);
     if (!el) return;
+    // A drop's FLIP transform sweeps on a 300ms timer; a size-button repaint
+    // inside that window re-appended the node WITH the transform still inline,
+    // so the card sat hundreds of px from its true grid slot and every later
+    // drag measured the real rect while the eye saw the ghost. Clear on every
+    // repaint — never carry drag residue into a fresh layout.
+    if (!el.classList.contains("dragging")) { el.style.transform = ""; el.style.transition = ""; }
     const on = visible.includes(p.key);
     el.classList.toggle("hidden", !on);
     el.classList.toggle("editing", on && _dashEditMode);
@@ -22404,19 +22535,63 @@ function applyDashOvLayout() {
    re-running applyDashOvLayout, which would re-append the panels and cut the
    drop animation short. Only the ↑ ↓ enable-states need catching up. */
 let _ovDragOrigin = null;   // the dragged panel's row-mates at drag start
-let _ovOrderOverridden = false;   // drop-in-empty-space intent kicked in
-function previewDashOvSpans(cell, phase) {
+let _ovDragRects = null;    // drag-start rect snapshot — the stable hit-test map
+/* Where would the card land if released HERE? Insertion order from the pointer,
+   not from the DOM — the engine only reorders the DOM once a slot midpoint is
+   crossed, and the owner rightly expects the sizes to react as soon as the card
+   is OVER a row, not after it snaps in. */
+function dashPointerOrder(entries, draggedKey, x, y) {
+  // entries carry a FROZEN rect from drag start, never a live read: the span
+  // preview reshapes the grid, and hit-testing the reshaped grid feeds the
+  // preview back into itself — the computed order flip-flopped between
+  // pointermoves until the drop landed somewhere the user never aimed.
+  const others = entries.filter(e => e.key !== draggedKey);
+  if (!others.length) return { order: entries.map(e => e.key), row: [] };
+  // Row = the band whose vertical middle is nearest the pointer.
+  let band = others[0], bandD = Infinity;
+  others.forEach(e => { const d = Math.abs((e.rect.top + e.rect.bottom) / 2 - y);
+    if (d < bandD) { band = e; bandD = d; } });
+  const rowEls = others.filter(e => e.rect.top < band.rect.bottom && e.rect.bottom > band.rect.top);
+  const order = others.map(e => e.key);
+  // Pointer INSIDE the band's vertical range means "join this row" (the row
+  // then shrinks to make space — `row` reports its members). Above or below it
+  // means "your own row before/after" — insertion only, nobody resizes.
+  const rowTop = Math.min(...rowEls.map(e => e.rect.top));
+  const rowBottom = Math.max(...rowEls.map(e => e.rect.bottom));
+  let anchor = null, before = false, inRow = false;
+  if (y < rowTop) { anchor = rowEls[0].key; before = true; }
+  else if (y > rowBottom) { anchor = rowEls[rowEls.length - 1].key; }
+  else {
+    inRow = true;
+    // Within the row: before the first member whose centre is right of the pointer.
+    for (const e of rowEls) {
+      if (x < e.rect.left + e.rect.width / 2) { anchor = e.key; before = true; break; }
+      anchor = e.key;
+    }
+  }
+  const at = order.indexOf(anchor);
+  order.splice(before ? at : at + 1, 0, draggedKey);
+  return { order, row: inRow ? rowEls.map(e => e.key) : [] };
+}
+function previewDashOvSpans(cell, phase, x, y) {
   const byId = {}; DASH_OV_PANELS.forEach(p => { byId[p.id] = p.key; });
   const key = cell && byId[cell.id]; if (!key) return false;
-  const { hiddenList, spans } = resolveDashOvLayout();   // SAVED spans — preview never accumulates
-  const wrap = document.getElementById("dashOverview");
-  const visible = Array.from(wrap.children).map(el => byId[el.id]).filter(k => k && !hiddenList.includes(k));
+  const { hiddenList, spans, order } = resolveDashOvLayout();   // SAVED spans — preview never accumulates
+  const saved = order.filter(k => !hiddenList.includes(k));
   if (phase === "start") {
-    const row = dashSpanRows(visible, spans).find(r => r.includes(key));
+    const row = dashSpanRows(saved, spans).find(r => r.includes(key));
     _ovDragOrigin = row ? row.filter(k => k !== key) : [];
+    // Freeze the geometry the whole drag hit-tests against (see dashPointerOrder).
+    _ovDragRects = {};
+    saved.forEach(k => { const p = DASH_OV_PANELS.find(o => o.key === k); const el = p && document.getElementById(p.id);
+      if (el) _ovDragRects[k] = el.getBoundingClientRect(); });
     return false;
   }
-  const preview = computeDragPreviewSpans(visible, spans, key, _ovDragOrigin);
+  const entries = saved.map(k => ({ key: k, rect: _ovDragRects && _ovDragRects[k] })).filter(e => e.rect);
+  if (!entries.length) return false;
+  const po = dashPointerOrder(entries, key, x, y);
+  const visible = po.order;
+  const preview = computeDragPreviewSpans(visible, spans, key, _ovDragOrigin, po.row);
   let changed = false;
   visible.forEach(k => {
     const p = DASH_OV_PANELS.find(x => x.key === k); const el = p && document.getElementById(p.id);
@@ -22429,54 +22604,33 @@ function previewDashOvSpans(cell, phase) {
 function persistDashOvOrderFromDOM(draggedCell, dropX, dropY) {
   const wrap = document.getElementById("dashOverview"); if (!wrap) return;
   const byId = {}; DASH_OV_PANELS.forEach(p => { byId[p.id] = p.key; });
-  const { hiddenList, spans } = resolveDashOvLayout();
-  let domOrder = Array.from(wrap.children).map(el => byId[el.id]).filter(Boolean);
-  let visible = domOrder.filter(k => !hiddenList.includes(k));
-  // The engine maps a drop to the NEAREST slot, so letting go in the empty
-  // remainder of a row (the natural "put it beside that one" gesture) can snap
-  // the card straight back where it came from. If the drop point sits in a
-  // row's trailing space, honour the intent: order the card after that row's
-  // last member.
+  const { hiddenList, spans, order } = resolveDashOvLayout();
   const dk = draggedCell && byId[draggedCell.id];
-  if (dk && dropX != null) {
-    const rows = new Map();   // rounded row top -> [{key, right}]
-    visible.forEach(k => {
-      if (k === dk) return;
-      const p = DASH_OV_PANELS.find(x => x.key === k); const el = p && document.getElementById(p.id);
-      if (!el) return; const r = el.getBoundingClientRect();
-      if (dropY >= r.top && dropY <= r.bottom) {
-        const band = Math.round(r.top / 40);
-        if (!rows.has(band)) rows.set(band, []);
-        rows.get(band).push({ key: k, right: r.right });
-      }
-    });
-    const band = [...rows.values()][0];
-    if (band && band.length) {
-      const rightmost = band.reduce((a, b) => (a.right > b.right ? a : b));
-      if (dropX > rightmost.right) {   // let go in the row's empty tail
-        const cur = visible.indexOf(dk), after = visible.indexOf(rightmost.key);
-        if (cur !== -1 && after !== -1 && cur !== after + 1) {
-          visible.splice(cur, 1);
-          visible.splice(visible.indexOf(rightmost.key) + 1, 0, dk);
-          domOrder = visible.concat(domOrder.filter(k => hiddenList.includes(k)));
-          _ovOrderOverridden = true;
-        }
-      }
-    }
+  let visible;
+  const savedOv = order.filter(k => !hiddenList.includes(k));
+  const ovEntries = (dk && dropX != null)
+    ? savedOv.map(k => ({ key: k, rect: _ovDragRects && _ovDragRects[k] })).filter(e => e.rect) : [];
+  let ovRow = null;
+  if (ovEntries.length) {
+    // Persist exactly what the pointer-based preview showed (same frozen rects) —
+    // one source of truth, so the drop can never land elsewhere than the preview.
+    const po = dashPointerOrder(ovEntries, dk, dropX, dropY);
+    visible = po.order; ovRow = po.row;
+  } else {
+    visible = Array.from(wrap.children).map(el => byId[el.id]).filter(k => k && !hiddenList.includes(k));
   }
-  // Persist exactly what the preview showed: grow the vacated row, shrink the target.
-  const draggedKey = draggedCell && byId[draggedCell.id];
   let resized = false;
-  if (draggedKey) {
-    const preview = computeDragPreviewSpans(visible, spans, draggedKey, _ovDragOrigin);
+  if (dk) {
+    const preview = computeDragPreviewSpans(visible, spans, dk, _ovDragOrigin, ovRow);
     resized = visible.some(k => (preview[k] || 1) !== (spans[k] || 1));
     visible.forEach(k => spans[k] = preview[k] || 1);
   }
-  _ovDragOrigin = null;
+  _ovDragOrigin = null; _ovDragRects = null;
   saveDashOvLayout(visible.concat(hiddenList), hiddenList, spans);
-  // Re-append/repaint only when something actually changed shape — an ordinary
-  // engine-handled drop keeps its glide animation (re-appending would cut it).
-  if (resized || _ovOrderOverridden) { _ovOrderOverridden = false; applyDashOvLayout(); return; }
+  // The saved order may differ from the DOM (pointer-order drop) and spans may
+  // have changed — re-apply, which also sweeps any leftover drag transforms.
+  applyDashOvLayout();
+  if (resized) return;
   const shown = Array.from(wrap.children).filter(el => el.classList.contains("editing"));
   shown.forEach((el, i) => {
     const up = el.querySelector('[data-dashovmove="up"]'), dn = el.querySelector('[data-dashovmove="down"]');
