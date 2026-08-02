@@ -376,14 +376,6 @@
   /* v2 P4: the in-section back button + heading duplicate the sidebar and page bar
      on desktop. Kept under 900px, where there is no sidebar to go back with. */
   @media (min-width: 900px) { #dashSectionHead { display: none; } }
-  /* A shortcut landing on an overview panel flashes its border so the eye finds it
-     after the scroll — no layout shift, and skipped under reduced motion. */
-  .dash-ovcard-flash { animation: ovFlash 1.4s ease-out 1; }
-  @keyframes ovFlash {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(181,143,74,0); }
-    18%      { box-shadow: 0 0 0 3px rgba(181,143,74,0.45); }
-  }
-  @media (prefers-reduced-motion: reduce) { .dash-ovcard-flash { animation: none; } }
   /* ── Dedicated pages: pipeline / revenue / manufacturers ─────────────────── */
   .dpp-group { border-top: 1px solid rgba(51,65,85,0.4); padding-top: 10px; margin-top: 10px; }
   .dpp-group:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
@@ -518,13 +510,9 @@
   [data-theme="light"] .dco-chip.is-on { color: #ffffff; background: #8a6a2e; border-color: #8a6a2e; }
   [data-theme="light"] .dco-reset:hover { color: #be123c; }
   [data-theme="light"] .dco-rowsub { color: #64748b; }
-  /* ── v2 P3: the overview grid ─────────────────────────────────────────────── */
-  /* 3 equal blocks; every panel spans 1–3 of them (owner-chosen, persisted).
-     dense flow lets a later 1-block card backfill beside a 2-block one instead
-     of leaving a hole. Under 1000px everything stacks and spans are moot. */
-  .dash-overview { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
-  @media (min-width: 1000px) { .dash-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; } }
-  @media (max-width: 999.98px) { .dash-overview > .dash-ovcard { grid-column: auto !important; } }
+  /* The .dash-overview grid is retired — its panels are cards in #dashLaunchpad
+     now (owner 2026-08-02). `.dash-ovcard` itself lives on: the dedicated pages
+     (pipeline / revenue / manufacturers / change order / team) still use it. */
   .dec-span { min-width: 26px; font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
   /* Launchpad card widths. Tailwind gives the grid 1/2/3 columns by breakpoint;
      the chosen span clamps to what the current breakpoint actually has. */
@@ -536,6 +524,16 @@
     .dlc-span-2 { grid-column: span 2; }
     .dlc-span-3 { grid-column: span 3; }
   }
+  /* Rich cards (the folded-in overview panels: pipeline table, booked chart,
+     follow-up rows). They carry a real data panel rather than a 3-line preview,
+     so they set the row height instead of being clipped to the 240px tile. */
+  .dash-launch-cell.is-rich .dash-launch-card { height: 100%; min-height: 268px; }
+  .dash-launch-cell.is-rich .dash-launch-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .dash-launch-cell.is-rich .dash-bars { flex: 1 1 auto; min-height: 92px; }
+  .dash-launch-cell.is-rich .dpt-wrap { flex: 1 1 auto; overflow: auto; }
+  .dash-launch-cell.is-rich .dash-attn-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  /* The panels' own sub-line, reused inside the card body. */
+  .dash-launch-cell.is-rich .dash-ovsub { display: block; margin: -2px 0 10px; }
   .dec-span.on { color: var(--gold-hi); border-color: rgba(181,143,74,0.55); background: rgba(181,143,74,0.14); }
   [data-theme="light"] .dec-span.on { color: var(--gold-ink); border-color: #d9c79a; background: rgba(181,143,74,0.14); }
   /* Flex column so a shorter panel's content can stretch to the row height the
@@ -6157,18 +6155,16 @@
      as "disabled", not "held", and gave no sense of movement — so the held tile
      stays fully opaque and rises on a shadow instead. JS owns the transform
      (translate to follow the pointer + a slight scale); CSS owns the shadow. */
-  .dash-launch-cell.editing.dragging, .dash-ovcard.editing.dragging { cursor: grabbing; z-index: 30; }
-  #dashLaunchpad.editing .dash-launch-cell.dragging .dash-launch-card,
-  #dashOverview .dash-ovcard.editing.dragging {
+  .dash-launch-cell.editing.dragging { cursor: grabbing; z-index: 30; }
+  #dashLaunchpad.editing .dash-launch-cell.dragging .dash-launch-card {
     opacity: 1; border-style: solid; border-color: rgba(201,165,88,0.7);
     box-shadow: 0 24px 50px -12px rgba(0,0,0,0.72), 0 6px 16px rgba(0,0,0,0.42);
   }
-  #dashLaunchpad.editing .dash-launch-card, #dashOverview .dash-ovcard.editing { transition: box-shadow 180ms ease, border-color 180ms ease; }
-  [data-theme="light"] #dashLaunchpad.editing .dash-launch-cell.dragging .dash-launch-card,
-  [data-theme="light"] #dashOverview .dash-ovcard.editing.dragging {
+  #dashLaunchpad.editing .dash-launch-card { transition: box-shadow 180ms ease, border-color 180ms ease; }
+  [data-theme="light"] #dashLaunchpad.editing .dash-launch-cell.dragging .dash-launch-card {
     box-shadow: 0 22px 44px -14px rgba(15,23,42,0.30), 0 4px 12px rgba(15,23,42,0.14);
   }
-  #dashOverview .dash-ovcard.editing, #dashOverview .dash-ovcard.editing * { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #dashLaunchpad.editing .dash-launch-cell, #dashLaunchpad.editing .dash-launch-cell * { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .dash-edit-controls { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 8; display: flex; align-items: flex-start; gap: 4px; }
   /* Controls are a right-hand CLUSTER: arrows/remove on top, size glyphs below
      (one inline row overlapped small cards' titles — owner 2026-08-02). The
@@ -6179,15 +6175,9 @@
   /* The two-row cluster reaches past the card header — give the body a strip
      of clearance so nothing sits under the size glyphs. */
   .dash-launch-cell.editing .dash-launch-body { padding-top: 26px; }
-  /* Overview panels join edit mode: they need a positioning context for the
-     controls overlay, and a dashed outline so it's obvious they're editable. */
-  .dash-ovcard.editing { position: relative; outline: 1px dashed rgba(181,143,74,0.45); outline-offset: 2px; }
-  .dash-ovcard.editing .dash-edit-controls { top: 10px; right: 10px; left: 10px; width: auto; }
-  /* The two-row cluster needs a taller clear strip than the old single row. */
-  .dash-ovcard.editing { padding-top: 80px; }
-  /* A panel's own "All →" / "Deal pipeline →" link is inert while editing and
-     would crowd the ↑ ↓ × row — take it out of the way rather than overlap it. */
-  .dash-ovcard.editing .dash-ovlink { visibility: hidden; }
+  /* Rich cards (the folded-in overview panels) carry their own interactive rows
+     — those are inert while editing so a drag can't fire one. */
+  .dash-launch-cell.editing .dash-attn-row { pointer-events: none; }
   .dec-btn[disabled] { opacity: .35; cursor: default; }
   .dec-btn[disabled]:hover { border-color: rgba(148,163,184,0.35); color: #cbd5e1; }
   /* Grab handle drives touch reordering. touch-action:none lets a finger-drag
@@ -10036,13 +10026,10 @@
     <!-- Hero — only on the launchpad home; hidden when drilled into a section. -->
     <!-- Quick-glance pipeline KPIs — shown on the launchpad home (no drill-in). -->
     <div id="dashStats" class="mb-4 hidden"></div>
-    <!-- v2 P3: the overview. Booked-by-month + what needs attention, then the
-         pipeline table. Home view only; all three read the active date range. -->
-    <div id="dashOverview" class="dash-overview hidden">
-      <div class="dash-ovcard dash-ovcard-wide" id="dashBookedCard"></div>
-      <div class="dash-ovcard" id="dashAttentionCard"></div>
-      <div class="dash-ovcard dash-ovcard-full" id="dashPipelineCard"></div>
-    </div>
+    <!-- The old separate "overview" grid is gone (owner 2026-08-02: one big
+         section). Booked-by-month, needs-attention and the pipeline table are
+         now regular cards inside #dashLaunchpad, so every widget shares one
+         drag space, one layout config, and one set of size controls. -->
 
     <!-- First-run activation (DASH-1/ONBD-2): a brand-new account (no saved jobs)
          sees the endowed-progress checklist here instead of nine empty cards; once
@@ -19558,7 +19545,6 @@ function renderDashboard() {
   try { _navCtx = dashLaunchContext(jobs); } catch (_) {}
   try { wireDashNav(); renderDashNav(_navCtx); } catch (_) {}                     // v2 sidebar
   try { renderDashTopBar(_navCtx); } catch (_) {}                                // v2 page bar + range
-  try { renderDashOverview(jobs); } catch (_) {}                                 // v2 overview panels
   try { renderDashPipelinePage(jobs); } catch (_) {}                             // dedicated pages
   try { renderDashRevenuePage(jobs); } catch (_) {}
   try { renderDashMfgPage(jobs); } catch (_) {}
@@ -19962,7 +19948,7 @@ const DASH_CARDS = [
       ? `${ctx.suggestionCount} rate suggestion${ctx.suggestionCount === 1 ? "" : "s"} ready`
       : (ctx.actualsJobs ? "Tracking your actuals" : "Log actuals to start"),
     preview2: (ctx) => ctx.actualsJobs ? `${ctx.actualsJobs} job${ctx.actualsJobs === 1 ? "" : "s"} with actuals` : "" },
-  { key: "followups", title: "Follow-ups",
+  { key: "followups", title: "Follow-ups", rich: true,
     blurb: "Quotes that go quiet for 14+ days, plus finished jobs to calibrate — so nothing slips.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>`,
     preview: (ctx) => ctx.followupCount
@@ -19976,9 +19962,16 @@ const DASH_CARDS = [
       ? `${ctx.approvedCount} approved · view activity`
       : "Track sent & signed quotes",
     preview2: (ctx) => ctx.signedCount ? `${ctx.signedCount} signed e-quote${ctx.signedCount === 1 ? "" : "s"}` : "" },
-  { key: "pipeline", title: "Deal pipeline",
+  // `rich: true` = the card body is a full data panel (the retired overview
+  // grid's content, folded in here 2026-08-02 — one grid, one drag space) and
+  // may hold its own interactive rows, so the cell renders as a div, not a
+  // <button>. `defaultSpan` recreates the old overview's 3/2/1 proportions.
+  { key: "pipeline", title: "Deal pipeline", rich: true, defaultSpan: 3,
     blurb: "Every saved quote by stage — see where deals pile up, what's landed, and your win rate.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>` },
+  { key: "booked", title: "Booked by month", rich: true, defaultSpan: 2, goto: "revenue",
+    blurb: "Saved-job value by calendar month, last 12 months. Opens the Revenue trend page.",
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><rect x="5" y="10" width="3.5" height="8" rx="1"/><rect x="10.5" y="5" width="3.5" height="13" rx="1"/><rect x="16" y="13" width="3.5" height="5" rx="1"/></svg>` },
   { key: "insights", title: "Insights",
     blurb: "See where your money goes — your top materials, customers, and pipeline at a glance.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>`,
@@ -20102,12 +20095,50 @@ function dashCardBody(key, ctx, jobs) {
     }).join("");
   }
   if (key === "followups") {
+    // Rich body — the retired "Needs attention" overview panel, merged in here
+    // (it was the same computeFollowups data drawn twice). Rows open the job.
     let fu; try { fu = computeFollowups(jobs); } catch (_) { fu = { stale: [], calibrate: [] }; }
-    const rows = [];
-    fu.stale.forEach(n => rows.push(dlbPillRow("#c9a558", nameOf(n.job), `${n.days}d quiet`, "gold")));
-    fu.calibrate.forEach(n => rows.push(dlbPillRow("#34d399", nameOf(n.job), "Calibrate", "green")));
-    if (!rows.length) return dlbEmpty("You're all caught up. 🎉");
-    return `<span class="dlb-tag">${rows.length} need${rows.length === 1 ? "s" : ""} attention</span>` + rows.slice(0, 4).join("");
+    const items = fu.stale.map(n => ({ job: n.job, tone: "warn", pill: `${n.days}d quiet`, note: "Quoted, no movement" }))
+      .concat(fu.calibrate.map(n => ({ job: n.job, tone: "ok", pill: "Finished", note: "Log what you used" })))
+      .slice(0, 6);
+    const total = fu.stale.length + fu.calibrate.length;
+    if (!total) {
+      return `<span class="dash-ovsub">You&rsquo;re all caught up.</span>
+        <div class="dash-ovempty">Quotes that go quiet for ${FOLLOWUP_STALE_DAYS}+ days and finished jobs you haven&rsquo;t calibrated land here.</div>`;
+    }
+    return `<span class="dash-ovsub">${total} item${total === 1 ? "" : "s"}${fu.stale.length ? ` &middot; ${fu.stale.length} quiet` : ""}</span>
+      <div class="dash-attn-list">${items.map(it => {
+        const name = it.job.name || it.job.customerName || "Untitled job";
+        return `<button type="button" class="dash-attn-row" data-attn-open="${escHtml(it.job.id)}">
+          <span class="dash-attn-dot tone-${it.tone}"></span>
+          <span class="dash-attn-main">
+            <span class="dash-attn-name">${escHtml(name)}</span>
+            <span class="dash-attn-note">${escHtml(it.note)}</span>
+          </span>
+          <span class="dash-attn-pill tone-${it.tone}">${escHtml(it.pill)}</span>
+        </button>`;
+      }).join("")}</div>
+      ${total > items.length ? `<div class="dash-ovfoot">+${total - items.length} more</div>` : ""}`;
+  }
+  if (key === "booked") {
+    // Rich body — the retired "Booked by month" overview panel. Range-aware,
+    // like the money views around it.
+    const months = dashMonthBuckets(dashRangeJobs(jobs), 12);
+    const peak = Math.max(...months.map(m => m.total), 0);
+    if (!peak) return dlbEmpty("Nothing dated in this range yet.");
+    const booked = months.reduce((s, m) => s + m.total, 0);
+    const active = months.filter(m => m.n).length;
+    const avg = active ? booked / active : 0;
+    const bars = months.map(m => {
+      const h = peak ? Math.max(m.total ? 4 : 0, Math.round((m.total / peak) * 100)) : 0;
+      const tip = `${m.label}: ${formatMoney(m.total)}${m.n ? ` · ${m.n} job${m.n === 1 ? "" : "s"}` : ""}`;
+      return `<div class="dash-bar-col" title="${escHtml(tip)}">
+        <div class="dash-bar-track"><div class="dash-bar-fill${m.total ? "" : " is-empty"}" style="height:${h}%"></div></div>
+        <span class="dash-bar-lbl${m.isJan ? " is-year" : ""}">${escHtml(m.label)}</span>
+      </div>`;
+    }).join("");
+    return `<span class="dash-ovsub">${formatMoney(booked)} over ${active} active month${active === 1 ? "" : "s"} &middot; ${formatMoney(avg)} avg &middot; last 12 months</span>
+      <div class="dash-bars">${bars}</div>`;
   }
   if (key === "shopping") {
     let sj; try { sj = dashShoppingJobs(jobs); } catch (_) { sj = []; }
@@ -20174,13 +20205,31 @@ function dashCardBody(key, ctx, jobs) {
     return `<span class="dlb-tag">Booked · last ${keys.length} months</span>${svg}<span class="dlb-trend-legend"><span class="dlb-tl"><span class="dlb-tl-dot" style="background:#c9a558"></span>Revenue</span><span class="dlb-tl"><span class="dlb-tl-dot" style="background:#34d399"></span>Profit · ${margin}% margin</span></span>`;
   }
   if (key === "pipeline") {
-    const p = pipelineStats(jobs);
-    if (!p.real.length) return dlbEmpty("No saved jobs yet — your pipeline shows up here.");
-    const totalCount = p.real.length || 1;
-    const bar = JOB_STATUSES.map(s => { const c = p.groups[s].length; return c ? `<span class="dlb-seg" style="width:${(c / totalCount * 100).toFixed(1)}%;background:${STATUS_COLORS[s]}"></span>` : ""; }).join("");
-    const legend = JOB_STATUSES.map(s => `<span class="dlb-pl-row"><span class="dlb-dot" style="background:${STATUS_COLORS[s]}"></span><span class="dlb-row-main">${s}</span><span class="dlb-row-meta">${p.groups[s].length} · ${formatMoney(p.sum(p.groups[s]))}</span></span>`).join("");
-    const wr = p.winRate == null ? "" : ` · ${p.winRate}% win`;
-    return `<span class="dlb-tag">Pipeline${wr}</span><span class="dlb-stackbar">${bar}</span><span class="dlb-pl-legend">${legend}</span>`;
+    // Rich body — the retired "Open pipeline" overview panel's stage table
+    // (the old stacked-bar mini body showed the same numbers a third time).
+    const { real, groups, sum } = pipelineStats(dashRangeJobs(jobs));
+    if (!real.length) return dlbEmpty("No saved jobs yet — your pipeline shows up here.");
+    const grand = sum(real) || 0;
+    const rows = JOB_STATUSES.map(st => {
+      const g = groups[st] || [], val = sum(g);
+      const share = grand ? Math.round((val / grand) * 100) : 0;
+      return `<tr>
+        <td class="dpt-stage"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}</td>
+        <td class="dpt-n">${g.length}</td>
+        <td class="dpt-bar">
+          <span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:${STATUS_COLORS[st]}"></span></span>
+          <span class="dpt-share">${share}%</span>
+        </td>
+        <td class="dpt-val">${formatMoney(val)}</td>
+      </tr>`;
+    }).join("");
+    return `<span class="dash-ovsub">${real.length} job${real.length === 1 ? "" : "s"} &middot; ${formatMoney(grand)} total</span>
+      <div class="dpt-wrap">
+        <table class="dpt">
+          <thead><tr><th>Stage</th><th>Jobs</th><th>Share of pipeline</th><th>Value</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   }
   if (key === "manufacturers") {
     const counts = {};
@@ -20293,15 +20342,54 @@ function dashFirstRunAction(act) {
 // Per-user launchpad layout: which cards show and in what order. Resolved from
 // DATA.config.dashLayout against the live DASH_CARDS list so new cards added in
 // code auto-appear (at the end) and cards removed from code just drop out.
+/* One-time merge of the retired overview grid's layout (DATA.config.dashOvLayout)
+   into the single card grid (owner 2026-08-02: "one big section"). The trio maps
+   onto its card twins — attention → followups (same computeFollowups data),
+   pipeline → pipeline (the card now carries the stage table) — keeping each
+   user's positions, sizes, and hidden choices. A twin stays hidden only if BOTH
+   old surfaces were hidden; either one visible wins. */
+function migrateDashOvLayout() {
+  const ov = DATA.config && DATA.config.dashOvLayout;
+  if (!ov) return;
+  try {
+    const MAP = { booked: "booked", attention: "followups", pipeline: "pipeline" };
+    const cur = DATA.config.dashLayout || {};
+    const curHidden = new Set(Array.isArray(cur.hidden) ? cur.hidden : []);
+    const spans = Object.assign({}, cur.spans);
+    const ovOrder = (Array.isArray(ov.order) ? ov.order : ["pipeline", "booked", "attention"]).filter(k => MAP[k]);
+    const ovHidden = new Set(Array.isArray(ov.hidden) ? ov.hidden : []);
+    const mapped = ovOrder.map(k => MAP[k]);
+    // The panels sat ABOVE the cards, so their order leads; card-side dupes drop.
+    const order = mapped.concat((Array.isArray(cur.order) ? cur.order : []).filter(k => !mapped.includes(k)));
+    ovOrder.forEach(k => {
+      const t = MAP[k];
+      const sp = Number((ov.spans || {})[k]);
+      if (sp >= 1 && sp <= 3) spans[t] = Math.round(sp);
+      if (ovHidden.has(k) && (k === "booked" || curHidden.has(t))) curHidden.add(t);
+      else curHidden.delete(t);
+    });
+    DATA.config.dashLayout = { order, hidden: Array.from(curHidden), spans };
+  } catch (_) {}
+  delete DATA.config.dashOvLayout;
+  try { saveData(DATA); } catch (_) {}
+}
 function resolveDashLayout() {
+  migrateDashOvLayout();
   const all = DASH_CARDS.map(c => c.key);
   const cfg = (DATA.config && DATA.config.dashLayout) || {};
   const hidden = new Set(Array.isArray(cfg.hidden) ? cfg.hidden.filter(k => all.includes(k)) : []);
   const order = (Array.isArray(cfg.order) ? cfg.order.filter(k => all.includes(k)) : []).slice();
-  all.forEach(k => { if (!order.includes(k)) order.push(k); });   // new cards → end
-  // Per-card width, 1-3 blocks of the 3-column grid. Default 1 = today's look.
+  // Missing keys append in DEFAULT order: the rich data cards lead (the old
+  // overview-on-top look), then the registry order.
+  const lead = ["pipeline", "booked", "followups"];
+  lead.concat(all.filter(k => !lead.includes(k))).forEach(k => { if (!order.includes(k)) order.push(k); });
+  // Per-card width, 1-3 blocks of the 3-column grid.
   const spans = {};
-  all.forEach(k => { const raw = cfg.spans && Number(cfg.spans[k]); spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : 1; });
+  all.forEach(k => {
+    const raw = cfg.spans && Number(cfg.spans[k]);
+    const card = DASH_CARDS.find(c => c.key === k);
+    spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : ((card && card.defaultSpan) || 1);
+  });
   return { order, spans, visible: order.filter(k => !hidden.has(k)), hiddenList: order.filter(k => hidden.has(k)) };
 }
 function persistDashLayout(visibleOrder, hiddenList, spans) {
@@ -20348,7 +20436,6 @@ function dashResetLayout() {
   // overview panel would survive a "Reset" and look like the button is broken.
   if (DATA.config) { delete DATA.config.dashLayout; delete DATA.config.dashOvLayout; }
   saveData(DATA); refreshDashLaunchpad();
-  try { applyDashOvLayout(); } catch (_) {}
 }
 // Read the live DOM order after a drag and persist it (visible cards only; the
 // hidden set is unchanged).
@@ -20558,11 +20645,7 @@ function renderDashEditBar() {
   const bar = document.getElementById("dashEditBar"); if (!bar) return;
   if (!_dashEditMode) { bar.classList.add("hidden"); bar.innerHTML = ""; return; }
   const { hiddenList } = resolveDashLayout();
-  const ovHidden = resolveDashOvLayout().hiddenList;
-  const chips = ovHidden.map(k => {
-    const p = DASH_OV_PANELS.find(x => x.key === k); if (!p) return "";
-    return `<button type="button" class="dash-add-chip" data-dashaddov="${k}">${escHtml(p.title)}<span class="dac-plus">+</span></button>`;
-  }).join("") + hiddenList.map(k => {
+  const chips = hiddenList.map(k => {
     const c = DASH_CARDS.find(x => x.key === k); if (!c) return "";
     return `<button type="button" class="dash-add-chip" data-dashadd="${k}"><span class="dac-ico">${c.icon}</span>${escHtml(c.title)}<span class="dac-plus">+</span></button>`;
   }).join("");
@@ -20591,7 +20674,6 @@ function toggleDashEdit(on) {
   // The edit bar keeps only Reset + the add-back tray.
   try { closeAllDashTips(); } catch (_) {}
   refreshDashLaunchpad();
-  try { applyDashOvLayout(); } catch (_) {}
 }
 
 function renderDashLaunchpad(jobs) {
@@ -20628,6 +20710,23 @@ function renderDashLaunchpad(jobs) {
         </span>
       </div>`;
     }
+    // Rich cards hold interactive rows of their own (e.g. Follow-ups' job
+    // rows), so the cell is a div with role=button — a <button> may not nest
+    // buttons. Click/Enter/Space routing lives in the launchpad delegates.
+    if (c.rich) return `
+    <div class="dash-launch-cell dlc-span-${spans[c.key] || 1} is-rich" data-card-key="${c.key}">
+      <div role="button" tabindex="0" data-dashcard="${c.goto || c.key}" class="dash-launch-card" aria-describedby="tip-${c.key}">
+        <span class="dash-launch-head">
+          <span class="dash-launch-icon">${c.icon}</span>
+          <span class="dash-launch-title">${escHtml(c.title)}</span>
+        </span>
+        <span class="dash-launch-body">${body}</span>
+      </div>
+      <span class="dash-tip-btn" role="button" tabindex="0" aria-expanded="false" data-tip-for="${c.key}" aria-label="What is ${escHtml(c.title)}?">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><circle cx="12" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg>
+      </span>
+      <span class="dash-tip" id="tip-${c.key}" role="tooltip" data-flip="down">${escHtml(c.blurb || "")}</span>
+    </div>`;
     return `
     <div class="dash-launch-cell dlc-span-${spans[c.key] || 1}" data-card-key="${c.key}">
       <button type="button" data-dashcard="${c.goto || c.key}" class="dash-launch-card" aria-describedby="tip-${c.key}">
@@ -20676,9 +20775,6 @@ function applyDashView() {
   // checklist (if incomplete) rides above it as a strip.
   if (firstRun) firstRun.classList.toggle("hidden", !home || !_dashChecklistShow);
   if (launch) launch.classList.toggle("hidden", !home || _dashFirstRunActive);
-  // v2 P3: the overview belongs to home, and only once there are jobs to show.
-  const ov = document.getElementById("dashOverview");
-  if (ov) ov.classList.toggle("hidden", !home || _dashFirstRunActive);
   if (section) section.classList.toggle("hidden", home);
   // Customize edits the launchpad — keep it with those cards (under KPIs).
   const custRow = document.getElementById("dashCustomizeRow");
@@ -22230,151 +22326,7 @@ function dashMonthBuckets(jobs, count) {
   });
   return out;
 }
-function renderDashBooked(jobs) {
-  const el = document.getElementById("dashBookedCard");
-  if (!el) return;
-  const months = dashMonthBuckets(jobs, 12);
-  const peak = Math.max(...months.map(m => m.total), 0);
-  const booked = months.reduce((s, m) => s + m.total, 0);
-  const active = months.filter(m => m.n).length;
-  const avg = active ? booked / active : 0;
-  if (!peak) {
-    el.innerHTML = `<div class="dash-ovhead"><div><div class="dash-ovtitle">Booked by month</div>
-      <div class="dash-ovsub">Nothing dated in this range yet.</div></div></div>`;
-    return;
-  }
-  const bars = months.map(m => {
-    const h = peak ? Math.max(m.total ? 4 : 0, Math.round((m.total / peak) * 100)) : 0;
-    const tip = `${m.label}: ${formatMoney(m.total)}${m.n ? ` · ${m.n} job${m.n === 1 ? "" : "s"}` : ""}`;
-    return `<div class="dash-bar-col" title="${escHtml(tip)}">
-      <div class="dash-bar-track"><div class="dash-bar-fill${m.total ? "" : " is-empty"}" style="height:${h}%"></div></div>
-      <span class="dash-bar-lbl${m.isJan ? " is-year" : ""}">${escHtml(m.label)}</span>
-    </div>`;
-  }).join("");
-  el.innerHTML = `
-    <div class="dash-ovhead">
-      <div>
-        <div class="dash-ovtitle">Booked by month</div>
-        <div class="dash-ovsub">${formatMoney(booked)} over ${active} active month${active === 1 ? "" : "s"} &middot; ${formatMoney(avg)} avg</div>
-      </div>
-      <span class="dash-ovpill">Last 12 months</span>
-    </div>
-    <div class="dash-bars">${bars}</div>`;
-}
-function renderDashAttention(jobs) {
-  const el = document.getElementById("dashAttentionCard");
-  if (!el) return;
-  const { stale, calibrate } = computeFollowups(jobs);
-  const items = stale.map(n => ({ job: n.job, tone: "warn", pill: `${n.days}d quiet`,
-      note: "Quoted, no movement" }))
-    .concat(calibrate.map(n => ({ job: n.job, tone: "ok", pill: "Finished", note: "Log what you used" })))
-    .slice(0, 6);
-  const total = stale.length + calibrate.length;
-  if (!total) {
-    el.innerHTML = `<div class="dash-ovhead"><div><div class="dash-ovtitle">Needs attention</div>
-        <div class="dash-ovsub">You&rsquo;re all caught up.</div></div></div>
-      <div class="dash-ovempty">Quotes that go quiet for ${FOLLOWUP_STALE_DAYS}+ days and finished jobs you haven&rsquo;t calibrated land here.</div>`;
-    return;
-  }
-  el.innerHTML = `
-    <div class="dash-ovhead">
-      <div>
-        <div class="dash-ovtitle">Needs attention</div>
-        <div class="dash-ovsub">${total} item${total === 1 ? "" : "s"}${stale.length ? ` &middot; ${stale.length} quiet` : ""}</div>
-      </div>
-      <button type="button" class="dash-ovlink" data-dashnav-jump="followups">All &rarr;</button>
-    </div>
-    <div class="dash-attn-list">${items.map(it => {
-      const name = it.job.name || it.job.customerName || "Untitled job";
-      return `<button type="button" class="dash-attn-row" data-attn-open="${escHtml(it.job.id)}">
-        <span class="dash-attn-dot tone-${it.tone}"></span>
-        <span class="dash-attn-main">
-          <span class="dash-attn-name">${escHtml(name)}</span>
-          <span class="dash-attn-note">${escHtml(it.note)}</span>
-        </span>
-        <span class="dash-attn-pill tone-${it.tone}">${escHtml(it.pill)}</span>
-      </button>`;
-    }).join("")}</div>
-    ${total > items.length ? `<div class="dash-ovfoot">+${total - items.length} more</div>` : ""}`;
-}
-function renderDashPipelineCard(jobs) {
-  const el = document.getElementById("dashPipelineCard");
-  if (!el) return;
-  const { real, groups, sum } = pipelineStats(jobs);
-  if (!real.length) { el.innerHTML = ""; el.classList.add("hidden"); return; }
-  el.classList.remove("hidden");
-  const grand = sum(real) || 0;
-  const rows = JOB_STATUSES.map(st => {
-    const g = groups[st] || [], val = sum(g);
-    const share = grand ? Math.round((val / grand) * 100) : 0;
-    return `<tr>
-      <td class="dpt-stage"><span class="dpt-dot" style="background:${STATUS_COLORS[st]}"></span>${escHtml(st)}</td>
-      <td class="dpt-n">${g.length}</td>
-      <td class="dpt-bar">
-        <span class="dpt-track"><span class="dpt-fill" style="width:${share}%;background:${STATUS_COLORS[st]}"></span></span>
-        <span class="dpt-share">${share}%</span>
-      </td>
-      <td class="dpt-val">${formatMoney(val)}</td>
-    </tr>`;
-  }).join("");
-  el.innerHTML = `
-    <div class="dash-ovhead">
-      <div>
-        <div class="dash-ovtitle">Open pipeline</div>
-        <div class="dash-ovsub">${real.length} job${real.length === 1 ? "" : "s"} &middot; ${formatMoney(grand)} total</div>
-      </div>
-      <button type="button" class="dash-ovlink" data-dashnav-jump="pipeline">Deal pipeline &rarr;</button>
-    </div>
-    <div class="dpt-wrap">
-      <table class="dpt">
-        <thead><tr><th>Stage</th><th>Jobs</th><th>Share of pipeline</th><th>Value</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
-}
-function renderDashOverview(jobs) {
-  const wrap = document.getElementById("dashOverview");
-  if (!wrap) return;
-  const ranged = dashRangeJobs(jobs);
-  renderDashBooked(ranged);
-  renderDashAttention(ranged);
-  renderDashPipelineCard(ranged);
-  if (!wrap._wired) {
-    wrap._wired = true;
-    wrap.addEventListener("click", (e) => {
-      // Edit-mode controls first — they sit on top of the panels' own links.
-      const sp = e.target.closest("[data-dashovspan]");
-      if (sp) { setDashOvSpan(sp.dataset.key, sp.dataset.dashovspan); return; }
-      const mv = e.target.closest("[data-dashovmove]");
-      if (mv) { moveDashOvPanel(mv.dataset.key, mv.dataset.dashovmove); return; }
-      const rm = e.target.closest("[data-dashovremove]");
-      if (rm) { removeDashOvPanel(rm.dataset.dashovremove); return; }
-      if (_dashEditMode) return;   // nothing else is clickable while editing
-      const jump = e.target.closest("[data-dashnav-jump]");
-      if (jump) { dashGoTo(jump.dataset.dashnavJump); return; }
-      const open = e.target.closest("[data-attn-open]");
-      if (open) { try { openJobDetails(open.dataset.attnOpen); } catch (_) { dashGoTo("followups"); } }
-    });
-    // The panels drag exactly like the cards below them — same engine.
-    wireDashDragReorder(wrap, ".dash-ovcard.editing", persistDashOvOrderFromDOM, previewDashOvSpans);
-  }
-  applyDashOvLayout();   // order/hide/spans + edit controls, AFTER the renderers write innerHTML
-}
 
-/* ── Overview panels are customizable too ─────────────────────────────────────
-   The top row used to be three fixed divs, so edit mode could reorder the
-   launchpad cards but not the panels above them. They now share the same
-   contract as the cards: an order, a hidden list, and add-back chips.
-
-   The row stays ADAPTIVE rather than leaving a hole — "Booked by month" and
-   "Needs attention" share a 2fr/1fr row, so if either one goes the other takes
-   the full width. Spans are computed from what's actually visible, not stored,
-   so the layout can never disagree with itself. */
-const DASH_OV_PANELS = [
-  { key: "booked",    id: "dashBookedCard",    title: "Booked by month" },
-  { key: "attention", id: "dashAttentionCard", title: "Needs attention" },
-  { key: "pipeline",  id: "dashPipelineCard",  title: "Open pipeline", full: true },
-];
 /* Card width is now CHOSEN, not computed: every panel carries a span of 1, 2 or
    3 blocks of a 3-column grid (owner request 2026-07-31 — "adjust every single
    card to be one block, two blocks, or three blocks wide"). Defaults reproduce
@@ -22470,34 +22422,6 @@ function autoFitSpansOnDrop(visible, spans, draggedKey) {
   }
   return changed;
 }
-const DASH_OV_DEFAULT_SPAN = { pipeline: 3, booked: 2, attention: 1 };
-function resolveDashOvLayout() {
-  const all = DASH_OV_PANELS.map(p => p.key);
-  const cfg = (DATA.config && DATA.config.dashOvLayout) || {};
-  const order = (Array.isArray(cfg.order) ? cfg.order : []).filter(k => all.includes(k));
-  all.forEach(k => { if (!order.includes(k)) order.push(k); });   // a new panel shows up by default
-  const hidden = (Array.isArray(cfg.hidden) ? cfg.hidden : []).filter(k => all.includes(k));
-  const spans = {};
-  all.forEach(k => {
-    const raw = cfg.spans && Number(cfg.spans[k]);
-    spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : (DASH_OV_DEFAULT_SPAN[k] || 1);
-  });
-  return { order, spans, visible: order.filter(k => !hidden.includes(k)), hiddenList: order.filter(k => hidden.includes(k)) };
-}
-function saveDashOvLayout(order, hidden, spans) {
-  if (!DATA.config) DATA.config = {};
-  const prev = DATA.config.dashOvLayout || {};
-  DATA.config.dashOvLayout = { order, hidden, spans: spans || prev.spans || {} };
-  saveData(DATA);
-}
-function setDashOvSpan(key, span) {
-  const { order, hiddenList, spans } = resolveDashOvLayout();
-  spans[key] = Math.min(3, Math.max(1, Number(span) || 1));
-  // The picked size is pinned; neighbours grow/shrink so no row trails a gap.
-  fillDashSpanRows(order.filter(k => !hiddenList.includes(k)), spans, key);
-  saveDashOvLayout(order, hiddenList, spans);
-  applyDashOvLayout();
-}
 /* iPhone-widget-style size glyphs: a frame with a fill that grows S -> M -> L.
    Replaces the bare 1|2|3 digits (owner request 2026-07-31). */
 const DEC_SPAN_ICONS = {
@@ -22508,61 +22432,6 @@ const DEC_SPAN_ICONS = {
 const DEC_SPAN_NAME = { 1: "Small", 2: "Medium", 3: "Full width" };
 const DEC_HANDLE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 
-function applyDashOvLayout() {
-  const wrap = document.getElementById("dashOverview");
-  if (!wrap) return;
-  const { order, visible } = resolveDashOvLayout();
-  const byKey = {}; DASH_OV_PANELS.forEach(p => { byKey[p.key] = p; });
-
-  // Re-append in order so the DOM matches the saved order.
-  order.forEach(k => {
-    const p = byKey[k]; const el = p && document.getElementById(p.id);
-    if (el) wrap.appendChild(el);
-  });
-
-  const { spans } = resolveDashOvLayout();
-  DASH_OV_PANELS.forEach(p => {
-    const el = document.getElementById(p.id);
-    if (!el) return;
-    // A drop's FLIP transform sweeps on a 300ms timer; a size-button repaint
-    // inside that window re-appended the node WITH the transform still inline,
-    // so the card sat hundreds of px from its true grid slot and every later
-    // drag measured the real rect while the eye saw the ghost. Clear on every
-    // repaint — never carry drag residue into a fresh layout.
-    if (!el.classList.contains("dragging")) { el.style.transform = ""; el.style.transition = ""; }
-    const on = visible.includes(p.key);
-    el.classList.toggle("hidden", !on);
-    el.classList.toggle("editing", on && _dashEditMode);
-    if (!on) return;
-    // The owner picks each panel's width (1–3 blocks); the grid's dense flow
-    // backfills gaps so a 2+1 row, three 1s, or a full-width 3 all pack cleanly.
-    el.style.gridColumn = `span ${spans[p.key] || 1}`;
-    // Controls are injected after the renderers, so they survive a re-render.
-    const old = el.querySelector(":scope > .dash-edit-controls");
-    if (old) old.remove();
-    if (!_dashEditMode) return;
-    const i = visible.indexOf(p.key);
-    const ctl = document.createElement("div");
-    ctl.className = "dash-edit-controls";
-    const seg = [1, 2, 3].map(n =>
-      `<button type="button" class="dec-btn dec-span${spans[p.key] === n ? " on" : ""}" data-dashovspan="${n}" data-key="${p.key}"
-         aria-label="${escHtml(p.title)}: ${DEC_SPAN_NAME[n]}" aria-pressed="${spans[p.key] === n}" title="${DEC_SPAN_NAME[n]}">${DEC_SPAN_ICONS[n]}</button>`).join("");
-    // Cluster on the right: arrows/remove on top, size glyphs BELOW them —
-    // one inline row overlapped small cards' own titles (owner 2026-08-02).
-    ctl.innerHTML =
-      `<span class="dec-handle" aria-hidden="true">${DEC_HANDLE_SVG}</span><span class="dec-spacer"></span>`
-      + `<span class="dec-cluster"><span class="dec-row">`
-      + `<button type="button" class="dec-btn" data-dashovmove="up" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} earlier"${i === 0 ? " disabled" : ""}>&uarr;</button>`
-      + `<button type="button" class="dec-btn" data-dashovmove="down" data-key="${p.key}" aria-label="Move ${escHtml(p.title)} later"${i === visible.length - 1 ? " disabled" : ""}>&darr;</button>`
-      + `<button type="button" class="dec-btn dec-remove" data-dashovremove="${p.key}" aria-label="Remove ${escHtml(p.title)}">&times;</button>`
-      + `</span><span class="dec-row">${seg}</span></span>`;
-    el.insertBefore(ctl, el.firstChild);
-  });
-}
-/* After a drag the DOM already holds the new order — read it back rather than
-   re-running applyDashOvLayout, which would re-append the panels and cut the
-   drop animation short. Only the ↑ ↓ enable-states need catching up. */
-let _ovDragRects = null;    // drag-start rect snapshot — the stable hit-test map
 /* Where would the card land if released HERE? Insertion order from the pointer,
    not from the DOM — the engine only reorders the DOM once a slot midpoint is
    crossed, and the owner rightly expects the sizes to react as soon as the card
@@ -22599,98 +22468,6 @@ function dashPointerOrder(entries, draggedKey, x, y) {
   const at = order.indexOf(anchor);
   order.splice(before ? at : at + 1, 0, draggedKey);
   return { order, row: inRow ? rowEls.map(e => e.key) : [] };
-}
-function previewDashOvSpans(cell, phase, x, y) {
-  const byId = {}; DASH_OV_PANELS.forEach(p => { byId[p.id] = p.key; });
-  const key = cell && byId[cell.id]; if (!key) return false;
-  const { hiddenList, spans, order } = resolveDashOvLayout();   // SAVED spans — preview never accumulates
-  const saved = order.filter(k => !hiddenList.includes(k));
-  if (phase === "start") {
-    // Freeze the geometry the whole drag hit-tests against (see dashPointerOrder).
-    _ovDragRects = {};
-    saved.forEach(k => { const p = DASH_OV_PANELS.find(o => o.key === k); const el = p && document.getElementById(p.id);
-      if (el) _ovDragRects[k] = el.getBoundingClientRect(); });
-    return false;
-  }
-  const entries = saved.map(k => ({ key: k, rect: _ovDragRects && _ovDragRects[k] })).filter(e => e.rect);
-  if (!entries.length) return false;
-  const po = dashPointerOrder(entries, key, x, y);
-  const visible = po.order;
-  const preview = computeDragPreviewSpans(visible, spans, key, po.row);
-  let changed = false;
-  visible.forEach(k => {
-    const p = DASH_OV_PANELS.find(x => x.key === k); const el = p && document.getElementById(p.id);
-    if (!el) return;
-    const want = `span ${preview[k] || 1}`;
-    if (el.style.gridColumn !== want) { el.style.gridColumn = want; changed = true; }
-  });
-  return changed;   // engine re-measures its slot map when the grid reshaped
-}
-function persistDashOvOrderFromDOM(draggedCell, dropX, dropY) {
-  const wrap = document.getElementById("dashOverview"); if (!wrap) return;
-  const byId = {}; DASH_OV_PANELS.forEach(p => { byId[p.id] = p.key; });
-  const { hiddenList, spans, order } = resolveDashOvLayout();
-  const dk = draggedCell && byId[draggedCell.id];
-  let visible;
-  const savedOv = order.filter(k => !hiddenList.includes(k));
-  const ovEntries = (dk && dropX != null)
-    ? savedOv.map(k => ({ key: k, rect: _ovDragRects && _ovDragRects[k] })).filter(e => e.rect) : [];
-  let ovRow = null;
-  if (ovEntries.length) {
-    // Persist exactly what the pointer-based preview showed (same frozen rects) —
-    // one source of truth, so the drop can never land elsewhere than the preview.
-    const po = dashPointerOrder(ovEntries, dk, dropX, dropY);
-    visible = po.order; ovRow = po.row;
-  } else {
-    visible = Array.from(wrap.children).map(el => byId[el.id]).filter(k => k && !hiddenList.includes(k));
-  }
-  let resized = false;
-  if (dk) {
-    const preview = computeDragPreviewSpans(visible, spans, dk, ovRow);
-    resized = visible.some(k => (preview[k] || 1) !== (spans[k] || 1));
-    visible.forEach(k => spans[k] = preview[k] || 1);
-  }
-  _ovDragRects = null;
-  saveDashOvLayout(visible.concat(hiddenList), hiddenList, spans);
-  // The saved order may differ from the DOM (pointer-order drop) and spans may
-  // have changed — re-apply, which also sweeps any leftover drag transforms.
-  applyDashOvLayout();
-  if (resized) return;
-  const shown = Array.from(wrap.children).filter(el => el.classList.contains("editing"));
-  shown.forEach((el, i) => {
-    const up = el.querySelector('[data-dashovmove="up"]'), dn = el.querySelector('[data-dashovmove="down"]');
-    if (up) up.disabled = i === 0;
-    if (dn) dn.disabled = i === shown.length - 1;
-  });
-}
-function moveDashOvPanel(key, dir) {
-  const { order, hiddenList, spans } = resolveDashOvLayout();
-  const vis = order.filter(k => !hiddenList.includes(k));
-  const i = vis.indexOf(key); if (i < 0) return;
-  const j = dir === "up" ? i - 1 : i + 1;
-  if (j < 0 || j >= vis.length) return;
-  [vis[i], vis[j]] = [vis[j], vis[i]];
-  fillDashSpanRows(vis, spans);
-  saveDashOvLayout(vis.concat(hiddenList), hiddenList, spans);
-  applyDashOvLayout();
-  try { renderDashEditBar(); } catch (_) {}
-}
-function removeDashOvPanel(key) {
-  const { order, hiddenList, spans } = resolveDashOvLayout();
-  if (hiddenList.includes(key)) return;
-  const nh = hiddenList.concat([key]);
-  fillDashSpanRows(order.filter(k => !nh.includes(k)), spans);
-  saveDashOvLayout(order, nh, spans);
-  applyDashOvLayout();
-  try { renderDashEditBar(); } catch (_) {}
-}
-function addBackDashOvPanel(key) {
-  const { order, hiddenList, spans } = resolveDashOvLayout();
-  const nh = hiddenList.filter(k => k !== key);
-  fillDashSpanRows(order.filter(k => !nh.includes(k)), spans);
-  saveDashOvLayout(order, nh, spans);
-  applyDashOvLayout();
-  try { renderDashEditBar(); } catch (_) {}
 }
 
 /** Open a dashboard destination. Four DASH_CARDS are SHORTCUTS, not panels — they
@@ -22741,19 +22518,6 @@ function dashOpenTarget(target) {
   // is why two nav rows led to one destination. P3 built what their blurbs actually
   // describe — the stage table and the booked-by-month chart — so they now land
   // there: home, with that panel scrolled into view and briefly highlighted.
-  const OVERVIEW_TARGETS = { "overview-pipeline": "dashPipelineCard", "overview-booked": "dashBookedCard" };
-  if (OVERVIEW_TARGETS[target]) {
-    dashGoTo("home");
-    const id = OVERVIEW_TARGETS[target];
-    requestAnimationFrame(() => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.scrollIntoView({ behavior: dashReduceMotion() ? "auto" : "smooth", block: "center" });
-      el.classList.add("dash-ovcard-flash");
-      setTimeout(() => el.classList.remove("dash-ovcard-flash"), 1400);
-    });
-    return;
-  }
   dashGoTo(target);
 }
 
@@ -25475,8 +25239,6 @@ function wireDashboard() {
   const _editBar = document.getElementById("dashEditBar");
   if (_editBar) _editBar.addEventListener("click", (e) => {
     if (e.target.closest("[data-dashreset]")) { dashResetLayout(); return; }
-    const addOv = e.target.closest("[data-dashaddov]");
-    if (addOv) { addBackDashOvPanel(addOv.dataset.dashaddov); return; }
     const add = e.target.closest("[data-dashadd]");
     if (add) { dashAdd(add.dataset.dashadd); return; }
   });
@@ -25492,6 +25254,13 @@ function wireDashboard() {
       const rm = e.target.closest("[data-dashremove]");
       if (rm) { e.preventDefault(); e.stopPropagation(); dashRemove(rm.dataset.dashremove); return; }
       if (_dashEditMode) { e.preventDefault(); return; }
+      // A Follow-ups row opens that job directly — before the card-level nav.
+      const attn = e.target.closest("[data-attn-open]");
+      if (attn) {
+        e.preventDefault(); e.stopPropagation();
+        try { openJobDetails(attn.dataset.attnOpen); } catch (_) { dashGoTo("followups"); }
+        return;
+      }
       // The ⓘ hint toggles a description popover and must NOT navigate.
       const tip = e.target.closest(".dash-tip-btn");
       if (tip) {
@@ -25508,7 +25277,14 @@ function wireDashboard() {
     // Keyboard parity for the role=button ⓘ span.
     launchpad.addEventListener("keydown", (e) => {
       const tip = e.target.closest(".dash-tip-btn");
-      if (tip && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); tip.click(); }
+      if (tip && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); tip.click(); return; }
+      // Rich cards are role=button divs — give them real key activation.
+      if ((e.key === "Enter" || e.key === " ") && !_dashEditMode
+          && e.target.matches('.dash-launch-card[role="button"]')) {
+        e.preventDefault();
+        const t = e.target.getAttribute("data-dashcard");
+        if (t) dashOpenTarget(t);
+      }
     });
     // Desktop: set the tip's flip direction as the pointer enters a card.
     launchpad.addEventListener("pointerover", (e) => {
