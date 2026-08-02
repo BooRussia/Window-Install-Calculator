@@ -4193,6 +4193,37 @@
      content at the very top (no .lp-nav of their own) push below the status bar.
      Centered-card screens (auth) don't need it. env() is 0 outside the PWA. */
   #onboardScreen, #setupScreen { padding-top: calc(1.25rem + env(safe-area-inset-top)); }
+  /* Installed PWA: the status-bar strip behind the clock / Dynamic Island was
+     painting the flat page colour (#020617) while the header right below it read
+     as glass — a hard two-tone seam at the inset. Sampling an on-device shot:
+     0→inset was #020616 (raw page bg, no glass at all) and the header row was
+     #060e25, so .lp-nav's painted box starts BELOW the inset there and its
+     padding-top never covers the strip.
+     This band paints that strip with the header's exact glass, so the surface
+     reads as one continuous sheet to the physical top. Fixed to the layout
+     viewport (viewport-fit=cover ⇒ top:0 is the physical top) so it works no
+     matter which element owns the colour underneath. Height collapses to 0 when
+     there's no inset, and the whole rule is scoped to the installed app. */
+  html.pwa-standalone .safe-top-glass {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: rgba(8,20,42,0.45);
+    backdrop-filter: blur(18px) saturate(1.6);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    /* Above the app shell + dashboard (z 74) and the glass dock (z 75); below the
+       mobile sidebar drawer (96) and modals (140+), which own the strip themselves. */
+    z-index: 80;
+    pointer-events: none;
+  }
+  /* Light mode runs a different glass recipe on .lp-nav — mirror it, or the strip
+     reads as a grey bar above a white header. Flat at the nav gradient's TOP stop
+     (0.22): the nav's own 0.22→0.08 gradient restarts at its box, so anything that
+     ramps here would step against the nav's top edge at the seam. */
+  html.pwa-standalone[data-theme="light"] .safe-top-glass {
+    background: rgba(255,255,255,0.22);
+    backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
+    -webkit-backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
+  }
   .lp-eyebrow {
     display: inline-flex; align-items: center; gap: 7px;
     font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
@@ -8260,6 +8291,12 @@
 </style>
 </head>
 <body class="bg-grid text-slate-100 min-h-screen rail-pinned rail-tidy">
+
+<!-- Installed-PWA status-bar strip: carries the header's glass up to the physical
+     top so the area behind the clock / Dynamic Island matches the header instead
+     of showing the flat page colour. Inert (0px tall, no hit box) everywhere but
+     the installed app — see .safe-top-glass in the stylesheet. -->
+<div class="safe-top-glass" aria-hidden="true"></div>
 
 <!-- ============================================================
      PUBLIC CUSTOMER QUOTE VIEW (#/q/{payload})
