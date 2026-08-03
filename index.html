@@ -4182,10 +4182,15 @@
   .group:hover .brand-logo { opacity: .85; }
   .brand-logo-app { height: 32px; }
   .brand-logo-hero { height: 56px; }
-  .lp-nav {
+  /* The header glass and the safe-area strip above it share ONE declaration so
+     they can't drift apart — change the recipe here and both move together. */
+  .lp-nav,
+  .safe-top-glass {
     background: rgba(8,20,42,0.45);
     backdrop-filter: blur(18px) saturate(1.6);
     -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  }
+  .lp-nav {
     border-bottom: 1px solid rgba(120,150,200,0.14);
     padding-top: env(safe-area-inset-top);
   }
@@ -4194,37 +4199,33 @@
      Centered-card screens (auth) don't need it. env() is 0 outside the PWA. */
   #onboardScreen, #setupScreen { padding-top: calc(1.25rem + env(safe-area-inset-top)); }
   /* Safe-area strip behind the clock / Dynamic Island. .lp-nav's painted box
-     starts BELOW the inset (the scroller it lives in is already inset), so its
-     own padding-top never reaches the physical top and the strip showed the flat
-     page colour under a glass header.
+     starts BELOW the inset on iOS (the scroller it lives in is already inset),
+     so its own padding-top never reaches the physical top and that strip showed
+     the flat page colour under a glass header.
 
-     This is deliberately a FLAT fill, not a second glass layer. A blurred strip
-     was tried first and still read as a break: two backdrop-filter layers each
-     blur their own region, so their output can't match at the join (the gold
-     button glow visibly stopped dead at the seam too). Device samples of that
-     attempt: strip #071230 vs nav #060f27.
+     The strip carries the SAME glass as the header — background + backdrop-filter
+     come from the shared `.lp-nav, .safe-top-glass` rule above, so the two can
+     never drift and both follow any future change to the header recipe. A flat
+     fill was tried here and rejected: it killed the liquid-glass look.
 
-     Flat is not a compromise here — nothing ever passes behind this strip. The
-     scroller starts below the inset, which is the whole bug, so content can't
-     enter this band; it only ever showed a flat colour. Matching the nav's
-     rendered top edge therefore makes the two provably identical.
-
-     Colours are the nav's recipe composited over the page beneath it:
-       dark  rgba(8,20,42,0.45) + saturate(1.6) over #020617  → measured #060f27
-       light rgba(255,255,255,0.22) + brightness(1.06) over #f3f4f7 → clips to white
-     Not scoped to the installed app: any context with a real inset (installed
-     PWA, and mobile browsers whenever they expose one) gets the same treatment,
-     and the height collapses to 0 where there's no inset. */
+     Applies wherever a real inset exists — installed PWA and mobile browser
+     alike, so the two match — and the height collapses to 0 where there is
+     none, leaving no box, no paint and no hit area. */
   .safe-top-glass {
     position: fixed; top: 0; left: 0; right: 0;
     height: env(safe-area-inset-top, 0px);
-    background: #060f27;
     /* Above the app shell + dashboard (z 74) and the glass dock (z 75); below the
        mobile sidebar drawer (96) and modals (140+), which own the strip themselves. */
     z-index: 80;
     pointer-events: none;
   }
-  [data-theme="light"] .safe-top-glass { background: #ffffff; }
+  /* Light mode swaps the header to a white glass recipe — mirror it, flat at that
+     gradient's top stop so it can't step against the nav's own top edge. */
+  [data-theme="light"] .safe-top-glass {
+    background: rgba(255,255,255,0.22);
+    backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
+    -webkit-backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
+  }
   .lp-eyebrow {
     display: inline-flex; align-items: center; gap: 7px;
     font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
