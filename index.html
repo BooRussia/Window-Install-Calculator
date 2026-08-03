@@ -4183,12 +4183,23 @@
   .brand-logo-app { height: 32px; }
   .brand-logo-hero { height: 56px; }
   /* The header glass and the safe-area strip above it share ONE declaration so
-     they can't drift apart — change the recipe here and both move together. */
+     they can't drift apart — change the recipe here and both move together.
+
+     Driven by the Liquid Glass slider (Settings), like every other .liquid-glass
+     surface. The multipliers re-base the shared --glass-* vars onto the header's
+     own navy recipe, chosen so the slider's DEFAULT position (--glass-t: 55)
+     reproduces the previous hardcoded look exactly — 0.261×1.724 = 0.45 alpha,
+     20.8px×0.865 = 18px blur, 1.27×1.26 = 1.6 saturate. Drag toward 0 and the
+     header frosts up with everything else; toward 100 and it clears. */
   .lp-nav,
   .safe-top-glass {
-    background: rgba(8,20,42,0.45);
-    backdrop-filter: blur(18px) saturate(1.6);
-    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    background: rgba(8,20,42, calc(var(--glass-alpha, 0.261) * 1.724));
+    backdrop-filter:
+      blur(calc(var(--glass-blur, 20.8px) * 0.865))
+      saturate(calc(var(--glass-sat, 1.27) * 1.26));
+    -webkit-backdrop-filter:
+      blur(calc(var(--glass-blur, 20.8px) * 0.865))
+      saturate(calc(var(--glass-sat, 1.27) * 1.26));
   }
   .lp-nav {
     border-bottom: 1px solid rgba(120,150,200,0.14);
@@ -4218,13 +4229,6 @@
        mobile sidebar drawer (96) and modals (140+), which own the strip themselves. */
     z-index: 80;
     pointer-events: none;
-  }
-  /* Light mode swaps the header to a white glass recipe — mirror it, flat at that
-     gradient's top stop so it can't step against the nav's own top edge. */
-  [data-theme="light"] .safe-top-glass {
-    background: rgba(255,255,255,0.22);
-    backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
-    -webkit-backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
   }
   .lp-eyebrow {
     display: inline-flex; align-items: center; gap: 7px;
@@ -5739,10 +5743,25 @@
      brightness bloom), with a bright specular top edge, a soft inner bottom
      glow, a lift shadow, and a diagonal refraction sheen (::before). NOT an
      opaque white fill — the page must read through it. */
+  /* Light header + safe-area strip: same slider wiring as the dark recipe above.
+     Multipliers re-base --glass-* onto the light values so the slider's default
+     (--glass-t: 55) reproduces the previous hardcoded look exactly — 0.261×0.843
+     = 0.22 top stop, 20.8px×1.058 = 22px blur, 1.27×1.496 = 1.9 saturate. */
+  [data-theme="light"] .lp-nav,
+  [data-theme="light"] .safe-top-glass {
+    background: linear-gradient(180deg,
+      rgba(255,255,255, calc(var(--glass-alpha, 0.261) * 0.843)) 0%,
+      rgba(255,255,255, calc(var(--glass-alpha, 0.261) * 0.307)) 100%);
+    backdrop-filter:
+      blur(calc(var(--glass-blur, 20.8px) * 1.058))
+      saturate(calc(var(--glass-sat, 1.27) * 1.496))
+      brightness(calc(var(--glass-bright, 1.03) * 1.029));
+    -webkit-backdrop-filter:
+      blur(calc(var(--glass-blur, 20.8px) * 1.058))
+      saturate(calc(var(--glass-sat, 1.27) * 1.496))
+      brightness(calc(var(--glass-bright, 1.03) * 1.029));
+  }
   [data-theme="light"] .lp-nav {
-    background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%);
-    backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
-    -webkit-backdrop-filter: blur(22px) saturate(1.9) brightness(1.06);
     border-bottom: 1px solid rgba(15,23,42,0.07);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.9),
