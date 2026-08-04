@@ -75,6 +75,20 @@
       _s.setProperty("--glass-ink-shadow", _c > 0.5
         ? ("0 1px 2px rgba(0,0,0," + (0.35 + _c * 0.25).toFixed(2) + "), 0 0 18px rgba(0,0,0," + (0.2 + _c * 0.2).toFixed(2) + ")")
         : "none");
+      // Header/status-bar glass: resolved values, never calc() inside blur()/
+      // saturate() — that form silently dropped the blur in the installed iOS
+      // app. Multipliers re-base onto the header recipes; at the default slider
+      // position these equal the CSS fallbacks exactly. Keep in sync with
+      // applyGlassTransparency().
+      var _hsat = 1.35 - _c * 0.15;
+      _s.setProperty("--hdr-alpha", (_tint * 1.724).toFixed(3));
+      _s.setProperty("--hdr-blur", (_blur * 0.865).toFixed(1) + "px");
+      _s.setProperty("--hdr-sat", (_hsat * 1.26).toFixed(2));
+      _s.setProperty("--hdrl-a1", (_tint * 0.843).toFixed(3));
+      _s.setProperty("--hdrl-a2", (_tint * 0.307).toFixed(3));
+      _s.setProperty("--hdrl-blur", (_blur * 1.058).toFixed(1) + "px");
+      _s.setProperty("--hdrl-sat", (_hsat * 1.496).toFixed(2));
+      _s.setProperty("--hdrl-bright", "1.06");
     }
   } catch (e) {}
 </script>
@@ -4185,25 +4199,55 @@
   /* The header glass and the safe-area strip above it share ONE declaration so
      they can't drift apart — change the recipe here and both move together.
 
-     Driven by the Liquid Glass slider (Settings), like every other .liquid-glass
-     surface. The multipliers re-base the shared --glass-* vars onto the header's
-     own navy recipe, chosen so the slider's DEFAULT position (--glass-t: 55)
-     reproduces the previous hardcoded look exactly — 0.261×1.724 = 0.45 alpha,
-     20.8px×0.865 = 18px blur, 1.27×1.26 = 1.6 saturate. Drag toward 0 and the
-     header frosts up with everything else; toward 100 and it clears. */
+     Driven by the Liquid Glass slider (Settings) via --hdr-* vars that the slider
+     script RESOLVES in JS (boot script + applyGlassTransparency re-base the shared
+     --glass-* values onto the header's navy recipe). Deliberately no calc() inside
+     blur()/saturate(): the calc-in-filter form shipped in PR #184 rendered with no
+     blur at all in the installed iOS app — header went flat transparent — while
+     desktop parsed it fine. Fallbacks reproduce the long-standing default look
+     (0.45 / 18px / 1.6), which is also exactly what the slider's default position
+     resolves to, so nothing shifts until the slider moves. */
   .lp-nav,
   .safe-top-glass {
-    background: rgba(8,20,42, calc(var(--glass-alpha, 0.261) * 1.724));
-    backdrop-filter:
-      blur(calc(var(--glass-blur, 20.8px) * 0.865))
-      saturate(calc(var(--glass-sat, 1.27) * 1.26));
-    -webkit-backdrop-filter:
-      blur(calc(var(--glass-blur, 20.8px) * 0.865))
-      saturate(calc(var(--glass-sat, 1.27) * 1.26));
+    background: rgba(8,20,42, var(--hdr-alpha, 0.45));
+    backdrop-filter: blur(var(--hdr-blur, 18px)) saturate(var(--hdr-sat, 1.6));
+    -webkit-backdrop-filter: blur(var(--hdr-blur, 18px)) saturate(var(--hdr-sat, 1.6));
   }
   .lp-nav {
     border-bottom: 1px solid rgba(120,150,200,0.14);
     padding-top: env(safe-area-inset-top);
+  }
+  /* ---- One-glass dashboard header (mobile) ----
+     Below 900px the dashboard nav's own paint is disabled and this single fixed
+     panel carries the glass for BOTH the safe-area strip and the header row —
+     one element, one backdrop-filter, so there is no join to mismatch. It also
+     sits OUTSIDE the dashboard's scroll container, sidestepping whatever keeps
+     an in-scroller backdrop-filter from reaching the inset on iOS standalone.
+     z-20 keeps it under the nav's content (z-30) but over the scrolling cards.
+     Desktop (≥900px) keeps the sticky in-nav glass — no notch there, and the
+     panel would otherwise overlay the sidebar. */
+  #dashGlass { display: none; }
+  @media (max-width: 899px) {
+    #dashGlass {
+      display: block;
+      position: fixed; top: 0; left: 0; right: 0;
+      height: calc(env(safe-area-inset-top, 0px) + 4rem); /* inset + the nav's h-16 row */
+      background: rgba(8,20,42, var(--hdr-alpha, 0.45));
+      backdrop-filter: blur(var(--hdr-blur, 18px)) saturate(var(--hdr-sat, 1.6));
+      -webkit-backdrop-filter: blur(var(--hdr-blur, 18px)) saturate(var(--hdr-sat, 1.6));
+      border-bottom: 1px solid rgba(120,150,200,0.14);
+      z-index: 20;
+      pointer-events: none;
+    }
+    /* The panel owns the paint; the nav keeps layout only. */
+    #dashboardScreen .lp-nav {
+      background: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border-bottom-color: transparent;
+    }
+    /* The body-level strip would double-glass the panel's top band. */
+    body:has(#dashboardScreen:not(.hidden)) .safe-top-glass { display: none; }
   }
   /* Safe-area sweep for black-translucent standalone mode: overlays that start
      content at the very top (no .lp-nav of their own) push below the status bar.
@@ -5743,23 +5787,39 @@
      brightness bloom), with a bright specular top edge, a soft inner bottom
      glow, a lift shadow, and a diagonal refraction sheen (::before). NOT an
      opaque white fill — the page must read through it. */
-  /* Light header + safe-area strip: same slider wiring as the dark recipe above.
-     Multipliers re-base --glass-* onto the light values so the slider's default
-     (--glass-t: 55) reproduces the previous hardcoded look exactly — 0.261×0.843
-     = 0.22 top stop, 20.8px×1.058 = 22px blur, 1.27×1.496 = 1.9 saturate. */
+  /* Light header + safe-area strip: same slider wiring as the dark recipe —
+     JS-resolved --hdrl-* vars, no calc() inside filter functions (see the dark
+     rule for why). Fallbacks are the long-standing light look (0.22→0.08 stops,
+     22px blur, 1.9 sat, 1.06 bright), which the slider default also resolves to.
+     Gradient alphas may stay as calc(): the iOS failure was calc-in-FILTER;
+     rgba() color math never broke, and these have no resolved-var equivalent. */
   [data-theme="light"] .lp-nav,
-  [data-theme="light"] .safe-top-glass {
+  [data-theme="light"] .safe-top-glass,
+  [data-theme="light"] #dashGlass {
     background: linear-gradient(180deg,
-      rgba(255,255,255, calc(var(--glass-alpha, 0.261) * 0.843)) 0%,
-      rgba(255,255,255, calc(var(--glass-alpha, 0.261) * 0.307)) 100%);
+      rgba(255,255,255, var(--hdrl-a1, 0.22)) 0%,
+      rgba(255,255,255, var(--hdrl-a2, 0.08)) 100%);
     backdrop-filter:
-      blur(calc(var(--glass-blur, 20.8px) * 1.058))
-      saturate(calc(var(--glass-sat, 1.27) * 1.496))
-      brightness(calc(var(--glass-bright, 1.03) * 1.029));
+      blur(var(--hdrl-blur, 22px))
+      saturate(var(--hdrl-sat, 1.9))
+      brightness(var(--hdrl-bright, 1.06));
     -webkit-backdrop-filter:
-      blur(calc(var(--glass-blur, 20.8px) * 1.058))
-      saturate(calc(var(--glass-sat, 1.27) * 1.496))
-      brightness(calc(var(--glass-bright, 1.03) * 1.029));
+      blur(var(--hdrl-blur, 22px))
+      saturate(var(--hdrl-sat, 1.9))
+      brightness(var(--hdrl-bright, 1.06));
+  }
+  /* One-glass dashboard (mobile): the panel owns the light paint too; kill the
+     nav's own light gradient, shine layers and sheen so they don't stack. */
+  @media (max-width: 899px) {
+    [data-theme="light"] #dashGlass { border-bottom: 1px solid rgba(15,23,42,0.07); }
+    [data-theme="light"] #dashboardScreen .lp-nav {
+      background: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border-bottom-color: transparent;
+      box-shadow: none;
+    }
+    [data-theme="light"] #dashboardScreen .lp-nav::before { content: none; }
   }
   [data-theme="light"] .lp-nav {
     border-bottom: 1px solid rgba(15,23,42,0.07);
@@ -10017,6 +10077,11 @@
      "Open Calculator" / "Load" close it to reveal the calculator.
      ============================================================ -->
 <div id="dashboardScreen" class="fixed inset-0 z-[74] hidden" style="background:#020617;">
+  <!-- One-glass header panel (mobile <900px): a single fixed sheet spanning the
+       safe-area inset + the h-16 nav row. One element, one backdrop-filter — no
+       strip/header join to mismatch. The nav below keeps layout but paints
+       nothing on mobile; desktop ignores this panel entirely. -->
+  <div id="dashGlass" aria-hidden="true"></div>
   <!-- Dashboard v2 P1: a workspace shell. The sidebar is a real sibling of the
        scroller (desktop only, >=900px) so every section is one click away instead
        of a card you drill into and Back out of. Mobile keeps the approved bottom
@@ -16951,6 +17016,18 @@ function applyGlassTransparency(t, opts) {
     ? `rgba(60,60,67,${(0.7 + clear * 0.1).toFixed(2)})`
     : `rgba(235,235,245,${mutedA.toFixed(2)})`);
   root.setProperty("--glass-ink-shadow", isLightTheme() ? "none" : inkShadow);
+  // Header/status-bar glass: resolved values, never calc() inside blur()/
+  // saturate() — that form silently dropped the blur in the installed iOS app.
+  // Multipliers re-base onto the header recipes; at the default slider position
+  // these equal the CSS fallbacks exactly. Keep in sync with the boot script.
+  root.setProperty("--hdr-alpha", (tintA * 1.724).toFixed(3));
+  root.setProperty("--hdr-blur", (blur * 0.865).toFixed(1) + "px");
+  root.setProperty("--hdr-sat", (sat * 1.26).toFixed(2));
+  root.setProperty("--hdrl-a1", (tintA * 0.843).toFixed(3));
+  root.setProperty("--hdrl-a2", (tintA * 0.307).toFixed(3));
+  root.setProperty("--hdrl-blur", (blur * 1.058).toFixed(1) + "px");
+  root.setProperty("--hdrl-sat", (sat * 1.496).toFixed(2));
+  root.setProperty("--hdrl-bright", "1.06");
   const input = document.getElementById("glassTransparency");
   const val = document.getElementById("glassTransparencyVal");
   if (input) {
