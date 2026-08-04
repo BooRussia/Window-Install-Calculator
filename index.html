@@ -4218,35 +4218,30 @@
     padding-top: env(safe-area-inset-top);
   }
   /* ---- One-glass dashboard header (mobile) ----
-     Below 900px the dashboard nav's own paint is disabled and this single fixed
-     panel carries the glass for BOTH the safe-area strip and the header row —
-     one element, one backdrop-filter, so there is no join to mismatch. It also
-     sits OUTSIDE the dashboard's scroll container, sidestepping whatever keeps
-     an in-scroller backdrop-filter from reaching the inset on iOS standalone.
-     z-20 keeps it under the nav's content (z-30) but over the scrolling cards.
-     Desktop (≥900px) keeps the sticky in-nav glass — no notch there, and the
-     panel would otherwise overlay the sidebar. */
-  #dashGlass { display: none; }
+     The failed approaches, so nobody retries them:
+     · A separate glass strip above the nav → visible join (two backdrop-filters
+       can't sample identically at their boundary).
+     · A fixed glass panel behind the in-scroller nav → on iOS the scroller
+       (-webkit-overflow-scrolling: touch) composites into ONE atomic layer, so
+       an outside panel can never sit between the scroller's cards and its nav
+       text: the panel blurred the header content itself (owner shot 2026-08-02).
+     What works: make the NAV the single glass sheet and hoist it OUT of the
+     scroller (a tiny idempotent re-parent next to the dashboard wiring), so its
+     own padding-top: env() reaches the physical top. One element, one blur —
+     nothing to seam. Mobile only: on desktop the nav must stay inside the
+     scroller so it spans the content column beside the sidebar, and there's no
+     notch there anyway. The :has() guard keeps the scroller's replacement
+     padding tied to the hoist actually having happened, so a no-JS load can't
+     double-space. */
   @media (max-width: 899px) {
-    #dashGlass {
-      display: block;
+    #dashboardScreen > nav.lp-nav {
       position: fixed; top: 0; left: 0; right: 0;
-      height: calc(env(safe-area-inset-top, 0px) + 4rem); /* inset + the nav's h-16 row */
-      background: rgba(8,20,42, var(--hdr-alpha, 0.45));
-      backdrop-filter: blur(var(--hdr-blur, 18px)) saturate(var(--hdr-sat, 1.6));
-      -webkit-backdrop-filter: blur(var(--hdr-blur, 18px)) saturate(var(--hdr-sat, 1.6));
-      border-bottom: 1px solid rgba(120,150,200,0.14);
-      z-index: 20;
-      pointer-events: none;
+      z-index: 30;   /* over the scroller (composited at z:auto); under drawer scrim 95/96 */
     }
-    /* The panel owns the paint; the nav keeps layout only. */
-    #dashboardScreen .lp-nav {
-      background: none;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      border-bottom-color: transparent;
+    #dashboardScreen:has(> nav.lp-nav) .dash-scroll {
+      padding-top: calc(4rem + env(safe-area-inset-top, 0px));   /* the hoisted nav's h-16 + inset */
     }
-    /* The body-level strip would double-glass the panel's top band. */
+    /* The nav now covers inset + row itself; the body strip would double-glass. */
     body:has(#dashboardScreen:not(.hidden)) .safe-top-glass { display: none; }
   }
   /* Safe-area sweep for black-translucent standalone mode: overlays that start
@@ -5794,8 +5789,7 @@
      Gradient alphas may stay as calc(): the iOS failure was calc-in-FILTER;
      rgba() color math never broke, and these have no resolved-var equivalent. */
   [data-theme="light"] .lp-nav,
-  [data-theme="light"] .safe-top-glass,
-  [data-theme="light"] #dashGlass {
+  [data-theme="light"] .safe-top-glass {
     background: linear-gradient(180deg,
       rgba(255,255,255, var(--hdrl-a1, 0.22)) 0%,
       rgba(255,255,255, var(--hdrl-a2, 0.08)) 100%);
@@ -5807,19 +5801,6 @@
       blur(var(--hdrl-blur, 22px))
       saturate(var(--hdrl-sat, 1.9))
       brightness(var(--hdrl-bright, 1.06));
-  }
-  /* One-glass dashboard (mobile): the panel owns the light paint too; kill the
-     nav's own light gradient, shine layers and sheen so they don't stack. */
-  @media (max-width: 899px) {
-    [data-theme="light"] #dashGlass { border-bottom: 1px solid rgba(15,23,42,0.07); }
-    [data-theme="light"] #dashboardScreen .lp-nav {
-      background: none;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      border-bottom-color: transparent;
-      box-shadow: none;
-    }
-    [data-theme="light"] #dashboardScreen .lp-nav::before { content: none; }
   }
   [data-theme="light"] .lp-nav {
     border-bottom: 1px solid rgba(15,23,42,0.07);
@@ -10077,11 +10058,6 @@
      "Open Calculator" / "Load" close it to reveal the calculator.
      ============================================================ -->
 <div id="dashboardScreen" class="fixed inset-0 z-[74] hidden" style="background:#020617;">
-  <!-- One-glass header panel (mobile <900px): a single fixed sheet spanning the
-       safe-area inset + the h-16 nav row. One element, one backdrop-filter — no
-       strip/header join to mismatch. The nav below keeps layout but paints
-       nothing on mobile; desktop ignores this panel entirely. -->
-  <div id="dashGlass" aria-hidden="true"></div>
   <!-- Dashboard v2 P1: a workspace shell. The sidebar is a real sibling of the
        scroller (desktop only, >=900px) so every section is one click away instead
        of a card you drill into and Back out of. Mobile keeps the approved bottom
@@ -25832,6 +25808,33 @@ function wireDashboard() {
     }
   });
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
+  // One-glass mobile header: hoist the dashboard nav OUT of the scroll container
+  // so its single backdrop-filter reaches the physical top (status bar / island).
+  // Inside the scroller, iOS composites everything into one atomic layer — no
+  // outside element can slot between the cards and the nav text, and the nav's
+  // own glass can't extend above the scroller. CSS (@media <900px) makes the
+  // hoisted nav fixed and pads the scroller via a :has() guard, so styling only
+  // engages when this re-parent actually ran. Idempotent both ways — init()
+  // re-runs on post-login/offline boot; the matchMedia listener is bound once.
+  const placeDashNav = () => {
+    const screenEl = document.getElementById("dashboardScreen");
+    const scroll = document.getElementById("dashScroll");
+    const layout = document.getElementById("dashLayout");
+    const nav = screenEl ? screenEl.querySelector("nav.lp-nav") : null;
+    if (!screenEl || !scroll || !layout || !nav) return;
+    if (window.matchMedia("(max-width: 899px)").matches) {
+      if (nav.parentElement !== screenEl) screenEl.insertBefore(nav, layout);
+    } else if (nav.parentElement !== scroll) {
+      scroll.insertBefore(nav, scroll.firstChild);
+    }
+  };
+  placeDashNav();
+  if (!window._dashNavMqWired) {
+    window._dashNavMqWired = true;
+    const mq = window.matchMedia("(max-width: 899px)");
+    if (mq.addEventListener) mq.addEventListener("change", placeDashNav);
+    else if (mq.addListener) mq.addListener(placeDashNav);
+  }
   on("dashHome", () => dashGoTo("home"));
   on("dashOpenCalc", () => closeDashboard());
   on("dashNewQuote", startNewQuote);
