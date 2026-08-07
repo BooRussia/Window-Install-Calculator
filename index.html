@@ -36317,6 +36317,15 @@ function loadJsPdf() {
   return _jspdfPromise;
 }
 
+// Some mobile browsers hand us a PDF with an empty MIME type — fall back to the
+// filename so dealer-quote detection and PDF.js rendering still run.
+function isPdfFile(file) {
+  if (!file) return false;
+  const t = String(file.type || "").toLowerCase();
+  if (t === "application/pdf" || t === "application/x-pdf") return true;
+  return /\.pdf$/i.test(String(file.name || ""));
+}
+
 // Pull plain text from a PDF (pdf.js). Used to detect manufacturer dealer
 // quotes (Viwinco etc.) which are text-native — sending them through vision
 // is slow, flaky, and often returns nothing useful.
@@ -36517,10 +36526,19 @@ async function invokePlanExtraction(body) {
         if (j && j.code) code = j.code;   // "cap_reached" vs "rate_limited" — both are 429
       }
     } catch (_) {}
+    // FunctionsFetchError ("Failed to send a request to the Edge Function") means
+    // the browser never got an HTTP response — usually a payload that's too large
+    // for the network, a blip, or the function is unreachable. Surface a clearer
+    // next step than the raw SDK string.
+    const rawMsg = String((error && error.message) || "");
+    if (!msg && /failed to send|fetch failed|networkerror|load failed/i.test(rawMsg)) {
+      msg = "Couldn't reach the plan reader — the file may be too large for AI. Try just the schedule sheets, or a manufacturer dealer quote (those read locally).";
+      code = code || "fetch_failed";
+    }
     // Friction signal: the AI plan read failed (status tells us why — 429 cap,
     // 422 unreadable, 502/504 upstream). Feeds the admin Sticking-Points view.
-    try { if (typeof window.track === "function") window.track("plan_ai_failed", { status }); } catch (_) {}
-    return { ok: false, status, code, msg: msg || error.message || "Couldn't read that plan.", debug };
+    try { if (typeof window.track === "function") window.track("plan_ai_failed", { status, code }); } catch (_) {}
+    return { ok: false, status, code, msg: msg || rawMsg || "Couldn't read that plan.", debug };
   }
   return { ok: true, data };
 }
@@ -36671,8 +36689,9 @@ async function handlePlanUpload(files, source) {
   setBusy("Preparing your upload…", 8);
   try {
     // Fast path: manufacturer dealer quotes (Viwinco etc.) are text PDFs.
-    // Parse locally — no AI credit — because vision often fails on these.
-    if (files.length === 1 && files[0].type === "application/pdf") {
+    // Parse locally — no AI credit — because vision often fails on these
+    // (and a 20-page quote as images commonly hits "Failed to send… Edge Function").
+    if (files.length === 1 && isPdfFile(files[0])) {
       setBusy("Reading quote…", 15);
       try {
         const { text, pages } = await pdfToText(files[0]);
@@ -36684,7 +36703,11 @@ async function handlePlanUpload(files, source) {
             try { window.track("plan_dealer_quote_parsed", { source, pages: pages || 0 }); } catch (_) {}
             return;
           }
-          console.warn("[plan] dealer-quote parse returned no openings; falling back to AI");
+          // Quote detected but unreadable — do NOT fall through to AI vision.
+          // Sending 20 pages of images is what triggers "Failed to send… Edge Function".
+          setErr("This looks like a manufacturer dealer quote, but we couldn't read the openings. Try re-exporting the PDF (not a photo of it), or enter LF by hand.");
+          try { window.track("plan_dealer_quote_parse_failed", { source, pages: pages || 0 }); } catch (_) {}
+          return;
         }
       } catch (e) {
         console.warn("[plan] dealer-quote text path failed; falling back to AI", e);
@@ -36710,7 +36733,7 @@ async function handlePlanUpload(files, source) {
         files.length > 1 ? Math.round(8 + (22 * i) / files.length) : 18
       );
       const remaining = MAX_PLAN_PAGES - allImages.length;
-      if (file.type === "application/pdf") {
+      if (isPdfFile(file)) {
         const { images, pages } = await pdfToImages(file, remaining);
         detectedPages += pages;
         allImages.push(...images);
