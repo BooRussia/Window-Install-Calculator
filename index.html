@@ -837,6 +837,12 @@
   #dashDrawerScrim { position: fixed; inset: 0; z-index: 95; background: rgba(2,6,23,0.55);
     opacity: 0; pointer-events: none; transition: opacity .22s ease; }
   body.dash-drawer-open #dashDrawerScrim { opacity: 1; pointer-events: auto; }
+  /* The drawer + scrim live inside #dashboardScreen (z-74). The bottom dock is
+     intentionally z-75 so it stays tappable above the dashboard — but that also
+     paints over the Account row at the foot of the sheet. Drop the dock under
+     the dashboard while the drawer is open so the sheet overlays the full
+     viewport (scrim + Account included). Dismiss via scrim / Escape / nav pick. */
+  body.dash-drawer-open .app-tabbar { z-index: 73; }
   @media (max-width: 899.98px) {
     body.dash-drawer-open #dashSidebar {
       display: flex; flex-direction: column;
@@ -851,6 +857,8 @@
     }
     /* Collapsing to an icon rail makes no sense in a sheet. */
     body.dash-drawer-open #dashSidebar .dnav-collapse { display: none; }
+    /* Keep Account pinned at the sheet foot — don't let a long nav list crush it. */
+    body.dash-drawer-open #dashSidebar .dnav-user { flex-shrink: 0; }
   }
   @keyframes dashDrawerIn { from { transform: translateX(-101%); } to { transform: translateX(0); } }
   @media (prefers-reduced-motion: reduce) { body.dash-drawer-open #dashSidebar { animation: none; } }
