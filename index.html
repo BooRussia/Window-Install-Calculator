@@ -11205,7 +11205,7 @@
   <!-- Empty state — LF is the quote seed; schedule upload fills the rest via AI. -->
   <section id="emptyState" class="mt-16 text-center">
     <h2 class="text-xl sm:text-2xl font-black tracking-tight text-slate-100">Get an instant price</h2>
-    <p class="mt-2 text-slate-500 text-sm max-w-md mx-auto px-4">Enter total linear footage to start — or upload a window schedule and let AI fill it in.</p>
+    <p class="mt-2 text-slate-500 text-sm max-w-md mx-auto px-4">Enter total linear footage to start — or upload a window schedule / dealer quote and let Anchor fill it in.</p>
     <div class="mt-6 max-w-md mx-auto px-4 space-y-3 text-left">
       <label for="emptyStateLF" class="sr-only">Total linear footage</label>
       <div class="empty-lf-wrap rail-lf-input-wrap">
@@ -11279,7 +11279,7 @@
       <!-- ⚡ AI auto-upload — one file, read automatically (no manual Grok paste). -->
       <div class="rounded-2xl border border-[#b58f4a]/40 bg-[#b58f4a]/5 p-4">
         <div class="text-sm font-bold text-slate-100">⚡ Upload your plan — we read it for you</div>
-        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of the window schedule. One upload fills the window count, total LF, and manufacturer — and builds your buck cut list — automatically. No Grok tab, no copy/paste.</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">PDF, PNG, or JPEG of a window schedule <em>or manufacturer dealer quote</em> (Viwinco, etc.). One upload fills the window count, total LF, and manufacturer — and builds your buck cut list — automatically.</div>
         <label for="readPlanFile" id="readPlanUploadBtn" tabindex="0" role="button" class="mt-3 btn rounded-full px-5 py-2.5 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558] inline-flex items-center gap-2 cursor-pointer">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
           Choose plan file
@@ -36317,7 +36317,126 @@ function loadJsPdf() {
   return _jspdfPromise;
 }
 
-// Render up to 8 pages of a PDF to JPEG base64 (no data: prefix). ~1700px wide
+// Pull plain text from a PDF (pdf.js). Used to detect manufacturer dealer
+// quotes (Viwinco etc.) which are text-native — sending them through vision
+// is slow, flaky, and often returns nothing useful.
+async function pdfToText(file) {
+  const pdfjs = await loadPdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const t = (content.items || []).map((it) => it.str || "").join(" ").replace(/[ \t]+/g, " ").trim();
+    if (t) pages.push(t);
+  }
+  return { text: pages.join("\n\n"), pages: pdf.numPages };
+}
+
+// Viwinco / PGT-style "Dealer Quote" PDFs — line items with Qty Ordered,
+// MAKE SIZE / OVERALL WIDTH×HEIGHT, WINDOW TAG, Florida Approval. Not an
+// architectural schedule drawing; parse locally so we don't burn an AI read.
+function looksLikeDealerQuote(text) {
+  const t = String(text || "");
+  if (t.length < 200) return false;
+  const signals = [
+    /dealer\s+quote/i.test(t),
+    /qty\s*ordered/i.test(t) || /order\s+specifications/i.test(t),
+    /measure\s*code\s*:\s*make\s*size/i.test(t) || /overall\s*width\s*:/i.test(t),
+    /window\s*tag\s*:/i.test(t),
+    /florida\s*approval/i.test(t),
+  ];
+  return signals.filter(Boolean).length >= 3;
+}
+
+function parseDealerQuoteToExtraction(text) {
+  const flat = String(text || "").replace(/\s+/g, " ").trim();
+  if (!flat) return "";
+
+  let manufacturer = "Unknown";
+  if (/viwinco/i.test(flat)) manufacturer = "Viwinco";
+  else if (/weathershield|weather\s*shield/i.test(flat)) manufacturer = "Weathershield";
+  else if (/\bpgt\b/i.test(flat)) manufacturer = "PGT";
+  else if (/velocity/i.test(flat)) manufacturer = "Velocity";
+  else {
+    const m = flat.match(/\b([A-Z][A-Za-z0-9&.\- ]{2,40}?)\s+Dealer\s+Quote/i);
+    if (m) manufacturer = m[1].trim();
+  }
+
+  // Job Name: MODEL 5000 — stop before the dealer address / Sold To block.
+  // Don't use a bare "digits + word" lookahead — "5000 PRIME" would truncate to "MODEL".
+  let project = "Unknown";
+  const jobM = flat.match(/Job\s*Name:\s*(.+?)(?=\s+(?:Sold\s*To:|Ship\s*To:|Quote\s*(?:Number|Date):|Line\s*#|PRIME\s+GLAZING))/i)
+    || flat.match(/Job\s*Name:\s*([A-Z0-9][A-Z0-9 #,\-\/]{1,40})/i);
+  if (jobM) project = jobM[1].trim().replace(/[.,;]+$/, "").slice(0, 60);
+
+  const starts = [];
+  const startRe = /\b(\d{4})\s+(\d+)\s+((?:S-Series|PGT|Weathershield|Weather\s*Shield|ES\s|Velocity|Andersen|Pella|Marvin|Jeld[\s-]?Wen|MI\s)[A-Za-z0-9\-\/ ]{0,80}?)(?=\s+CONFIG:|\s+APPLICATION:|\s+MEASURE\s*CODE:|\s+WIDTH:|\s+OVERALL\s*WIDTH:)/gi;
+  let m;
+  while ((m = startRe.exec(flat)) !== null) {
+    starts.push({ index: m.index, line: m[1], qty: parseInt(m[2], 10) || 1, desc: m[3].trim() });
+  }
+  const skipRe = /\b(\d{4})\s+(\d+)\s+(Price\s+Discount|Freight|Tax|Miscellaneous|Deposit)/gi;
+  while ((m = skipRe.exec(flat)) !== null) {
+    starts.push({ index: m.index, line: m[1], qty: 0, desc: m[3].trim(), skip: true });
+  }
+  starts.sort((a, b) => a.index - b.index);
+  const uniq = [];
+  for (const s of starts) {
+    if (!uniq.length || uniq[uniq.length - 1].index !== s.index) uniq.push(s);
+  }
+
+  const openings = [];
+  const approvals = [];
+  const seenAppr = new Set();
+  for (let i = 0; i < uniq.length; i++) {
+    const s = uniq[i];
+    if (s.skip || /discount|freight|tax|misc|deposit/i.test(s.desc)) continue;
+    const chunk = flat.slice(s.index, uniq[i + 1] ? uniq[i + 1].index : flat.length);
+    let w = parseFloat((chunk.match(/OVERALL\s*WIDTH:\s*([\d.]+)/i) || [])[1]);
+    let h = parseFloat((chunk.match(/OVERALL\s*HEIGHT:\s*([\d.]+)/i) || [])[1]);
+    if (!(w > 0 && h > 0)) {
+      const beforeUnit = chunk.split(/UNIT\s*0*1\s*:/i)[0];
+      w = parseFloat((beforeUnit.match(/\bWIDTH:\s*([\d.]+)/i) || [])[1]);
+      h = parseFloat((beforeUnit.match(/\bHEIGHT:\s*([\d.]+)/i) || [])[1]);
+    }
+    if (!(w > 0 && h > 0) || !(s.qty > 0)) continue;
+
+    const tagRaw = ((chunk.match(/WINDOW\s*TAG:\s*([^\[\n]+?)(?=\s*\[QTY|\s+Performance|\s+Florida|\s+UNIT\s|\s+COLOR:|\s+GRID\s|\s+GLASS\s)/i) || [])[1] || "").trim();
+    const loc = (tagRaw || ("Line " + s.line)).replace(/\s+/g, " ").replace(/^#\s*/, "#");
+
+    let type = "window";
+    let panels = "";
+    const hay = s.desc + " " + chunk.slice(0, 400);
+    if (/bi[\s-]*fold|folding\s*glass|accordion/i.test(hay)) type = "bifold door";
+    else if (/sliding\s*glass|patio\s*door|\bSGD\b|\bXO\b|\bOX\b|XOX/i.test(hay)) {
+      type = "sliding glass door";
+      const pm = hay.match(/(\d+)\s*-?\s*panel/i);
+      if (pm) panels = pm[1];
+    }
+
+    const fl = (chunk.match(/Florida\s*Approval[^:]*:\s*(FL)?\s*([\d.]+)/i) || [])[2];
+    if (fl) {
+      const num = "FL" + fl;
+      if (!seenAppr.has(num)) {
+        seenAppr.add(num);
+        approvals.push("APPROVAL | " + num + " | " + (s.desc || "").slice(0, 60));
+      }
+    }
+
+    // MAKE SIZE / overall unit size → nominal (calculator adds buck itself).
+    let line = "OPENING | " + loc + " | " + w + " | " + h + " | " + s.qty + " | " + type + " | nominal";
+    if (panels) line += " | " + panels;
+    openings.push(line);
+  }
+
+  if (!openings.length) return "";
+  return ["MANUFACTURER: " + manufacturer, "PROJECT: " + project]
+    .concat(openings, approvals).join("\n");
+}
+
+// Render PDF pages to JPEG base64 (no data: prefix). ~1700px wide
 // is enough resolution for Grok to read a dense schedule table.
 async function pdfToImages(file, budget) {
   const pdfjs = await loadPdfJs();
@@ -36535,11 +36654,6 @@ async function handlePlanUpload(files, source) {
   if (!files.length) return;
   if (_planUploadBusy) return;                       // guard against any double-fire
   if (!sb || !currentUser) { toast("Sign in to use AI plan reading"); try { openAuth("login"); } catch (_) {} return; }
-  // Pre-flight: don't fire a doomed request when the user is out of AI reads.
-  if (typeof getAiReadsRemaining === "function" && getAiReadsRemaining() <= 0) {
-    try { showUpsellModal("ai_reads_exhausted"); } catch (_) { toast("You're out of AI plan reads this month — upgrade for more."); }
-    return;
-  }
   let totalSize = 0; for (const f of files) totalSize += (f.size || 0);
   if (totalSize > 60 * 1024 * 1024) { toast("Those files are too large — upload just the schedule sheets."); return; }
   _planUploadBusy = true;
@@ -36556,6 +36670,34 @@ async function handlePlanUpload(files, source) {
   };
   setBusy("Preparing your upload…", 8);
   try {
+    // Fast path: manufacturer dealer quotes (Viwinco etc.) are text PDFs.
+    // Parse locally — no AI credit — because vision often fails on these.
+    if (files.length === 1 && files[0].type === "application/pdf") {
+      setBusy("Reading quote…", 15);
+      try {
+        const { text, pages } = await pdfToText(files[0]);
+        if (looksLikeDealerQuote(text)) {
+          const extracted = parseDealerQuoteToExtraction(text);
+          if (extracted && applyFullExtraction(extracted, source)) {
+            if (!usingRail) setPlanUploadStatus("buckPlanUploadStatus", "Done — dealer quote was read.", "ok");
+            toast("Dealer quote read — openings filled from the order lines.");
+            try { window.track("plan_dealer_quote_parsed", { source, pages: pages || 0 }); } catch (_) {}
+            return;
+          }
+          console.warn("[plan] dealer-quote parse returned no openings; falling back to AI");
+        }
+      } catch (e) {
+        console.warn("[plan] dealer-quote text path failed; falling back to AI", e);
+      }
+    }
+
+    // Pre-flight: don't fire a doomed AI request when the user is out of reads.
+    // (Dealer-quote path above is free and already returned on success.)
+    if (typeof getAiReadsRemaining === "function" && getAiReadsRemaining() <= 0) {
+      try { showUpsellModal("ai_reads_exhausted"); } catch (_) { toast("You're out of AI plan reads this month — upgrade for more."); }
+      return;
+    }
+
     // Render everything to images (Grok reads them with VISION) and combine all
     // pages across all files into one batch — the AI sums the openings for us.
     let allImages = [];
