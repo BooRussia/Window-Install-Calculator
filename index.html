@@ -4038,8 +4038,19 @@
     cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 4px 2px;
     -webkit-tap-highlight-color: transparent;
   }
-  .labor-edit-row > .labor-edit-controls .labor-reset-btn { grid-column: 1 / -1; justify-self: end; }
+  .labor-update-default-btn {
+    font-size: 10px; font-weight: 700; color: #c9a558; background: none; border: none;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 4px 2px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .labor-override-actions {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap;
+  }
+  .labor-edit-row > .labor-edit-controls .labor-override-actions { grid-column: 1 / -1; justify-self: end; }
   .labor-reset-btn:hover { color: #c9a558; }
+  .labor-update-default-btn:hover { color: #e8c97a; }
+  [data-theme="light"] .labor-update-default-btn { color: var(--gold-ink, #8a6a2e); }
+  [data-theme="light"] .labor-update-default-btn:hover { color: #6b5220; }
   .labor-crew-block { padding: 10px 20px 12px; background: rgba(2,6,23,0.3); }
   @media (min-width: 640px) { .labor-crew-block { padding-left: 24px; padding-right: 24px; } }
   .labor-crew-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -14031,6 +14042,54 @@ function clearLaborOverrideField(field) {
   STATE.laborOverride = normalizeLaborOverride(o);
 }
 
+// Promote a per-job labor override into account Settings defaults so the next
+// job (and this one, after clearing the override) picks it up without a trip
+// into Settings. installMinPerLF back-solves the construction/house base rate
+// so stories + impact multipliers still apply on top.
+function promoteLaborOverrideToDefault(field) {
+  const o = normalizeLaborOverride(STATE.laborOverride);
+  if (!o || !field || field === "crew") return false;
+  if (o[field] == null || !isFinite(Number(o[field]))) return false;
+  const value = Math.max(0, Number(o[field]));
+  DATA.config = DATA.config || {};
+  DATA.config.laborModel = DATA.config.laborModel || {};
+
+  if (field === "setupMinPerOpening") {
+    DATA.config.laborModel.setupMinPerOpening = Math.min(240, value);
+  } else if (field === "mobilizationHours") {
+    DATA.config.laborModel.mobilizationHours = Math.min(24, value);
+  } else if (field === "installMinPerLF") {
+    // Labor Detail value is effective min/LF (includes stories × impact).
+    // Settings stores base hr/LF by construction/house type.
+    const desiredHr = value / 60;
+    const mult = (getStoriesMultiplier() || 1) * (getImpactLaborMultiplier() || 1);
+    const desiredBase = mult > 0 ? desiredHr / mult : desiredHr;
+    const item = DATA.costItems && DATA.costItems.find(c => c.id === "labor");
+    if (!item || !item.rates) return false;
+    const def = item.rates.default ?? 0;
+    if (STATE.constructionType === "Remodel") {
+      if (STATE.houseType === "Block Framed" && typeof buckingIncluded === "function" && buckingIncluded()) {
+        const blockPrem = ((item.rates["Block Framed"] ?? def) - def);
+        item.rates["Remodel"] = Math.max(0, desiredBase - blockPrem);
+      } else {
+        item.rates["Remodel"] = Math.max(0, desiredBase);
+      }
+    } else if (STATE.houseType === "Block Framed" && typeof buckingIncluded === "function" && buckingIncluded()) {
+      item.rates["Block Framed"] = Math.max(0, desiredBase);
+    } else {
+      item.rates.default = Math.max(0, desiredBase);
+    }
+    if (item.unverified) item.unverified = false;
+  } else {
+    return false;
+  }
+
+  try { saveData(DATA); } catch (_) {}
+  clearLaborOverrideField(field);
+  try { toast("Saved as Settings default"); } catch (_) {}
+  return true;
+}
+
 // Mobile-friendly: tapping an input selects its whole value so the next keystroke
 // replaces it — no fiddly double-tap / drag to highlight. Skips textareas,
 // passwords, and anything marked data-no-autoselect.
@@ -14112,6 +14171,23 @@ function wireLaborDetailCard(card) {
     if (resetAll) { STATE.laborOverride = null; render(); return; }
     const reset = e.target.closest("[data-labor-reset]");
     if (reset) { clearLaborOverrideField(reset.getAttribute("data-labor-reset")); render(); return; }
+    const updateDefault = e.target.closest("[data-labor-update-default]");
+    if (updateDefault) {
+      const field = updateDefault.getAttribute("data-labor-update-default");
+      // Commit any in-progress input so we promote what the user currently sees.
+      const row = updateDefault.closest("[data-labor-row]");
+      const safeField = (typeof CSS !== "undefined" && CSS.escape) ? CSS.escape(field) : String(field).replace(/"/g, "");
+      const inp = row && field ? row.querySelector(`[data-labor-field="${safeField}"]`) : null;
+      if (inp) {
+        const o = ensureLaborOverride();
+        const raw = inp.value;
+        if (raw !== "" && isFinite(Number(raw))) o[field] = Number(raw);
+        STATE.laborOverride = normalizeLaborOverride(o);
+      }
+      promoteLaborOverrideToDefault(field);
+      render();
+      return;
+    }
     if (e.target.closest("[data-labor-crew-customize]") || e.target.closest("[data-labor-crew-to-roster]")) {
       seedJobCrewFromSettings();
       // If settings were flat, seedJobCrewFromSettings makes flat — promote to roster so they can add people
@@ -17874,7 +17950,10 @@ function render() {
               data-labor-field="${escHtml(b.edit.field)}" value="${escHtml(String(b.edit.value))}" aria-label="${escHtml(b.label)}" />
             <span class="labor-edit-unit">${escHtml(b.edit.unit)}${b.edit.suffix ? escHtml(b.edit.suffix) : ""}</span>
             <span class="labor-edit-hrs">${b.hrs.toFixed(1)} hr</span>
-            ${overridden ? `<button type="button" class="labor-reset-btn" data-labor-reset="${escHtml(b.edit.field)}">Use default</button>` : ""}
+            ${overridden ? `<span class="labor-override-actions">
+              <button type="button" class="labor-reset-btn" data-labor-reset="${escHtml(b.edit.field)}">Use default</button>
+              <button type="button" class="labor-update-default-btn" data-labor-update-default="${escHtml(b.edit.field)}">Update pricing</button>
+            </span>` : ""}
           </div>
         </div>`;
       }).join("");
