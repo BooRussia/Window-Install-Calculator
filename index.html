@@ -14176,7 +14176,8 @@ function wireLaborDetailCard(card) {
       const field = updateDefault.getAttribute("data-labor-update-default");
       // Commit any in-progress input so we promote what the user currently sees.
       const row = updateDefault.closest("[data-labor-row]");
-      const inp = row && field ? row.querySelector(`[data-labor-field="${CSS.escape ? CSS.escape(field) : field}"]`) : null;
+      const safeField = (typeof CSS !== "undefined" && CSS.escape) ? CSS.escape(field) : String(field).replace(/"/g, "");
+      const inp = row && field ? row.querySelector(`[data-labor-field="${safeField}"]`) : null;
       if (inp) {
         const o = ensureLaborOverride();
         const raw = inp.value;
