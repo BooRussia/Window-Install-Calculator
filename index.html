@@ -6533,6 +6533,17 @@
     display: flex; flex-direction: column; gap: 8px;
   }
   .jd-hero .jd-photo { aspect-ratio: 16 / 10; border-radius: 16px; }
+  /* Primary calc CTA lives under the photo so it isn't buried below the form. */
+  .jd-hero .jd-open-calc {
+    width: 100%; min-height: 48px; border-radius: 14px; border: 0;
+    background: #b58f4a; color: #0b1120;
+    font-size: 14px; font-weight: 800; letter-spacing: -0.01em;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 10px 24px -14px rgba(201, 165, 88, 0.7);
+  }
+  .jd-hero .jd-open-calc:hover { background: #c9a558; }
+  .jd-hero .jd-open-calc:active { transform: scale(0.99); }
   .jd-gen-thumb {
     width: 100%; min-height: 40px; border-radius: 12px;
     font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
@@ -6546,6 +6557,23 @@
     background: rgba(181, 143, 74, 0.14);
     border-color: rgba(181, 143, 74, 0.65);
   }
+  /* AI thumbnail — confirm customer details before spending a credit */
+  .jd-thumb-check-list { display: flex; flex-direction: column; gap: 0; margin-top: 14px;
+    border: 1px solid rgba(51,65,85,0.65); border-radius: 12px; overflow: hidden;
+    background: rgba(2,6,23,0.35); }
+  .jd-thumb-check-row {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    padding: 10px 12px; font-size: 13px;
+  }
+  .jd-thumb-check-row + .jd-thumb-check-row { border-top: 1px solid rgba(51,65,85,0.45); }
+  .jd-thumb-check-k { color: #94a3b8; font-weight: 600; flex: 0 0 auto; }
+  .jd-thumb-check-v { color: #f1f5f9; font-weight: 700; text-align: right; min-width: 0; word-break: break-word; }
+  .jd-thumb-check-empty { color: #64748b; font-weight: 600; font-style: italic; }
+  [data-theme="light"] .jd-thumb-check-list { background: #f8fafc; border-color: #e2e8f0; }
+  [data-theme="light"] .jd-thumb-check-row + .jd-thumb-check-row { border-top-color: #e6e8ec; }
+  [data-theme="light"] .jd-thumb-check-k { color: #64748b; }
+  [data-theme="light"] .jd-thumb-check-v { color: #0f172a; }
+  [data-theme="light"] .jd-thumb-check-empty { color: #94a3b8; }
   .jd-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #64748b; font-weight: 800; margin-bottom: 7px; }
   /* Job Details footer — one primary action, equal secondary pair, quiet delete.
      Stacked on all widths so buttons never wrap into an awkward staggered row. */
@@ -11495,6 +11523,21 @@
       <button id="demoGuardSetup" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Set it up first</button>
       <button id="demoGuardSend" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-slate-800 text-slate-100 border border-slate-700 hover:border-[#b58f4a]/50">Send anyway</button>
       <button data-close-demoguard type="button" class="btn w-full rounded-xl px-4 py-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI thumbnail: confirm the customer details that get printed on the image
+     before spending an image credit. Layers above Job Details (z-78). -->
+<div id="aiThumbConfirmModal" class="fixed inset-0 hidden items-center justify-center p-4 z-[83]" role="dialog" aria-modal="true" aria-labelledby="aiThumbConfirmTitle">
+  <div class="absolute inset-0 modal-backdrop" data-close-aithumb></div>
+  <div class="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-6">
+    <h3 id="aiThumbConfirmTitle" class="text-base font-bold text-slate-100">Check customer details</h3>
+    <p class="text-sm text-slate-400 mt-2 leading-relaxed">These show on the AI thumbnail. Fix anything wrong in Job &amp; customer first, then generate.</p>
+    <div id="aiThumbConfirmBody" class="jd-thumb-check-list"></div>
+    <div class="mt-5 space-y-2">
+      <button id="aiThumbConfirmGo" type="button" class="btn w-full rounded-xl px-4 py-3 text-sm font-bold bg-[#b58f4a] text-slate-950 hover:bg-[#c9a558]">Looks good — generate</button>
+      <button type="button" class="btn w-full rounded-xl px-4 py-2 text-sm text-slate-500 hover:text-slate-300" data-close-aithumb>Go back &amp; edit</button>
     </div>
   </div>
 </div>
@@ -25422,9 +25465,62 @@ function composeJobThumbnail(bgDataUrl, title, subtitle, blurRadius) {
 // upload) fail afterward, a retry reuses the cached image instead of paying for
 // a brand-new generation. Cleared on success so a later regen makes a fresh one.
 const _aiThumbCache = Object.create(null);   // jobId -> generated bg image (data URL)
+
+/** Confirm the job/customer fields that get printed on an AI thumbnail before
+    burning an image credit. Returns true when the user agrees to generate. */
+function confirmAiThumbCustomer(jobId) {
+  return new Promise((resolve) => {
+    try { commitOpenJobDetailsEdits(jobId); } catch (_) {}
+    const job = loadJobs().find(x => x.id === jobId);
+    const modal = document.getElementById("aiThumbConfirmModal");
+    const list = document.getElementById("aiThumbConfirmBody");
+    if (!job || !modal || !list) { resolve(!!job); return; }
+
+    const tag = typeof normalizeCustomerTag === "function" ? normalizeCustomerTag(job.customerTag) : (job.customerTag || "");
+    const tagLabel = tag === "contractor" ? "Contractor" : tag === "owner" ? "Owner" : "None";
+    const rows = [
+      ["Job name", job.name],
+      ["Customer", job.customerName],
+      ["Customer type", tagLabel],
+      ["Company", job.customerCompany],
+      ["Phone", job.customerPhone],
+      ["Email", job.customerEmail],
+      ["Address", job.customerAddress],
+    ];
+    list.innerHTML = rows.map(([k, v]) => {
+      const has = v != null && String(v).trim() !== "";
+      return `<div class="jd-thumb-check-row">
+        <span class="jd-thumb-check-k">${escHtml(k)}</span>
+        <span class="jd-thumb-check-v">${has ? escHtml(String(v)) : `<span class="jd-thumb-check-empty">Not set</span>`}</span>
+      </div>`;
+    }).join("");
+
+    const finish = (ok) => {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+      document.removeEventListener("keydown", onKey, true);
+      goBtn.onclick = null;
+      modal.querySelectorAll("[data-close-aithumb]").forEach(el => { el.onclick = null; });
+      resolve(!!ok);
+    };
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); finish(false); } };
+    const goBtn = document.getElementById("aiThumbConfirmGo");
+    if (goBtn) goBtn.onclick = () => finish(true);
+    modal.querySelectorAll("[data-close-aithumb]").forEach(el => { el.onclick = () => finish(false); });
+    document.addEventListener("keydown", onKey, true);
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    try { goBtn && goBtn.focus(); } catch (_) {}
+  });
+}
+
 async function generateJobThumbnail(jobId, btn) {
   if (!sb || !currentUser) { toast("Sign in to generate a thumbnail"); return; }
-  const job = loadJobs().find(x => x.id === jobId);
+  let job = loadJobs().find(x => x.id === jobId);
+  if (!job) { toast("Job not found"); return; }
+  // Remind the user the customer fields land on the image — agree before billing.
+  if (!(await confirmAiThumbCustomer(jobId))) return;
+  job = loadJobs().find(x => x.id === jobId);
   if (!job) { toast("Job not found"); return; }
   // PHOTO-12: this replaces the current cover AND spends an AI-image credit. Confirm only
   // when a cover already exists AND a NEW generation will be billed — a cached retry (a
@@ -26212,6 +26308,10 @@ function renderJobDetails(job) {
     </div>
     <div class="jd-hero">
       <button type="button" id="jdPhoto" class="jd-photo" title="Upload a job photo">${photo}</button>
+      <button id="jdOpenCalc" type="button" class="jd-open-calc">
+        Open in calculator
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h10"/><path d="M11 5l5 5-5 5"/></svg>
+      </button>
       <button type="button" id="jdGenThumb" class="jd-gen-thumb">✨ Generate AI thumbnail</button>
     </div>
     <div class="px-4 sm:px-6 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -26310,10 +26410,6 @@ function renderJobDetails(job) {
       </div>
     </div>
     <div class="jd-footer">
-      <button id="jdOpenCalc" type="button" class="jd-footer-primary">
-        Open in calculator
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h10"/><path d="M11 5l5 5-5 5"/></svg>
-      </button>
       <div class="jd-footer-row">
         <button id="jdSave" type="button" class="jd-footer-secondary">Save changes</button>
         <button id="jdDuplicate" type="button" class="jd-footer-secondary" title="Copy this job to a new version you can revise — the original stays untouched">Duplicate &amp; revise</button>
