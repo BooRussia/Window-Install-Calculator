@@ -26684,7 +26684,12 @@ function saveJobDetailsEdits(id, silent) {
   }
 
   // Draft → Final (Jobs sheet Save), or Final → Draft when the toggle says so.
-  if (j.isDraft && wantFinal) {
+  // Only ever on an EXPLICIT save. Silent commits (commitOpenJobDetailsEdits before
+  // a photo/gallery/thumbnail save or a calc/version jump) must NOT change the job's
+  // kind: promoting here would mint a new id, spend a quote credit, and delete the
+  // draft cloud row out from under the caller — which then can't find the old id and
+  // silently drops the photo it was about to save.
+  if (!silent && j.isDraft && wantFinal) {
     const promoted = promoteDraftFromJobDetails(id);
     if (promoted) {
       renderDashboard();
@@ -26697,7 +26702,7 @@ function saveJobDetailsEdits(id, silent) {
     if (!silent) toast("Details saved — still a draft");
     return;
   }
-  if (!j.isDraft && !wantFinal) {
+  if (!silent && !j.isDraft && !wantFinal) {
     const demoted = demoteJobToWorkingDraft(id);
     if (demoted) {
       renderDashboard();
