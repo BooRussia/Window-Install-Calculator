@@ -11101,7 +11101,7 @@
         <div class="px-5 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div>
             <div class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Total job hours</div>
-            <div class="text-[10px] text-slate-600 mt-0.5">Time on site — not stacked per person</div>
+            <div class="text-[10px] text-slate-600 mt-0.5">On-site time · window install is ÷ crew count</div>
           </div>
           <div id="laborTotalHrs" class="text-base font-bold text-slate-100">—</div>
         </div>
@@ -15383,24 +15383,13 @@ function buildingLaborBreakdown() {
 
 // Lift / swing-stage / storage schedule chips.
 //
-// Job hours = wall-clock time the crew is on site together (not person-hours
-// stacked per employee). Labor cost = job hours × full crew $/hr. A naive
-// "hrs ÷ 8" calendar assumes ONE sequential crew — fine for a small residential
-// job, absurd on a tower where the same hour budget is burned by a larger crew
-// in parallel.
-//
-// Rates were calibrated around the default 2-person crew, so schedule capacity
-// scales with crewSize / 2: a 2-person crew keeps the old hrs÷8 days; an
-// 8-person crew finishes in ~1/4 the calendar. Storage months follow from
-// working days (÷ 22). Cost still uses full job hours × full crew $/hr — a
-// bigger crew costs more per clock-hour; the calendar just finishes sooner.
+// Job hours on the labor breakdown are already wall-clock on site (window
+// install is LF×rate ÷ crew count). Calendar is simply those hours ÷ 8h/day —
+// do NOT also scale by crew size or we'd double-count the headcount split.
 function estimateJobCalendarDays(lb) {
   const hrs = Number(lb && lb.totalHrs) || 0;
   if (hrs <= 0) return 1;
-  const baseline = 2; // default residential crew the per-LF rates assume
-  const crewSize = Math.max(1, Number(lb && lb.crewSize) || baseline);
-  const parallel = Math.max(1, crewSize / baseline);
-  return Math.max(1, Math.ceil(hrs / (8 * parallel)));
+  return Math.max(1, Math.ceil(hrs / 8));
 }
 function estimateJobCalendarMonths(days) {
   return Math.max(1, Math.ceil(Math.max(1, Number(days) || 1) / 22));
@@ -15458,10 +15447,11 @@ function estimateLiftDaysFromUpperOpenings(upperCount) {
   const upperLF = n * avg;
   const hrPerLF = liftInstallHrPerLF();
   const setupMin = resolveSetupMinPerOpening();
-  const hrs = upperLF * hrPerLF + n * setupMin / 60;
+  // Match window-install costing: LF×rate is a total hour budget, then ÷ crew
+  // for wall-clock days on site.
+  const crewN = Math.max(1, Number((resolveJobCrewCost() || {}).crewSize) || 2);
+  const hrs = (upperLF * hrPerLF) / crewN + n * setupMin / 60;
   if (!(hrs > 0)) return null;
-  // One working day = 8 hours on site (not a 24h clock, and not scaled by
-  // crew size — larger crews are already reflected in how fast the rates assume).
   const days = Math.max(1, Math.ceil(hrs / 8));
   return {
     days,
@@ -15509,16 +15499,16 @@ function getLaborPerLF() {
 // ─── Labor model (cost-plus, single source of truth) ─────────────────────
 //   ALL labor cost flows through here:
 //     laborCost = jobHours × crewCostPerHr
-//   Job hours = wall-clock time on site (the whole crew is there together —
-//   we do NOT multiply hours by headcount). crewCostPerHr is what the whole
-//   crew costs for one of those hours (size × pay, or Σ roster loaded rates).
-//   That cost is marked up by the job margin like materials — no separate
-//   bill rate. Used by calculate() and Labor Detail so they always reconcile.
+//   Window install: (LF × hr/LF) ÷ crewSize → wall-clock job hours on site.
+//   LF×rate is the total hour budget; dividing by headcount keeps us from
+//   charging crew $/hr against a pre-split total (the old ×N overcharge).
+//   crewCostPerHr = size × pay, or Σ roster loaded rates. Marked up by job
+//   margin like materials — no separate bill rate.
 //
 //   Job hours =
 //     mobilization (per job)
 //   + per-opening setup × (windows + doors)
-//   + window install  (LF × hr/LF × stories × impact, via getLaborPerLF)
+//   + window install  ((LF × hr/LF) ÷ crewSize)
 //   + door install    (door labor minutes, via computeSwingDoors)
 //
 //   Returns: { mobilizationHrs, setupHrs, windowInstallHrs, doorInstallHrs,
@@ -15528,7 +15518,7 @@ function estimateLaborBreakdown(ctx) {
   const setupMin = resolveSetupMinPerOpening();
   const mobHrs = resolveMobilizationHours();
   const crew = resolveJobCrewCost();
-  const crewSize = crew.crewSize;
+  const crewSize = Math.max(1, Number(crew.crewSize) || 1);
   const crewPayPerHrEach = crew.crewPayPerHrEach;
   const crewCostPerHr = crew.crewCostPerHr;
 
@@ -15550,9 +15540,11 @@ function estimateLaborBreakdown(ctx) {
   // anchor, cleanup).
   const openingCount = wc + dc + sgdc + bfc;
   const setupHrs = openingCount * setupMin / 60;
-  // Window install — LF × hr/LF (settings rate or per-job min/LF override).
+  // Window install — LF × hr/LF is the total hour budget; ÷ crew count → the
+  // wall-clock hours everyone is on site together (then × full crew $/hr).
   const laborPerLF = resolveLaborPerLF();
-  const windowInstallHrs = lf * laborPerLF;
+  const windowInstallHrsRaw = lf * laborPerLF;
+  const windowInstallHrs = windowInstallHrsRaw / crewSize;
   // Swing-door install — minutes per door from the swing-door config, with the
   // same impact-glass labor premium that windows/sliders/bifolds already get.
   const doorInstallHrs = ((sd.laborMinutes || 0) / 60) * getImpactLaborMultiplier();
@@ -15597,7 +15589,7 @@ function estimateLaborBreakdown(ctx) {
     const minPerLF = laborPerLF * 60;
     breakdown.push({
       key: "install",
-      label: `Window install (${lf} LF)`,
+      label: `Window install (${lf} LF ÷ ${crewSize} crew)`,
       hrs: windowInstallHrs,
       edit: { field: "installMinPerLF", value: Math.round(minPerLF * 10) / 10, unit: "min/LF", defaultVal: Math.round(getLaborPerLF() * 60 * 10) / 10 },
     });
@@ -35420,7 +35412,7 @@ function buildAdminUI() {
     laborBody.innerHTML = `
       <div class="set-card" id="rates-item-labor" data-rates-item>
         <div class="set-card-head">Install speed</div>
-        <div class="set-card-desc">Wall-clock minutes on site per linear foot (whole crew together — not per person). 2-story and impact glass add time automatically.</div>
+        <div class="set-card-desc">Minutes per linear foot → total hour budget, then ÷ crew count for job hours on site. 2-story and impact glass add time automatically.</div>
         <div class="set-grid cols-3">${laborRateRows}</div>
       </div>`;
   }
