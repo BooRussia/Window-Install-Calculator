@@ -6525,6 +6525,8 @@
     font-size: 11px; font-weight: 600; color: #94a3b8; margin-top: 3px;
   }
   .jd-head-tools {
+    flex-wrap: wrap;
+    justify-content: flex-end;
     display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-top: 1px;
   }
   /* Hero photo sits tight under the chrome — one composition, less dead air */
@@ -6547,6 +6549,10 @@
     border-color: rgba(181, 143, 74, 0.65);
   }
   .jd-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #64748b; font-weight: 800; margin-bottom: 7px; }
+  .jd-kind-seg { max-width: none; flex: 0 1 auto; }
+  .jd-kind-seg .seg-btn { min-height: 34px; padding: 0 10px; font-size: 11px; }
+  .jd-crew-hint { font-size: 11px; color: #64748b; line-height: 1.4; margin-top: 6px; }
+  [data-theme="light"] .jd-crew-hint { color: #64748b; }
   /* Job Details footer — one primary action, equal secondary pair, quiet delete.
      Stacked on all widths so buttons never wrap into an awkward staggered row. */
   .jd-footer {
@@ -23570,7 +23576,8 @@ function dashJobCard(j) {
   // the account actually has crews, so solo users see no change at all.
   const _tctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
   const _tcrews = (_tctx && _tctx.crews) ? _tctx.crews : [];
-  const crewSel = (!j.isDraft && _tcrews.length)
+  // Drafts can be assigned too — same picker as a final job / Save Job modal.
+  const crewSel = _tcrews.length
     ? `<select data-dash-crew="${j.id}" class="job-crew-sel${j.assignedCrewId ? " is-set" : ""}" title="Assign a crew or subcontractor">`
         + `<option value="">Unassigned</option>`
         + _tcrews.map(c => `<option value="${escHtml(c.id)}"${c.id === j.assignedCrewId ? " selected" : ""}>${escHtml(c.name)}</option>`).join("")
@@ -26033,6 +26040,102 @@ function closeJobDetailsInstant() {
   try { releaseDialog(m); } catch (_) {}
 }
 
+function jdWantFinal() {
+  const active = document.querySelector("#jdRecordKind .seg-btn.active");
+  if (active) return active.dataset.jdKind !== "draft";
+  // No toggle in DOM (silent commits mid-edit) — keep the job's current kind.
+  return true;
+}
+function syncJdSaveButtonLabel(isDraft) {
+  const save = document.getElementById("jdSave");
+  if (!save) return;
+  const wantFinal = jdWantFinal();
+  if (isDraft) save.textContent = wantFinal ? "Save as final" : "Save draft";
+  else save.textContent = wantFinal ? "Save changes" : "Move to draft";
+}
+
+/** Promote a working draft (opened from Jobs) into a final saved job — new id,
+    quote credit, drop the reserved draft cloud row. Returns the new job or null. */
+function promoteDraftFromJobDetails(id) {
+  const jobs = loadJobs();
+  const idx = jobs.findIndex(x => x && x.id === id && x.isDraft);
+  if (idx < 0) return null;
+  const draft = jobs[idx];
+  if (!isAdmin()) {
+    const chk = canGenerate();
+    if (!chk.allowed) { showUpsellModal(chk.reason); return null; }
+  }
+  const oldId = draft.id;
+  const newId = crypto.randomUUID();
+  const cleanName = String(draft.name || "").replace(/\s*\(draft\)\s*$/i, "").trim();
+  const promoted = Object.assign({}, clone(draft), {
+    id: newId,
+    isDraft: false,
+    name: cleanName || draft.customerName || "Untitled job",
+    updatedAt: new Date().toISOString(),
+    status: draft.status && JOB_STATUSES.includes(draft.status) ? draft.status : "Quoted",
+  });
+  delete promoted.isDraft; // final jobs omit the flag (matches doSaveJob)
+  let next = jobs.filter(x => x.id !== oldId);
+  next = next.concat([promoted]);
+  if (!saveJobs(next)) {
+    toast("Couldn't save — this device's storage is full.");
+    return null;
+  }
+  if (!isAdmin()) try { consumeQuote(); } catch (_) {}
+  clearTimeout(_draftCloudTimer); _draftCloudTimer = 0;
+  if (oldId && isUuid(oldId)) { try { deleteJobFromCloud(oldId); } catch (_) {} }
+  try { pushJobToCloud(promoted); } catch (_) {}
+  try { window.track("job_saved", { from_job_details: true }); } catch (_) {}
+  if (STATE.currentJobId === oldId) {
+    STATE.currentJobId = newId;
+    STATE.assignedCrewId = promoted.assignedCrewId || null;
+  }
+  if (typeof _jdJobId !== "undefined" && _jdJobId === oldId) _jdJobId = newId;
+  return promoted;
+}
+
+/** Move a final job back to the single working-draft slot (for details still pending). */
+function demoteJobToWorkingDraft(id) {
+  const jobs = loadJobs();
+  const j = jobs.find(x => x && x.id === id && !x.isDraft);
+  if (!j) return null;
+  const otherDraft = jobs.find(x => x && x.isDraft && x.id !== id);
+  if (otherDraft) {
+    const ok = confirm("Replace your current working draft with this job? The existing draft will be discarded.");
+    if (!ok) return null;
+  }
+  const draftId = (currentUser && currentUser.id) ? draftIdFor(currentUser) : crypto.randomUUID();
+  if (otherDraft && otherDraft.id !== draftId && isUuid(otherDraft.id)) {
+    try { deleteJobFromCloud(otherDraft.id); } catch (_) {}
+  }
+  if (j.id !== draftId && isUuid(j.id)) {
+    // Retire the final job's cloud row — the draft reuses the reserved draft id.
+    try { deleteJobFromCloud(j.id); } catch (_) {}
+  }
+  const demoted = Object.assign({}, clone(j), {
+    id: draftId,
+    isDraft: true,
+    updatedAt: new Date().toISOString(),
+  });
+  // Soft-mark the name so the Jobs list still reads as a draft.
+  if (demoted.name && !/\(draft\)\s*$/i.test(demoted.name)) demoted.name = demoted.name + " (draft)";
+  let next = jobs.filter(x => x.id !== id && !x.isDraft);
+  next = next.concat([demoted]);
+  if (!saveJobs(next)) {
+    toast("Couldn't update — this device's storage is full.");
+    return null;
+  }
+  clearTimeout(_draftCloudTimer); _draftCloudTimer = 0;
+  try { pushJobToCloud(demoted, true); } catch (_) {}
+  if (STATE.currentJobId === id) {
+    STATE.currentJobId = draftId;
+    STATE.assignedCrewId = demoted.assignedCrewId || null;
+  }
+  if (typeof _jdJobId !== "undefined" && _jdJobId === id) _jdJobId = draftId;
+  return demoted;
+}
+
 function saveJobDetailsEdits(id, silent) {
   const jobs = loadJobs();
   const j = jobs.find(x => x.id === id);
@@ -26047,15 +26150,63 @@ function saveJobDetailsEdits(id, silent) {
   j.customerTag = normalizeCustomerTag(document.querySelector("#jdCustomerTag .seg-btn.active")?.dataset.custTag);
   // Job name is its own field now; fall back to customer/old name if cleared.
   j.name = g("jdJobName") || j.customerName || j.name || "Untitled job";
-  saveJobs(jobs);
-  if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
+  const crewEl = document.getElementById("jdCrew");
+  if (crewEl) j.assignedCrewId = crewEl.value || null;
+  const recEl = document.getElementById("jdRecurring");
+  if (recEl) j.customerRecurring = !!recEl.checked;
+  const wantFinal = jdWantFinal();
+  j.updatedAt = new Date().toISOString();
+  if (!saveJobs(jobs)) {
+    if (!silent) toast("Couldn't save — this device's storage is full.");
+    return;
+  }
   if (STATE.currentJobId === id) {
     STATE.customerName = j.customerName; STATE.customerCompany = j.customerCompany; STATE.customerPhone = j.customerPhone;
     STATE.customerEmail = j.customerEmail; STATE.customerAddress = j.customerAddress;
     STATE.customerNotes = j.customerNotes; STATE.customerTag = j.customerTag;
+    STATE.assignedCrewId = j.assignedCrewId || null;
+    STATE.jobName = j.name;
   }
+
+  // Draft → Final (Jobs sheet Save), or Final → Draft when the toggle says so.
+  if (j.isDraft && wantFinal) {
+    const promoted = promoteDraftFromJobDetails(id);
+    if (promoted) {
+      renderDashboard();
+      try { renderJobDetails(promoted); } catch (_) {}
+      if (!silent) toast("Draft saved as job");
+      return;
+    }
+    // Upsell / failure — field edits already persisted on the draft.
+    renderDashboard();
+    if (!silent) toast("Details saved — still a draft");
+    return;
+  }
+  if (!j.isDraft && !wantFinal) {
+    const demoted = demoteJobToWorkingDraft(id);
+    if (demoted) {
+      renderDashboard();
+      try { renderJobDetails(demoted); } catch (_) {}
+      if (!silent) toast("Moved back to working draft");
+      return;
+    }
+    // User cancelled demote confirm — restore Final on the toggle.
+    const kind = document.getElementById("jdRecordKind");
+    if (kind) {
+      kind.querySelectorAll(".seg-btn").forEach(b => {
+        const on = b.dataset.jdKind === "final";
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      syncJdSaveButtonLabel(false);
+    }
+    return;
+  }
+
+  if (!j.isDraft) { try { pushJobToCloud(j); } catch (_) {} }
+  else { try { scheduleDraftCloudPush(); } catch (_) {} }
   renderDashboard();
-  if (!silent) toast("Saved");
+  if (!silent) toast(j.isDraft ? "Draft saved" : "Saved");
 }
 
 /* ----- Per-job actuals: estimated (saved rows) vs what was actually used ----- */
@@ -26201,11 +26352,15 @@ function renderJobDetails(job) {
       <div class="jd-head">
         <div class="min-w-0 flex-1">
           <div class="jd-head-title">${escHtml(title)}</div>
-          <div class="jd-head-sub">${job.isDraft ? "Working draft" : "Saved job"}</div>
+          <div class="jd-head-sub" id="jdHeadSub">${job.isDraft ? "Working draft" : "Saved job"}</div>
           ${versionRow}
         </div>
         <div class="jd-head-tools">
-          <select id="jdStatus" class="job-status-sel ${stCls}" title="Set deal status">${statusOpts}</select>
+          <div id="jdRecordKind" class="seg jd-kind-seg" role="radiogroup" aria-label="Draft or final">
+            <button type="button" class="seg-btn ${job.isDraft ? "active" : ""}" data-jd-kind="draft" aria-pressed="${!!job.isDraft}">Draft</button>
+            <button type="button" class="seg-btn ${!job.isDraft ? "active" : ""}" data-jd-kind="final" aria-pressed="${!job.isDraft}">Final</button>
+          </div>
+          ${job.isDraft ? "" : `<select id="jdStatus" class="job-status-sel ${stCls}" title="Set deal status">${statusOpts}</select>`}
           <button data-close-jd class="modal-close" aria-label="Close">×</button>
         </div>
       </div>
@@ -26219,6 +26374,15 @@ function renderJobDetails(job) {
         <div class="jd-section">
           <div class="jd-section-title">Job &amp; customer</div>
           <div class="space-y-2.5">
+            <div id="jdCustomerPickRow" class="hidden">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <label for="jdCustomerPick" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">Saved customer</label>
+                <button type="button" id="jdManageCustomers" class="text-[11px] font-semibold text-[#c9a558] hover:text-[#e3c577]">Manage</button>
+              </div>
+              <select id="jdCustomerPick" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100">
+                <option value="">— New / type below —</option>
+              </select>
+            </div>
             <div><label for="jdJobName" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Job name</label>
               <input id="jdJobName" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Smith Residence" value="${escHtml(job.name || "")}"></div>
             <div><label for="jdName" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Customer</label>
@@ -26233,6 +26397,11 @@ function renderJobDetails(job) {
             </div>
             <div><label for="jdCompany" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Company <span class="text-slate-600 normal-case tracking-normal">(optional)</span></label>
               <input id="jdCompany" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="e.g. Acme Contracting LLC" autocomplete="organization" value="${escHtml(job.customerCompany || "")}"></div>
+            <div id="jdCrewWrap" class="hidden">
+              <label for="jdCrew" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Assign to</label>
+              <select id="jdCrew" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100"></select>
+              <p id="jdCrewHint" class="jd-crew-hint"></p>
+            </div>
             <div><label for="jdPhone" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Phone</label>
               <input id="jdPhone" type="tel" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="(555) 123-4567" autocomplete="tel" value="${escHtml(job.customerPhone || "")}"></div>
             <div><label for="jdEmail" class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold mb-1">Email</label>
@@ -26247,6 +26416,13 @@ function renderJobDetails(job) {
               </div>
               <input id="jdAddress" class="control rounded-lg px-3 py-2 w-full text-sm text-slate-100" placeholder="123 Main St, City, ST" autocomplete="street-address" value="${escHtml(job.customerAddress || "")}">
             </div>
+            <label for="jdRecurring" class="flex items-start gap-3 cursor-pointer select-none pt-1">
+              <input id="jdRecurring" type="checkbox" ${job.customerRecurring !== false ? "checked" : ""} class="mt-0.5 h-4 w-4 shrink-0 accent-[#b58f4a] cursor-pointer" />
+              <span>
+                <span class="block text-[13px] font-semibold text-slate-200">Recurring customer</span>
+                <span class="block text-[11px] text-slate-500 font-normal">Adds them to your quick-pick list for next time. Uncheck for a one-time job.</span>
+              </span>
+            </label>
           </div>
         </div>
         <div class="jd-section">
@@ -26323,6 +26499,47 @@ function renderJobDetails(job) {
   body.querySelectorAll("[data-close-jd]").forEach(b => b.addEventListener("click", closeJobDetails));
   const status = document.getElementById("jdStatus");
   if (status) status.addEventListener("change", () => { setJobStatus(job.id, status.value); renderDashboard(); });
+  // Draft | Final — Save commits the change (promote / demote).
+  const kind = document.getElementById("jdRecordKind");
+  if (kind) {
+    // Drafts default to Final so Save finalizes after filling customer details.
+    if (job.isDraft) {
+      kind.querySelectorAll(".seg-btn").forEach(b => {
+        const on = b.dataset.jdKind === "final";
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      const sub = document.getElementById("jdHeadSub");
+      if (sub) sub.textContent = "Working draft — save as final when ready";
+    }
+    kind.addEventListener("click", e => {
+      const btn = e.target.closest("[data-jd-kind]");
+      if (!btn) return;
+      kind.querySelectorAll(".seg-btn").forEach(b => {
+        const on = b === btn;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      const sub = document.getElementById("jdHeadSub");
+      if (sub) {
+        if (btn.dataset.jdKind === "draft") sub.textContent = job.isDraft ? "Working draft" : "Will move back to working draft on Save";
+        else sub.textContent = job.isDraft ? "Will save as final job on Save" : "Saved job";
+      }
+      syncJdSaveButtonLabel(!!job.isDraft);
+    });
+    syncJdSaveButtonLabel(!!job.isDraft);
+  }
+  try { populateJdCustomerPicker(job.customerName || ""); } catch (_) {}
+  try { renderJdCrewPicker(job.assignedCrewId || ""); } catch (_) {}
+  const jdPick = document.getElementById("jdCustomerPick");
+  if (jdPick) jdPick.addEventListener("change", onJdCustomerPick);
+  const jdManage = document.getElementById("jdManageCustomers");
+  if (jdManage) jdManage.addEventListener("click", openManageCustomers);
+  const jdCrew = document.getElementById("jdCrew");
+  if (jdCrew) jdCrew.addEventListener("change", () => {
+    const h = document.getElementById("jdCrewHint");
+    if (h) h.textContent = jdCrew.value ? crewPayHint(jdCrew.value) : "Assign later if you're not sure yet.";
+  });
   const jdTag = document.getElementById("jdCustomerTag");
   if (jdTag) jdTag.addEventListener("click", e => {
     const btn = e.target.closest("[data-cust-tag]");
@@ -26338,7 +26555,20 @@ function renderJobDetails(job) {
   const save = document.getElementById("jdSave");
   if (save) save.addEventListener("click", () => saveJobDetailsEdits(job.id));
   const openCalc = document.getElementById("jdOpenCalc");
-  if (openCalc) openCalc.addEventListener("click", () => { saveJobDetailsEdits(job.id, true); loadJob(job.id); closeJobDetails(); closeDashboard(); });
+  // Keep as draft when jumping into the calculator — don't burn a quote on open.
+  if (openCalc) openCalc.addEventListener("click", () => {
+    const kindWrap = document.getElementById("jdRecordKind");
+    if (kindWrap && job.isDraft) {
+      kindWrap.querySelectorAll(".seg-btn").forEach(b => {
+        const on = b.dataset.jdKind === "draft";
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+    saveJobDetailsEdits(job.id, true);
+    const liveId = (typeof _jdJobId !== "undefined" && _jdJobId) ? _jdJobId : job.id;
+    loadJob(liveId); closeJobDetails(); closeDashboard();
+  });
   // VER-4: "Duplicate & revise" — save any edits, load this job, mint a new version
   // (original untouched), and drop into the calculator to revise the copy.
   const jdDup = document.getElementById("jdDuplicate");
@@ -28903,6 +29133,66 @@ function populateCustomerPicker() {
   sel._book = book;   // stash for the change handler
 }
 
+/** Same saved-customer picker for the Job Details sheet (Jobs → open a draft). */
+function populateJdCustomerPicker(matchName) {
+  const sel = document.getElementById("jdCustomerPick");
+  const row = document.getElementById("jdCustomerPickRow");
+  if (!sel || !row) return;
+  const book = getCustomerBook();
+  if (!book.length) { row.classList.add("hidden"); sel._book = []; return; }
+  row.classList.remove("hidden");
+  sel.innerHTML = `<option value="">— New / type below —</option>` +
+    book.map((c, i) => `<option value="${i}">${escHtml(c.name)}</option>`).join("");
+  sel._book = book;
+  const want = (matchName || "").trim().toLowerCase();
+  let idx = "";
+  if (want) {
+    const i = book.findIndex(c => (c.name || "").trim().toLowerCase() === want);
+    if (i >= 0) idx = String(i);
+  }
+  try { sel.value = idx; } catch (_) { sel.value = ""; }
+}
+
+function onJdCustomerPick() {
+  const sel = document.getElementById("jdCustomerPick");
+  if (!sel || !sel._book) return;
+  const idx = parseInt(sel.value, 10);
+  const c = (!isNaN(idx) && sel._book[idx]) ? sel._book[idx] : null;
+  if (!c) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
+  set("jdName", c.name);
+  set("jdCompany", c.company);
+  set("jdPhone", c.phone);
+  set("jdEmail", c.email);
+  // Address stays per-job (contractors work many sites).
+  const rec = document.getElementById("jdRecurring"); if (rec) rec.checked = true;
+  const tag = normalizeCustomerTag(c.tag);
+  const wrap = document.getElementById("jdCustomerTag");
+  if (wrap) {
+    wrap.querySelectorAll(".seg-btn").forEach(b => {
+      const on = normalizeCustomerTag(b.dataset.custTag) === tag;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+}
+
+function renderJdCrewPicker(selectedId) {
+  const wrap = document.getElementById("jdCrewWrap");
+  const sel = document.getElementById("jdCrew");
+  if (!wrap || !sel) return;
+  const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
+  const crews = (ctx && ctx.crews) ? ctx.crews : [];
+  if (!crews.length) { wrap.classList.add("hidden"); sel.innerHTML = ""; return; }
+  const mode = (typeof teamModeOf === "function") ? teamModeOf() : null;
+  const noneLabel = mode === "subcontract" ? "No subcontractor yet" : "No crew yet";
+  sel.innerHTML = `<option value="">${noneLabel}</option>` +
+    crews.map(c => `<option value="${escHtml(c.id)}"${c.id === selectedId ? " selected" : ""}>${escHtml(c.name)}</option>`).join("");
+  wrap.classList.remove("hidden");
+  const hint = document.getElementById("jdCrewHint");
+  if (hint) hint.textContent = sel.value ? crewPayHint(sel.value) : "Assign later if you're not sure yet.";
+}
+
 // Picking a saved customer auto-fills the fields below. Notes are per-job, so
 // they're intentionally left untouched.
 function onCustomerPick() {
@@ -28986,6 +29276,7 @@ function openManageCustomers() {
 
 function closeManageCustomers() {
   populateCustomerPicker();   // reflect any list changes back in the Save Job picker
+  try { populateJdCustomerPicker(document.getElementById("jdName")?.value || ""); } catch (_) {}
   tvDismiss(document.getElementById("manageCustomersModal"));
 }
 
@@ -29516,6 +29807,8 @@ function openSaveJobModal() {
         }
         _rec.checked = on;
       } }
+    // Teams assign — always paint (was only reachable via a restored form draft).
+    renderSaveJobCrewPicker(STATE.assignedCrewId || "");
     // Re-apply an in-progress draft (photo-picker background kill / accidental close).
     const draft = loadSaveJobFormDraft();
     if (draft && (draft.name || draft.jobName || draft.address || draft.phone || draft.email || draft.company || draft.notes)) {
@@ -29558,6 +29851,9 @@ function confirmSaveJob() {
   STATE.customerEmail = (document.getElementById("saveJobEmail")?.value || "").trim();
   STATE.customerNotes = document.getElementById("saveJobNotes").value.trim();
   STATE.customerTag = getSaveJobCustomerTag();
+  // Persist the Assign-to picker onto STATE so floorPersistFields() writes it.
+  { const crewSel = document.getElementById("saveJobCrew");
+    if (crewSel) STATE.assignedCrewId = crewSel.value || null; }
 
   const jobs = loadJobs();
   const norm = s => (s || "").trim().toLowerCase();
