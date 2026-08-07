@@ -31914,12 +31914,18 @@ function wireSettingsSwipeBack() {
     tracking = false;
     const go = dx > 70;
     const lvl = startLevel;
-    settle(layer);
+    const el = layer;
     dx = 0;
-    if (!go) return;
-    // Root list → leave Settings. Deeper layers → one step back.
-    if (lvl <= 1) { try { closeAdmin(); } catch (_) {} }
-    else settingsBack();
+    // Root list → leave Settings (skip the snap-back settle so the shell
+    // doesn't flash back before the modal hides). Deeper layers settle, then
+    // step back one level like the back chevron.
+    if (go && lvl <= 1) {
+      try { closeAdmin(); } catch (_) {}
+      if (el) { el.style.transition = ""; el.style.transform = ""; el.style.opacity = ""; }
+      return;
+    }
+    settle(el);
+    if (go) settingsBack();
   };
   m.addEventListener("touchend", finish);
   m.addEventListener("touchcancel", finish);
