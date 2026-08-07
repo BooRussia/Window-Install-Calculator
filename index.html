@@ -5026,6 +5026,11 @@
      themselves get the rest. The content is still capped — a rate card
      stretched across 1500px is worse to read, not better — so it lands as a
      wide, roughly centred column with the nav tucked off to the left. */
+  /* Keep Settings title + Done below the status bar / Dynamic Island. */
+  #settingsHeader {
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  }
+
   @media (min-width: 1280px) {
     #settingsShell { max-width: none; }
     .set-panel.active[data-panel="setup"],
@@ -11608,8 +11613,9 @@
 <div id="adminModal" class="fixed inset-0 hidden z-[79]" style="background:#020617;">
   <div id="settingsShell" class="h-full max-w-6xl mx-auto flex flex-col">
 
-    <!-- Header -->
-    <div class="px-5 sm:px-8 py-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
+    <!-- Header — padding-top includes the iPhone notch / status-bar safe area so
+         Settings + Done never sit under the system clock / signal icons. -->
+    <div id="settingsHeader" class="px-5 sm:px-8 pb-4 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
       <div class="flex items-center gap-2.5">
         <span id="settingsAnchorIcon" class="text-[#c9a558]">
           <svg viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -31915,7 +31921,9 @@ function settingsBack() {
 function settingsEnterLeaf() { if (settingsIsNarrow()) setSettingsLevel(3); }
 
 /* Swipe right to go back a layer, the way every iOS navigation stack works —
-   so the back arrow is a fallback, not the only way out.
+   so the back arrow is a fallback, not the only way out. At the root list
+   (level 1) the same gesture dismisses Settings entirely — matching Done,
+   which used to be the only exit and sat under the iPhone status bar.
    The gesture deliberately refuses to start when it would steal someone else's
    drag: inside a text field, inside anything that scrolls horizontally (the
    trim width grid, wide tables), or while a bottom sheet is up. Direction is
@@ -31925,7 +31933,7 @@ function wireSettingsSwipeBack() {
   const m = document.getElementById("adminModal");
   if (!m || m._swipeWired) return;
   m._swipeWired = true;
-  let sx = 0, sy = 0, dx = 0, tracking = false, decided = false, layer = null;
+  let sx = 0, sy = 0, dx = 0, tracking = false, decided = false, layer = null, startLevel = 1;
 
   const scrollsHorizontally = (node) => {
     for (let n = node; n && n !== m; n = n.parentElement) {
@@ -31945,14 +31953,20 @@ function wireSettingsSwipeBack() {
 
   m.addEventListener("touchstart", (e) => {
     tracking = false;
-    if (!settingsIsNarrow() || _setLevel < 2) return;
+    if (!settingsIsNarrow()) return;
     if (!e.touches || e.touches.length !== 1) return;
     const t = e.touches[0], tgt = t.target;
     if (tgt && tgt.closest && tgt.closest("input, textarea, select, [contenteditable], .msheet-panel, .sheet-on-mobile, [data-noswipe]")) return;
     if (tgt && scrollsHorizontally(tgt)) return;
     sx = t.clientX; sy = t.clientY; dx = 0;
     tracking = true; decided = false;
-    layer = document.getElementById("settingsContent");
+    startLevel = _setLevel;
+    // Level 1 hides #settingsContent — drag the whole shell so the root list
+    // (and search / Done) slide with the finger. Deeper levels keep the old
+    // content-panel drag so the chrome stays put while you peel back a layer.
+    layer = startLevel <= 1
+      ? document.getElementById("settingsShell")
+      : document.getElementById("settingsContent");
   }, { passive: true });
 
   m.addEventListener("touchmove", (e) => {
@@ -31978,8 +31992,18 @@ function wireSettingsSwipeBack() {
     if (!tracking) return;
     tracking = false;
     const go = dx > 70;
-    settle(layer);
+    const lvl = startLevel;
+    const el = layer;
     dx = 0;
+    // Root list → leave Settings (skip the snap-back settle so the shell
+    // doesn't flash back before the modal hides). Deeper layers settle, then
+    // step back one level like the back chevron.
+    if (go && lvl <= 1) {
+      try { closeAdmin(); } catch (_) {}
+      if (el) { el.style.transition = ""; el.style.transform = ""; el.style.opacity = ""; }
+      return;
+    }
+    settle(el);
     if (go) settingsBack();
   };
   m.addEventListener("touchend", finish);
