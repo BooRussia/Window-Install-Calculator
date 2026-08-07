@@ -14146,11 +14146,16 @@ function promoteLaborOverrideToDefault(field) {
 }
 
 // Mobile-friendly: tapping an input selects its whole value so the next keystroke
-// replaces it — no fiddly double-tap / drag to highlight. Skips textareas,
-// passwords, and anything marked data-no-autoselect.
+// replaces it — no fiddly double-tap / drag to highlight. A SECOND tap on the
+// already-selected field collapses the highlight and parks the caret at the end
+// so you can extend/edit without retyping. Skips textareas, passwords, and
+// anything marked data-no-autoselect.
 function wireAutoselectInputs() {
   if (wireAutoselectInputs._wired) return;
   wireAutoselectInputs._wired = true;
+  // Tracks fields we just select-all'd so a second tap can collapse to end.
+  const justSelected = new WeakMap(); // el -> true
+  let focusEl = null, focusAt = 0;
   const selectable = el => {
     if (!el || el.tagName !== "INPUT") return false;
     if (el.disabled || el.readOnly) return false;
@@ -14165,20 +14170,55 @@ function wireAutoselectInputs() {
       if (typeof el.setSelectionRange === "function" && el.type !== "number") {
         el.setSelectionRange(0, (el.value || "").length);
       }
+      justSelected.set(el, true);
     } catch (_) {}
+  };
+  const caretToEnd = el => {
+    try {
+      const n = (el.value || "").length;
+      if (typeof el.setSelectionRange === "function") el.setSelectionRange(n, n);
+    } catch (_) {}
+    justSelected.delete(el);
+  };
+  const isAllSelected = el => {
+    const v = el.value || "";
+    if (!v) return !!justSelected.get(el);
+    try {
+      if (typeof el.selectionStart === "number" && typeof el.selectionEnd === "number") {
+        return el.selectionStart === 0 && el.selectionEnd === v.length;
+      }
+    } catch (_) {}
+    return !!justSelected.get(el);
   };
   document.addEventListener("focusin", e => {
     const el = e.target;
     if (!selectable(el)) return;
+    focusEl = el;
+    focusAt = Date.now();
     // Defer so iOS/Safari apply selection after the caret lands.
     requestAnimationFrame(() => selectAll(el));
   });
-  // A second tap/click into an already-focused field should also select-all
-  // (common when correcting a value you just entered).
+  document.addEventListener("focusout", e => {
+    const el = e.target;
+    if (selectable(el)) justSelected.delete(el);
+  });
+  // Typing clears the "just selected" latch so the next intentional tap
+  // select-alls again (fresh correction), not collapse-to-end.
+  document.addEventListener("input", e => {
+    if (selectable(e.target)) justSelected.delete(e.target);
+  }, true);
+  // Second tap on an already-focused, fully-selected field → caret at end.
+  // Ignore the click that rides along with the initial focus gesture.
   document.addEventListener("click", e => {
     const el = e.target;
     if (!selectable(el)) return;
-    if (document.activeElement === el) requestAnimationFrame(() => selectAll(el));
+    if (document.activeElement !== el) return;
+    if (el === focusEl && (Date.now() - focusAt) < 450) return;
+    requestAnimationFrame(() => {
+      if (document.activeElement !== el) return;
+      if (justSelected.get(el) || isAllSelected(el)) caretToEnd(el);
+      else selectAll(el);
+    });
   }, true);
 }
 
