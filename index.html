@@ -4063,6 +4063,24 @@
   @media (min-width: 640px) { .labor-crew-block { padding-left: 24px; padding-right: 24px; } }
   .labor-crew-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .labor-crew-title { font-size: 9px; letter-spacing: 0.14em; color: #64748b; font-weight: 700; text-transform: uppercase; }
+  /* Per-person cost share: same job hours × that person's $/hr (not stacked). */
+  .labor-crew-person {
+    display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1.4fr) auto;
+    gap: 6px 10px; align-items: baseline; padding: 5px 0;
+    border-top: 1px solid rgba(51,65,85,0.35); font-size: 11px;
+  }
+  .labor-crew-person:first-of-type { border-top: 0; }
+  .labor-crew-person-name { color: #94a3b8; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .labor-crew-person-math { color: #64748b; text-align: right; min-width: 0; }
+  .labor-crew-person-cost { color: #e2e8f0; font-weight: 700; text-align: right; white-space: nowrap; }
+  [data-theme="light"] .labor-crew-person { border-top-color: rgba(203,213,225,0.8); }
+  [data-theme="light"] .labor-crew-person-name { color: #475569; }
+  [data-theme="light"] .labor-crew-person-math { color: #64748b; }
+  [data-theme="light"] .labor-crew-person-cost { color: #0f172a; }
+  @media (max-width: 419px) {
+    .labor-crew-person { grid-template-columns: minmax(0,1fr) auto; }
+    .labor-crew-person-math { grid-column: 1 / -1; text-align: left; }
+  }
   .labor-crew-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .labor-crew-btn {
     font-size: 10px; font-weight: 700; letter-spacing: 0.03em; color: #c9a558;
@@ -18070,20 +18088,42 @@ function render() {
           </div>
         </div>`;
       } else {
-        const memberLines = (lb.crewMode === "roster" && lb.crewMembers && lb.crewMembers.length)
-          ? lb.crewMembers.map(m =>
-              `<div class="flex items-center justify-between text-[11px] gap-2 py-0.5">
-                 <div class="text-slate-400 truncate">${escHtml(m.name || m.role || "Installer")}${m.workersCompPct > 0 ? ` <span class="text-slate-600">· WC ${m.workersCompPct}%</span>` : ""}</div>
-                 <div class="text-slate-300 tabular-nums shrink-0">${formatMoney(m.loadedRate)}/hr</div>
-               </div>`).join("")
-          : `<div class="text-[11px] text-slate-500">${lb.crewSize} people · ${formatMoney(lb.crewPayPerHrEach)}/hr each</div>`;
+        // Per-person rows use the SAME job hours (wall-clock on site) — we do
+        // not stack 100+100+100. Cost share = jobHrs × that person's $/hr;
+        // sum of shares = jobHrs × crew $/hr.
+        const jobHrs = lb.totalHrs;
+        const jobHrsLabel = jobHrs.toFixed(1) + " hrs";
+        let memberLines;
+        if (lb.crewMembers && lb.crewMembers.length) {
+          memberLines = lb.crewMembers.map(m => {
+            const rate = Number(m.loadedRate) || 0;
+            const share = jobHrs * rate;
+            return `<div class="labor-crew-person">
+                 <div class="labor-crew-person-name">${escHtml(m.name || m.role || "Installer")}${m.workersCompPct > 0 ? ` <span class="text-slate-600">· WC ${m.workersCompPct}%</span>` : ""}</div>
+                 <div class="labor-crew-person-math tabular-nums">${jobHrsLabel} × ${formatMoney(rate)}/hr</div>
+                 <div class="labor-crew-person-cost tabular-nums">${formatMoney(share)}</div>
+               </div>`;
+          }).join("");
+        } else {
+          const n = Math.max(1, lb.crewSize || 1);
+          const each = Number(lb.crewPayPerHrEach) || 0;
+          memberLines = Array.from({ length: n }, (_, i) => {
+            const share = jobHrs * each;
+            return `<div class="labor-crew-person">
+                 <div class="labor-crew-person-name">Installer ${i + 1}</div>
+                 <div class="labor-crew-person-math tabular-nums">${jobHrsLabel} × ${formatMoney(each)}/hr</div>
+                 <div class="labor-crew-person-cost tabular-nums">${formatMoney(share)}</div>
+               </div>`;
+          }).join("");
+        }
         crewHtml = `<div class="labor-crew-block">
           <div class="labor-crew-head">
-            <div class="labor-crew-title">Crew cost / hr · from Settings</div>
+            <div class="labor-crew-title">Per person · same hours on site</div>
             <div class="labor-crew-actions">
               <button type="button" class="labor-crew-btn" data-labor-crew-customize>Customize for this job</button>
             </div>
           </div>
+          <div class="labor-edit-meta" style="margin-bottom:6px">Each person is on site for the job hours below — hours are not added across the crew.</div>
           ${memberLines}
         </div>`;
       }
