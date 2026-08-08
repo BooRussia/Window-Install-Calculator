@@ -656,9 +656,13 @@
   .dash-kpi { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1px;
     background: rgba(51,65,85,0.5); border: 1px solid rgba(51,65,85,0.5);
     border-radius: 16px; overflow: hidden; }
+  /* Six KPI cells → keep 3 columns from tablet up so the strip is always a
+     filled 2×3 (never a lone empty slot from an odd cell count). */
   @media (min-width: 700px)  { .dash-kpi { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-  @media (min-width: 1150px) { .dash-kpi { grid-template-columns: repeat(5, minmax(0,1fr)); } }
   .dash-kpi-cell { background: #0b1120; padding: 13px 15px 14px; min-width: 0; }
+  .dash-kpi-cell.is-action { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .dash-kpi-cell.is-action:hover { background: #111827; }
+  .dash-kpi-cell.is-action:focus-visible { outline: 2px solid #c9a558; outline-offset: -2px; }
   .dash-kpi-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
   .dash-kpi-label { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
     color: #94a3b8; padding-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -672,6 +676,9 @@
   .dash-kpi-ico.tone-slate { color: #cbd5e1; background: rgba(100,116,139,0.18); }
   .dash-kpi-num { font-size: clamp(1.35rem, 1.1rem + 1vw, 1.7rem); font-weight: 900; letter-spacing: -0.02em;
     line-height: 1.1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  /* Job name as the hero number — slightly smaller so long titles truncate cleanly. */
+  .dash-kpi-num.is-text { font-size: clamp(1.05rem, 0.95rem + 0.55vw, 1.25rem); letter-spacing: -0.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: normal; }
   .dash-kpi-foot { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; margin-top: 5px; }
   .dash-kpi-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 800;
     font-variant-numeric: tabular-nums; }
@@ -695,6 +702,7 @@
   [data-theme="light"] .dash-kpi-ico.tone-violet { color: #6d28d9; background: rgba(139,92,246,0.12); }
   [data-theme="light"] .dash-kpi-ico.tone-slate { color: #475569; background: rgba(100,116,139,0.14); }
   [data-theme="light"] .dash-kpi-ico.tone-gold { color: var(--gold-ink); background: rgba(181,143,74,0.12); }
+  [data-theme="light"] .dash-kpi-cell.is-action:hover { background: #f8fafc; }
   /* ═══ Dashboard v2 — workspace shell (P1) ═════════════════════════════════
      Orion-style persistent sidebar, in Anchor's dark palette. Desktop only:
      under 900px it is display:none and the bottom tab bar remains the nav. */
@@ -20363,6 +20371,20 @@ function dashRecentJobs(jobs, n) {
     .slice().sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0))
     .slice(0, n);
 }
+// Best "pick up where I left off" job for the Continue KPI: whatever is loaded
+// in the calculator, else the newest saved/draft by updatedAt.
+function dashContinueJob(jobs) {
+  const list = jobs || [];
+  try {
+    const curId = (typeof STATE !== "undefined" && STATE && STATE.currentJobId) || null;
+    if (curId) {
+      const cur = list.find(j => j && j.id === curId);
+      if (cur) return cur;
+    }
+  } catch (_) {}
+  return list.filter(j => j && j.id)
+    .slice().sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0))[0] || null;
+}
 function dashMiniDonut(parts, size) {
   const live = (parts || []).filter(p => p.value > 0);
   const total = live.reduce((s, p) => s + p.value, 0);
@@ -23301,20 +23323,85 @@ function renderDashStats(jobs) {
         accent: "text-slate-100", icon: KPI_ICONS.aireads, tone: "violet" };
     }
   } catch (_) {}
+  // 6th cell: jump back into the quote you were just working on — fills the
+  // empty slot on the 2×3 grid and skips the Jobs list hunt.
+  let continueCell = null;
+  try {
+    const j = dashContinueJob(all);
+    if (j) {
+      const name = j.name || j.customerName || "Untitled quote";
+      const price = Number(j.sellingPrice) || 0;
+      const st = (typeof jobStatus === "function") ? jobStatus(j) : (j.status || "");
+      const bits = [
+        price > 0 ? formatMoney(price) : null,
+        j.isDraft ? "Draft" : (st || null),
+        "tap to open",
+      ].filter(Boolean);
+      continueCell = {
+        key: "continue", label: "Continue quote",
+        val: name, raw: null, fmt: null, textVal: true,
+        sub: bits.join(" · "),
+        accent: "text-[#c9a558]", icon: KPI_ICONS.continue, tone: "gold",
+        loadId: j.id,
+      };
+    } else {
+      continueCell = {
+        key: "continue", label: "Continue quote",
+        val: "None yet", raw: null, textVal: true,
+        sub: "Save a quote to resume it here",
+        accent: "text-slate-500", icon: KPI_ICONS.continue, tone: "slate",
+      };
+    }
+  } catch (_) {}
   const cells = tiles.map(t => Object.assign(t, { icon: KPI_ICONS[t.key], tone: KPI_TONES[t.key] }))
-    .concat(aiCell ? [aiCell] : []);
+    .concat(aiCell ? [aiCell] : [])
+    .concat(continueCell ? [continueCell] : []);
+  // Pad to an even count so the hairline-grid background never shows an empty
+  // cell when AI reads isn't available for some reason.
+  if (cells.length % 2 === 1) {
+    const dealN = p.openCount + p.wonCount;
+    const dealAvg = dealN ? (p.openVal + p.wonVal) / dealN : 0;
+    cells.push({ key: "avgdeal", label: "Avg deal",
+      val: formatMoney(dealAvg), raw: dealAvg, fmt: "money",
+      sub: dealN ? `${dealN} open + won` : "no deals yet",
+      accent: "text-slate-100", icon: KPI_ICONS.avgdeal, tone: "slate" });
+  }
   wrap.innerHTML = `<div class="dash-kpi">` + cells.map(t => {
     const d = t.delta;
     const deltaHTML = d ? `<span class="dash-kpi-delta ${d.dir}">${d.dir === "up" ? upSvg : downSvg}${d.label}</span>` : "";
-    return `<div class="dash-kpi-cell">
+    const actionAttrs = t.loadId
+      ? ` role="button" tabindex="0" data-dash-kpi-load="${escHtml(t.loadId)}" class="dash-kpi-cell is-action"`
+      : ` class="dash-kpi-cell"`;
+    const numCls = `dash-kpi-num ${t.textVal ? "is-text " : ""}${t.accent || ""}`.trim();
+    return `<div${actionAttrs}>
         <div class="dash-kpi-head">
           <span class="dash-kpi-label">${escHtml(t.label)}</span>
           <span class="dash-kpi-ico tone-${t.tone || "slate"}" aria-hidden="true">${t.icon || ""}</span>
         </div>
-        <div class="dash-kpi-num ${t.accent}"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.val}</div>
+        <div class="${numCls}"${t.raw != null ? ` data-countup="${t.raw}" data-count-fmt="${t.fmt}"` : ""}>${t.textVal ? escHtml(t.val) : t.val}</div>
         <div class="dash-kpi-foot">${deltaHTML}<span class="dash-kpi-sub">${escHtml(t.sub)}</span></div>
       </div>`;
   }).join("") + `</div>`;
+  if (!wrap._kpiWired) {
+    wrap._kpiWired = true;
+    const openContinue = (cell) => {
+      const id = cell && cell.getAttribute("data-dash-kpi-load");
+      if (!id) return;
+      try { if (typeof loadJob === "function") loadJob(id); } catch (_) {}
+      try { if (typeof closeDashboard === "function") closeDashboard(); } catch (_) {}
+    };
+    wrap.addEventListener("click", (e) => {
+      const cell = e.target.closest("[data-dash-kpi-load]");
+      if (cell) openContinue(cell);
+    });
+    wrap.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const cell = e.target.closest("[data-dash-kpi-load]");
+      if (!cell) return;
+      e.preventDefault();
+      openContinue(cell);
+    });
+  }
 }
 
 /* Icon chips + tints for the KPI strip, mirroring the reference's coloured chips. */
@@ -23324,8 +23411,10 @@ const KPI_ICONS = {
   winRate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>',
   markup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-7"/></svg>',
   aireads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 12h6M12 9v6"/></svg>',
+  continue: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>',
+  avgdeal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5c.6-1 1.7-1.5 2.5-1.5s2 .7 2 2-1 2-2.5 2.5-2.5.9-2.5 2.5 1.1 2 2.5 2 1.9-.5 2.5-1.5"/></svg>',
 };
-const KPI_TONES = { open: "gold", won: "emerald", winRate: "sky", markup: "slate", aireads: "violet" };
+const KPI_TONES = { open: "gold", won: "emerald", winRate: "sky", markup: "slate", aireads: "violet", continue: "gold", avgdeal: "slate" };
 
 function renderDashJobsPanel(jobs) {
   const wrap = document.getElementById("dashPipelinePanel");
