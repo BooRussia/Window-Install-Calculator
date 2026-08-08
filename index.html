@@ -903,6 +903,33 @@
   .dteam-mlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
   .dteam-m { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px solid rgba(51,65,85,0.5); }
   .dteam-m:first-child { border-top: 0; }
+  /* Swipe left on a roster row to reveal Remove (mirrors Materials swipe). */
+  .dteam-swipe {
+    position: relative; overflow: hidden; touch-action: pan-y;
+    -webkit-user-select: none; user-select: none;
+    border-top: 1px solid rgba(51,65,85,0.5);
+  }
+  .dteam-swipe:first-child { border-top: 0; }
+  .dteam-swipe.swiping { touch-action: none; }
+  .dteam-swipe-actions {
+    position: absolute; inset: 0 0 0 auto; width: 96px;
+    display: flex; align-items: stretch; justify-content: stretch;
+    background: #be123c; z-index: 0;
+  }
+  .dteam-swipe-del {
+    flex: 1; border: 0; background: transparent; color: #fff;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; min-height: 44px;
+  }
+  .dteam-swipe-front {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; gap: 9px; padding: 7px 0;
+    background: #0b1120; transition: transform .18s ease; will-change: transform;
+  }
+  .dteam-swipe.open .dteam-swipe-front { transform: translateX(-96px); }
+  [data-theme="light"] .dteam-swipe { border-top-color: #e6e8ec; }
+  [data-theme="light"] .dteam-swipe-front { background: #ffffff; }
+  [data-theme="light"] .dteam-crew-set .dteam-swipe-front { background: #f8fafc; }
   .dteam-av { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: inline-flex;
     align-items: center; justify-content: center; background: rgba(181,143,74,0.16); color: #c9a558;
     font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em; }
@@ -976,7 +1003,8 @@
   .dteam-crewhead-lg { margin-bottom: 14px; gap: 12px; }
   .dteam-crewav-lg, .dteam-crewhead-lg .dteam-crewav { width: 46px; height: 46px; border-radius: 13px; font-size: 15px; }
   .dteam-crewname-lg { font-size: 17px; }
-  .dteam-mlist-lg .dteam-m { padding: 10px 0; }
+  .dteam-mlist-lg .dteam-m,
+  .dteam-mlist-lg .dteam-swipe-front { padding: 10px 0; }
   .dteam-mlist-lg .dteam-av { width: 30px; height: 30px; font-size: 11.5px; }
   .dteam-mlist-lg .dteam-mname { font-size: 13.5px; }
   .dteam-costs { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(51,65,85,0.5); }
@@ -19929,8 +19957,9 @@ function dashTeamInitials(m) {
 }
 /* A member row. The wage is a button, not text: clicking it swaps in an input
    so pay is edited where you are looking at it. Read-only for anyone who can't
-   manage crews. */
-function dashTeamMemberRow(m, canEdit) {
+   manage crews. When crewId is set and the viewer can manage, the row is a
+   swipe-left sheet that reveals Remove (same gesture as Materials). */
+function dashTeamMemberRow(m, canEdit, crewId) {
   const nm = (m.name || m.email || "Member");
   const role = ROLE_LABEL[m.role] || m.role || "";
   const has = m.rate != null && Number(m.rate) > 0;
@@ -19939,14 +19968,23 @@ function dashTeamMemberRow(m, canEdit) {
     ? `<button type="button" class="dteam-wage${has ? "" : " is-unset"}" data-dteam-wage="${escHtml(m.userId)}"
          aria-label="Edit hourly pay for ${escHtml(nm)}">${escHtml(label)}</button>`
     : (has ? `<span class="dteam-mrate">${escHtml(label)}</span>` : "");
-  return `<li class="dteam-m" data-dteam-mrow="${escHtml(m.userId)}">
+  const body = `
     <span class="dteam-av">${escHtml(dashTeamInitials(m))}</span>
     <span class="dteam-mtext">
       <span class="dteam-mname">${escHtml(nm)}</span>
       ${role ? `<span class="dteam-mrole">${escHtml(role)}</span>` : ""}
     </span>
-    ${wage}
-  </li>`;
+    ${wage}`;
+  if (canEdit && crewId) {
+    return `<li class="dteam-swipe" data-dteam-mrow="${escHtml(m.userId)}">
+      <div class="dteam-swipe-actions">
+        <button type="button" class="dteam-swipe-del" data-dteam-rmmem="${escHtml(crewId)}" data-uid="${escHtml(m.userId)}"
+          aria-label="Remove ${escHtml(nm)} from crew">Delete</button>
+      </div>
+      <div class="dteam-swipe-front">${body}</div>
+    </li>`;
+  }
+  return `<li class="dteam-m" data-dteam-mrow="${escHtml(m.userId)}">${body}</li>`;
 }
 
 /** A crew's picture if it has one (crews.data.brand.logo, shared with the
@@ -20021,7 +20059,7 @@ function dashTeamRosterView(ctx, c, canManage) {
         </div>
       </div>
       ${ms.length
-        ? `<ul class="dteam-mlist dteam-mlist-lg">${ms.map(m => dashTeamMemberRow(m, canManage)).join("")}</ul>`
+        ? `<ul class="dteam-mlist dteam-mlist-lg">${ms.map(m => dashTeamMemberRow(m, canManage, c.id)).join("")}</ul>`
         : `<p class="dteam-empty">Nobody on this crew yet — invite someone below.</p>`}
       ${ms.length ? `<div class="dteam-costs">
         <div class="dteam-costrow"><span>Wages</span><b>${formatMoney(wageSum)}/hr</b></div>
@@ -20081,7 +20119,7 @@ function renderDashTeamPage() {
             loaded != null ? ` &middot; ${formatMoney(loaded)}/hr` : ""}</div>
         </div>
       </div>
-      ${ms.length ? `<ul class="dteam-mlist">${ms.map(m => dashTeamMemberRow(m, canManage)).join("")}</ul>`
+      ${ms.length ? `<ul class="dteam-mlist">${ms.map(m => dashTeamMemberRow(m, canManage, c.id)).join("")}</ul>`
                   : `<p class="dteam-empty">Nobody on this crew yet.</p>`}
       <div class="dteam-cardfoot">
         <button type="button" class="dteam-btn dteam-btn-ghost" data-dteam-open="${escHtml(c.id)}">Crew roster &rarr;</button>
@@ -20148,12 +20186,102 @@ function dashTeamEditWage(btn) {
   input.addEventListener("blur", commit);
 }
 
+function dashTeamRemoveMember(crewId, userId) {
+  if (!crewId || !userId) return;
+  if (typeof removeCrewMemberWeb !== "function") return;
+  removeCrewMemberWeb(crewId, userId)
+    .then(() => afterCrewWrite("Removed from crew"))
+    .catch(() => { try { toast("Couldn't remove that member."); } catch (_) {} });
+}
+
+/** Swipe-left on a roster row reveals Delete — same gesture as Materials Needed. */
+function wireDashTeamSwipe(wrap) {
+  if (!wrap || wrap._dteamSwipeWired) return;
+  wrap._dteamSwipeWired = true;
+  const REVEAL = 96;
+  let startX = 0, startY = 0, dx = 0, row = null, tracking = false, axis = null;
+  const closeAll = (except) => {
+    wrap.querySelectorAll(".dteam-swipe.open").forEach(el => {
+      if (el !== except) {
+        el.classList.remove("open", "swiping");
+        const f = el.querySelector(".dteam-swipe-front");
+        if (f) { f.style.transition = ""; f.style.transform = ""; }
+      }
+    });
+  };
+  wrap.addEventListener("touchstart", e => {
+    if (e.touches.length !== 1) return;
+    // Don't steal the wage editor / delete button.
+    if (e.target.closest && (e.target.closest(".dteam-wage") || e.target.closest(".dteam-wage-input") || e.target.closest(".dteam-swipe-del"))) return;
+    row = e.target.closest(".dteam-swipe");
+    if (!row) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dx = 0; tracking = true; axis = null;
+    if (row.classList.contains("open")) dx = -REVEAL;
+  }, { passive: true });
+  wrap.addEventListener("touchmove", e => {
+    if (!tracking || !row || e.touches.length !== 1) return;
+    const x = e.touches[0].clientX - startX;
+    const y = e.touches[0].clientY - startY;
+    if (!axis) {
+      if (Math.abs(x) < 10 && Math.abs(y) < 10) return;
+      if (Math.abs(y) > Math.abs(x)) {
+        tracking = false; row.classList.remove("swiping"); row = null; axis = "y";
+        return;
+      }
+      axis = "x";
+      row.classList.add("swiping");
+      closeAll(row);
+    }
+    if (axis !== "x") return;
+    if (e.cancelable) e.preventDefault();
+    const base = row.classList.contains("open") ? -REVEAL : 0;
+    dx = Math.min(0, Math.max(-REVEAL, base + x));
+    const front = row.querySelector(".dteam-swipe-front");
+    if (front) {
+      front.style.transition = "none";
+      front.style.transform = `translateX(${dx}px)`;
+    }
+  }, { passive: false });
+  const endSwipe = () => {
+    if (!row) { tracking = false; axis = null; return; }
+    const front = row.querySelector(".dteam-swipe-front");
+    row.classList.remove("swiping");
+    if (front) front.style.transition = "";
+    if (axis === "x" && dx <= -(REVEAL * 0.4)) {
+      row.classList.add("open");
+      if (front) front.style.transform = "";
+    } else {
+      row.classList.remove("open");
+      if (front) front.style.transform = "";
+    }
+    tracking = false; row = null; dx = 0; axis = null;
+  };
+  wrap.addEventListener("touchend", endSwipe);
+  wrap.addEventListener("touchcancel", endSwipe);
+}
+
 function wireDashTeamPage() {
   const el = document.getElementById("dashTeamPage");
   if (!el || el._wired) return;
   el._wired = true;
+  try { wireDashTeamSwipe(el); } catch (_) {}
   el.addEventListener("click", (e) => {
     if (e.target.closest("[data-dteam-plans]")) { try { closeDashboard(); openPricing(); } catch (_) {} return; }
+    const rm = e.target.closest("[data-dteam-rmmem]");
+    if (rm) {
+      e.preventDefault();
+      dashTeamRemoveMember(rm.getAttribute("data-dteam-rmmem"), rm.getAttribute("data-uid"));
+      return;
+    }
+    const openSwipe = e.target.closest(".dteam-swipe.open");
+    if (openSwipe && !e.target.closest(".dteam-swipe-del")) {
+      openSwipe.classList.remove("open");
+      const f = openSwipe.querySelector(".dteam-swipe-front");
+      if (f) { f.style.transition = ""; f.style.transform = ""; }
+      return;
+    }
     const back = e.target.closest("[data-dteam-back]");
     if (back) { _dashTeamCrewId = null; _dashTeamInvite = null; renderDashTeamPage(); return; }
     const open = e.target.closest("[data-dteam-open]");
@@ -20213,7 +20341,7 @@ function renderSettingsCrewLink() {
           <div class="dteam-crewsub">${ms.length} member${ms.length === 1 ? "" : "s"}${
             loaded != null ? ` &middot; ${formatMoney(loaded)}/hr` : ""}</div>
         </div></div>
-        ${ms.length ? `<ul class="dteam-mlist">${ms.map(m => dashTeamMemberRow(m, canManage)).join("")}</ul>`
+        ${ms.length ? `<ul class="dteam-mlist">${ms.map(m => dashTeamMemberRow(m, canManage, c.id)).join("")}</ul>`
                     : `<p class="dteam-empty">Nobody on this crew yet.</p>`}
       </div>`;
     }).join("")}</div>
@@ -20221,10 +20349,24 @@ function renderSettingsCrewLink() {
   if (!host._wired) {
     host._wired = true;
     host.addEventListener("click", (e) => {
+      const rm = e.target.closest("[data-dteam-rmmem]");
+      if (rm) {
+        e.preventDefault();
+        dashTeamRemoveMember(rm.getAttribute("data-dteam-rmmem"), rm.getAttribute("data-uid"));
+        return;
+      }
+      const open = e.target.closest(".dteam-swipe.open");
+      if (open && !e.target.closest(".dteam-swipe-del")) {
+        open.classList.remove("open");
+        const f = open.querySelector(".dteam-swipe-front");
+        if (f) { f.style.transition = ""; f.style.transform = ""; }
+        return;
+      }
       const w = e.target.closest("[data-dteam-wage]");
       if (w) dashTeamEditWage(w);
     });
   }
+  try { wireDashTeamSwipe(host); } catch (_) {}
 }
 
 /** Create a crew-scoped invite, then put it straight on the clipboard — the
@@ -28379,6 +28521,10 @@ async function afterCrewWrite(msg) {
   _orgCtx = null; saveOrgCtxCache(null);
   try { await fetchOrgContext(); } catch (_) {}
   renderTeamsSettings();
+  // Team members page + Settings → Crew use the same roster rows — keep them
+  // in sync after a swipe-remove (or any other crew mutation).
+  try { if (typeof renderDashTeamPage === "function") renderDashTeamPage(); } catch (_) {}
+  try { if (typeof renderSettingsCrewLink === "function") renderSettingsCrewLink(); } catch (_) {}
   // A caged crew seat sees the crew workspace, not #teamsBody — repaint it too so
   // a saved rate / pay / shopping tick shows up where the seat is actually looking.
   try { if (typeof isCrewAccount === "function" && isCrewAccount()) renderCrewWorkspace(); } catch (_) {}
