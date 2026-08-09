@@ -1481,15 +1481,174 @@
   @media (min-width: 620px) { .team-brandgrid { grid-template-columns: 1fr 1fr; } }
   .team-f { display: flex; flex-direction: column; gap: 4px; }
   .team-f > span { font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b; }
-  .team-brandlogo-row { display: flex; align-items: center; gap: 9px; margin-top: 12px; flex-wrap: wrap; }
-  .team-brandtoggle { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: #cbd5e1; cursor: pointer; }
-  .team-brandtoggle input { width: 16px; height: 16px; accent-color: #b58f4a; }
-  .team-brandactions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .team-brandlogo-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .team-brandtoggle {
+    display: flex; align-items: flex-start; gap: 12px; margin-top: 16px;
+    padding: 12px 0; min-height: 44px; font-size: 13px; line-height: 1.4;
+    color: #cbd5e1; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .team-brandtoggle input {
+    width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0;
+    accent-color: #b58f4a; cursor: pointer;
+  }
+  .team-brandactions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 18px; padding-top: 4px; padding-bottom: 4px;
+  }
   [data-theme="light"] .team-mode-card { background: #ffffff; border-color: #e2e8f0; }
   [data-theme="light"] .tmc-t, [data-theme="light"] .tmc-d-top, [data-theme="light"] .team-mode-now { color: #0f172a; }
   [data-theme="light"] .tmc-d, [data-theme="light"] .team-mode-sub { color: #64748b; }
   [data-theme="light"] .team-brandname, [data-theme="light"] .team-brandtoggle { color: #334155; }
   [data-theme="light"] .team-brandflag.is-on { color: var(--gold-ink); border-color: #b58f4a; }
+  /* ── Teams spreadsheet tabs (Settings overhaul) ───────────────────────── */
+  /* Browser-style tab strip: touching, lightly rounded tops — not pills.
+     Horizontal-only touch + overflow-y:hidden so left/right swipes don't
+     also drag the Settings page up/down. */
+  .teams-tabs {
+    display: flex; gap: 0; align-items: flex-end;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: none;
+    margin: 0 0 14px; padding: 0; scrollbar-width: thin;
+    border-bottom: 1px solid rgba(51,65,85,0.7);
+  }
+  .teams-tab {
+    position: relative; flex: 0 0 auto; z-index: 0;
+    min-height: 40px; padding: 9px 14px; margin: 0 -1px -1px 0;
+    border-radius: 8px 8px 0 0; border: 1px solid rgba(51,65,85,0.55);
+    border-bottom-color: transparent;
+    background: rgba(15,23,42,0.28); color: #94a3b8;
+    font-size: 12.5px; font-weight: 700; cursor: pointer;
+    white-space: nowrap; -webkit-tap-highlight-color: transparent;
+    touch-action: pan-x;
+  }
+  .teams-tab:hover { color: #e2e8f0; background: rgba(30,41,59,0.55); }
+  .teams-tab.is-on {
+    z-index: 1; color: #f1f5f9; background: rgba(15,23,42,0.72);
+    border-color: rgba(51,65,85,0.75); border-top: 2px solid #b58f4a;
+    border-bottom-color: #0b1220; padding-top: 8px;
+  }
+  .teams-tab-count {
+    display: inline-block; margin-left: 7px; min-width: 1.25em;
+    font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.7;
+  }
+  .teams-tab.is-on .teams-tab-count { opacity: 0.9; color: #c9a558; }
+  /* Horizontal table scroll only. Do NOT use -webkit-overflow-scrolling or
+     overflow-y:hidden/auto here — on iOS a tall overflow-x box becomes its own
+     vertical scrollport and traps the Settings page (All members especially). */
+  .teams-sheet-wrap {
+    overflow-x: auto;
+    overflow-y: clip;
+    overscroll-behavior-x: contain;
+    margin: 0 -4px; border: 1px solid rgba(51,65,85,0.45); border-radius: 10px;
+  }
+  @supports not (overflow: clip) {
+    .teams-sheet-wrap { overflow-y: visible; }
+  }
+  .teams-sheet {
+    width: 100%; min-width: 520px; border-collapse: separate; border-spacing: 0;
+    font-size: 12.5px;
+  }
+  .teams-sheet th, .teams-sheet td {
+    padding: 12px 12px; border-bottom: 1px solid rgba(51,65,85,0.45);
+    text-align: left; vertical-align: middle; white-space: nowrap;
+  }
+  .teams-sheet tbody tr:last-child td { border-bottom: 0; }
+  .teams-sheet th {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #94a3b8; background: rgba(15,23,42,0.55); position: sticky; top: 0; z-index: 1;
+  }
+  .teams-sheet th.is-sort { cursor: pointer; color: #cbd5e1; user-select: none; }
+  .teams-sheet th.is-sort:hover { color: #c9a558; }
+  .teams-sheet th.is-active { color: #c9a558; }
+  .teams-sheet th .ts-dir { margin-left: 4px; font-size: 9px; }
+  .teams-sheet td { color: #e2e8f0; }
+  .teams-sheet .ts-check { width: 52px; padding: 4px 4px; text-align: center; }
+  .teams-sheet .ts-check-hit {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; margin: -6px auto; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .teams-sheet .ts-check-hit input {
+    width: 20px; height: 20px; margin: 0; accent-color: #b58f4a; cursor: pointer;
+  }
+  .teams-sheet .ts-name { font-weight: 700; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .teams-sheet .ts-team { color: #94a3b8; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+  .teams-sheet .ts-pay { font-weight: 800; font-variant-numeric: tabular-nums; color: #c9a558; }
+  .teams-sheet .ts-pay-btn {
+    background: none; border: 0; padding: 6px 0; min-height: 36px; color: inherit; font: inherit; cursor: pointer;
+    text-decoration: underline dotted rgba(201,165,88,0.55); text-underline-offset: 3px;
+  }
+  .teams-sheet .ts-pay-btn:hover { color: #dfc07a; }
+  .teams-sheet .ts-pay-input {
+    width: 72px; padding: 6px 8px; border-radius: 7px; border: 1px solid rgba(181,143,74,0.55);
+    background: rgba(15,23,42,0.8); color: #f1f5f9; font-size: 12px; font-weight: 800;
+    font-variant-numeric: tabular-nums; text-align: right;
+  }
+  .teams-sheet tr.is-selected td { background: rgba(181,143,74,0.08); }
+  .teams-bulk {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin: 14px 0 10px; min-height: 40px;
+  }
+  .teams-bulk-n { font-size: 12px; font-weight: 700; color: #94a3b8; }
+  .teams-crewbar {
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+    gap: 12px 14px; margin-bottom: 16px; padding-bottom: 2px;
+  }
+  .teams-crewbar-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .teams-subcard {
+    margin: 0 0 18px; padding: 16px; border-radius: 12px;
+    border: 1px solid rgba(51,65,85,0.55); background: rgba(15,23,42,0.35);
+  }
+  .teams-subhead { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .teams-subhead-t { font-size: 13px; font-weight: 800; color: #f1f5f9; }
+  .teams-subhead-d { font-size: 12px; color: #94a3b8; margin-top: 3px; line-height: 1.45; max-width: 36em; }
+  .teams-switch {
+    position: relative; width: 48px; height: 28px; border-radius: 999px; border: 0;
+    background: rgba(71,85,105,0.7); cursor: pointer; flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent; transition: background .15s ease;
+  }
+  .teams-switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px;
+    border-radius: 50%; background: #e2e8f0; transition: transform .15s ease;
+  }
+  .teams-switch.is-on { background: #b58f4a; }
+  .teams-switch.is-on::after { transform: translateX(20px); background: #0b1120; }
+  /* Extra air at the end of Teams so primary actions clear the phone home area /
+     any peek chrome while scrolling the long branding form. */
+  #teamsBody { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+  @media (max-width: 1023px) {
+    #settingsContent { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+    #teamsBody { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+    .teams-tab { min-height: 44px; padding: 11px 15px; }
+    .teams-tab.is-on { padding-top: 10px; }
+    .team-brandgrid { gap: 14px; }
+    .team-f > span { margin-bottom: 2px; }
+    .team-f .control { min-height: 44px; }
+  }
+  [data-theme="light"] .teams-tabs { border-bottom-color: #e2e8f0; }
+  [data-theme="light"] .teams-tab {
+    color: #64748b; background: #f1f5f9; border-color: #e2e8f0; border-bottom-color: transparent;
+  }
+  [data-theme="light"] .teams-tab:hover { background: #eef2f7; color: #0f172a; }
+  [data-theme="light"] .teams-tab.is-on {
+    color: #0f172a; background: #fff; border-color: #e2e8f0; border-bottom-color: #fff;
+    border-top-color: var(--gold-ink, #8a6a2e);
+  }
+  [data-theme="light"] .teams-tab.is-on .teams-tab-count { color: var(--gold-ink); }
+  [data-theme="light"] .teams-sheet-wrap { border-color: #e2e8f0; }
+  [data-theme="light"] .teams-sheet th { background: #f8fafc; color: #64748b; border-bottom-color: #e2e8f0; }
+  [data-theme="light"] .teams-sheet th.is-active, [data-theme="light"] .teams-sheet th.is-sort:hover { color: var(--gold-ink); }
+  [data-theme="light"] .teams-sheet td { color: #0f172a; border-bottom-color: #eef1f5; }
+  [data-theme="light"] .teams-sheet .ts-team { color: #64748b; }
+  [data-theme="light"] .teams-sheet .ts-pay { color: var(--gold-ink); }
+  [data-theme="light"] .teams-sheet .ts-pay-input { background: #fff; color: #0f172a; }
+  [data-theme="light"] .teams-sheet tr.is-selected td { background: rgba(181,143,74,0.1); }
+  [data-theme="light"] .teams-subcard { background: #f8fafc; border-color: #e2e8f0; }
+  [data-theme="light"] .teams-subhead-t { color: #0f172a; }
+  [data-theme="light"] .teams-subhead-d, [data-theme="light"] .teams-bulk-n { color: #64748b; }
   .team-act-danger:hover { color: #fb7185; border-color: rgba(251,113,133,0.55); }
   .team-chip-x { background: transparent; border: 0; color: #64748b; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 5px; }
   .team-chip-x:hover { color: #fb7185; }
@@ -1498,7 +1657,7 @@
   .team-sel { font-size: 12px; font-weight: 600; color: #cbd5e1; background: rgba(15,23,42,0.6); border: 1px solid rgba(51,65,85,0.7); border-radius: 9px; padding: 6px 9px; cursor: pointer; max-width: 100%; }
   .team-sel:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 1px; }
   .team-sel[disabled] { opacity: 0.6; }
-  .team-add { display: flex; gap: 8px; margin-top: 12px; }
+  .team-add { display: flex; gap: 8px; margin-top: 18px; padding-top: 4px; }
   [data-theme="light"] .team-sel { background: #ffffff; border-color: #cbd5e1; color: #334155; }
   [data-theme="light"] .team-chip-x { color: #94a3b8; }
   [data-theme="light"] .team-lock-h, [data-theme="light"] .team-org-name, [data-theme="light"] .team-stat b, [data-theme="light"] .team-name { color: #0f172a; }
@@ -12419,7 +12578,7 @@
         <!-- Teams (T1, read-only): the shared org layer the field app also uses -->
         <div class="set-panel" data-panel="teams">
           <div class="set-h">Teams</div>
-          <div class="set-sub mb-5">Your company, its crews and who&rsquo;s on them &mdash; shared live with the Anchor Field app.</div>
+          <div class="set-sub mb-5">All members in a spreadsheet, each team on its own tab &mdash; shared live with the Anchor Field app.</div>
           <div id="teamsBody"></div>
         </div>
 
@@ -17423,12 +17582,22 @@ function closePfpMenu(immediate) {
    applyJobToState() first (which restores assignedCrewId). */
 function mainBrand() { return (DATA && DATA.config && DATA.config.brand) || {}; }
 
+/** True when this crew should act as a subcontractor (own letterhead on quotes).
+    Per-crew `data.kind` wins; crews without kind inherit the legacy org mode. */
+function crewIsSub(crew) {
+  if (!crew) return false;
+  const kind = crew.data && crew.data.kind;
+  if (kind === "sub") return true;
+  if (kind === "inhouse") return false;
+  return (typeof teamModeOf === "function") && teamModeOf() === "subcontract";
+}
+
 /** The sub's brand for a crew id, or null when it shouldn't be used. */
 function teamBrandFor(crewId) {
   if (!crewId) return null;
-  if (typeof teamModeOf !== "function" || teamModeOf() !== "subcontract") return null;
   const ctx = (typeof getOrgContext === "function") ? getOrgContext() : null;
   const crew = ctx && (ctx.crews || []).find(c => c.id === crewId);
+  if (!crewIsSub(crew)) return null;
   const data = crew && crew.data;
   if (!data || !data.brandOnQuotes) return null;
   const b = data.brand || {};
@@ -17443,17 +17612,19 @@ function effectiveBrand() {
   const team = teamBrandFor(typeof assignedCrewId === "function" ? assignedCrewId() : null);
   if (!team) return base;
   const out = Object.assign({}, base);
-  ["companyName", "logo", "phone", "email", "license"].forEach(k => {
+  ["companyName", "logo", "phone", "email", "license", "tagline", "address"].forEach(k => {
     if (team[k]) out[k] = team[k];
   });
-  // Identity-bound fields must never ride along under another company's name: the
-  // account's logo, website and tagline are claims about the ACCOUNT. The sub's
-  // editor can't supply a website/tagline, so those simply go blank rather than
-  // pointing a customer at the sales company while the letterhead says otherwise.
-  // (phone/email still fall back above, so there is always a way to reach someone.)
+  // Identity-bound fields must never ride along under another company's name.
+  // Website stays blank unless the sub set one; tagline/address use the sub's
+  // values when present, otherwise clear account copy under a foreign name.
   if (team.companyName && !team.logo) out.logo = "";
   out.website = team.website || "";
-  out.tagline = team.tagline || "";
+  if (!team.tagline) out.tagline = "";
+  if (!team.address) {
+    // Don't leave the account street under a sub's company name.
+    if (out.street || out.city) { out.street = ""; out.city = ""; out.state = ""; out.zip = ""; }
+  }
   out._teamBranded = true;
   out._teamName = team.companyName || "";
   return out;
@@ -28656,6 +28827,134 @@ function renderSeatPanel(ctx) {
     ${s.over ? `<p class="team-seatwarn">${s.seated} people hold a tracked seat but only ${s.total} are paid for.</p>` : ""}`;
 }
 
+/* ── Teams spreadsheet UI state ───────────────────────────────────────────── */
+let _teamsTab = "all";                 // "all" | crewId
+let _teamsSort = { key: "name", dir: 1 }; // name | team | pay | role
+let _teamsSelected = new Set();        // userIds
+
+function teamsCrewNameOf(ctx, userId) {
+  const names = (ctx.crews || [])
+    .filter(c => (c.memberIds || []).includes(userId))
+    .map(c => c.name || "Crew");
+  return names.length ? names.join(", ") : "—";
+}
+function teamsPrimaryCrewId(ctx, userId) {
+  const c = (ctx.crews || []).find(x => (x.memberIds || []).includes(userId));
+  return c ? c.id : "";
+}
+function teamsSortedMembers(ctx, crewId) {
+  let list = (ctx.members || []).slice();
+  if (crewId && crewId !== "all") {
+    const c = (ctx.crews || []).find(x => x.id === crewId);
+    const ids = new Set((c && c.memberIds) || []);
+    list = list.filter(m => ids.has(m.userId));
+  }
+  const key = (_teamsSort && _teamsSort.key) || "name";
+  const dir = (_teamsSort && _teamsSort.dir) || 1;
+  const nameOf = m => String(m.name || m.email || "Member").toLowerCase();
+  list.sort((a, b) => {
+    let cmp = 0;
+    if (key === "pay") {
+      cmp = (Number(a.rate) || 0) - (Number(b.rate) || 0);
+    } else if (key === "team") {
+      cmp = teamsCrewNameOf(ctx, a.userId).toLowerCase().localeCompare(teamsCrewNameOf(ctx, b.userId).toLowerCase());
+      if (!cmp) cmp = nameOf(a).localeCompare(nameOf(b));
+    } else if (key === "role") {
+      cmp = String(a.role || "").localeCompare(String(b.role || ""));
+      if (!cmp) cmp = nameOf(a).localeCompare(nameOf(b));
+    } else {
+      cmp = nameOf(a).localeCompare(nameOf(b));
+    }
+    return cmp * dir;
+  });
+  return list;
+}
+function teamsSortTh(key, label) {
+  const on = _teamsSort.key === key;
+  const dir = on ? (_teamsSort.dir > 0 ? "▲" : "▼") : "";
+  return `<th class="is-sort${on ? " is-active" : ""}" data-teams-sort="${key}" scope="col">${escHtml(label)}${dir ? `<span class="ts-dir">${dir}</span>` : ""}</th>`;
+}
+function teamsMemberTableHtml(ctx, { crewId, canManage }) {
+  const rows = teamsSortedMembers(ctx, crewId);
+  const showTeam = !crewId || crewId === "all";
+  // Drop stale selections that aren't on this view.
+  const live = new Set(rows.map(m => m.userId));
+  _teamsSelected.forEach(id => { if (!live.has(id)) _teamsSelected.delete(id); });
+  const allChecked = rows.length > 0 && rows.every(m => _teamsSelected.has(m.userId));
+  const head = `<tr>
+    <th class="ts-check">${canManage ? `<label class="ts-check-hit"><input type="checkbox" data-teams-check-all ${allChecked ? "checked" : ""} aria-label="Select all" /></label>` : ""}</th>
+    ${teamsSortTh("name", "Name")}
+    ${showTeam ? teamsSortTh("team", "Team") : ""}
+    ${teamsSortTh("pay", "Pay")}
+    ${teamsSortTh("role", "Role")}
+    <th scope="col">Seat</th>
+  </tr>`;
+  const body = rows.length ? rows.map(m => {
+    const nm = m.name || m.email || "Member";
+    const sel = _teamsSelected.has(m.userId);
+    const pay = (m.rate != null && Number(m.rate) > 0) ? `${formatMoney(m.rate)}/hr` : "Set pay";
+    const payCell = canManage
+      ? `<button type="button" class="ts-pay-btn" data-teams-pay="${escHtml(m.userId)}" aria-label="Edit pay for ${escHtml(nm)}">${escHtml(pay)}</button>`
+      : escHtml(pay);
+    return `<tr class="${sel ? "is-selected" : ""}" data-teams-row="${escHtml(m.userId)}">
+      <td class="ts-check">${canManage ? `<label class="ts-check-hit"><input type="checkbox" data-teams-check="${escHtml(m.userId)}" ${sel ? "checked" : ""} aria-label="Select ${escHtml(nm)}" /></label>` : ""}</td>
+      <td class="ts-name">${escHtml(nm)}</td>
+      ${showTeam ? `<td class="ts-team">${escHtml(teamsCrewNameOf(ctx, m.userId))}</td>` : ""}
+      <td class="ts-pay">${payCell}</td>
+      <td>${escHtml(ROLE_LABEL[m.role] || m.role || "—")}</td>
+      <td>${m.hasSeat ? "Tracked" : "—"}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="${showTeam ? 6 : 5}" class="team-empty" style="padding:16px 10px">No members${crewId && crewId !== "all" ? " on this team yet" : ""}.</td></tr>`;
+  const nSel = _teamsSelected.size;
+  const bulk = canManage ? `<div class="teams-bulk">
+    <span class="teams-bulk-n">${nSel ? `${nSel} selected` : "Select rows for bulk actions"}</span>
+    ${nSel ? `
+      <select class="team-sel" data-teams-bulk-assign ${crewId && crewId !== "all" ? "" : ""}>
+        <option value="">Assign to team&hellip;</option>
+        ${(ctx.crews || []).map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("")}
+      </select>
+      ${crewId && crewId !== "all" ? `<button type="button" class="team-act team-act-danger" data-teams-bulk-remove>Remove from team</button>` : ""}
+      <button type="button" class="team-act" data-teams-clear-sel>Clear</button>` : ""}
+  </div>` : "";
+  return `${bulk}<div class="teams-sheet-wrap"><table class="teams-sheet"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+function teamsSubPanelHtml(c, canManage) {
+  const isSub = crewIsSub(c);
+  const b = (c.data && c.data.brand) || {};
+  const onQ = !!(c.data && c.data.brandOnQuotes);
+  return `<div class="teams-subcard">
+    <div class="teams-subhead">
+      <div class="min-w-0">
+        <div class="teams-subhead-t">Subcontractor</div>
+        <div class="teams-subhead-d">${isSub
+          ? "This team&rsquo;s company info can go on quotes assigned to them."
+          : "Off = your own installers. Turn on if this team is a sub you send work to."}</div>
+      </div>
+      ${canManage
+        ? `<button type="button" class="teams-switch${isSub ? " is-on" : ""}" data-crew-sub-toggle="${escHtml(c.id)}" role="switch" aria-checked="${isSub ? "true" : "false"}" aria-label="Subcontractor for ${escHtml(c.name)}"></button>`
+        : `<span class="team-tag">${isSub ? "Sub" : "In-house"}</span>`}
+    </div>
+    ${isSub ? `<div class="team-brandedit" data-brand-form="${escHtml(c.id)}" style="border-top:1px dashed rgba(148,163,184,0.2);margin-top:14px;padding-top:14px">
+      <div class="team-brandgrid">
+        <label class="team-f"><span>Company name</span><input type="text" data-bf="companyName" value="${escHtml(b.companyName || "")}" maxlength="80" class="control rounded-lg px-3 py-2.5 text-sm text-slate-100" /></label>
+        <label class="team-f"><span>Slogan</span><input type="text" data-bf="tagline" value="${escHtml(b.tagline || "")}" maxlength="120" class="control rounded-lg px-3 py-2.5 text-sm text-slate-100" /></label>
+        <label class="team-f"><span>Phone</span><input type="text" data-bf="phone" value="${escHtml(b.phone || "")}" maxlength="40" class="control rounded-lg px-3 py-2.5 text-sm text-slate-100" /></label>
+        <label class="team-f"><span>Address</span><input type="text" data-bf="address" value="${escHtml(b.address || "")}" maxlength="160" class="control rounded-lg px-3 py-2.5 text-sm text-slate-100" placeholder="123 Main St, City, ST" /></label>
+      </div>
+      <div class="team-brandlogo-row">
+        ${b.logo ? `<img class="team-brandlogo" src="${escHtml(b.logo)}" alt="" />` : `<span class="team-brandlogo team-brandlogo-empty">no logo</span>`}
+        <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" data-brand-logo-input="${escHtml(c.id)}" />
+        ${canManage ? `<button type="button" class="team-act" data-brand-logo-pick="${escHtml(c.id)}">Upload logo</button>` : ""}
+        ${canManage && b.logo ? `<button type="button" class="team-act team-act-danger" data-brand-logo-clear="${escHtml(c.id)}">Remove</button>` : ""}
+      </div>
+      ${canManage ? `<label class="team-brandtoggle"><input type="checkbox" data-bf-onquotes ${onQ ? "checked" : ""} /><span>Use this sub&rsquo;s branding on quotes assigned to them</span></label>
+      <div class="team-brandactions">
+        <button type="button" class="team-add-btn" data-brand-save="${escHtml(c.id)}">Save branding</button>
+      </div>` : ""}
+    </div>` : ""}
+  </div>`;
+}
+
 function renderTeamsSettings() {
   const body = document.getElementById("teamsBody");
   if (!body) return;
@@ -28717,69 +29016,16 @@ function renderTeamsSettings() {
   const unassigned = ctx.members.filter(m => !ctx.crews.some(c => c.memberIds.includes(m.userId)));
 
   const canManage = canManageCrews();
-  const canSetMode = isOrgAdminRole();
-  const mode = ctx.mode;
-  // Mode picker — shown until the company picks how it uses teams.
-  const modeCards = `
-    <div class="team-modes">
-      <button type="button" class="team-mode-card" data-team-mode="inhouse"${canSetMode ? "" : " disabled"}>
-        <span class="tmc-ico">${TEAM_ICON_INHOUSE}</span>
-        <span class="tmc-t">We install our own work</span>
-        <span class="tmc-d">Crews are your own people. Divide jobs between them, give leads their shopping list, and price labor at each crew's real pay. Customer quotes always carry <b>your</b> company brand.</span>
-      </button>
-      <button type="button" class="team-mode-card" data-team-mode="subcontract"${canSetMode ? "" : " disabled"}>
-        <span class="tmc-ico">${TEAM_ICON_SUB}</span>
-        <span class="tmc-d-top">We sub the installs out</span>
-        <span class="tmc-d">Each team is a separate subcontractor with its own name and logo. Whichever sub is assigned to a job supplies the branding on that job's quote &mdash; they can fill in their own details later.</span>
-      </button>
-    </div>
-    ${canSetMode ? "" : `<p class="team-empty mt-2">Only an owner or admin can choose this.</p>`}`;
-  // Per-crew branding editor (subcontract mode only).
-  const brandEditor = (c) => {
-    if (mode !== "subcontract") return "";
-    const b = (c.data && c.data.brand) || {};
-    const on = !!(c.data && c.data.brandOnQuotes);
-    const open = _teamBrandOpen === c.id;
-    if (!open) {
-      return `<div class="team-brandrow">
-        ${b.logo ? `<img class="team-brandlogo" src="${escHtml(b.logo)}" alt="" />` : `<span class="team-brandlogo team-brandlogo-empty">no logo</span>`}
-        <span class="team-brandname">${escHtml(b.companyName || "No branding set")}</span>
-        <span class="team-brandflag${on ? " is-on" : ""}">${on ? "On quotes" : "Not on quotes"}</span>
-        ${canManage ? `<button type="button" class="team-act" data-crew-brand="${escHtml(c.id)}">Branding</button>` : ""}
-      </div>`;
-    }
-    return `<div class="team-brandedit" data-brand-form="${escHtml(c.id)}">
-      <div class="team-brandgrid">
-        <label class="team-f"><span>Company name</span><input type="text" data-bf="companyName" value="${escHtml(b.companyName || "")}" maxlength="80" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
-        <label class="team-f"><span>Phone</span><input type="text" data-bf="phone" value="${escHtml(b.phone || "")}" maxlength="40" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
-        <label class="team-f"><span>Email</span><input type="text" data-bf="email" value="${escHtml(b.email || "")}" maxlength="80" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
-        <label class="team-f"><span>License #</span><input type="text" data-bf="license" value="${escHtml(b.license || "")}" maxlength="40" class="control rounded-lg px-3 py-2 text-sm text-slate-100" /></label>
-      </div>
-      <div class="team-brandlogo-row">
-        ${b.logo ? `<img class="team-brandlogo" src="${escHtml(b.logo)}" alt="" />` : `<span class="team-brandlogo team-brandlogo-empty">no logo</span>`}
-        <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" data-brand-logo-input="${escHtml(c.id)}" />
-        <button type="button" class="team-act" data-brand-logo-pick="${escHtml(c.id)}">Upload logo</button>
-        ${b.logo ? `<button type="button" class="team-act team-act-danger" data-brand-logo-clear="${escHtml(c.id)}">Remove</button>` : ""}
-      </div>
-      <label class="team-brandtoggle"><input type="checkbox" data-bf-onquotes ${on ? "checked" : ""} /><span>Use this sub&rsquo;s branding on quotes assigned to them</span></label>
-      <div class="team-brandactions">
-        <button type="button" class="team-act" data-brand-cancel>Cancel</button>
-        <button type="button" class="team-add-btn" data-brand-save="${escHtml(c.id)}">Save branding</button>
-      </div>
-    </div>`;
-  };
-
-  // Per-crew rate book (T5). Applies in BOTH modes — it's opt-in per crew, and an
-  // in-house crew can legitimately buy at a different price than the shop default.
+  // Per-crew rate book (kept as an expand on each team tab).
   const rateEditor = (c) => {
     const rb = (c.data && c.data.rateBook) || {};
     const prices = rb.prices || {}, labor = rb.labor || {};
     const n = Object.keys(prices).length + Object.keys(labor).length;
     const open = _teamRatesOpen === c.id;
     if (!open) {
-      return `<div class="team-brandrow">
-        <span class="team-brandname">${n ? `${n} rate override${n === 1 ? "" : "s"}` : "Uses your rates"}</span>
-        ${canManage ? `<button type="button" class="team-act" data-crew-rates="${escHtml(c.id)}">Rates</button>` : ""}
+      return `<div class="team-brandrow" style="border-top:0;padding-top:0">
+        <span class="team-brandname">${n ? `${n} rate override${n === 1 ? "" : "s"}` : "Uses your shop rates"}</span>
+        ${canManage ? `<button type="button" class="team-act" data-crew-rates="${escHtml(c.id)}">Material rates</button>` : ""}
       </div>`;
     }
     const rows = priceableRateEntries().map(e => `
@@ -28790,8 +29036,8 @@ function renderTeamsSettings() {
           placeholder="${Number(Number(e.price).toFixed(4))}" class="control rounded-lg px-2.5 py-1.5 w-24 text-sm text-slate-100 placeholder:text-slate-600" />
       </label>`).join("");
     const LM = (DATA.config && DATA.config.laborModel) || {};
-    return `<div class="team-brandedit" data-rate-form="${escHtml(c.id)}">
-      <p class="team-ratehint">Blank means &ldquo;use your rate&rdquo; &mdash; so raising a price in Settings &rarr; Rates still reaches this team. Their labor comes from this team&rsquo;s own pay, and interior trim from your trim grid, so neither is listed here.</p>
+    return `<div class="team-brandedit" data-rate-form="${escHtml(c.id)}" style="border-top:0;margin-top:0;padding-top:0">
+      <p class="team-ratehint">Blank means &ldquo;use your rate&rdquo;. Labor pay is edited in the table above.</p>
       <div class="team-rategrid">${rows}</div>
       <div class="team-rategrid team-rategrid-labor">
         <label class="team-ratef">
@@ -28814,39 +29060,49 @@ function renderTeamsSettings() {
       </div>
     </div>`;
   };
-  // Members not already on a given crew — the "add member" picker.
   const addPicker = (c) => {
-    const avail = ctx.members.filter(m => !c.memberIds.includes(m.userId));
-    if (!avail.length) return "";
+    const avail = ctx.members.filter(m => !(c.memberIds || []).includes(m.userId));
+    if (!avail.length || !canManage) return "";
     return `<label class="team-addmem">
       <span class="team-addmem-l">Add</span>
       <select class="team-sel" data-crew-addmem="${escHtml(c.id)}">
         <option value="">Choose a member&hellip;</option>
-        ${avail.map(m => `<option value="${escHtml(m.userId)}">${escHtml(m.name || "Member")}${m.role ? ` (${escHtml(ROLE_LABEL[m.role] || m.role)})` : ""}</option>`).join("")}
+        ${avail.map(m => `<option value="${escHtml(m.userId)}">${escHtml(m.name || "Member")}</option>`).join("")}
       </select>
     </label>`;
   };
-  const chipFor = (c, uid) => {
-    const m = memberById[uid];
-    const nm = (m && m.name) ? m.name : "Member";
-    const rt = (m && m.rate != null) ? ` <span class="team-rate internal-only">$${m.rate}/hr</span>` : "";
-    return `<span class="team-chip-m">${escHtml(nm)}${rt}${canManage
-      ? `<button type="button" class="team-chip-x" data-crew-rmmem="${escHtml(c.id)}" data-uid="${escHtml(uid)}" aria-label="Remove ${escHtml(nm)} from ${escHtml(c.name)}">&times;</button>` : ""}</span>`;
-  };
-  const crewCards = ctx.crews.length ? ctx.crews.map(c => `
-    <div class="team-row team-row-stack">
-      <div class="team-row-top">
-        <span class="team-dot" style="background:#c9a558"></span>
-        <span class="team-name">${escHtml(c.name)}</span>
-        <span class="team-tag">${c.memberIds.length} member${c.memberIds.length === 1 ? "" : "s"}</span>
-        ${canManage ? `<button type="button" class="team-act" data-crew-rename="${escHtml(c.id)}">Rename</button>
-        <button type="button" class="team-act team-act-danger" data-crew-delete="${escHtml(c.id)}">Delete</button>` : ""}
+
+  // Resolve active tab — fall back to All Members if the crew was deleted.
+  if (_teamsTab !== "all" && !(ctx.crews || []).some(c => c.id === _teamsTab)) _teamsTab = "all";
+  const activeCrew = _teamsTab !== "all" ? (ctx.crews || []).find(c => c.id === _teamsTab) : null;
+  const tabsHtml = `<div class="teams-tabs" role="tablist" aria-label="Teams views">
+    <button type="button" class="teams-tab${_teamsTab === "all" ? " is-on" : ""}" data-teams-tab="all" role="tab" aria-selected="${_teamsTab === "all" ? "true" : "false"}">
+      All members<span class="teams-tab-count">${ctx.members.length}</span>
+    </button>
+    ${(ctx.crews || []).map(c => `<button type="button" class="teams-tab${_teamsTab === c.id ? " is-on" : ""}" data-teams-tab="${escHtml(c.id)}" role="tab" aria-selected="${_teamsTab === c.id ? "true" : "false"}">
+      ${escHtml(c.name)}<span class="teams-tab-count">${(c.memberIds || []).length}</span>
+    </button>`).join("")}
+  </div>`;
+
+  const sheetHtml = activeCrew ? `
+    <div class="teams-crewbar">
+      <div class="min-w-0">
+        <div class="team-sec-h" style="margin:0">${escHtml(activeCrew.name)}</div>
+        <p class="team-empty" style="margin:4px 0 0">${(activeCrew.memberIds || []).length} member${(activeCrew.memberIds || []).length === 1 ? "" : "s"}${crewIsSub(activeCrew) ? " · subcontractor" : ""}</p>
       </div>
-      ${c.memberIds.length ? `<div class="team-chips">${c.memberIds.map(uid => chipFor(c, uid)).join("")}</div>` : `<p class="team-empty">Nobody on this crew yet.</p>`}
-      ${canManage ? addPicker(c) : ""}
-      ${brandEditor(c)}
-      ${rateEditor(c)}
-    </div>`).join("") : `<p class="team-empty">No crews yet${canManage ? " &mdash; add your first one below." : " &mdash; ask an admin to create one."}</p>`;
+      <div class="teams-crewbar-actions">
+        ${addPicker(activeCrew)}
+        ${canManage ? `<button type="button" class="team-act" data-crew-rename="${escHtml(activeCrew.id)}">Rename</button>
+        <button type="button" class="team-act team-act-danger" data-crew-delete="${escHtml(activeCrew.id)}">Delete</button>` : ""}
+      </div>
+    </div>
+    ${teamsSubPanelHtml(activeCrew, canManage)}
+    ${teamsMemberTableHtml(ctx, { crewId: activeCrew.id, canManage })}
+    <div class="mt-3">${rateEditor(activeCrew)}</div>`
+  : `
+    <p class="team-empty mb-3">Everyone in your company, A&ndash;Z. Click a column title to sort. Select rows to assign people to a team.</p>
+    ${teamsMemberTableHtml(ctx, { crewId: "all", canManage })}
+    ${unassigned.length ? `<p class="team-empty mt-3">${unassigned.length} not on a team yet.</p>` : ""}`;
 
   body.innerHTML = `
     <div class="set-card">
@@ -28859,32 +29115,17 @@ function renderTeamsSettings() {
       </div>
       <div class="team-stats">
         <div class="team-stat"><span>Members</span><b>${ctx.members.length}</b></div>
-        <div class="team-stat"><span>Crews</span><b>${ctx.crews.length}</b></div>
+        <div class="team-stat"><span>Teams</span><b>${ctx.crews.length}</b></div>
         <div class="team-stat"><span>Tracked seats</span><b>${seated}${seats ? ` / ${seats}` : ""}</b></div>
       </div>
-      ${mode ? `<div class="team-mode-row">
-        <div>
-          <div class="team-mode-now">${mode === "subcontract" ? "Subcontracted installs" : "In-house installs"}</div>
-          <div class="team-mode-sub">${mode === "subcontract"
-            ? "Each team is its own subcontractor &mdash; the assigned sub&rsquo;s branding goes on that job&rsquo;s quote."
-            : "Crews are your own people &mdash; quotes always carry your company brand."}</div>
-        </div>
-        ${canSetMode ? `<button type="button" class="team-act" data-mode-switch>Switch</button>` : ""}
-      </div>` : ""}
     </div>
-    ${mode ? "" : `<div class="set-card mt-4">
-      <div class="team-sec-h">How do you handle installs?</div>
-      <p class="team-empty mb-3">This sets how teams work for your company. You can change it later.</p>
-      ${modeCards}
-    </div>`}
     <div class="set-card mt-4">
-      <div class="team-sec-h">Crews</div>
-      <div class="team-list">${crewCards}</div>
+      ${tabsHtml}
+      ${sheetHtml}
       ${canManage ? `<div class="team-add">
-        <input id="crewNewName" type="text" class="control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1" placeholder="New crew name (e.g. North Crew)" maxlength="60" />
-        <button type="button" class="team-add-btn" data-crew-add>+ Add crew</button>
+        <input id="crewNewName" type="text" class="control rounded-lg px-3 py-2 text-sm text-slate-100 flex-1" placeholder="New team name (e.g. North Crew)" maxlength="60" />
+        <button type="button" class="team-add-btn" data-crew-add>+ Add team</button>
       </div>` : ""}
-      ${unassigned.length ? `<div class="team-sec-h mt-4">Not on a crew</div><div class="team-chips">${unassigned.map(m => who(m.userId)).join("")}</div>` : ""}
     </div>
     <div class="set-card mt-3">
       <div class="set-sub mb-2">Seats &amp; plan</div>
@@ -28894,10 +29135,11 @@ function renderTeamsSettings() {
       <div class="set-sub mb-2">Invite links</div>
       <div id="teamInvites"></div>
     </div>
-    <p class="team-foot">Crews here are the same crews as in the Anchor Field app &mdash; changes show up in both. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}Assign a job to a team on the Save&nbsp;Job screen: its labor prices at that team&rsquo;s pay, its rate overrides apply, and in subcontracted mode its branding goes on the customer&rsquo;s quote.</p>`;
+    <p class="team-foot">Teams here are the same crews as in the Anchor Field app. Mark a team as a subcontractor to put its company name, logo, and contact info on quotes assigned to it. ${canManage ? "" : "Only owners, admins and dispatchers can change them. "}</p>`;
   renderSeatPanel(ctx);                                // Teams T8 — report only, no writes
   if (isOrgAdminRole()) renderInvitePanel(ctx.orgId);   // Teams T7 — lazy, non-blocking
 }
+
 let _teamBrandOpen = null;   // crew id whose branding form is expanded
 let _teamRatesOpen = null;   // crew id whose rate book is expanded
 let _teamInvitesOpen = false;   // Teams T7: the owner's invite panel
@@ -28991,6 +29233,7 @@ function wireTeamsSettings() {
       return;
     }
     const ctx = getOrgContext();
+    const fail = (e2) => { try { toast((e2 && e2.message) ? "Couldn't save — " + e2.message : "Couldn't save that change."); } catch (_) {} };
     // ── Teams T7: installer self-service (runs before the owner-only gate) ──
     const iSave = e.target.closest("[data-inst-save]");
     if (iSave) {
@@ -29055,10 +29298,84 @@ function wireTeamsSettings() {
         .catch(fail);
       return;
     }
+    // Tab switching is available to anyone who can see Teams (read-only members included).
+    const tabBtn = e.target.closest("[data-teams-tab]");
+    if (tabBtn) {
+      _teamsTab = tabBtn.getAttribute("data-teams-tab") || "all";
+      _teamsSelected = new Set();
+      _teamRatesOpen = null;
+      renderTeamsSettings();
+      return;
+    }
+    const sortBtn = e.target.closest("[data-teams-sort]");
+    if (sortBtn) {
+      const key = sortBtn.getAttribute("data-teams-sort") || "name";
+      if (_teamsSort.key === key) _teamsSort = { key, dir: -_teamsSort.dir };
+      else _teamsSort = { key, dir: key === "pay" ? -1 : 1 }; // pay defaults high→low
+      renderTeamsSettings();
+      return;
+    }
     if (!ctx || !canManageCrews()) return;   // RLS would reject anyway; don't pretend
-    const fail = (e2) => { try { toast((e2 && e2.message) ? "Couldn't save — " + e2.message : "Couldn't save that change."); } catch (_) {} };
 
-    // ── Mode selection / switch (owner+admin only) ──
+    // ── Spreadsheet selection / pay / per-team subcontractor ──
+    if (e.target.closest("[data-teams-clear-sel]")) { _teamsSelected = new Set(); renderTeamsSettings(); return; }
+    const bulkRm = e.target.closest("[data-teams-bulk-remove]");
+    if (bulkRm) {
+      const crewId = _teamsTab;
+      if (!crewId || crewId === "all" || !_teamsSelected.size) return;
+      const ids = Array.from(_teamsSelected);
+      if (!confirm(`Remove ${ids.length} member${ids.length === 1 ? "" : "s"} from this team?`)) return;
+      Promise.all(ids.map(uid => removeCrewMemberWeb(crewId, uid)))
+        .then(() => { _teamsSelected = new Set(); return afterCrewWrite("Removed from team"); })
+        .catch(fail);
+      return;
+    }
+    const subTog = e.target.closest("[data-crew-sub-toggle]");
+    if (subTog) {
+      const cid = subTog.getAttribute("data-crew-sub-toggle");
+      const c = (ctx.crews || []).find(x => x.id === cid);
+      if (!c) return;
+      const nextSub = !crewIsSub(c);
+      const patch = { kind: nextSub ? "sub" : "inhouse" };
+      if (nextSub && c.data && c.data.brandOnQuotes == null) patch.brandOnQuotes = true;
+      if (!nextSub) patch.brandOnQuotes = false;
+      updateCrewDataWeb(cid, patch)
+        .then(() => afterCrewWrite(nextSub ? "Marked as subcontractor" : "Marked as in-house"))
+        .catch(fail);
+      return;
+    }
+    const payBtn = e.target.closest("[data-teams-pay]");
+    if (payBtn && !payBtn._editing) {
+      const userId = payBtn.getAttribute("data-teams-pay");
+      const m = (ctx.members || []).find(x => x.userId === userId);
+      if (!m) return;
+      payBtn._editing = true;
+      const input = document.createElement("input");
+      input.type = "text"; input.inputMode = "decimal"; input.className = "ts-pay-input";
+      input.value = Number(m.rate) > 0 ? String(m.rate) : "";
+      input.setAttribute("aria-label", "Hourly pay");
+      payBtn.replaceWith(input);
+      input.focus(); input.select();
+      let settled = false;
+      const done = () => { try { renderTeamsSettings(); } catch (_) {} };
+      const commit = () => {
+        if (settled) return; settled = true;
+        const val = Math.max(0, Number(String(input.value).replace(/[^0-9.]/g, "")) || 0);
+        if (val === (Number(m.rate) || 0)) { done(); return; }
+        input.disabled = true;
+        dashTeamSetWage(userId, val)
+          .then(() => { try { toast(`${m.name || "Member"} — ${formatMoney(val)}/hr`); } catch (_) {} done(); })
+          .catch(() => { try { toast("Couldn't save that wage."); } catch (_) {} done(); });
+      };
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") { ev.preventDefault(); commit(); }
+        else if (ev.key === "Escape") { ev.preventDefault(); settled = true; done(); }
+      });
+      input.addEventListener("blur", commit);
+      return;
+    }
+
+    // ── Legacy org-wide mode (kept for older accounts; new UI is per-team) ──
     const mc = e.target.closest("[data-team-mode]");
     if (mc) {
       if (!isOrgAdminRole()) { try { toast("Only an owner or admin can set this."); } catch (_) {} return; }
@@ -29253,8 +29570,39 @@ function wireTeamsSettings() {
       try { toast((err && err.message) || "Couldn't read that image."); } catch (_) {}
     }
   });
-  // Add-member picker (change, not click)
+  // Add-member picker + spreadsheet checkboxes / bulk assign (change, not click)
   body.addEventListener("change", (e) => {
+    const checkAll = e.target.closest("[data-teams-check-all]");
+    if (checkAll) {
+      const ctx = getOrgContext();
+      if (!ctx || !canManageCrews()) return;
+      const rows = teamsSortedMembers(ctx, _teamsTab);
+      if (checkAll.checked) rows.forEach(m => _teamsSelected.add(m.userId));
+      else _teamsSelected = new Set();
+      renderTeamsSettings();
+      return;
+    }
+    const check = e.target.closest("[data-teams-check]");
+    if (check) {
+      if (!canManageCrews()) return;
+      const uid = check.getAttribute("data-teams-check");
+      if (check.checked) _teamsSelected.add(uid); else _teamsSelected.delete(uid);
+      renderTeamsSettings();
+      return;
+    }
+    const bulkAssign = e.target.closest("[data-teams-bulk-assign]");
+    if (bulkAssign) {
+      const ctx = getOrgContext();
+      if (!ctx || !canManageCrews() || !bulkAssign.value || !_teamsSelected.size) return;
+      const crewId = bulkAssign.value;
+      const ids = Array.from(_teamsSelected);
+      bulkAssign.disabled = true;
+      Promise.all(ids.map(uid => addCrewMemberWeb(crewId, ctx.orgId, uid)))
+        .then(() => { _teamsSelected = new Set(); return afterCrewWrite(`Assigned ${ids.length} to team`); })
+        .catch(e2 => { try { toast((e2 && e2.message) || "Couldn't assign those members."); } catch (_) {} })
+        .finally(() => { bulkAssign.disabled = false; });
+      return;
+    }
     const sel = e.target.closest("[data-crew-addmem]");
     if (!sel || !sel.value) return;
     const ctx = getOrgContext();
@@ -29273,6 +29621,34 @@ function wireTeamsSettings() {
       .catch(e2 => { try { toast((e2 && e2.message) || "Couldn't add that member."); } catch (_) {} })
       .finally(() => { sel.disabled = false; });
   });
+
+  // iOS/WebKit: a tall overflow-x:auto sheet swallows vertical pans, so once
+  // All members fills the viewport you can't scroll Settings anymore. When the
+  // gesture is mostly vertical, drive #settingsContent yourself and leave
+  // horizontal pans to the native sheet scroller.
+  let _tsPanX0 = 0, _tsPanY0 = 0, _tsPanTop0 = 0, _tsPanAxis = "";
+  body.addEventListener("touchstart", (e) => {
+    if (!e.target.closest(".teams-sheet-wrap") || !e.touches[0]) { _tsPanAxis = ""; return; }
+    _tsPanX0 = e.touches[0].clientX;
+    _tsPanY0 = e.touches[0].clientY;
+    _tsPanAxis = "";
+    const sc = document.getElementById("settingsContent");
+    _tsPanTop0 = sc ? sc.scrollTop : 0;
+  }, { passive: true });
+  body.addEventListener("touchmove", (e) => {
+    if (!e.target.closest(".teams-sheet-wrap") || !e.touches[0]) return;
+    const sc = document.getElementById("settingsContent");
+    if (!sc) return;
+    const dx = e.touches[0].clientX - _tsPanX0;
+    const dy = e.touches[0].clientY - _tsPanY0;
+    if (!_tsPanAxis) {
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      _tsPanAxis = Math.abs(dy) >= Math.abs(dx) ? "y" : "x";
+    }
+    if (_tsPanAxis !== "y") return;
+    sc.scrollTop = _tsPanTop0 - dy;
+    e.preventDefault();
+  }, { passive: false });
 }
 
 function renderCustomersSettings() {
