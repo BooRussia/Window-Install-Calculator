@@ -3082,6 +3082,23 @@
   .sgd-row { border: 1px solid #1e293b; border-radius: 12px; background: rgba(2,6,23,0.4); padding: 9px 10px; }
   .sgd-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
   .sgd-head label { font-size: 11px; color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 6px; margin: 0; }
+  .sgd-head-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+  .sgd-unit-seg {
+    display: inline-flex; border-radius: 7px; overflow: hidden;
+    border: 1px solid rgba(51,65,85,0.7); flex: 0 0 auto;
+  }
+  .sgd-unit-btn {
+    appearance: none; border: 0; background: transparent; color: #94a3b8;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 4px 8px; cursor: pointer; min-height: 28px; line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sgd-unit-btn + .sgd-unit-btn { border-left: 1px solid rgba(51,65,85,0.7); }
+  .sgd-unit-btn.is-on { background: rgba(181,143,74,0.18); color: #c9a558; }
+  [data-theme="light"] .sgd-unit-seg { border-color: #cbd5e1; }
+  [data-theme="light"] .sgd-unit-btn { color: #64748b; }
+  [data-theme="light"] .sgd-unit-btn + .sgd-unit-btn { border-left-color: #cbd5e1; }
+  [data-theme="light"] .sgd-unit-btn.is-on { background: rgba(181,143,74,0.16); color: var(--gold-ink, #8a6a2e); }
   .sgd-sel { background: rgba(15,23,42,0.7); border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 3px 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
   .sgd-remove { color: #64748b; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 17px; line-height: 1; background: transparent; border: 0; cursor: pointer; }
   .sgd-remove:hover { color: #f87171; background: rgba(248,113,113,0.12); }
@@ -16135,6 +16152,97 @@ function computeSwingDoors(takeoff = STATE) {
   };
 }
 
+/* Door width/height entry — inches are the persistence unit; the in|ft toggle
+   only changes how bare numbers are typed/shown. Explicit marks (8', 8 ft,
+   96", 8'6") always win so you can enter feet even while the toggle is on in. */
+const DOOR_DIM_UNIT_KEY = "aq_door_dim_unit";
+function getDoorDimUnit() {
+  try {
+    const u = localStorage.getItem(DOOR_DIM_UNIT_KEY);
+    if (u === "ft" || u === "in") return u;
+  } catch (_) {}
+  return "in";
+}
+function setDoorDimUnit(unit) {
+  const u = unit === "ft" ? "ft" : "in";
+  try { localStorage.setItem(DOOR_DIM_UNIT_KEY, u); } catch (_) {}
+}
+function niceDoorDimNum(n) {
+  if (!isFinite(n)) return "";
+  const r = Math.round(n * 1000) / 1000;
+  return String(r);
+}
+/** Parse a typed length into inches. bareUnit applies only to unit-less numbers. */
+function parseLengthToInches(raw, bareUnit) {
+  if (raw == null) return null;
+  const s = String(raw).trim().toLowerCase().replace(/,/g, "");
+  if (!s) return null;
+  // 8'6", 8'-6", 8' 6, 8 ft 6 in, 8ft6in
+  let m = s.match(/^(\d+(?:\.\d+)?)\s*(?:'|′|ft|feet)\s*-?\s*(\d+(?:\.\d+)?)?\s*(?:"|″|in|inches)?$/);
+  if (m) {
+    const ft = parseFloat(m[1]) || 0;
+    const inch = m[2] != null && m[2] !== "" ? (parseFloat(m[2]) || 0) : 0;
+    return ft * 12 + inch;
+  }
+  m = s.match(/^(\d+(?:\.\d+)?)\s*(?:"|″|in|inches)$/);
+  if (m) return parseFloat(m[1]);
+  m = s.match(/^(\d+(?:\.\d+)?)\s*(?:'|′|ft|feet)$/);
+  if (m) return (parseFloat(m[1]) || 0) * 12;
+  const n = parseFloat(s);
+  if (!isFinite(n)) return null;
+  return bareUnit === "ft" ? n * 12 : n;
+}
+/** Stored door dims are inches (legacy bare numbers = inches). */
+function doorDimStoredToInches(stored) {
+  if (stored === "" || stored == null) return null;
+  return parseLengthToInches(stored, "in");
+}
+/** Commit a field value → inches for STATE ('' when empty / unparseable). */
+function doorDimInputToStored(raw) {
+  if (raw === "" || raw == null) return "";
+  const inches = parseLengthToInches(raw, getDoorDimUnit());
+  return inches == null ? "" : Math.round(inches * 1000) / 1000;
+}
+function doorDimStoredToInputValue(stored) {
+  const inches = doorDimStoredToInches(stored);
+  if (inches == null) return "";
+  return getDoorDimUnit() === "ft" ? niceDoorDimNum(inches / 12) : niceDoorDimNum(inches);
+}
+function doorDimPlaceholder(inches) {
+  const n = Number(inches) || 0;
+  return getDoorDimUnit() === "ft" ? niceDoorDimNum(n / 12) : niceDoorDimNum(n);
+}
+function doorDimUnitToggleHTML() {
+  const u = getDoorDimUnit();
+  return `<span class="sgd-unit-seg" role="group" aria-label="Size unit">
+    <button type="button" class="sgd-unit-btn${u === "in" ? " is-on" : ""}" data-door-unit="in" aria-pressed="${u === "in" ? "true" : "false"}">in</button>
+    <button type="button" class="sgd-unit-btn${u === "ft" ? " is-on" : ""}" data-door-unit="ft" aria-pressed="${u === "ft" ? "true" : "false"}">ft</button>
+  </span>`;
+}
+function doorDimsCellsHTML(dataAttr, width, height, qty, phWidthIn, phHeightIn) {
+  const unit = getDoorDimUnit();
+  const w = doorDimStoredToInputValue(width);
+  const h = doorDimStoredToInputValue(height);
+  const q = (qty != null && qty !== "") ? qty : 1;
+  return `<div class="sgd-dims">
+    <span class="sgd-cell"><span>Width ${unit}</span><input type="text" inputmode="decimal" ${dataAttr}="width" value="${escHtml(String(w))}" placeholder="${escHtml(doorDimPlaceholder(phWidthIn))}" autocomplete="off"></span>
+    <span class="sgd-cell"><span>Height ${unit}</span><input type="text" inputmode="decimal" ${dataAttr}="height" value="${escHtml(String(h))}" placeholder="${escHtml(doorDimPlaceholder(phHeightIn))}" autocomplete="off"></span>
+    <span class="sgd-cell"><span>Qty</span><input type="number" inputmode="numeric" min="1" ${dataAttr}="qty" value="${escHtml(String(q))}"></span>
+  </div>`;
+}
+function onDoorDimUnitClick(e) {
+  const btn = e.target && e.target.closest ? e.target.closest("[data-door-unit]") : null;
+  if (!btn) return false;
+  e.preventDefault();
+  const u = btn.getAttribute("data-door-unit") === "ft" ? "ft" : "in";
+  if (getDoorDimUnit() === u) return true;
+  setDoorDimUnit(u);
+  try { renderSlidingDoors(); } catch (_) {}
+  try { renderBifoldDoors(); } catch (_) {}
+  try { renderExtraFloors(); } catch (_) {}
+  return true;
+}
+
 // Coerce a stored sliding-glass-door entry to {panels,width,height,qty} in
 // inches, applying the panel fallback: if no overall width is given, width =
 // per-panel width × panel count; height falls back to the configured default.
@@ -16143,8 +16251,8 @@ function normalizeSlidingDoor(d) {
   const cfg = (DATA.config.slidingDoors) || {};
   const panels = Math.max(2, Math.min(8, parseInt(d.panels, 10) || 2));
   const qty = Math.max(1, parseInt(d.qty, 10) || 1);
-  let width = parseFloat(d.width) || 0;
-  let height = parseFloat(d.height) || 0;
+  let width = doorDimStoredToInches(d.width) || 0;
+  let height = doorDimStoredToInches(d.height) || 0;
   if (width <= 0) {
     const pw = parseFloat(d.panelWidth) || (cfg.defaultPanelWidthIn ?? 36);
     width = pw * panels;
@@ -16213,8 +16321,8 @@ function normalizeBifoldDoor(d) {
   const cfg = (DATA.config.bifoldDoors) || {};
   const panels = Math.max(2, Math.min(10, parseInt(d.panels, 10) || 3));
   const qty = Math.max(1, parseInt(d.qty, 10) || 1);
-  let width = parseFloat(d.width) || 0;
-  let height = parseFloat(d.height) || 0;
+  let width = doorDimStoredToInches(d.width) || 0;
+  let height = doorDimStoredToInches(d.height) || 0;
   if (width <= 0) {
     const pw = parseFloat(d.panelWidth) || (cfg.defaultPanelWidthIn ?? 32);
     width = pw * panels;
@@ -17669,19 +17777,15 @@ function efDoorsHTML(f) {
     const rows = (Array.isArray(f.slidingDoors) ? f.slidingDoors : []).map((d, i) => {
       const panels = Math.max(2, Math.min(8, parseInt(d.panels, 10) || 2));
       const opts = [2,3,4,5,6,7,8].map(n => `<option value="${n}"${n === panels ? " selected" : ""}>${n}-panel</option>`).join("");
-      const w = (d.width === 0 || d.width) ? d.width : "";
-      const h = (d.height === 0 || d.height) ? d.height : "";
-      const q = (d.qty != null && d.qty !== "") ? d.qty : 1;
       return `<div class="sgd-row" data-dtype="sgd" data-di="${i}">
       <div class="sgd-head">
         <label>Panels <select class="sgd-sel" data-efd="panels">${opts}</select></label>
-        <button type="button" class="sgd-remove" data-efd="remove" aria-label="Remove sliding door">×</button>
+        <div class="sgd-head-actions">
+          ${doorDimUnitToggleHTML()}
+          <button type="button" class="sgd-remove" data-efd="remove" aria-label="Remove sliding door">×</button>
+        </div>
       </div>
-      <div class="sgd-dims">
-        <span class="sgd-cell"><span>Width in</span><input type="number" inputmode="decimal" min="0" data-efd="width" value="${w}" placeholder="${panels * pw}"></span>
-        <span class="sgd-cell"><span>Height in</span><input type="number" inputmode="decimal" min="0" data-efd="height" value="${h}" placeholder="${ph}"></span>
-        <span class="sgd-cell"><span>Qty</span><input type="number" inputmode="numeric" min="1" data-efd="qty" value="${q}"></span>
-      </div>
+      ${doorDimsCellsHTML("data-efd", d.width, d.height, d.qty, panels * pw, ph)}
     </div>`;
     }).join("");
     parts.push(`${rows}<button type="button" class="rail-add-btn" data-efadd="sgd">+ Add sliding door</button>`);
@@ -17692,19 +17796,15 @@ function efDoorsHTML(f) {
     const rows = (Array.isArray(f.bifoldDoors) ? f.bifoldDoors : []).map((d, i) => {
       const panels = Math.max(2, Math.min(10, parseInt(d.panels, 10) || 3));
       const opts = [2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === panels ? " selected" : ""}>${n}-panel</option>`).join("");
-      const w = (d.width === 0 || d.width) ? d.width : "";
-      const h = (d.height === 0 || d.height) ? d.height : "";
-      const q = (d.qty != null && d.qty !== "") ? d.qty : 1;
       return `<div class="sgd-row bifold-row" data-dtype="bifold" data-di="${i}">
       <div class="sgd-head">
         <label>Panels <select class="sgd-sel" data-efd="panels">${opts}</select></label>
-        <button type="button" class="sgd-remove" data-efd="remove" aria-label="Remove bifold door">×</button>
+        <div class="sgd-head-actions">
+          ${doorDimUnitToggleHTML()}
+          <button type="button" class="sgd-remove" data-efd="remove" aria-label="Remove bifold door">×</button>
+        </div>
       </div>
-      <div class="sgd-dims">
-        <span class="sgd-cell"><span>Width in</span><input type="number" inputmode="decimal" min="0" data-efd="width" value="${w}" placeholder="${panels * pw}"></span>
-        <span class="sgd-cell"><span>Height in</span><input type="number" inputmode="decimal" min="0" data-efd="height" value="${h}" placeholder="${ph}"></span>
-        <span class="sgd-cell"><span>Qty</span><input type="number" inputmode="numeric" min="1" data-efd="qty" value="${q}"></span>
-      </div>
+      ${doorDimsCellsHTML("data-efd", d.width, d.height, d.qty, panels * pw, ph)}
     </div>`;
     }).join("");
     parts.push(`${rows}<button type="button" class="rail-add-btn" data-efadd="bifold">+ Add bifold door</button>`);
@@ -27704,7 +27804,7 @@ function bindControls() {
         else if (dfield === "qty") arr[di].qty = Math.max(1, parseInt(dEl.value, 10) || 1);
         else if (dfield === "leaf") arr[di].leaf = dEl.value === "double" ? "double" : "single";
         else if (dfield === "flashing") arr[di].flashing = !!dEl.checked;
-        else arr[di][dfield] = dEl.value;  // width / height as typed; normalized at compute time
+        else arr[di][dfield] = doorDimInputToStored(dEl.value);  // width / height → inches
         markCalculatorFirstInteraction(); render();
         return;
       }
@@ -27717,6 +27817,7 @@ function bindControls() {
     efList.addEventListener("input", efFieldInput);
     efList.addEventListener("change", efFieldInput);
     efList.addEventListener("click", e => {
+      if (onDoorDimUnitClick(e)) return;
       const row = e.target.closest(".ef-row"); if (!row) return;
       const f = STATE.extraFloors && STATE.extraFloors[parseInt(row.dataset.idx, 10)];
       const addBtn = e.target.closest("[data-efadd]");
@@ -37930,19 +38031,15 @@ function renderSlidingDoors() {
   list.innerHTML = items.map((d, i) => {
     const panels = Math.max(2, Math.min(8, parseInt(d.panels, 10) || 2));
     const opts = [2,3,4,5,6,7,8].map(n => `<option value="${n}"${n === panels ? " selected" : ""}>${n}-panel</option>`).join("");
-    const w = (d.width === 0 || d.width) ? d.width : "";
-    const h = (d.height === 0 || d.height) ? d.height : "";
-    const q = (d.qty != null && d.qty !== "") ? d.qty : 1;
     return `<div class="sgd-row" data-idx="${i}">
       <div class="sgd-head">
         <label>Panels <select class="sgd-sel" data-sgd="panels">${opts}</select></label>
-        <button type="button" class="sgd-remove" data-sgd="remove" aria-label="Remove sliding door">×</button>
+        <div class="sgd-head-actions">
+          ${doorDimUnitToggleHTML()}
+          <button type="button" class="sgd-remove" data-sgd="remove" aria-label="Remove sliding door">×</button>
+        </div>
       </div>
-      <div class="sgd-dims">
-        <span class="sgd-cell"><span>Width in</span><input type="number" inputmode="decimal" min="0" data-sgd="width" value="${w}" placeholder="${panels * pw}"></span>
-        <span class="sgd-cell"><span>Height in</span><input type="number" inputmode="decimal" min="0" data-sgd="height" value="${h}" placeholder="${ph}"></span>
-        <span class="sgd-cell"><span>Qty</span><input type="number" inputmode="numeric" min="1" data-sgd="qty" value="${q}"></span>
-      </div>
+      ${doorDimsCellsHTML("data-sgd", d.width, d.height, d.qty, panels * pw, ph)}
     </div>`;
   }).join("");
   updateSlidingDoorsSummary();
@@ -37979,7 +38076,7 @@ function onSlidingDoorFieldInput(e) {
   if (!Array.isArray(STATE.slidingDoors) || !STATE.slidingDoors[idx]) return;
   if (field === "panels") STATE.slidingDoors[idx].panels = Math.max(2, Math.min(8, parseInt(el.value, 10) || 2));
   else if (field === "qty") STATE.slidingDoors[idx].qty = Math.max(1, parseInt(el.value, 10) || 1);
-  else STATE.slidingDoors[idx][field] = el.value; // width/height as typed; normalized at compute time
+  else STATE.slidingDoors[idx][field] = doorDimInputToStored(el.value); // width/height → inches
   if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
   render();
 }
@@ -38096,19 +38193,15 @@ function renderBifoldDoors() {
   list.innerHTML = items.map((d, i) => {
     const panels = Math.max(2, Math.min(10, parseInt(d.panels, 10) || 3));
     const opts = [2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === panels ? " selected" : ""}>${n}-panel</option>`).join("");
-    const w = (d.width === 0 || d.width) ? d.width : "";
-    const h = (d.height === 0 || d.height) ? d.height : "";
-    const q = (d.qty != null && d.qty !== "") ? d.qty : 1;
     return `<div class="sgd-row bifold-row" data-idx="${i}">
       <div class="sgd-head">
         <label>Panels <select class="sgd-sel" data-bifold="panels">${opts}</select></label>
-        <button type="button" class="sgd-remove" data-bifold="remove" aria-label="Remove bifold door">×</button>
+        <div class="sgd-head-actions">
+          ${doorDimUnitToggleHTML()}
+          <button type="button" class="sgd-remove" data-bifold="remove" aria-label="Remove bifold door">×</button>
+        </div>
       </div>
-      <div class="sgd-dims">
-        <span class="sgd-cell"><span>Width in</span><input type="number" inputmode="decimal" min="0" data-bifold="width" value="${w}" placeholder="${panels * pw}"></span>
-        <span class="sgd-cell"><span>Height in</span><input type="number" inputmode="decimal" min="0" data-bifold="height" value="${h}" placeholder="${ph}"></span>
-        <span class="sgd-cell"><span>Qty</span><input type="number" inputmode="numeric" min="1" data-bifold="qty" value="${q}"></span>
-      </div>
+      ${doorDimsCellsHTML("data-bifold", d.width, d.height, d.qty, panels * pw, ph)}
     </div>`;
   }).join("");
   updateBifoldDoorsSummary();
@@ -38141,7 +38234,7 @@ function onBifoldDoorFieldInput(e) {
   if (!Array.isArray(STATE.bifoldDoors) || !STATE.bifoldDoors[idx]) return;
   if (field === "panels") STATE.bifoldDoors[idx].panels = Math.max(2, Math.min(10, parseInt(el.value, 10) || 3));
   else if (field === "qty") STATE.bifoldDoors[idx].qty = Math.max(1, parseInt(el.value, 10) || 1);
-  else STATE.bifoldDoors[idx][field] = el.value;
+  else STATE.bifoldDoors[idx][field] = doorDimInputToStored(el.value);
   if (typeof markCalculatorFirstInteraction === "function") markCalculatorFirstInteraction();
   render();
 }
@@ -43194,6 +43287,7 @@ function init() {
     _sgdList.addEventListener("input", onSlidingDoorFieldInput);
     _sgdList.addEventListener("change", onSlidingDoorFieldInput);
     _sgdList.addEventListener("click", (e) => {
+      if (onDoorDimUnitClick(e)) return;
       const rm = e.target.closest('[data-sgd="remove"]');
       if (!rm) return;
       const row = rm.closest(".sgd-row");
@@ -43210,6 +43304,7 @@ function init() {
     _bfList.addEventListener("input", onBifoldDoorFieldInput);
     _bfList.addEventListener("change", onBifoldDoorFieldInput);
     _bfList.addEventListener("click", (e) => {
+      if (onDoorDimUnitClick(e)) return;
       const rm = e.target.closest('[data-bifold="remove"]');
       if (!rm) return;
       const row = rm.closest(".bifold-row");
