@@ -4661,10 +4661,9 @@
     .cut-card { transform: none; }
     .cut-saw { display: none; }
   }
-  /* Landing + Pricing CTA visibility — logged-out visitors see Log In +
-     Get Started (Open App is hidden because they don't have an app to open).
-     Signed-in visitors see only Open App; Log In / Get Started / "← Home"
-     are hidden because the logo + Open App already do the work. */
+  /* Landing + Pricing CTA visibility — logged-out visitors see Pricing +
+     Log In in the header (Get Started lives in the hero). Signed-in visitors
+     see Open App instead of Log In. */
   #lpOpenApp, #prOpenApp { display: none; }
   .lp-authed #lpLogin,
   .lp-authed #lpSignup,
@@ -4674,24 +4673,18 @@
   .lp-authed #lpOpenApp,
   .lp-authed #prOpenApp { display: inline-block; }
 
-  /* Primary CTA prominence — Get Started is the single dominant action for
-     logged-out visitors. Lift it visually so it clearly outweighs the
-     quieter Log In link beside it. */
-  #lpSignup, #lpOpenApp {
+  /* Signed-in Open App CTA — lift it so it clearly outweighs quieter nav links. */
+  #lpOpenApp {
     box-shadow: 0 12px 36px -10px rgba(181,143,74,0.65);
   }
-  #lpSignup:hover, #lpOpenApp:hover {
+  #lpOpenApp:hover {
     box-shadow: 0 14px 40px -8px rgba(201,165,88,0.8);
     transform: translateY(-1px);
   }
-  /* Mobile nav — strip section anchors + Log In so only the logo + the
-     single primary CTA remain. The hero/scroll already gets users to
-     features, so the in-nav links are redundant on small screens. */
+  /* Mobile nav — Log In is available in auth flows; keep Pricing in the header
+     now that Get Started / Learn no longer crowd the bar. */
   @media (max-width: 639px) {
-    .lp-nav .lp-scroll,
-    .lp-nav #lpLogin { display: none !important; }
-    /* Beef up the mobile CTA to a comfortable 44px+ tap target, on one line */
-    .lp-nav #lpSignup,
+    .lp-nav .lp-scroll { display: none !important; }
     .lp-nav #lpOpenApp {
       padding: 0.625rem 0.95rem;
       font-size: 0.9rem;
@@ -8332,17 +8325,10 @@
 #landingScreen .btn-gold, #landingScreen .btn-ghost, #landingScreen .nav-login { font-family: inherit; }
 
 /* auth-state nav visibility — outrank the namespaced .btn-gold/.nav-login (1,1,0).
-   Logged out: Log In + Get Started (no Open App). Signed in: only Open App. */
+   Logged out: Pricing + Log In (Get Started is in the hero). Signed in: Open App. */
 #landingScreen #lpOpenApp { display: none; }
-#landingScreen.lp-authed #lpLogin,
-#landingScreen.lp-authed #lpSignup { display: none; }
+#landingScreen.lp-authed #lpLogin { display: none; }
 #landingScreen.lp-authed #lpOpenApp { display: inline-flex; }
-/* mobile: the nav can't hold logo + 5 actions at 375px — drop the secondary links
-   (Pricing is in the footer + close CTA; Learn is in the footer) so the logo fits */
-@media (max-width: 560px) {
-  #landingScreen .nav-actions #lpPricingNav,
-  #landingScreen .nav-actions [data-learn-link] { display: none; }
-}
 
 /* ============================================================
    LANDING-V2 LIGHT MODE  (first pass — refined via theme-parity)
@@ -9091,9 +9077,7 @@
     </button>
     <nav class="nav-actions" aria-label="Primary">
       <button id="lpPricingNav" class="nav-login" type="button">Pricing</button>
-      <button data-learn-link="" class="nav-login" type="button">Learn</button>
       <button id="lpLogin" class="nav-login" type="button">Log In</button>
-      <button id="lpSignup" class="btn-gold" type="button">Get Started Free</button>
       <button id="lpOpenApp" class="btn-gold" type="button">Open App →</button>
       <button data-theme-toggle type="button" class="nav-login lp-theme-toggle" aria-label="Toggle light or dark mode" title="Toggle light / dark"></button>
     </nav>
@@ -9146,16 +9130,8 @@
     <span class="hero-l2"><span class="hero-w" style="--w:4">Or</span> <span class="hero-w" style="--w:5">sixty</span> <span class="hero-w" style="--w:6">seconds.</span></span>
   </h1>
   <p class="hero-sub">Anchor prices a full window &amp; door install <b>while this page scrolls</b>. Watch it happen to one job, start to finish.</p>
-  <div class="ticket" role="note" aria-label="Sample job">
-    <span class="t-name">The Delgado Job</span>
-    <span class="t-meta"><b>14</b> openings</span>
-    <span class="t-meta"><b>187</b> LF</span>
-    <span class="t-meta">Block framed · Impact glass</span>
-    <span class="t-meta">Cape Coral, FL</span>
-  </div>
   <div class="hero-ctas">
     <button id="lpHeroSignup" class="btn-gold" type="button">Get Started Free</button>
-    <button class="btn-ghost lp-scroll" data-scroll="scan" type="button">Follow the job ↓</button>
   </div>
   <p class="hero-follow" aria-hidden="true">The clock starts when you do</p>
 </section>
@@ -9653,7 +9629,6 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           Home
         </button>
-        <button class="btn hidden sm:block text-sm font-semibold text-slate-400 hover:text-slate-100 px-3 py-2" data-learn-link="">Learn</button>
         <button id="prLogin" type="button" class="btn text-sm font-medium text-slate-400 hover:text-[#c9a558] px-3 py-2">Log In</button>
         <button id="prSignup" type="button" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-2">Get Started</button>
         <button id="prOpenApp" type="button" class="lp-btn-gold btn rounded-full text-[15px] font-black tracking-tight px-5 py-2.5 ml-2">Open App →</button>
@@ -9855,6 +9830,17 @@
         <p class="text-lg sm:text-xl text-slate-200 font-bold tracking-tight">Quote your next job in minutes.</p>
         <button id="lpPricingFinalCta" class="lp-btn-gold btn rounded-full text-sm font-bold px-7 py-3.5 mt-5">Start your free trial &rarr;</button>
       </div>
+
+      <footer class="pr-footer mt-16 pt-6 border-t border-slate-800/60">
+        <div class="pr-foot-links flex flex-wrap justify-center gap-x-5 gap-y-2 text-[12px] text-slate-500">
+          <button type="button" data-learn-link="" class="hover:text-[#c9a558] transition">Learn</button>
+          <button type="button" data-legal-link="terms" class="hover:text-[#c9a558] transition">Terms</button>
+          <button type="button" data-legal-link="privacy" class="hover:text-[#c9a558] transition">Privacy</button>
+          <button type="button" data-legal-link="disclaimer" class="hover:text-[#c9a558] transition">Disclaimers</button>
+          <button type="button" data-legal-link="cookies" class="hover:text-[#c9a558] transition">Cookies</button>
+          <span>© 2026 Anchor</span>
+        </div>
+      </footer>
     </div>
   </section>
 </div>
@@ -41734,11 +41720,14 @@ function wireLanding() {
     window.track("hero_cta_click", { which: currentUser ? "open_app" : "login" });
     if (currentUser) closeLanding(); else openAuth("login");
   });
-  ["lpSignup", "lpHeroSignup", "lpCtaSignup"].forEach(id =>
-    document.getElementById(id).addEventListener("click", () => {
+  ["lpHeroSignup", "lpCtaSignup"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("click", () => {
       window.track("hero_cta_click", { which: currentUser ? "open_app" : "signup" });
       if (currentUser) { closeLanding(); openDashboard(); } else openAuth("signup");
-    }));
+    });
+  });
   document.getElementById("lpOpenApp").addEventListener("click", () => {
     window.track("hero_cta_click", { which: "open_app" });
     closeLanding(); openDashboard();
