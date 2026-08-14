@@ -4,7 +4,11 @@
 (function () {
   "use strict";
 
-  var STAGES = { processing: "Processing your order", printing: "Printing your receipt", complete: "Subscription activated" };
+  var STAGES = {
+    processing: "Processing your order",
+    printing: "Printing your receipt",
+    complete: "Order complete"
+  };
   var FEED_MS = 1750;
   var TOOTH_COUNT = 40;
   var TOOTH_DEPTH = 4;
@@ -13,6 +17,7 @@
   var _feedTimer = 0;
   var _wired = false;
   var _clipReady = false;
+  var _opts = { plan: "", billing: "", sessionId: "" };
 
   function prefersReducedMotion() {
     try { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
@@ -71,11 +76,25 @@
       .replace(/"/g, "&quot;");
   }
 
+  function normalizePlanId(id) {
+    var s = String(id || "").toLowerCase().trim();
+    if (s === "shop") return "unlimited";
+    return s;
+  }
+
+  function normalizeBilling(raw) {
+    var s = String(raw || "").toLowerCase();
+    if (/year|annual/.test(s)) return "annual";
+    if (/month/.test(s)) return "monthly";
+    return "";
+  }
+
   function findPlan(planId) {
-    if (!planId || planId === "trial" || planId === "none" || planId === "crew") return null;
+    var id = normalizePlanId(planId);
+    if (!id || id === "trial" || id === "none" || id === "crew") return null;
     var list = (typeof PLANS !== "undefined" && Array.isArray(PLANS)) ? PLANS : [];
     for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].id === planId) return list[i];
+      if (list[i] && list[i].id === id) return list[i];
     }
     return null;
   }
@@ -92,8 +111,8 @@
 
   function inferBilling(ent) {
     var raw = ent && (ent.billing || ent.interval || ent.billingPeriod || ent.billing_interval || ent.priceInterval);
-    if (raw && /year|annual/i.test(String(raw))) return "annual";
-    if (raw && /month/i.test(String(raw))) return "monthly";
+    var fromEnt = normalizeBilling(raw);
+    if (fromEnt) return fromEnt;
     var reset = Number(ent && ent.cycleResetAt);
     if (reset) {
       var days = (reset - Date.now()) / 86400000;
@@ -107,38 +126,141 @@
     return String(n);
   }
 
+  function formatMoney(n) {
+    var num = Number(n);
+    if (!isFinite(num)) return "";
+    return "$" + num.toFixed(2);
+  }
+
+  function formatDate(d) {
+    try {
+      return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    } catch (_) {
+      return d.toDateString();
+    }
+  }
+
+  function shortOrder(sessionId) {
+    var s = String(sessionId || "").replace(/\s+/g, "");
+    if (!s) return "";
+    return s.length > 8 ? s.slice(-8) : s;
+  }
+
+  function absorbOpts(opts) {
+    if (!opts || typeof opts !== "object") return;
+    _opts = {
+      plan: opts.plan ? String(opts.plan) : "",
+      billing: opts.billing ? String(opts.billing) : "",
+      sessionId: opts.sessionId ? String(opts.sessionId) : ""
+    };
+  }
+
+  function resolveSlip() {
+    var ent = currentEntitlements();
+    var livePlan = findPlan(ent && ent.plan);
+    var previewPlan = findPlan(_opts.plan);
+    var plan = livePlan || previewPlan;
+    var billing = livePlan
+      ? inferBilling(ent)
+      : (normalizeBilling(_opts.billing) || "monthly");
+    var annual = billing === "annual";
+    var total = plan ? (annual ? plan.annualPrice : plan.monthlyPrice) : "";
+    return {
+      plan: plan,
+      annual: annual,
+      total: total,
+      sessionId: _opts.sessionId || "",
+      date: formatDate(new Date())
+    };
+  }
+
+  function barcodeSvg(seed) {
+    var s = String(seed || "anchor");
+    var hash = 2166136261;
+    var i;
+    for (i = 0; i < s.length; i++) {
+      hash ^= s.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    var bars = [];
+    var x = 8;
+    for (i = 0; i < 56; i++) {
+      hash = Math.imul(hash ^ (hash >>> 13), 1274126177);
+      var w = 1 + ((hash >>> 16) % 3);
+      var on = ((hash >>> 8) & 1) || i === 0 || i === 55;
+      if (on) {
+        bars.push('<rect x="' + x + '" y="0" width="' + w + '" height="36" fill="#1a1a1a"/>');
+      }
+      x += w + 1;
+    }
+    var width = x + 8;
+    return '<svg class="rp-barcode" viewBox="0 0 ' + width + ' 36" width="100%" height="36" aria-hidden="true" preserveAspectRatio="none">' +
+      bars.join("") + "</svg>";
+  }
+
+  function rowHtml(key, value, extraClass) {
+    return '<div class="rp-row' + (extraClass ? " " + extraClass : "") + '">' +
+      '<span class="rp-k">' + escapeHtml(key) + "</span>" +
+      '<span class="rp-lead" aria-hidden="true"></span>' +
+      '<span class="rp-v">' + escapeHtml(value) + "</span>" +
+      "</div>";
+  }
+
+  function logoHtml() {
+    return '<img class="rp-wordmark" src="brand/anchor-wordmark-dark.png" alt="Anchor" width="140" height="28" />';
+  }
+
+  function fillScreen(info) {
+    var planEl = el("rpScreenPlan");
+    var periodEl = el("rpScreenPeriod");
+    var totalEl = el("rpScreenTotal");
+    if (info.plan) {
+      if (planEl) planEl.textContent = info.plan.name + " plan";
+      if (periodEl) periodEl.textContent = info.annual ? "Annual subscription" : "Monthly subscription";
+      if (totalEl) totalEl.textContent = formatMoney(info.total);
+    } else {
+      if (planEl) planEl.textContent = "Subscription";
+      if (periodEl) periodEl.textContent = "";
+      if (totalEl) totalEl.textContent = "";
+    }
+  }
+
   function fillSlip() {
     var body = el("rpSlip");
     if (!body) return;
-    var ent = currentEntitlements();
-    var planId = (ent && ent.plan) || "";
-    var plan = findPlan(planId);
-    if (!plan) {
+    var info = resolveSlip();
+    fillScreen(info);
+    var seed = info.sessionId || ((info.plan && info.plan.id) || "anchor") + "|" + info.date + "|" + info.total;
+    var barcode = barcodeSvg(seed);
+    var order = shortOrder(info.sessionId);
+
+    if (!info.plan) {
       body.innerHTML =
-        '<div class="rp-brand">ANCHOR</div>' +
+        logoHtml() +
         '<hr class="rp-rule" />' +
-        '<div class="rp-plan">Subscription activated</div>' +
+        '<div class="rp-fallback">Subscription activated</div>' +
         '<hr class="rp-rule" />' +
-        '<p class="rp-thanks"><strong>Welcome aboard.</strong>You\'re all set — thanks for choosing Anchor.</p>';
+        rowHtml("Date", info.date) +
+        (order ? rowHtml("Order", order) : "") +
+        '<hr class="rp-rule" />' +
+        barcode;
       return;
     }
-    var billing = inferBilling(ent);
-    var annual = billing === "annual";
-    var total = annual ? plan.annualPrice : plan.monthlyPrice;
-    var date = new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+    var period = info.annual ? "Annual subscription" : "Monthly subscription";
+    var money = formatMoney(info.total);
     body.innerHTML =
-      '<img class="rp-wordmark" src="brand/anchor-wordmark-dark.png" alt="Anchor" width="140" height="28" />' +
+      logoHtml() +
       '<hr class="rp-rule" />' +
-      '<div class="rp-plan">' + escapeHtml(plan.name) + '</div>' +
-      '<div class="rp-cycle">' + (annual ? "Annual subscription" : "Monthly subscription") + '</div>' +
+      rowHtml((info.plan.name + " plan").toUpperCase(), money) +
+      '<div class="rp-sub">' + escapeHtml(period) + "</div>" +
       '<hr class="rp-rule" />' +
-      '<dl class="rp-rows">' +
-        '<div class="rp-row"><dt>Total</dt><dd>$' + escapeHtml(total) + '</dd></div>' +
-        '<div class="rp-row"><dt>Quote limit</dt><dd>' + escapeHtml(formatLimit(plan.quoteLimit)) + '</dd></div>' +
-        '<div class="rp-row"><dt>Date</dt><dd>' + escapeHtml(date) + '</dd></div>' +
-      '</dl>' +
+      rowHtml("TOTAL PAID", money, "is-total") +
+      rowHtml("Quotes", formatLimit(info.plan.quoteLimit)) +
+      rowHtml("Date", info.date) +
+      (order ? rowHtml("Order", order) : "") +
       '<hr class="rp-rule" />' +
-      '<p class="rp-thanks"><strong>Thank you.</strong>Welcome aboard — your shop is ready to quote.</p>';
+      barcode;
   }
 
   function dismiss() {
@@ -167,13 +289,16 @@
     document.addEventListener("keydown", onKey);
     var done = el("rpDone");
     if (done) done.addEventListener("click", dismiss);
+    var home = el("rpHome");
+    if (home) home.addEventListener("click", dismiss);
     _wired = true;
   }
 
-  function show(stage) {
+  function show(stage, opts) {
     var overlay = el("receiptPrinterOverlay");
     var root = el("rpRoot");
     if (!overlay || !root) return false;
+    absorbOpts(opts);
     wire();
     applyClip();
     if (_feedTimer) { clearTimeout(_feedTimer); _feedTimer = 0; }
