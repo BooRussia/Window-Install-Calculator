@@ -277,7 +277,7 @@ check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => 
   assert.match(html, /if \(key === "jobs"\)[\s\S]{0,800}dash-attn-list/);
   assert.match(html, /if \(key === "jobs"\)[\s\S]{0,800}data-attn-open/);
   assert.match(html, /No saved jobs yet — your quotes show up here\./);
-  assert.match(html, /\.dash-launch-card \{[^}]*height: 240px;/);
+  assert.match(html, /\.dash-launch-card \{[^}]*min-height: 240px;/);
   assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?min-height: 268px;[\s\S]*?overflow: hidden;/);
   assert.equal(/#dashLaunchpad[^{]*\{[^}]*min-height:\s*268/.test(html), false);
 
@@ -290,24 +290,28 @@ check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => 
   assert.equal(env.DATA.config.dashLayouts.ultrawide, undefined);
 });
 
-check("rich row cards clip and share height; tiles stay 240", () => {
+check("row = tallest; no 360 cap; no inner scroll; tiles grow in mixed rows", () => {
   assert.match(html, /\.dash-launch-cell\.is-rich \{[\s\S]*?align-self: stretch;[\s\S]*?height: 100%;/);
   assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?flex: 1 1 0;[\s\S]*?overflow: hidden;/);
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bars,[\s\S]*?\.dpt-wrap,[\s\S]*?\.dash-attn-list,[\s\S]*?\.dlb-empty \{[\s\S]*?flex: 1 1 0;[\s\S]*?min-height: 0;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dpt-wrap,[\s\S]*?\.dash-attn-list \{[\s\S]*?overflow: hidden;/);
+  assert.equal(/\.dash-launch-cell\.is-rich \.dpt-wrap[\s\S]{0,80}overflow:\s*auto/.test(html), false);
+  assert.equal(/\.dash-launch-cell\.is-rich \.dash-attn-list[\s\S]{0,80}overflow:\s*auto/.test(html), false);
+  assert.equal(/\.dash-launch-cell\.is-rich[^{]*\{[^}]*max-height:\s*360px/.test(html), false);
+  assert.equal(/\.dash-launch-cell\.is-rich \.dash-launch-card \{[^}]*max-height:\s*360px/.test(html), false);
   assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bar-col,[\s\S]*?min-height: 0;/);
   assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bar-lbl \{ flex: 0 0 auto; \}/);
-  assert.match(html, /\.dash-launch-card \{[^}]*height: 240px;/);
   assert.match(html, /#dashLaunchpad \{ align-items: stretch; \}/);
   assert.equal(/#dashLaunchpad[^.{]*\{[^}]*align-items:\s*start/.test(html), false);
   const tileRule = html.match(/(?:^|\n)\s*\.dash-launch-card \{[^}]+\}/);
   assert.ok(tileRule, "tile .dash-launch-card rule exists");
-  assert.match(tileRule[0], /height: 240px;/);
-  assert.equal(/height:\s*100%/.test(tileRule[0]), false, "do not globally stretch non-rich tiles");
-  assert.match(html, /@media \(min-width: 1280px\)[\s\S]{0,900}max-height: 360px;/);
+  assert.match(tileRule[0], /min-height: 240px;/);
+  assert.match(tileRule[0], /height: 100%;/);
+  assert.equal(/(?:^|[^-])height:\s*240px/.test(tileRule[0]), false, "tile must be able to grow in a mixed row");
+  assert.match(html, /dashRecentJobs\(jobs, 6\)/);
+  assert.match(html, /\.slice\(0, 6\)/);
+  assert.equal(/dashRecentJobs\(jobs,\s*(?:[9]|[1-9]\d+)/.test(html), false, "jobs page stays ~6–8");
   assert.equal(/\.dash-launch-cell\.is-rich \.dash-bars \{[^}]*min-height: 92px/.test(html), false);
   assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[^}]*flex: 1 1 0;/);
-  assert.equal(/\.dash-launch-cell\.is-rich \.dash-launch-card \{[^}]*flex: 1 1 auto;/.test(html), false,
-    "rich card must use basis 0, not auto");
 });
 
 console.log("\n" + passed + " checks passed");

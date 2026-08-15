@@ -548,30 +548,29 @@
     .dlc-span-2 { grid-column: span 2; }
     .dlc-span-3 { grid-column: span 3; }
   }
-  /* Rich cards in the SAME grid row share that row's height. The cell stretches
-     (align-self + height 100% — do not set align-items: start). The rounded
-     rect fills the cell (flex basis 0, not auto) and CLIP inside. 240px tiles
-     are not stretched to the row. */
+  /* Row = tallest paged card on that line (grid stretch). Drag to a new line
+     and the new tallest wins — no JS row-height engine. overflow:hidden on the
+     rounded rect keeps paint inside; no inner scrollbar on lists/tables. */
   .dash-launch-cell.is-rich {
-    min-height: 0; display: flex; flex-direction: column;
+    display: flex; flex-direction: column;
     align-self: stretch; height: 100%;
   }
   .dash-launch-cell.is-rich .dash-launch-card {
     flex: 1 1 0; height: 100%; min-height: 268px; overflow: hidden;
   }
   .dash-launch-cell.is-rich .dash-launch-body {
-    flex: 1 1 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden;
   }
-  /* Every rich body panel fills leftover space — not just Booked bars.
-     Lists/tables grow to the foot; extra rows scroll. Empty centers. */
-  .dash-launch-cell.is-rich .dash-bars,
+  /* Pipeline table + paged lists size the row (content basis). Booked bars
+     flex into leftover. No overflow:auto — a card scrollbar fails. */
   .dash-launch-cell.is-rich .dpt-wrap,
-  .dash-launch-cell.is-rich .dash-attn-list,
+  .dash-launch-cell.is-rich .dash-attn-list {
+    flex: 1 1 auto; overflow: hidden;
+  }
+  .dash-launch-cell.is-rich .dash-bars,
   .dash-launch-cell.is-rich .dlb-empty {
     flex: 1 1 0; min-height: 0;
   }
-  .dash-launch-cell.is-rich .dpt-wrap,
-  .dash-launch-cell.is-rich .dash-attn-list { overflow: auto; }
   .dash-launch-cell.is-rich .dash-bar-col,
   .dash-launch-cell.is-rich .dash-bar-track { min-height: 0; }
   .dash-launch-cell.is-rich .dash-bar-lbl { flex: 0 0 auto; }
@@ -579,7 +578,7 @@
   .dash-launch-cell.is-rich .dash-ovempty {
     display: flex; align-items: center; justify-content: center; text-align: center;
   }
-  .dash-launch-cell.is-rich .dash-ovempty { flex: 1 1 0; min-height: 0; }
+  .dash-launch-cell.is-rich .dash-ovempty { flex: 1 1 auto; }
   /* The panels' own sub-line, reused inside the card body. */
   .dash-launch-cell.is-rich .dash-ovsub { display: block; margin: -2px 0 10px; flex: 0 0 auto; }
   .dash-launch-cell.is-rich .dash-ovfoot { flex: 0 0 auto; }
@@ -757,11 +756,8 @@
       padding-left: 24px;
       padding-right: 24px;
     }
-    /* Charts may use the extra width; extra height is not allowed. Laptop
-       keeps the existing height:100% stretch so a pair of rich cards still
-       share a row. Content clips/scrolls inside; it must not paint outside. */
-    .dash-launch-cell.is-rich { max-height: 360px; }
-    .dash-launch-cell.is-rich .dash-launch-card { max-height: 360px; }
+    /* Extra width buys columns. Row height follows the tallest *paged* card
+       on that line — do not clip at 360. */
   }
   @media (min-width: 1440px) {
     #dashNavWell,
@@ -6321,7 +6317,7 @@
   /* ---- Launchpad cards (modular dashboard home) ---- */
   /* Hover shadow lives on ::after and animates via opacity (compositor-cheap)
      instead of tweening box-shadow, which repaints the card every frame. */
-  .dash-launch-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 240px; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease; }
+  .dash-launch-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; height: 100%; min-height: 240px; flex: 1 1 0; cursor: pointer; border: 1px solid #1e293b; border-radius: 18px; background: rgba(15,23,42,0.5); padding: 16px; transition: border-color .15s ease, transform .15s ease; }
   .dash-launch-card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 16px 36px -18px rgba(0,0,0,0.6); opacity: 0; transition: opacity .15s ease; pointer-events: none; }
   .dash-launch-card:hover { border-color: rgba(181,143,74,0.45); transform: translateY(-2px); }
   .dash-launch-card:hover::after { opacity: 1; }
@@ -6477,7 +6473,8 @@
   .dash-launch-chev { color: #475569; flex-shrink: 0; transition: transform .15s ease, color .15s ease; }
   .dash-launch-card:hover .dash-launch-chev { color: #c9a558; transform: translateX(2px); }
   /* ---- Card "what is this?" hint: ⓘ trigger + floating popover (zero reflow) ---- */
-  .dash-launch-cell { position: relative; }
+  .dash-launch-cell { position: relative; display: flex; flex-direction: column; align-self: stretch; height: 100%; }
+  .dash-launch-cell:not(.is-rich) .dash-launch-body { justify-content: center; }
   /* (ⓘ corner spacing handled by .dash-launch-head padding-right) */
   .dash-tip-btn { position: absolute; top: 8px; right: 8px; z-index: 5; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: #c9a558; cursor: pointer; border-radius: 9999px; -webkit-tap-highlight-color: transparent; transition: opacity .15s ease, background .15s ease; }
   .dash-tip-btn:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
