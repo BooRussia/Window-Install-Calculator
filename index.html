@@ -537,6 +537,8 @@
   /* Launchpad card widths. Tailwind gives the grid 1/2/3 columns by breakpoint
      through lg (1024); 1440+ adds a 4th column in the wide-stage block below.
      The chosen span clamps to what the current breakpoint actually has. */
+  /* preventCollision: a 3→1 hole stays a hole in stored spans. Dense may
+     slide a later tile into the visual gap; that tile's saved span is unchanged. */
   @media (min-width: 640px) { #dashLaunchpad { grid-auto-flow: dense; } }
   @media (min-width: 640px) and (max-width: 1023.98px) {
     .dlc-span-2, .dlc-span-3 { grid-column: span 2; }
@@ -20364,7 +20366,8 @@ const DASH_CARDS = [
   // `rich: true` = the card body is a full data panel (the retired overview
   // grid's content, folded in here 2026-08-02 — one grid, one drag space) and
   // may hold its own interactive rows, so the cell renders as a div, not a
-  // <button>. `defaultSpan` recreates the old overview's 3/2/1 proportions.
+  // <button>. `defaultSpan` is the recommended width from content: list/chart
+  // (pipeline, booked) = 2, tile cards = 1. A 3 is never recommended on ultrawide.
   { key: "pipeline", title: "Deal pipeline", rich: true, defaultSpan: 2,
     blurb: "Every saved quote by stage — see where deals pile up, what's landed, and your win rate.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>` },
@@ -20778,9 +20781,11 @@ function dashFirstRunAction(act) {
 // Per-user launchpad layout: which cards show, in what order, and how wide.
 // Resolved from DATA.config.dashLayouts[band] against the live DASH_CARDS list
 // so new cards added in code auto-appear (at the end) and cards removed from
-// code just drop out. Bands are phone / laptop / ultrawide — one saved layout
-// used to be shared across every viewport (DATA.config.dashLayout); that is
-// migrated once into all three bands, then writes go only to the ACTIVE band.
+// code just drop out. Bands are phone / laptop / ultrawide. A missing band is
+// NOT a smaller band — it loads that band's recommended defaults. Writes go
+// only to the ACTIVE band; saveData persists the whole dashLayouts map
+// (react-grid-layout #2110). Never copy or interpolate a missing larger band
+// from a smaller one.
 /* One-time merge of the retired overview grid's layout (DATA.config.dashOvLayout)
    into the single card grid (owner 2026-08-02: "one big section"). The trio maps
    onto its card twins — attention → followups (same computeFollowups data),
@@ -20821,9 +20826,10 @@ function migrateDashOvLayout() {
      5. reference (AI credits, manufacturers, team)
    Follow-ups leads deliberately: the KPI strip above already summarizes open
    pipeline / won / win rate, so the one card that says DO SOMETHING outranks
-   the cards that restate those numbers. Widths (see `defaultSpan`) make each of
-   the first two rows add to a full 3 blocks. A saved layout always wins — this
-   only fills in cards the user has never placed. */
+   the cards that restate those numbers. Recommended widths follow content:
+   tile cards = 1, list/chart (pipeline, booked) = 2. A 3 is never recommended
+   on the 4-col ultrawide stage (the user may still pick one). A saved layout
+   always wins — this only fills in cards the user has never placed. */
 const DASH_DEFAULT_ORDER = ["followups", "pipeline", "booked", "jobs",
   "shopping", "revenue", "calibration", "insights", "esign", "changeorder",
   "aiplan", "manufacturers", "team"];
@@ -20853,34 +20859,32 @@ function dashLayoutCfgHasContent(cfg) {
     || (Array.isArray(cfg.hidden) && cfg.hidden.length > 0)
     || (cfg.spans && typeof cfg.spans === "object" && Object.keys(cfg.spans).length > 0);
 }
-function dashCardDefaultSpan(key) {
+function dashCardDefaultSpan(key, band) {
   const card = DASH_CARDS.find(c => c.key === key);
   const raw = card && Number(card.defaultSpan);
-  return (raw >= 1 && raw <= 3) ? Math.round(raw) : 1;
+  let rec = (raw >= 1 && raw <= 3) ? Math.round(raw) : 1;
+  // Content defaults: tiles = 1, list/chart (pipeline, booked) = 2. Never
+  // recommend a 3 on the 4-col ultrawide stage — stored 3 is still allowed.
+  const use = DASH_LAYOUT_BANDS.includes(band) ? band : dashLayoutBand();
+  if (use === "ultrawide" && rec >= 3) rec = 2;
+  return rec;
 }
-/* One-time copy of the single shared dashLayout into phone/laptop/ultrawide
-   so an existing arrangement is not lost. After this, persistDashLayout writes
-   only the active band — never copy spans across bands. */
+/* One-time: the old single dashLayout lands on the last-used band (or laptop).
+   Phone / ultrawide stay MISSING so first visit there gets that band's
+   recommended defaults — never a copy of a smaller band. */
 function migrateDashLayouts() {
   migrateDashOvLayout();
   DATA.config = DATA.config || {};
-  const existing = DATA.config.dashLayouts;
-  if (existing && typeof existing === "object"
-      && DASH_LAYOUT_BANDS.some(b => existing[b] && typeof existing[b] === "object")) {
-    DASH_LAYOUT_BANDS.forEach(b => {
-      if (!existing[b] || typeof existing[b] !== "object") existing[b] = emptyDashLayoutCfg();
-    });
-    return;
-  }
+  // An existing map (even `{}` after Reset) means we already moved off the
+  // single-layout era — do not invent missing bands or re-apply dashLayout.
+  if (DATA.config.dashLayouts && typeof DATA.config.dashLayouts === "object") return;
   const snap = cloneDashLayoutCfg(DATA.config.dashLayout);
-  DATA.config.dashLayouts = {
-    phone: cloneDashLayoutCfg(snap),
-    laptop: cloneDashLayoutCfg(snap),
-    ultrawide: cloneDashLayoutCfg(snap)
-  };
-  if (dashLayoutCfgHasContent(snap)) {
-    try { saveData(DATA); } catch (_) {}
-  }
+  if (!dashLayoutCfgHasContent(snap)) return;
+  const stored = DATA.config.dashLayoutBand;
+  const home = DASH_LAYOUT_BANDS.includes(stored) ? stored : "laptop";
+  DATA.config.dashLayouts = { [home]: snap };
+  DATA.config.dashLayoutBand = home;
+  try { saveData(DATA); } catch (_) {}
 }
 function resolveDashLayout(band) {
   migrateDashLayouts();
@@ -20894,12 +20898,13 @@ function resolveDashLayout(band) {
   DASH_DEFAULT_ORDER.filter(k => all.includes(k))
     .concat(all.filter(k => !DASH_DEFAULT_ORDER.includes(k)))
     .forEach(k => { if (!order.includes(k)) order.push(k); });
-  // Per-card width, 1-3 blocks. Stored 3 still means "full width" on 3-col;
-  // CSS remaps .dlc-span-3 → span 2 on the 4-col ultrawide grid.
+  // Per-card width, 1-3 blocks. A missing band uses THIS band's recommended
+  // spans — not another band's saved ones. Stored 3 is allowed; CSS remaps
+  // .dlc-span-3 → span 2 on the 4-col ultrawide grid.
   const spans = {};
   all.forEach(k => {
     const raw = cfg.spans && Number(cfg.spans[k]);
-    spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : dashCardDefaultSpan(k);
+    spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : dashCardDefaultSpan(k, use);
   });
   return { band: use, order, spans, visible: order.filter(k => !hidden.has(k)), hiddenList: order.filter(k => hidden.has(k)) };
 }
@@ -20907,16 +20912,21 @@ function persistDashLayout(visibleOrder, hiddenList, spans, band) {
   migrateDashLayouts();
   const use = DASH_LAYOUT_BANDS.includes(band) ? band : dashLayoutBand();
   DATA.config = DATA.config || {};
-  DATA.config.dashLayouts = DATA.config.dashLayouts || {};
-  const prev = DATA.config.dashLayouts[use] || {};
-  DATA.config.dashLayouts[use] = { order: visibleOrder.concat(hiddenList), hidden: hiddenList.slice(),
-    spans: spans || prev.spans || {} };
+  // Whole-map persist (RGL #2110): keep every existing band, write ONLY the
+  // active one. Do not create phone/ultrawide just because laptop changed.
+  const map = Object.assign({}, DATA.config.dashLayouts || {});
+  const prev = (map[use] && typeof map[use] === "object") ? map[use] : {};
+  map[use] = { order: visibleOrder.concat(hiddenList), hidden: hiddenList.slice(),
+    spans: Object.assign({}, spans || prev.spans || {}) };
+  DATA.config.dashLayouts = map;
+  DATA.config.dashLayoutBand = use;
   saveData(DATA);
 }
 function setDashCardSpan(key, span) {
   const { visible, hiddenList, spans } = resolveDashLayout();
-  // Size click is local — write ONLY this card. Empty cells in a row are OK;
-  // do not grow/shrink a neighbour (that was the TesDrive defect).
+  // preventCollision: write ONLY this card. A 3→1 hole stays a hole. Dense
+  // packing may slide a later tile into the visual gap without changing that
+  // tile's stored span. Neighbour span never grows.
   spans[key] = Math.min(3, Math.max(1, Number(span) || 1));
   persistDashLayout(visible, hiddenList, spans);
   refreshDashLaunchpad();
@@ -20967,12 +20977,17 @@ function dashAdd(key) {
   persistDashLayout(nv, hiddenList.filter(k => k !== key), spans); refreshDashLaunchpad();
 }
 function dashResetLayout() {
-  // Reset the ACTIVE band only — phone / laptop / ultrawide stay independent.
-  // Restores default order + defaultSpan for every card on this screen.
+  // Reset the ACTIVE band only — delete its key so it loads recommended
+  // defaults. Other bands stay as saved (missing ≠ smaller key).
   if (DATA.config) {
     migrateDashLayouts();
     const band = dashLayoutBand();
-    if (DATA.config.dashLayouts) DATA.config.dashLayouts[band] = emptyDashLayoutCfg();
+    if (DATA.config.dashLayouts && typeof DATA.config.dashLayouts === "object") {
+      const map = Object.assign({}, DATA.config.dashLayouts);
+      delete map[band];
+      DATA.config.dashLayouts = map;
+    }
+    DATA.config.dashLayoutBand = band;
     delete DATA.config.dashOvLayout;
   }
   saveData(DATA); refreshDashLaunchpad();
@@ -21238,7 +21253,7 @@ function renderDashLaunchpad(jobs) {
             <button type="button" class="dec-btn" data-dashmove="down" data-key="${c.key}" aria-label="Move ${escHtml(c.title)} later">&darr;</button>
             <button type="button" class="dec-btn dec-remove" data-dashremove="${c.key}" aria-label="Remove ${escHtml(c.title)}">&times;</button>
           </span><span class="dec-row">
-            ${(() => { const rec = dashCardDefaultSpan(c.key); return [1,2,3].map(w => {
+            ${(() => { const rec = dashCardDefaultSpan(c.key, band); return [1,2,3].map(w => {
               const on = (spans[c.key] || 1) === w;
               const isRec = w === rec;
               const name = DEC_SPAN_NAME[w] + (isRec ? " (recommended)" : "");
@@ -36880,11 +36895,11 @@ function restoreDefaults() {
   // silently wipe these (they're not what the dialog promises to reset):
   //  - entitlements: plan/trial clock/usage (else a paying user drops to trial)
   //  - customerLogos: per-customer uploaded images (irreversible loss)
-  //  - dashLayout / dashLayouts: the user's dashboard card arrangement
+  //  - dashLayout / dashLayouts / dashLayoutBand: dashboard card arrangement
   //  - firstQuoteSent: onboarding-checklist progress
   const cfg = (DATA && DATA.config) ? DATA.config : {};
   const keep = {};
-  ["entitlements", "customerLogos", "dashLayout", "dashLayouts", "firstQuoteSent"].forEach(k => {
+  ["entitlements", "customerLogos", "dashLayout", "dashLayouts", "dashLayoutBand", "firstQuoteSent"].forEach(k => {
     if (cfg[k] !== undefined && cfg[k] !== null) keep[k] = clone(cfg[k]);
   });
   DATA = clone(DEFAULT_DATA);

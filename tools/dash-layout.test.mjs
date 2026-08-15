@@ -5,7 +5,9 @@
 // a gap — shrinking a 3 to a 1 turned the next card from 1 into 2.
 //
 // Also: layouts persist independently per viewport band (phone / laptop /
-// ultrawide). A size change on ultrawide must not rewrite laptop or phone.
+// ultrawide). A missing band loads THAT band's recommended defaults — never
+// a copy of a smaller band. Persist writes the whole dashLayouts map but
+// only mutates the active breakpoint (RGL #2110).
 //
 // These extract the REAL helpers from index.html. Run:
 //   node tools/dash-layout.test.mjs
@@ -83,15 +85,20 @@ check("dashLayoutBand keys phone / laptop / ultrawide by width", () => {
   assert.equal(api.dashLayoutBand(2560), "ultrawide");
 });
 
-check("dashCardDefaultSpan uses pipeline/booked = 2, others 1", () => {
+check("dashCardDefaultSpan uses pipeline/booked = 2, others 1; never 3 on ultrawide", () => {
   const { api } = makeEnv();
   assert.equal(api.dashCardDefaultSpan("pipeline"), 2);
   assert.equal(api.dashCardDefaultSpan("booked"), 2);
   assert.equal(api.dashCardDefaultSpan("followups"), 1);
   assert.equal(api.dashCardDefaultSpan("jobs"), 1);
+  assert.equal(api.dashCardDefaultSpan("pipeline", "ultrawide"), 2);
+  DASH_CARDS.find(c => c.key === "pipeline").defaultSpan = 3;
+  assert.equal(api.dashCardDefaultSpan("pipeline", "ultrawide"), 2, "never recommend 3 on 4-col");
+  assert.equal(api.dashCardDefaultSpan("pipeline", "laptop"), 3, "stored/recommended 3 still ok on 3-col");
+  DASH_CARDS.find(c => c.key === "pipeline").defaultSpan = 2;
 });
 
-check("legacy dashLayout migrates once into all three bands", () => {
+check("legacy dashLayout lands on laptop only; other bands stay missing", () => {
   const env = makeEnv(1100);
   env.DATA.config.dashLayout = {
     order: ["pipeline", "booked", "followups"],
@@ -100,11 +107,17 @@ check("legacy dashLayout migrates once into all three bands", () => {
   };
   const resolved = env.api.resolveDashLayout();
   assert.equal(resolved.band, "laptop");
-  assert.deepEqual(env.DATA.config.dashLayouts.phone.spans, { pipeline: 3, booked: 1, followups: 1 });
   assert.deepEqual(env.DATA.config.dashLayouts.laptop.spans, { pipeline: 3, booked: 1, followups: 1 });
-  assert.deepEqual(env.DATA.config.dashLayouts.ultrawide.spans, { pipeline: 3, booked: 1, followups: 1 });
-  assert.deepEqual(env.DATA.config.dashLayouts.phone.hidden, ["shopping"]);
+  assert.deepEqual(env.DATA.config.dashLayouts.laptop.hidden, ["shopping"]);
+  assert.equal(env.DATA.config.dashLayouts.phone, undefined, "phone stays missing");
+  assert.equal(env.DATA.config.dashLayouts.ultrawide, undefined, "ultrawide stays missing");
   assert.ok(resolved.visible.includes("jobs"), "new/missing cards still append");
+
+  env.window.innerWidth = 1600;
+  const ultra = env.api.resolveDashLayout();
+  assert.equal(ultra.band, "ultrawide");
+  assert.equal(ultra.spans.pipeline, 2, "missing ultrawide uses recommended 2, not laptop's 3");
+  assert.equal(env.DATA.config.dashLayouts.ultrawide, undefined, "resolve must not invent ultrawide");
 });
 
 check("setDashCardSpan writes ONLY the target card on the active band", () => {
@@ -115,8 +128,6 @@ check("setDashCardSpan writes ONLY the target card on the active band", () => {
     spans: { pipeline: 3, followups: 1, booked: 2, jobs: 1, shopping: 1 },
   };
   env.api.resolveDashLayout();
-  const beforePhone = JSON.parse(JSON.stringify(env.DATA.config.dashLayouts.phone));
-  const beforeUltra = JSON.parse(JSON.stringify(env.DATA.config.dashLayouts.ultrawide));
   const beforeFollow = env.DATA.config.dashLayouts.laptop.spans.followups;
 
   env.api.setDashCardSpan("pipeline", 1);
@@ -126,8 +137,9 @@ check("setDashCardSpan writes ONLY the target card on the active band", () => {
   assert.equal(laptop.spans.followups, beforeFollow, "neighbour span must not grow");
   assert.equal(laptop.spans.booked, 2);
   assert.equal(laptop.spans.jobs, 1);
-  assert.deepEqual(env.DATA.config.dashLayouts.phone, beforePhone, "phone band untouched");
-  assert.deepEqual(env.DATA.config.dashLayouts.ultrawide, beforeUltra, "ultrawide band untouched");
+  assert.equal(env.DATA.config.dashLayouts.phone, undefined, "phone not created from laptop write");
+  assert.equal(env.DATA.config.dashLayouts.ultrawide, undefined, "ultrawide not created from laptop write");
+  assert.ok(env.DATA.config.dashLayouts.laptop, "whole map still has the active band");
 });
 
 check("fillDashSpanRows WOULD have grown the neighbour — size click must not", () => {
@@ -191,13 +203,31 @@ check("dashResetLayout clears only the active band", () => {
     ultrawide: { order: ["booked"], hidden: [], spans: { booked: 3 } },
   };
   env.api.dashResetLayout();
-  assert.deepEqual(env.DATA.config.dashLayouts.laptop, { order: [], hidden: [], spans: {} });
+  assert.equal(env.DATA.config.dashLayouts.laptop, undefined, "reset deletes the band key");
   assert.equal(env.DATA.config.dashLayouts.phone.spans.jobs, 3);
   assert.equal(env.DATA.config.dashLayouts.ultrawide.spans.booked, 3);
   const resolved = env.api.resolveDashLayout("laptop");
   assert.equal(resolved.spans.pipeline, 2);
   assert.equal(resolved.spans.booked, 2);
   assert.deepEqual(resolved.visible.slice(0, 3), ["followups", "pipeline", "booked"]);
+});
+
+check("persist writes the whole map and never interpolates a missing larger band", () => {
+  const env = makeEnv(1100);
+  env.DATA.config.dashLayouts = {
+    laptop: { order: ["pipeline", "followups"], hidden: [], spans: { pipeline: 3, followups: 1 } },
+  };
+  env.api.setDashCardSpan("pipeline", 1);
+  const saved = env.saves[env.saves.length - 1];
+  assert.ok(saved.config.dashLayouts.laptop, "active band present on the persisted map");
+  assert.equal(saved.config.dashLayouts.phone, undefined);
+  assert.equal(saved.config.dashLayouts.ultrawide, undefined);
+  assert.equal(saved.config.dashLayoutBand, "laptop");
+
+  env.window.innerWidth = 1600;
+  const ultra = env.api.resolveDashLayout();
+  assert.equal(ultra.spans.pipeline, 2, "missing ultrawide ≠ laptop's 1");
+  assert.equal(env.DATA.config.dashLayouts.ultrawide, undefined);
 });
 
 check("dashMove reorders without rewriting spans", () => {
@@ -225,7 +255,12 @@ check("size picker and drop persist never call neighbour-fill helpers", () => {
   assert.equal(previewSrc.includes("computeDragPreviewSpans"), false);
   assert.match(html, /dec-rec-mark/);
   assert.match(html, /data-dashspanreset/);
+  assert.match(html, /preventCollision/);
+  assert.match(extractFn(html, "persistDashLayout"), /RGL #2110/);
   assert.equal(html.includes("shrinking its neighbour"), false);
+  const mig = extractFn(html, "migrateDashLayouts");
+  assert.equal(mig.includes("phone:"), false, "must not copy legacy into all three bands");
+  assert.equal(mig.includes("ultrawide:"), false);
 });
 
 console.log("\n" + passed + " checks passed");
