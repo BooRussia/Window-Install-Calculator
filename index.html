@@ -20315,7 +20315,7 @@ function dashTeamMintInvite(crewId) {
    Extensible: add a DASH_CARDS entry + a [data-dashview] panel.
    ============================================================ */
 const DASH_CARDS = [
-  { key: "jobs", title: "Jobs",
+  { key: "jobs", title: "Jobs", rich: true, defaultSpan: 2,
     blurb: "Every saved quote in one place — sort, search, change status, or open the full job.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/></svg>`,
     preview: (ctx) => ctx.jobCount
@@ -20367,7 +20367,7 @@ const DASH_CARDS = [
   // grid's content, folded in here 2026-08-02 — one grid, one drag space) and
   // may hold its own interactive rows, so the cell renders as a div, not a
   // <button>. `defaultSpan` is the recommended width from content: list/chart
-  // (pipeline, booked) = 2, tile cards = 1. A 3 is never recommended on ultrawide.
+  // (pipeline, booked, jobs) = 2, tile cards = 1. A 3 is never recommended on ultrawide.
   { key: "pipeline", title: "Deal pipeline", rich: true, defaultSpan: 2,
     blurb: "Every saved quote by stage — see where deals pile up, what's landed, and your win rate.",
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>` },
@@ -20502,13 +20502,27 @@ function dashCardBody(key, ctx, jobs) {
     return `<span class="dlb-donutwrap">${dashMiniDonut(parts, 96)}<span class="dlb-legend">${legend}</span></span>`;
   }
   if (key === "jobs") {
-    const recent = dashRecentJobs(jobs, 3);
-    if (!recent.length) return dlbEmpty("No saved jobs yet — your quotes show up here.");
-    const max = Math.max.apply(null, recent.map(j => Number(j.sellingPrice) || 0).concat([1]));
-    return `<span class="dlb-tag">Recent jobs · by value</span>` + recent.map(j => {
-      const v = Number(j.sellingPrice) || 0;
-      return dlbBarRow(nameOf(j), formatMoney(v), v / max * 100, STATUS_COLORS[jobStatus(j)] || "#64748b");
-    }).join("");
+    // Rich list panel — same anatomy as Follow-ups (dash-ovsub + dash-attn-list).
+    // Jobs is a list wearing a tile; rows open the job via data-attn-open.
+    const recent = dashRecentJobs(jobs, 6);
+    const n = (ctx && ctx.jobCount != null) ? ctx.jobCount : recent.length;
+    const open = (ctx && ctx.openCount) || 0;
+    if (!recent.length) return `<div class="dash-ovempty">No saved jobs yet — your quotes show up here.</div>`;
+    return `<span class="dash-ovsub">${n} job${n === 1 ? "" : "s"}${open ? ` &middot; ${open} open` : ""}</span>
+      <div class="dash-attn-list">${recent.map(j => {
+        const st = jobStatus(j);
+        const tone = (st === "Approved" || st === "Finished") ? "ok" : "warn";
+        const color = STATUS_COLORS[st] || "#64748b";
+        return `<button type="button" class="dash-attn-row" data-attn-open="${escHtml(j.id)}">
+          <span class="dash-attn-dot" style="background:${color}"></span>
+          <span class="dash-attn-main">
+            <span class="dash-attn-name">${escHtml(nameOf(j))}</span>
+          </span>
+          <span class="dash-attn-pill tone-${tone}">${escHtml(st)}</span>
+          <span class="dash-attn-note" style="flex:0 0 auto;font-variant-numeric:tabular-nums;">${escHtml(formatMoney(Number(j.sellingPrice) || 0))}</span>
+        </button>`;
+      }).join("")}</div>
+      ${n > recent.length ? `<div class="dash-ovfoot">+${n - recent.length} more</div>` : ""}`;
   }
   if (key === "followups") {
     // Rich body — the retired "Needs attention" overview panel, merged in here
@@ -20827,7 +20841,7 @@ function migrateDashOvLayout() {
    Follow-ups leads deliberately: the KPI strip above already summarizes open
    pipeline / won / win rate, so the one card that says DO SOMETHING outranks
    the cards that restate those numbers. Recommended widths follow content:
-   tile cards = 1, list/chart (pipeline, booked) = 2. A 3 is never recommended
+   tile cards = 1, list/chart (pipeline, booked, jobs) = 2. A 3 is never recommended
    on the 4-col ultrawide stage (the user may still pick one). A saved layout
    always wins — this only fills in cards the user has never placed. */
 const DASH_DEFAULT_ORDER = ["followups", "pipeline", "booked", "jobs",
@@ -20863,7 +20877,7 @@ function dashCardDefaultSpan(key, band) {
   const card = DASH_CARDS.find(c => c.key === key);
   const raw = card && Number(card.defaultSpan);
   let rec = (raw >= 1 && raw <= 3) ? Math.round(raw) : 1;
-  // Content defaults: tiles = 1, list/chart (pipeline, booked) = 2. Never
+  // Content defaults: tiles = 1, list/chart (pipeline, booked, jobs) = 2. Never
   // recommend a 3 on the 4-col ultrawide stage — stored 3 is still allowed.
   const use = DASH_LAYOUT_BANDS.includes(band) ? band : dashLayoutBand();
   if (use === "ultrawide" && rec >= 3) rec = 2;
@@ -25935,7 +25949,7 @@ function wireDashboard() {
       const rm = e.target.closest("[data-dashremove]");
       if (rm) { e.preventDefault(); e.stopPropagation(); dashRemove(rm.dataset.dashremove); return; }
       if (_dashEditMode) { e.preventDefault(); return; }
-      // A Follow-ups row opens that job directly — before the card-level nav.
+      // A Follow-ups / Jobs list row opens that job directly — before the card-level nav.
       const attn = e.target.closest("[data-attn-open]");
       if (attn) {
         e.preventDefault(); e.stopPropagation();

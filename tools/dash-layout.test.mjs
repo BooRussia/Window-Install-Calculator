@@ -43,7 +43,7 @@ const DASH_CARDS = [
   { key: "followups" },
   { key: "pipeline", defaultSpan: 2 },
   { key: "booked", defaultSpan: 2 },
-  { key: "jobs" },
+  { key: "jobs", rich: true, defaultSpan: 2 },
   { key: "shopping" },
 ];
 const DASH_DEFAULT_ORDER = ["followups", "pipeline", "booked", "jobs", "shopping"];
@@ -85,12 +85,14 @@ check("dashLayoutBand keys phone / laptop / ultrawide by width", () => {
   assert.equal(api.dashLayoutBand(2560), "ultrawide");
 });
 
-check("dashCardDefaultSpan uses pipeline/booked = 2, others 1; never 3 on ultrawide", () => {
+check("dashCardDefaultSpan uses pipeline/booked/jobs = 2, tiles = 1; never 3 on ultrawide", () => {
   const { api } = makeEnv();
   assert.equal(api.dashCardDefaultSpan("pipeline"), 2);
   assert.equal(api.dashCardDefaultSpan("booked"), 2);
+  assert.equal(api.dashCardDefaultSpan("jobs"), 2);
   assert.equal(api.dashCardDefaultSpan("followups"), 1);
-  assert.equal(api.dashCardDefaultSpan("jobs"), 1);
+  assert.equal(api.dashCardDefaultSpan("shopping"), 1);
+  assert.equal(api.dashCardDefaultSpan("jobs", "ultrawide"), 2);
   assert.equal(api.dashCardDefaultSpan("pipeline", "ultrawide"), 2);
   DASH_CARDS.find(c => c.key === "pipeline").defaultSpan = 3;
   assert.equal(api.dashCardDefaultSpan("pipeline", "ultrawide"), 2, "never recommend 3 on 4-col");
@@ -261,6 +263,31 @@ check("size picker and drop persist never call neighbour-fill helpers", () => {
   const mig = extractFn(html, "migrateDashLayouts");
   assert.equal(mig.includes("phone:"), false, "must not copy legacy into all three bands");
   assert.equal(mig.includes("ultrawide:"), false);
+});
+
+check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => {
+  const chunk = html.slice(html.indexOf('{ key: "jobs"'), html.indexOf('{ key: "jobs"') + 80);
+  assert.match(chunk, /rich:\s*true/);
+  assert.match(chunk, /defaultSpan:\s*2/);
+  assert.match(html, /key: "pipeline", title: "Deal pipeline", rich: true, defaultSpan: 2/);
+  assert.match(html, /key: "booked", title: "Booked by month", rich: true, defaultSpan: 2/);
+  assert.match(html, /key: "followups", title: "Follow-ups", rich: true,/);
+  assert.equal(/key: "followups"[\s\S]{0,60}defaultSpan/.test(html), false);
+  assert.match(html, /if \(key === "jobs"\)[\s\S]{0,400}dashRecentJobs\(jobs, 6\)/);
+  assert.match(html, /if \(key === "jobs"\)[\s\S]{0,800}dash-attn-list/);
+  assert.match(html, /if \(key === "jobs"\)[\s\S]{0,800}data-attn-open/);
+  assert.match(html, /No saved jobs yet — your quotes show up here\./);
+  assert.match(html, /\.dash-launch-card \{[^}]*height: 240px;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{ height: 100%; min-height: 268px; \}/);
+  assert.equal(/#dashLaunchpad[^{]*\{[^}]*min-height:\s*268/.test(html), false);
+
+  const env = makeEnv(1100);
+  env.DATA.config.dashLayouts = {
+    laptop: { order: ["jobs", "followups"], hidden: [], spans: { jobs: 1, followups: 1 } },
+  };
+  assert.equal(env.api.resolveDashLayout("laptop").spans.jobs, 1, "stored jobs span stays");
+  assert.equal(env.api.resolveDashLayout("ultrawide").spans.jobs, 2, "missing band uses recommended 2");
+  assert.equal(env.DATA.config.dashLayouts.ultrawide, undefined);
 });
 
 console.log("\n" + passed + " checks passed");
