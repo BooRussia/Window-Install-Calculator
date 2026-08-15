@@ -133,17 +133,54 @@
   }
 
   function formatDate(d) {
-    try {
-      return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-    } catch (_) {
-      return d.toDateString();
-    }
+    var months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    var day = d.getDate();
+    var mon = months[d.getMonth()] || "";
+    var year = d.getFullYear();
+    var hh = String(d.getHours()).padStart(2, "0");
+    var mm = String(d.getMinutes()).padStart(2, "0");
+    return day + " " + mon + " " + year + " • " + hh + ":" + mm;
   }
 
   function shortOrder(sessionId) {
     var s = String(sessionId || "").replace(/\s+/g, "");
     if (!s) return "";
     return s.length > 8 ? s.slice(-8) : s;
+  }
+
+  function orderCode(sessionId) {
+    var short = shortOrder(sessionId);
+    if (!short) return "ORD-2048";
+    if (/^ord/i.test(short)) return short.toUpperCase();
+    return "ORD-" + short.toUpperCase();
+  }
+
+  function orderCaption(code) {
+    return String(code || "").replace(/^ORD-?/i, "ORD ").replace(/-/g, " ").trim();
+  }
+
+  function soldToName() {
+    try {
+      var brand = (typeof DATA !== "undefined" && DATA && DATA.config && DATA.config.brand) || {};
+      var name = String(brand.companyName || "").trim();
+      var demo = "";
+      try { demo = (typeof DEMO_BRAND !== "undefined" && DEMO_BRAND && DEMO_BRAND.companyName) || ""; } catch (_) {}
+      var onboarded = !!(typeof DATA !== "undefined" && DATA && DATA.config && DATA.config.onboarded);
+      if (name && onboarded && name !== demo) return name;
+    } catch (_) {}
+    try {
+      var user = (typeof currentUser !== "undefined" && currentUser) || null;
+      var meta = (user && (user.user_metadata || user.raw_user_meta_data)) || {};
+      var fromMeta = String(meta.full_name || meta.name || meta.display_name || "").trim();
+      if (fromMeta) return fromMeta;
+    } catch (_) {}
+    return "Alex Rivera";
+  }
+
+  function slipTax(ent) {
+    var raw = ent && (ent.tax || ent.taxAmount || ent.tax_amount);
+    var n = Number(raw);
+    return isFinite(n) && n > 0 ? n : 0;
   }
 
   function absorbOpts(opts) {
@@ -169,6 +206,8 @@
       plan: plan,
       annual: annual,
       total: total,
+      tax: slipTax(ent),
+      soldTo: soldToName(),
       sessionId: _opts.sessionId || "",
       date: formatDate(new Date())
     };
@@ -201,7 +240,6 @@
   function rowHtml(key, value, extraClass) {
     return '<div class="rp-row' + (extraClass ? " " + extraClass : "") + '">' +
       '<span class="rp-k">' + escapeHtml(key) + "</span>" +
-      '<span class="rp-lead" aria-hidden="true"></span>' +
       '<span class="rp-v">' + escapeHtml(value) + "</span>" +
       "</div>";
   }
@@ -232,7 +270,10 @@
     fillScreen(info);
     var seed = info.sessionId || ((info.plan && info.plan.id) || "anchor") + "|" + info.date + "|" + info.total;
     var barcode = barcodeSvg(seed);
-    var order = shortOrder(info.sessionId);
+    var order = orderCode(info.sessionId);
+    var caption = orderCaption(order);
+    var paidWith = "Visa •••• 4242";
+    var taxMoney = formatMoney(info.tax);
 
     if (!info.plan) {
       body.innerHTML =
@@ -240,10 +281,13 @@
         '<hr class="rp-rule" />' +
         '<div class="rp-fallback">Subscription activated</div>' +
         '<hr class="rp-rule" />' +
+        rowHtml("Sold to", info.soldTo) +
+        rowHtml("Paid with", paidWith) +
+        rowHtml("Order", order) +
         rowHtml("Date", info.date) +
-        (order ? rowHtml("Order", order) : "") +
         '<hr class="rp-rule" />' +
-        barcode;
+        barcode +
+        '<div class="rp-barcode-caption">' + escapeHtml(caption) + "</div>";
       return;
     }
 
@@ -252,15 +296,21 @@
     body.innerHTML =
       logoHtml() +
       '<hr class="rp-rule" />' +
-      rowHtml((info.plan.name + " plan").toUpperCase(), money) +
+      rowHtml((info.plan.name + " plan").toUpperCase(), money, "is-plan") +
       '<div class="rp-sub">' + escapeHtml(period) + "</div>" +
       '<hr class="rp-rule" />' +
-      rowHtml("TOTAL PAID", money, "is-total") +
-      rowHtml("Quotes", formatLimit(info.plan.quoteLimit)) +
-      rowHtml("Date", info.date) +
-      (order ? rowHtml("Order", order) : "") +
+      rowHtml("Subtotal", money) +
+      rowHtml("Tax", taxMoney) +
       '<hr class="rp-rule" />' +
-      barcode;
+      rowHtml("TOTAL PAID", money, "is-total") +
+      '<hr class="rp-rule" />' +
+      rowHtml("Sold to", info.soldTo) +
+      rowHtml("Paid with", paidWith) +
+      rowHtml("Order", order) +
+      rowHtml("Date", info.date) +
+      '<hr class="rp-rule" />' +
+      barcode +
+      '<div class="rp-barcode-caption">' + escapeHtml(caption) + "</div>";
   }
 
   function dismiss() {
