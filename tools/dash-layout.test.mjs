@@ -278,7 +278,7 @@ check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => 
   assert.match(html, /if \(key === "jobs"\)[\s\S]{0,800}data-attn-open/);
   assert.match(html, /No saved jobs yet — your quotes show up here\./);
   assert.match(html, /\.dash-launch-card \{[^}]*height: 240px;/);
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{ height: 100%; min-height: 268px; \}/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?min-height: 268px;[\s\S]*?overflow: hidden;/);
   assert.equal(/#dashLaunchpad[^{]*\{[^}]*min-height:\s*268/.test(html), false);
 
   const env = makeEnv(1100);
@@ -288,6 +288,22 @@ check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => 
   assert.equal(env.api.resolveDashLayout("laptop").spans.jobs, 1, "stored jobs span stays");
   assert.equal(env.api.resolveDashLayout("ultrawide").spans.jobs, 2, "missing band uses recommended 2");
   assert.equal(env.DATA.config.dashLayouts.ultrawide, undefined);
+});
+
+check("rich row cards clip and share height; tiles stay 240", () => {
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?overflow: hidden;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bars \{[^}]*min-height: 0;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bar-col,[\s\S]*?min-height: 0;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bar-lbl \{ flex: 0 0 auto; \}/);
+  assert.match(html, /\.dash-launch-card \{[^}]*height: 240px;/);
+  assert.match(html, /#dashLaunchpad \{ align-items: stretch; \}/);
+  assert.equal(/#dashLaunchpad[^.{]*\{[^}]*align-items:\s*start/.test(html), false);
+  const tileRule = html.match(/(?:^|\n)\s*\.dash-launch-card \{[^}]+\}/);
+  assert.ok(tileRule, "tile .dash-launch-card rule exists");
+  assert.match(tileRule[0], /height: 240px;/);
+  assert.equal(/height:\s*100%/.test(tileRule[0]), false, "do not globally stretch non-rich tiles");
+  assert.match(html, /@media \(min-width: 1280px\)[\s\S]{0,900}max-height: 360px;/);
+  assert.equal(/\.dash-launch-cell\.is-rich \.dash-bars \{[^}]*min-height: 92px/.test(html), false);
 });
 
 console.log("\n" + passed + " checks passed");
