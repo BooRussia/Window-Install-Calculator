@@ -291,8 +291,9 @@ check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => 
 });
 
 check("rich row cards clip and share height; tiles stay 240", () => {
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?overflow: hidden;/);
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bars \{[^}]*min-height: 0;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \{[\s\S]*?align-self: stretch;[\s\S]*?height: 100%;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?flex: 1 1 0;[\s\S]*?overflow: hidden;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bars,[\s\S]*?\.dpt-wrap,[\s\S]*?\.dash-attn-list,[\s\S]*?\.dlb-empty \{[\s\S]*?flex: 1 1 0;[\s\S]*?min-height: 0;/);
   assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bar-col,[\s\S]*?min-height: 0;/);
   assert.match(html, /\.dash-launch-cell\.is-rich \.dash-bar-lbl \{ flex: 0 0 auto; \}/);
   assert.match(html, /\.dash-launch-card \{[^}]*height: 240px;/);
@@ -304,6 +305,9 @@ check("rich row cards clip and share height; tiles stay 240", () => {
   assert.equal(/height:\s*100%/.test(tileRule[0]), false, "do not globally stretch non-rich tiles");
   assert.match(html, /@media \(min-width: 1280px\)[\s\S]{0,900}max-height: 360px;/);
   assert.equal(/\.dash-launch-cell\.is-rich \.dash-bars \{[^}]*min-height: 92px/.test(html), false);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[^}]*flex: 1 1 0;/);
+  assert.equal(/\.dash-launch-cell\.is-rich \.dash-launch-card \{[^}]*flex: 1 1 auto;/.test(html), false,
+    "rich card must use basis 0, not auto");
 });
 
 console.log("\n" + passed + " checks passed");

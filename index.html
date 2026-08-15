@@ -549,23 +549,40 @@
     .dlc-span-3 { grid-column: span 3; }
   }
   /* Rich cards in the SAME grid row share that row's height. The cell stretches
-     (grid align-items: stretch — do not set start). The card fills the cell and
-     CLIP inside the rounded rect. 240px tiles are not stretched to the row. */
-  .dash-launch-cell.is-rich { min-height: 0; display: flex; flex-direction: column; }
-  .dash-launch-cell.is-rich .dash-launch-card {
-    flex: 1 1 auto; height: 100%; min-height: 268px; overflow: hidden;
+     (align-self + height 100% — do not set align-items: start). The rounded
+     rect fills the cell (flex basis 0, not auto) and CLIP inside. 240px tiles
+     are not stretched to the row. */
+  .dash-launch-cell.is-rich {
+    min-height: 0; display: flex; flex-direction: column;
+    align-self: stretch; height: 100%;
   }
-  .dash-launch-cell.is-rich .dash-launch-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  /* Booked bars flex DOWN into leftover space. Drop the 92/132 floor so 12
-     months + labels fit inside 268–360. Labels stay in-flow at the column foot. */
-  .dash-launch-cell.is-rich .dash-bars { flex: 1 1 auto; min-height: 0; }
+  .dash-launch-cell.is-rich .dash-launch-card {
+    flex: 1 1 0; height: 100%; min-height: 268px; overflow: hidden;
+  }
+  .dash-launch-cell.is-rich .dash-launch-body {
+    flex: 1 1 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  /* Every rich body panel fills leftover space — not just Booked bars.
+     Lists/tables grow to the foot; extra rows scroll. Empty centers. */
+  .dash-launch-cell.is-rich .dash-bars,
+  .dash-launch-cell.is-rich .dpt-wrap,
+  .dash-launch-cell.is-rich .dash-attn-list,
+  .dash-launch-cell.is-rich .dlb-empty {
+    flex: 1 1 0; min-height: 0;
+  }
+  .dash-launch-cell.is-rich .dpt-wrap,
+  .dash-launch-cell.is-rich .dash-attn-list { overflow: auto; }
   .dash-launch-cell.is-rich .dash-bar-col,
   .dash-launch-cell.is-rich .dash-bar-track { min-height: 0; }
   .dash-launch-cell.is-rich .dash-bar-lbl { flex: 0 0 auto; }
-  .dash-launch-cell.is-rich .dpt-wrap { flex: 1 1 auto; overflow: auto; min-height: 0; }
-  .dash-launch-cell.is-rich .dash-attn-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .dash-launch-cell.is-rich .dlb-empty,
+  .dash-launch-cell.is-rich .dash-ovempty {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+  }
+  .dash-launch-cell.is-rich .dash-ovempty { flex: 1 1 0; min-height: 0; }
   /* The panels' own sub-line, reused inside the card body. */
-  .dash-launch-cell.is-rich .dash-ovsub { display: block; margin: -2px 0 10px; }
+  .dash-launch-cell.is-rich .dash-ovsub { display: block; margin: -2px 0 10px; flex: 0 0 auto; }
+  .dash-launch-cell.is-rich .dash-ovfoot { flex: 0 0 auto; }
   .dec-span.on { color: var(--gold-hi); border-color: rgba(181,143,74,0.55); background: rgba(181,143,74,0.14); }
   [data-theme="light"] .dec-span.on { color: var(--gold-ink); border-color: #d9c79a; background: rgba(181,143,74,0.14); }
   /* Flex column so a shorter panel's content can stretch to the row height the
