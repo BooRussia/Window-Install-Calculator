@@ -548,24 +548,28 @@
     .dlc-span-2 { grid-column: span 2; }
     .dlc-span-3 { grid-column: span 3; }
   }
-  /* Row = tallest paged card on that line (grid stretch). Drag to a new line
-     and the new tallest wins — no JS row-height engine. overflow:hidden on the
-     rounded rect keeps paint inside; no inner scrollbar on lists/tables. */
+  /* Row = tallest paged card on that line (grid stretch). Pipeline's stage
+     table (including Lost) is in-flow and sets the intrinsic height — basis
+     auto, not 0. No clip, no inner scrollbar. height:auto + min-height:100%
+     so content sizes the row and neighbours still stretch to match. */
   .dash-launch-cell.is-rich {
     display: flex; flex-direction: column;
-    align-self: stretch; height: 100%;
+    align-self: stretch; height: auto; min-height: 100%; overflow: visible;
   }
   .dash-launch-cell.is-rich .dash-launch-card {
-    flex: 1 1 0; height: 100%; min-height: 268px; overflow: hidden;
+    flex: 1 1 auto; height: auto; min-height: max(268px, min-content); overflow: visible;
   }
   .dash-launch-cell.is-rich .dash-launch-body {
-    flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden;
+    flex: 1 1 auto; display: flex; flex-direction: column;
+    min-height: auto; overflow: visible;
   }
-  /* Pipeline table + paged lists size the row (content basis). Booked bars
-     flex into leftover. No overflow:auto — a card scrollbar fails. */
-  .dash-launch-cell.is-rich .dpt-wrap,
+  /* Content-sized: the full JOB_STATUSES table (Quoted…Lost) contributes to
+     the card height. Override .dpt-wrap { overflow-x: auto } so no scrollbar. */
+  .dash-launch-cell.is-rich .dpt-wrap {
+    flex: 0 0 auto; overflow: visible;
+  }
   .dash-launch-cell.is-rich .dash-attn-list {
-    flex: 1 1 auto; overflow: hidden;
+    flex: 0 0 auto; overflow: visible;
   }
   .dash-launch-cell.is-rich .dash-bars,
   .dash-launch-cell.is-rich .dlb-empty {
@@ -6391,12 +6395,9 @@
   .dec-cluster .dec-row { display: flex; gap: 4px; }
   .dash-launch-cell.editing .dash-launch-head { padding-left: 42px; padding-right: 140px; }
   /* The two-row cluster reaches past the card header — give the body a strip
-     of clearance so nothing sits under the size glyphs. A fixed-height card
-     absorbs this; a RICH card is content-sized, so it also takes a matching
-     negative margin — otherwise the card grows 26px in edit mode and visibly
-     resizes the moment you hit Done (owner 2026-08-02). */
+     of clearance so nothing sits under the size glyphs. Do not pair this with
+     a negative bottom margin: that pulled Lost under the card edge. */
   .dash-launch-cell.editing .dash-launch-body { padding-top: 26px; }
-  .dash-launch-cell.editing.is-rich .dash-launch-body { margin-bottom: -26px; }
   /* Rich cards (the folded-in overview panels) carry their own interactive rows
      — those are inert while editing so a drag can't fire one. */
   .dash-launch-cell.editing .dash-attn-row { pointer-events: none; }

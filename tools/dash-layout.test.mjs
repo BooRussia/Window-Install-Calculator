@@ -278,7 +278,7 @@ check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => 
   assert.match(html, /if \(key === "jobs"\)[\s\S]{0,800}data-attn-open/);
   assert.match(html, /No saved jobs yet — your quotes show up here\./);
   assert.match(html, /\.dash-launch-card \{[^}]*min-height: 240px;/);
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?min-height: 268px;[\s\S]*?overflow: hidden;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?min-height: max\(268px, min-content\);/);
   assert.equal(/#dashLaunchpad[^{]*\{[^}]*min-height:\s*268/.test(html), false);
 
   const env = makeEnv(1100);
@@ -291,9 +291,22 @@ check("DASH_CARDS jobs is rich + defaultSpan 2; saved jobs span is kept", () => 
 });
 
 check("row = tallest; no 360 cap; no inner scroll; tiles grow in mixed rows", () => {
-  assert.match(html, /\.dash-launch-cell\.is-rich \{[\s\S]*?align-self: stretch;[\s\S]*?height: 100%;/);
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[\s\S]*?flex: 1 1 0;[\s\S]*?overflow: hidden;/);
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dpt-wrap,[\s\S]*?\.dash-attn-list \{[\s\S]*?overflow: hidden;/);
+  assert.match(html, /\.dash-launch-cell\.is-rich \{[\s\S]*?align-self: stretch;[\s\S]*?height: auto;[\s\S]*?min-height: 100%;/);
+  const richCard = html.match(/\.dash-launch-cell\.is-rich \.dash-launch-card \{[^}]+\}/);
+  assert.ok(richCard, "rich card rule exists");
+  assert.match(richCard[0], /flex: 1 1 auto;/);
+  assert.match(richCard[0], /height: auto;/);
+  assert.match(richCard[0], /min-height: max\(268px, min-content\);/);
+  assert.equal(/flex: 1 1 0;/.test(richCard[0]), false, "rich card basis must be auto, not 0");
+  const richBody = html.match(/\.dash-launch-cell\.is-rich \.dash-launch-body \{[^}]+\}/);
+  assert.ok(richBody, "rich body rule exists");
+  assert.match(richBody[0], /min-height: auto;/);
+  assert.match(richBody[0], /overflow: visible;/);
+  const dptRich = html.match(/\.dash-launch-cell\.is-rich \.dpt-wrap \{[^}]+\}/);
+  assert.ok(dptRich, "rich .dpt-wrap rule exists");
+  assert.match(dptRich[0], /flex: 0 0 auto;/);
+  assert.match(dptRich[0], /overflow: visible;/);
+  assert.equal(/overflow:\s*(hidden|auto)/.test(dptRich[0]), false);
   assert.equal(/\.dash-launch-cell\.is-rich \.dpt-wrap[\s\S]{0,80}overflow:\s*auto/.test(html), false);
   assert.equal(/\.dash-launch-cell\.is-rich \.dash-attn-list[\s\S]{0,80}overflow:\s*auto/.test(html), false);
   assert.equal(/\.dash-launch-cell\.is-rich[^{]*\{[^}]*max-height:\s*360px/.test(html), false);
@@ -311,7 +324,7 @@ check("row = tallest; no 360 cap; no inner scroll; tiles grow in mixed rows", ()
   assert.match(html, /\.slice\(0, 6\)/);
   assert.equal(/dashRecentJobs\(jobs,\s*(?:[9]|[1-9]\d+)/.test(html), false, "jobs page stays ~6–8");
   assert.equal(/\.dash-launch-cell\.is-rich \.dash-bars \{[^}]*min-height: 92px/.test(html), false);
-  assert.match(html, /\.dash-launch-cell\.is-rich \.dash-launch-card \{[^}]*flex: 1 1 0;/);
+  assert.equal(/editing\.is-rich \.dash-launch-body \{[^}]*margin-bottom:\s*-26px/.test(html), false);
 });
 
 console.log("\n" + passed + " checks passed");
