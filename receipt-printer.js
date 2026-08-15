@@ -207,7 +207,7 @@
   }
 
   function logoHtml() {
-    return '<img class="rp-wordmark" src="brand/anchor-wordmark-dark.png" alt="Anchor" width="140" height="28" />';
+    return '<img class="rp-mark" src="brand/anchor-mark.png" alt="Anchor" width="64" height="64" />';
   }
 
   function fillScreen(info) {
