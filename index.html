@@ -528,8 +528,9 @@
      now (owner 2026-08-02). `.dash-ovcard` itself lives on: the dedicated pages
      (pipeline / revenue / manufacturers / change order / team) still use it. */
   .dec-span { min-width: 26px; font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  /* Launchpad card widths. Tailwind gives the grid 1/2/3 columns by breakpoint;
-     the chosen span clamps to what the current breakpoint actually has. */
+  /* Launchpad card widths. Tailwind gives the grid 1/2/3 columns by breakpoint
+     through lg (1024); 1440+ adds a 4th column in the wide-stage block below.
+     The chosen span clamps to what the current breakpoint actually has. */
   @media (min-width: 640px) { #dashLaunchpad { grid-auto-flow: dense; } }
   @media (min-width: 640px) and (max-width: 1023.98px) {
     .dlc-span-2, .dlc-span-3 { grid-column: span 2; }
@@ -657,7 +658,9 @@
     background: rgba(51,65,85,0.5); border: 1px solid rgba(51,65,85,0.5);
     border-radius: 16px; overflow: hidden; }
   /* Six KPI cells → keep 3 columns from tablet up so the strip is always a
-     filled 2×3 (never a lone empty slot from an odd cell count). */
+     filled 2×3 (never a lone empty slot from an odd cell count). Home's six
+     tiles go 6-across at 1680+; that rule is scoped to #dashStats so the
+     pipeline (5) and revenue (4) strips on drilled-in pages stay a filled 3-col. */
   @media (min-width: 700px)  { .dash-kpi { grid-template-columns: repeat(3, minmax(0,1fr)); } }
   .dash-kpi-cell { background: #0b1120; padding: 13px 15px 14px; min-width: 0; }
   .dash-kpi-cell.is-action { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -703,6 +706,47 @@
   [data-theme="light"] .dash-kpi-ico.tone-slate { color: #475569; background: rgba(100,116,139,0.14); }
   [data-theme="light"] .dash-kpi-ico.tone-gold { color: var(--gold-ink); background: rgba(181,143,74,0.12); }
   [data-theme="light"] .dash-kpi-cell.is-action:hover { background: #f8fafc; }
+
+  /* ── Wide monitors: grow columns, not card stretch ────────────────────────
+     Same philosophy as Settings at 1280+ (#settingsShell { max-width: none }
+     + a content measure cap): the home well may track the monitor, then STOP.
+     Extra width buys another launchpad / KPI column. It does not buy a 900px
+     follow-up row or a 400px-tall KPI. Quiet canvas past 1760px is correct —
+     do not run cards into the bezels of a 2560–3440px display.
+     Scoped to #dashNavWell (the topbar around #dashHome) and #dashHomeStage
+     (KPI row + #dashLaunchpad). Landing, quote builder, Settings, and the
+     left rail are untouched. Laptop (≤1279) keeps max-w-6xl + 1/2/3 cols. */
+  @media (min-width: 1280px) {
+    #dashNavWell,
+    #dashHomeStage {
+      max-width: 1760px;
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+    /* Charts may use the extra width; extra height is not allowed. Laptop
+       keeps the existing height:100% stretch so a pair of rich cards still
+       share a row. */
+    .dash-launch-cell.is-rich .dash-launch-card { max-height: 360px; }
+  }
+  @media (min-width: 1440px) {
+    #dashNavWell,
+    #dashHomeStage { padding-left: 32px; padding-right: 32px; }
+    /* Beats Tailwind's lg:grid-cols-3 (1024). No 5th/6th column — postage
+       stamps. A 3-span on 4-col leaves a lonely 1-col hole, so it clamps to 2.
+       grid-auto-flow: dense (already on at 640+) stays on. */
+    #dashLaunchpad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    #dashLaunchpad .dlc-span-2,
+    #dashLaunchpad .dlc-span-3 { grid-column: span 2; }
+  }
+  @media (min-width: 1680px) {
+    /* Home's six tiles (Open / Won / Win Rate / Avg Markup / AI Reads /
+       Continue Quote) on one row at a human width. minmax(0, 280px) keeps a
+       cell from becoming a dollar figure floating in an empty tile; tracks
+       shrink together when the stage is narrower than 6×280. Pipeline and
+       revenue pages keep the 3-col strip — they are not #dashStats. */
+    #dashStats .dash-kpi { grid-template-columns: repeat(6, minmax(0, 280px)); }
+  }
+
   /* ═══ Dashboard v2 — workspace shell (P1) ═════════════════════════════════
      Orion-style persistent sidebar, in Anchor's dark palette. Desktop only:
      under 900px it is display:none and the bottom tab bar remains the nav. */
@@ -10152,7 +10196,7 @@
   <aside id="dashSidebar" aria-label="Dashboard sections"></aside>
   <div id="dashScroll" class="dash-scroll">
   <nav class="lp-nav sticky top-0 z-30">
-    <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+    <div id="dashNavWell" class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
       <button id="dashHome" type="button" class="flex items-center gap-2.5 group shrink-0" aria-label="Dashboard">
         <img class="brand-logo" src="anchor-wordmark.png" alt="Anchor" width="376" height="160" decoding="async" />
       </button>
@@ -10178,7 +10222,7 @@
     </div>
   </nav>
 
-  <div class="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
+  <div id="dashHomeStage" class="max-w-6xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
     <!-- Dashboard v2 P2: the page bar — which section you're on, and the range
          every number on the page is measured over. -->
     <div id="dashTopBar" class="dash-topbar">
