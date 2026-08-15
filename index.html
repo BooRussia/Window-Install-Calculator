@@ -527,7 +527,13 @@
   /* The .dash-overview grid is retired — its panels are cards in #dashLaunchpad
      now (owner 2026-08-02). `.dash-ovcard` itself lives on: the dedicated pages
      (pipeline / revenue / manufacturers / change order / team) still use it. */
-  .dec-span { min-width: 26px; font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dec-span { position: relative; min-width: 26px; font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dec-span .dec-rec-mark {
+    position: absolute; top: -5px; right: -4px;
+    font-size: 8px; line-height: 1; color: var(--gold-hi);
+    pointer-events: none;
+  }
+  [data-theme="light"] .dec-span .dec-rec-mark { color: var(--gold-ink); }
   /* Launchpad card widths. Tailwind gives the grid 1/2/3 columns by breakpoint
      through lg (1024); 1440+ adds a 4th column in the wide-stage block below.
      The chosen span clamps to what the current breakpoint actually has. */
@@ -6358,7 +6364,7 @@
      grab handle keeps the top-left corner. */
   .dec-cluster { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .dec-cluster .dec-row { display: flex; gap: 4px; }
-  .dash-launch-cell.editing .dash-launch-head { padding-left: 42px; padding-right: 104px; }
+  .dash-launch-cell.editing .dash-launch-head { padding-left: 42px; padding-right: 140px; }
   /* The two-row cluster reaches past the card header — give the body a strip
      of clearance so nothing sits under the size glyphs. A fixed-height card
      absorbs this; a RICH card is content-sized, so it also takes a matching
@@ -10273,7 +10279,8 @@
 
     <!-- Launchpad: modular cards you click into. Extensible — add a DASH_CARDS entry
          + a render fn and a new tile appears here with no layout surgery. Card
-         order / visibility is per-user (DATA.config.dashLayout), edited in place. -->
+         order / visibility / size is per-user and per viewport band
+         (DATA.config.dashLayouts.phone|laptop|ultrawide), edited in place. -->
     <div id="dashLaunchpad" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-9"></div>
 
     <!-- Drilled-in section: one card opened full-width with a back arrow. Only the
@@ -20768,9 +20775,12 @@ function dashFirstRunAction(act) {
   if (act === "learn") { try { openLearn(); } catch (_) {} return; }       // ONBD-11: how-it-works guide
 }
 
-// Per-user launchpad layout: which cards show and in what order. Resolved from
-// DATA.config.dashLayout against the live DASH_CARDS list so new cards added in
-// code auto-appear (at the end) and cards removed from code just drop out.
+// Per-user launchpad layout: which cards show, in what order, and how wide.
+// Resolved from DATA.config.dashLayouts[band] against the live DASH_CARDS list
+// so new cards added in code auto-appear (at the end) and cards removed from
+// code just drop out. Bands are phone / laptop / ultrawide — one saved layout
+// used to be shared across every viewport (DATA.config.dashLayout); that is
+// migrated once into all three bands, then writes go only to the ACTIVE band.
 /* One-time merge of the retired overview grid's layout (DATA.config.dashOvLayout)
    into the single card grid (owner 2026-08-02: "one big section"). The trio maps
    onto its card twins — attention → followups (same computeFollowups data),
@@ -20817,10 +20827,66 @@ function migrateDashOvLayout() {
 const DASH_DEFAULT_ORDER = ["followups", "pipeline", "booked", "jobs",
   "shopping", "revenue", "calibration", "insights", "esign", "changeorder",
   "aiplan", "manufacturers", "team"];
-function resolveDashLayout() {
+const DASH_LAYOUT_BANDS = ["phone", "laptop", "ultrawide"];
+// Viewport bands — key layouts by these, not raw px. Phone matches the
+// existing mobile launchpad/KPI break at 700; ultrawide is PR #203's 4-col.
+function dashLayoutBand(width) {
+  const w = (width == null)
+    ? ((typeof window !== "undefined" && window.innerWidth) || 1024)
+    : Number(width);
+  if (w < 700) return "phone";
+  if (w >= 1440) return "ultrawide";
+  return "laptop";
+}
+function emptyDashLayoutCfg() { return { order: [], hidden: [], spans: {} }; }
+function cloneDashLayoutCfg(src) {
+  const s = src && typeof src === "object" ? src : {};
+  return {
+    order: Array.isArray(s.order) ? s.order.slice() : [],
+    hidden: Array.isArray(s.hidden) ? s.hidden.slice() : [],
+    spans: Object.assign({}, (s.spans && typeof s.spans === "object") ? s.spans : {})
+  };
+}
+function dashLayoutCfgHasContent(cfg) {
+  if (!cfg || typeof cfg !== "object") return false;
+  return (Array.isArray(cfg.order) && cfg.order.length > 0)
+    || (Array.isArray(cfg.hidden) && cfg.hidden.length > 0)
+    || (cfg.spans && typeof cfg.spans === "object" && Object.keys(cfg.spans).length > 0);
+}
+function dashCardDefaultSpan(key) {
+  const card = DASH_CARDS.find(c => c.key === key);
+  const raw = card && Number(card.defaultSpan);
+  return (raw >= 1 && raw <= 3) ? Math.round(raw) : 1;
+}
+/* One-time copy of the single shared dashLayout into phone/laptop/ultrawide
+   so an existing arrangement is not lost. After this, persistDashLayout writes
+   only the active band — never copy spans across bands. */
+function migrateDashLayouts() {
   migrateDashOvLayout();
+  DATA.config = DATA.config || {};
+  const existing = DATA.config.dashLayouts;
+  if (existing && typeof existing === "object"
+      && DASH_LAYOUT_BANDS.some(b => existing[b] && typeof existing[b] === "object")) {
+    DASH_LAYOUT_BANDS.forEach(b => {
+      if (!existing[b] || typeof existing[b] !== "object") existing[b] = emptyDashLayoutCfg();
+    });
+    return;
+  }
+  const snap = cloneDashLayoutCfg(DATA.config.dashLayout);
+  DATA.config.dashLayouts = {
+    phone: cloneDashLayoutCfg(snap),
+    laptop: cloneDashLayoutCfg(snap),
+    ultrawide: cloneDashLayoutCfg(snap)
+  };
+  if (dashLayoutCfgHasContent(snap)) {
+    try { saveData(DATA); } catch (_) {}
+  }
+}
+function resolveDashLayout(band) {
+  migrateDashLayouts();
   const all = DASH_CARDS.map(c => c.key);
-  const cfg = (DATA.config && DATA.config.dashLayout) || {};
+  const use = DASH_LAYOUT_BANDS.includes(band) ? band : dashLayoutBand();
+  const cfg = ((DATA.config && DATA.config.dashLayouts) || {})[use] || {};
   const hidden = new Set(Array.isArray(cfg.hidden) ? cfg.hidden.filter(k => all.includes(k)) : []);
   const order = (Array.isArray(cfg.order) ? cfg.order.filter(k => all.includes(k)) : []).slice();
   // Missing keys append in DASH_DEFAULT_ORDER; anything not listed there (a
@@ -20828,37 +20894,63 @@ function resolveDashLayout() {
   DASH_DEFAULT_ORDER.filter(k => all.includes(k))
     .concat(all.filter(k => !DASH_DEFAULT_ORDER.includes(k)))
     .forEach(k => { if (!order.includes(k)) order.push(k); });
-  // Per-card width, 1-3 blocks of the 3-column grid.
+  // Per-card width, 1-3 blocks. Stored 3 still means "full width" on 3-col;
+  // CSS remaps .dlc-span-3 → span 2 on the 4-col ultrawide grid.
   const spans = {};
   all.forEach(k => {
     const raw = cfg.spans && Number(cfg.spans[k]);
-    const card = DASH_CARDS.find(c => c.key === k);
-    spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : ((card && card.defaultSpan) || 1);
+    spans[k] = (raw >= 1 && raw <= 3) ? Math.round(raw) : dashCardDefaultSpan(k);
   });
-  return { order, spans, visible: order.filter(k => !hidden.has(k)), hiddenList: order.filter(k => hidden.has(k)) };
+  return { band: use, order, spans, visible: order.filter(k => !hidden.has(k)), hiddenList: order.filter(k => hidden.has(k)) };
 }
-function persistDashLayout(visibleOrder, hiddenList, spans) {
+function persistDashLayout(visibleOrder, hiddenList, spans, band) {
+  migrateDashLayouts();
+  const use = DASH_LAYOUT_BANDS.includes(band) ? band : dashLayoutBand();
   DATA.config = DATA.config || {};
-  const prev = DATA.config.dashLayout || {};
-  DATA.config.dashLayout = { order: visibleOrder.concat(hiddenList), hidden: hiddenList.slice(),
+  DATA.config.dashLayouts = DATA.config.dashLayouts || {};
+  const prev = DATA.config.dashLayouts[use] || {};
+  DATA.config.dashLayouts[use] = { order: visibleOrder.concat(hiddenList), hidden: hiddenList.slice(),
     spans: spans || prev.spans || {} };
   saveData(DATA);
 }
 function setDashCardSpan(key, span) {
   const { visible, hiddenList, spans } = resolveDashLayout();
+  // Size click is local — write ONLY this card. Empty cells in a row are OK;
+  // do not grow/shrink a neighbour (that was the TesDrive defect).
   spans[key] = Math.min(3, Math.max(1, Number(span) || 1));
-  // The picked size is pinned; neighbours grow/shrink so no row trails a gap.
-  fillDashSpanRows(visible, spans, key);
   persistDashLayout(visible, hiddenList, spans);
   refreshDashLaunchpad();
 }
+function setDashCardSpanRecommended(key) {
+  setDashCardSpan(key, dashCardDefaultSpan(key));
+}
 function refreshDashLaunchpad() { renderDashLaunchpad(loadJobs()); renderDashEditBar(); }
+let _dashLayoutBand = null;
+function syncDashLayoutBand() {
+  const band = dashLayoutBand();
+  if (band === _dashLayoutBand) return;
+  _dashLayoutBand = band;
+  const wrap = document.getElementById("dashLaunchpad");
+  if (!wrap) return;
+  try { refreshDashLaunchpad(); } catch (_) {}
+}
+function wireDashLayoutBandSync() {
+  if (typeof window === "undefined" || window._dashLayoutBandWired) return;
+  window._dashLayoutBandWired = true;
+  _dashLayoutBand = dashLayoutBand();
+  const apply = () => { try { syncDashLayoutBand(); } catch (_) {} };
+  const mqPhone = window.matchMedia("(max-width: 699.98px)");
+  const mqUltra = window.matchMedia("(min-width: 1440px)");
+  [mqPhone, mqUltra].forEach(mq => {
+    if (mq.addEventListener) mq.addEventListener("change", apply);
+    else if (mq.addListener) mq.addListener(apply);
+  });
+}
 function dashMove(key, dir) {
   const { visible, hiddenList, spans } = resolveDashLayout();
   const i = visible.indexOf(key); if (i < 0) return;
   const j = dir === "up" ? i - 1 : i + 1; if (j < 0 || j >= visible.length) return;
   const v = visible.slice(); const t = v[i]; v[i] = v[j]; v[j] = t;
-  fillDashSpanRows(v, spans);
   persistDashLayout(v, hiddenList, spans); refreshDashLaunchpad();
 }
 function dashRemove(key) {
@@ -20866,20 +20958,23 @@ function dashRemove(key) {
   if (!visible.includes(key)) return;
   if (visible.length <= 1) { try { toast("Keep at least one card on the dashboard."); } catch (_) {} return; }
   const nv = visible.filter(k => k !== key);
-  fillDashSpanRows(nv, spans);
   persistDashLayout(nv, hiddenList.concat([key]), spans); refreshDashLaunchpad();
 }
 function dashAdd(key) {
   const { visible, hiddenList, spans } = resolveDashLayout();
   if (!hiddenList.includes(key)) return;
   const nv = visible.concat([key]);
-  fillDashSpanRows(nv, spans);
   persistDashLayout(nv, hiddenList.filter(k => k !== key), spans); refreshDashLaunchpad();
 }
 function dashResetLayout() {
-  // Reset means the whole dashboard, panels included — otherwise a removed
-  // overview panel would survive a "Reset" and look like the button is broken.
-  if (DATA.config) { delete DATA.config.dashLayout; delete DATA.config.dashOvLayout; }
+  // Reset the ACTIVE band only — phone / laptop / ultrawide stay independent.
+  // Restores default order + defaultSpan for every card on this screen.
+  if (DATA.config) {
+    migrateDashLayouts();
+    const band = dashLayoutBand();
+    if (DATA.config.dashLayouts) DATA.config.dashLayouts[band] = emptyDashLayoutCfg();
+    delete DATA.config.dashOvLayout;
+  }
   saveData(DATA); refreshDashLaunchpad();
 }
 // Read the live DOM order after a drag and persist it (visible cards only; the
@@ -20887,31 +20982,18 @@ function dashResetLayout() {
 let _lpDragRects = null;    // drag-start rect snapshot — the stable hit-test map
 function previewDashCardSpans(cell, phase, x, y) {
   const key = cell && cell.dataset ? cell.dataset.cardKey : null; if (!key) return false;
-  const wrap = document.getElementById("dashLaunchpad");
-  const { hiddenList, spans } = resolveDashLayout();
+  const wrap = document.getElementById("dashLaunchpad"); if (!wrap) return false;
+  const { hiddenList } = resolveDashLayout();
   const saved = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(k => k && !hiddenList.includes(k));
   if (phase === "start") {
-    // Freeze the geometry the whole drag hit-tests against (see dashPointerOrder).
+    // Freeze the geometry the drop hit-tests against (see dashPointerOrder).
     _lpDragRects = {};
     saved.forEach(k => { const el = wrap.querySelector(`.dash-launch-cell[data-card-key="${k}"]`);
       if (el) _lpDragRects[k] = el.getBoundingClientRect(); });
-    return false;
   }
-  const entries = saved.map(k => ({ key: k, rect: _lpDragRects && _lpDragRects[k] })).filter(e => e.rect);
-  if (!entries.length) return false;
-  const po = dashPointerOrder(entries, key, x, y);
-  const visible = po.order;
-  const preview = computeDragPreviewSpans(visible, spans, key, po.row);
-  let changed = false;
-  wrap.querySelectorAll(".dash-launch-cell").forEach(el => {
-    const k = el.dataset.cardKey; if (!k) return;
-    const want = "dlc-span-" + (preview[k] || 1);
-    if (!el.classList.contains(want)) {
-      el.classList.remove("dlc-span-1", "dlc-span-2", "dlc-span-3");
-      el.classList.add(want); changed = true;
-    }
-  });
-  return changed;
+  // Order-only: the engine FLIPs the dragged card. Other cards keep their
+  // saved spans — do not grow/shrink neighbours to fill a row.
+  return false;
 }
 function persistDashOrderFromDOM(draggedCell, dropX, dropY) {
   const wrap = document.getElementById("dashLaunchpad"); if (!wrap) return;
@@ -20921,19 +21003,12 @@ function persistDashOrderFromDOM(draggedCell, dropX, dropY) {
   const savedLp = order.filter(k => !hiddenList.includes(k));
   const lpEntries = (draggedKey && dropX != null)
     ? savedLp.map(k => ({ key: k, rect: _lpDragRects && _lpDragRects[k] })).filter(e => e.rect) : [];
-  let lpRow = null;
   if (lpEntries.length) {
-    // Drop persists exactly what the preview showed — same frozen rects.
+    // Drop persists the pointer order — same frozen rects. Spans stay as saved.
     const po = dashPointerOrder(lpEntries, draggedKey, dropX, dropY);
-    visibleOrder = po.order; lpRow = po.row;
+    visibleOrder = po.order;
   } else {
     visibleOrder = Array.from(wrap.querySelectorAll(".dash-launch-cell")).map(el => el.dataset.cardKey).filter(Boolean);
-  }
-  let resized = false;
-  if (draggedKey) {
-    const preview = computeDragPreviewSpans(visibleOrder, spans, draggedKey, lpRow);
-    resized = visibleOrder.some(k => (preview[k] || 1) !== (spans[k] || 1));
-    visibleOrder.forEach(k => spans[k] = preview[k] || 1);
   }
   _lpDragRects = null;
   persistDashLayout(visibleOrder, hiddenList, spans);
@@ -21062,9 +21137,7 @@ function wireDashDragReorder(wrap, sel, onDrop, onPreview) {
     if (!ptr.started) {
       if (Math.abs(e.clientX - ptr.sx) < 5 && Math.abs(e.clientY - ptr.sy) < 5) return;
       ptr.started = true;
-      // Live size preview (owner request): let the caller reshape spans as the
-      // drag moves — growing the vacated row, shrinking the destination — so
-      // the layout you see mid-drag IS the layout you get on drop.
+      // Freeze drop geometry (order-only). Neighbour spans stay as saved.
       if (onPreview) { try { onPreview(ptr.cell, "start"); } catch (_) {} }
       slots = measure(tiles());                 // seed BEFORE the lift transform lands
       ptr.cell.classList.add("dragging");
@@ -21114,9 +21187,9 @@ function renderDashEditBar() {
   }).join("");
   bar.innerHTML = `
     <div class="dash-editbar-row">
-      <span class="dash-editbar-title">Customize — drag to reorder (a card makes room by shrinking its neighbour), pick a size, remove with ×.</span>
+      <span class="dash-editbar-title">Customize — drag to reorder, pick a size (★ recommended), remove with ×. Layouts are saved separately for phone, laptop, and wide screens.</span>
       <span class="dash-editbar-actions">
-        <button type="button" class="dash-eb-btn" data-dashreset>Reset</button>
+        <button type="button" class="dash-eb-btn" data-dashreset title="Reset this screen to the default order and sizes">Reset</button>
       </span>
     </div>
     ${hiddenList.length
@@ -21145,7 +21218,8 @@ function renderDashLaunchpad(jobs) {
   const ctx = dashLaunchContext(jobs);
   const editing = _dashEditMode;
   wrap.classList.toggle("editing", editing);
-  const { visible, spans } = resolveDashLayout();
+  const { visible, spans, band } = resolveDashLayout();
+  wrap.dataset.dashBand = band;
   wrap.innerHTML = visible.map(key => {
     const c = DASH_CARDS.find(x => x.key === key);
     if (!c) return "";
@@ -21164,7 +21238,12 @@ function renderDashLaunchpad(jobs) {
             <button type="button" class="dec-btn" data-dashmove="down" data-key="${c.key}" aria-label="Move ${escHtml(c.title)} later">&darr;</button>
             <button type="button" class="dec-btn dec-remove" data-dashremove="${c.key}" aria-label="Remove ${escHtml(c.title)}">&times;</button>
           </span><span class="dec-row">
-            ${[1,2,3].map(w => `<button type="button" class="dec-btn dec-span${(spans[c.key]||1)===w ? " on" : ""}" data-dashspan="${w}" data-key="${c.key}" aria-label="${escHtml(c.title)}: ${DEC_SPAN_NAME[w]}" aria-pressed="${(spans[c.key]||1)===w}" title="${DEC_SPAN_NAME[w]}">${DEC_SPAN_ICONS[w]}</button>`).join("")}
+            ${(() => { const rec = dashCardDefaultSpan(c.key); return [1,2,3].map(w => {
+              const on = (spans[c.key] || 1) === w;
+              const isRec = w === rec;
+              const name = DEC_SPAN_NAME[w] + (isRec ? " (recommended)" : "");
+              return `<button type="button" class="dec-btn dec-span${on ? " on" : ""}${isRec ? " dec-rec" : ""}" data-dashspan="${w}" data-key="${c.key}" aria-label="${escHtml(c.title)}: ${name}" aria-pressed="${on}" title="${name}">${DEC_SPAN_ICONS[w]}${isRec ? '<span class="dec-rec-mark" aria-hidden="true">★</span>' : ""}</button>`;
+            }).join("") + `<button type="button" class="dec-btn dec-span-reset" data-dashspanreset="${c.key}"${(spans[c.key] || 1) === rec ? " disabled" : ""} aria-label="Reset ${escHtml(c.title)} to recommended size" title="Reset to recommended (${DEC_SPAN_NAME[rec]})">${DEC_RESET_SVG}</button>`; })()}
           </span></span>
         </div>
         <span class="dash-launch-card" aria-hidden="true">
@@ -22815,12 +22894,10 @@ function dashSpanRows(visible, spans) {
   if (row.length) rows.push(row);
   return rows;
 }
-/* Fill pass: no row may trail empty space (owner 2026-08-02 — "when sliding
-   Needs attention up, Booked by month should adjust to fill"). Each under-3 row
-   grows its widest member; `lockKey` pins a card whose size the user JUST
-   picked — if pinning leaves the row stuck, the NEXT row's leader is pulled in,
-   shrunk to the gap, instead. One mutation per pass so the greedy rows are
-   re-derived after every change. */
+/* Retired neighbour-fill (kept so older call sites / comments stay findable).
+   Growing a neighbour so no row trails a gap was the TesDrive defect: shrinking
+   a 3 to a 1 grew the next card from 1 to 2. Size clicks and drag persist must
+   NOT call this. Empty cells in a row are OK. */
 function fillDashSpanRows(visible, spans, lockKey) {
   for (let guard = 0; guard < 30; guard++) {
     const rows = dashSpanRows(visible, spans);
@@ -22838,10 +22915,8 @@ function fillDashSpanRows(visible, spans, lockKey) {
     if (!changed) return;
   }
 }
-/* The full mid-drag preview: start from the SAVED spans every time (so dragging
-   back reverts cleanly), grow the row the card left so its survivors reclaim
-   the space, then shrink the destination row so the card fits. Returns the
-   spans to show — also exactly what gets persisted on drop. */
+/* Retired drag span-rewrite. Preview/persist now keep every card's saved span;
+   this helper must not be called from the size picker or from drop persist. */
 function computeDragPreviewSpans(visible, savedSpans, draggedKey, targetMates) {
   const spans = {}; Object.keys(savedSpans).forEach(k => spans[k] = savedSpans[k]);
   // Shrink pass. When the pointer says "join THIS row" (targetMates from
@@ -22896,6 +22971,7 @@ const DEC_SPAN_ICONS = {
   3: '<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0.75" y="0.75" width="16.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35"/><rect x="2.4" y="2.4" width="13.2" height="7.2" rx="1.4" fill="currentColor"/></svg>',
 };
 const DEC_SPAN_NAME = { 1: "Small", 2: "Medium", 3: "Full width" };
+const DEC_RESET_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.2-5.5"/><path d="M4 4v5h5"/></svg>';
 const DEC_HANDLE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 
 /* Where would the card land if released HERE? Insertion order from the pointer,
@@ -22915,9 +22991,9 @@ function dashPointerOrder(entries, draggedKey, x, y) {
     if (d < bandD) { band = e; bandD = d; } });
   const rowEls = others.filter(e => e.rect.top < band.rect.bottom && e.rect.bottom > band.rect.top);
   const order = others.map(e => e.key);
-  // Pointer INSIDE the band's vertical range means "join this row" (the row
-  // then shrinks to make space — `row` reports its members). Above or below it
-  // means "your own row before/after" — insertion only, nobody resizes.
+  // Pointer INSIDE the band's vertical range means "join this row"
+  // (`row` reports its members). Above or below it means "your own row
+  // before/after". Insertion only — nobody's saved span is rewritten.
   const rowTop = Math.min(...rowEls.map(e => e.rect.top));
   const rowBottom = Math.max(...rowEls.map(e => e.rect.bottom));
   let anchor = null, before = false, inRow = false;
@@ -25823,6 +25899,7 @@ function wireDashboard() {
   // Dashboard customize (edit mode) — reorder / add / remove launchpad cards.
   const _custBtn = document.getElementById("dashCustomizeBtn");
   if (_custBtn) _custBtn.addEventListener("click", () => toggleDashEdit(!_dashEditMode));
+  try { wireDashLayoutBandSync(); } catch (_) {}
   const _editBar = document.getElementById("dashEditBar");
   if (_editBar) _editBar.addEventListener("click", (e) => {
     if (e.target.closest("[data-dashreset]")) { dashResetLayout(); return; }
@@ -25834,6 +25911,8 @@ function wireDashboard() {
   if (launchpad) {
     launchpad.addEventListener("click", (e) => {
       // Edit mode: card move / remove controls, and no drill-in navigation.
+      const sr = e.target.closest("[data-dashspanreset]");
+      if (sr) { e.preventDefault(); e.stopPropagation(); setDashCardSpanRecommended(sr.dataset.dashspanreset); return; }
       const sp = e.target.closest("[data-dashspan]");
       if (sp) { e.preventDefault(); e.stopPropagation(); setDashCardSpan(sp.dataset.key, sp.dataset.dashspan); return; }
       const mv = e.target.closest("[data-dashmove]");
@@ -36801,11 +36880,11 @@ function restoreDefaults() {
   // silently wipe these (they're not what the dialog promises to reset):
   //  - entitlements: plan/trial clock/usage (else a paying user drops to trial)
   //  - customerLogos: per-customer uploaded images (irreversible loss)
-  //  - dashLayout: the user's dashboard card arrangement
+  //  - dashLayout / dashLayouts: the user's dashboard card arrangement
   //  - firstQuoteSent: onboarding-checklist progress
   const cfg = (DATA && DATA.config) ? DATA.config : {};
   const keep = {};
-  ["entitlements", "customerLogos", "dashLayout", "firstQuoteSent"].forEach(k => {
+  ["entitlements", "customerLogos", "dashLayout", "dashLayouts", "firstQuoteSent"].forEach(k => {
     if (cfg[k] !== undefined && cfg[k] !== null) keep[k] = clone(cfg[k]);
   });
   DATA = clone(DEFAULT_DATA);
