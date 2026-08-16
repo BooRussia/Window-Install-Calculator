@@ -14,6 +14,13 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="description" content="Anchor — quote window installs in seconds. Linear-footage costing, Florida product-approval lookup, and instant customer quotes for window & door installers." />
 <title>Anchor — Window Install Pricing</title>
+<meta property="og:title" content="Anchor — Window Install Pricing" />
+<meta property="og:description" content="Anchor — quote window installs in seconds. Linear-footage costing, Florida product-approval lookup, and instant customer quotes for window & door installers." />
+<meta property="og:url" content="https://anchorquoting.com/" />
+<meta property="og:image" content="https://anchorquoting.com/brand/anchor-mark.png" />
+<meta property="og:image:type" content="image/png" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:image" content="https://anchorquoting.com/brand/anchor-mark.png" />
 <script>
   /* Home Screen / installed PWA — older iOS uses navigator.standalone only. */
   (function () {
@@ -8661,6 +8668,8 @@
     var logoHTML = "";
     if (brand.logo && /^data:image\//i.test(brand.logo)) {
       logoHTML = '<img class="pq-logo" alt="" src="' + esc(brand.logo) + '" />';
+    } else {
+      logoHTML = '<img class="pq-logo" src="brand/anchor-mark.png" alt="" />';
     }
 
     var scopeRows = (payload.scope || []).map(function (pair) {
@@ -8832,7 +8841,8 @@
   function brandHeaderHTML(s) {
     var b = s.brand || {};
     var logo = (b.logo && /^data:image\//i.test(b.logo))
-      ? '<img class="pq-logo" alt="" src="' + esc(b.logo) + '" />' : "";
+      ? '<img class="pq-logo" alt="" src="' + esc(b.logo) + '" />'
+      : '<img class="pq-logo" src="brand/anchor-mark.png" alt="" />';
     var tagline = b.tagline ? '<div class="pq-tagline">' + esc(b.tagline) + '</div>' : "";
     return '<div class="pq-header">' + logo +
       '<h1 class="pq-company">' + esc(b.companyName || "Quote") + '</h1>' +
@@ -31401,10 +31411,61 @@ function ensureQuoteIssue(jobId) {
   return { quoteNo: job.quoteNo, issuedAt: Number(job.issuedAt) || Date.now() };
 }
 
+// Window-plate mark used as the customer-quote letterhead when the installer
+// has not uploaded a logo. Fetched once as a data URL for jsPDF addImage;
+// a failed load falls through to today's text-only header.
+const ANCHOR_MARK_SRC = "brand/anchor-mark.png";
+const ANCHOR_MARK_PT = 52; // ~48–56pt square
+let _anchorMarkDataUrl = null;
+let _anchorMarkPromise = null;
+let _anchorMarkFailed = false;
+
+function loadAnchorMarkDataUrl() {
+  if (_anchorMarkDataUrl) return Promise.resolve(_anchorMarkDataUrl);
+  if (_anchorMarkFailed) return Promise.resolve(null);
+  if (_anchorMarkPromise) return _anchorMarkPromise;
+  _anchorMarkPromise = fetch(ANCHOR_MARK_SRC)
+    .then((res) => {
+      if (!res.ok) throw new Error("anchor-mark " + res.status);
+      return res.blob();
+    })
+    .then((blob) => new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ""));
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    }))
+    .then((url) => {
+      if (!url || !/^data:image\//i.test(url)) throw new Error("anchor-mark empty");
+      _anchorMarkDataUrl = url;
+      return url;
+    })
+    .catch(() => {
+      _anchorMarkFailed = true;
+      _anchorMarkPromise = null;
+      return null;
+    });
+  return _anchorMarkPromise;
+}
+
+function addAnchorMarkToPdf(doc, x, y) {
+  if (!_anchorMarkDataUrl) return 0;
+  try {
+    doc.addImage(_anchorMarkDataUrl, "PNG", x, y, ANCHOR_MARK_PT, ANCHOR_MARK_PT);
+    return ANCHOR_MARK_PT;
+  } catch (e) {
+    return 0;
+  }
+}
+
 function exportCustomerPDF(mode, force) {
   // MUST be first — before any side effect (ensureQuoteIssue/logQuoteEvent/markFirstQuoteSent) —
   // so a load-then-retry fires them exactly once, on the invocation that passes.
   if (!jsPdfReady()) { loadJsPdf().then(() => exportCustomerPDF(mode, force)).catch(() => toast("Couldn't load the PDF engine — check your connection")); return; }
+  if (!effectiveBrand().logo && !_anchorMarkDataUrl && !_anchorMarkFailed) {
+    loadAnchorMarkDataUrl().then(() => exportCustomerPDF(mode, force));
+    return;
+  }
   const r = calculate();
   if (!hasQuoteInput(r)) { toast("Enter footage or doors first"); return; }
   if (!requireSavedJobForExport(() => exportCustomerPDF(mode, force))) return;
@@ -31439,7 +31500,11 @@ function exportCustomerPDF(mode, force) {
       doc.addImage(brand.logo, "PNG", M, M - 6, w, h);
       y = M - 6 + h + 16;
       logoDrawn = true;
-    } catch (e) { /* fall through to text */ }
+    } catch (e) { /* fall through to mark / text */ }
+  }
+  if (!logoDrawn) {
+    const markH = addAnchorMarkToPdf(doc, M, M - 6);
+    if (markH) { y = M - 6 + markH + 16; logoDrawn = true; }
   }
   if (logoDrawn) {
     // Company name printed under the logo
@@ -32082,6 +32147,8 @@ async function exportSignedQuotePDF(jobId) {
   if (!row || row.status !== "signed") {
     toast("No signed copy yet — send this quote for signature first"); return;
   }
+  const snapBrand = (row.snapshot && row.snapshot.brand) || {};
+  if (!snapBrand.logo) await loadAnchorMarkDataUrl();
   renderSignedQuotePDF(row);
 }
 
@@ -32101,6 +32168,8 @@ async function exportSignedQuoteById(quoteId) {
     toast("Couldn't load the signed record"); return;
   }
   if (!row || row.status !== "signed") { toast("That quote isn't signed yet"); return; }
+  const snapBrand = (row.snapshot && row.snapshot.brand) || {};
+  if (!snapBrand.logo) await loadAnchorMarkDataUrl();
   renderSignedQuotePDF(row);
 }
 
@@ -32135,6 +32204,10 @@ function renderSignedQuotePDF(row) {
       doc.addImage(brand.logo, props.fileType || "PNG", M, M - 6, w, h);
       y = M - 6 + h + 16; logoDrawn = true;
     } catch (e) { /* fall through */ }
+  }
+  if (!logoDrawn) {
+    const markH = addAnchorMarkToPdf(doc, M, M - 6);
+    if (markH) { y = M - 6 + markH + 16; logoDrawn = true; }
   }
   if (logoDrawn) {
     doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(20, 20, 20);
@@ -33843,6 +33916,10 @@ function exportChangeOrderPDF(mode, force, scope) {
       .catch(() => toast("Couldn't load the PDF engine — check your connection"));
     return;
   }
+  if (!effectiveBrand().logo && !_anchorMarkDataUrl && !_anchorMarkFailed) {
+    loadAnchorMarkDataUrl().then(() => exportChangeOrderPDF(mode, force, scope));
+    return;
+  }
   // Same demo-brand/demo-rates gate as customer quotes (force resumes past the modal).
   if (!force && demoExportBlocked(() => exportChangeOrderPDF(mode, true, scope))) return;
   try { window.track("change_order_pdf"); } catch (_) {}
@@ -33878,6 +33955,10 @@ function exportChangeOrderPDF(mode, force, scope) {
       y = M - 6 + h + 16;
       logoDrawn = true;
     } catch (e) { /* fall through */ }
+  }
+  if (!logoDrawn) {
+    const markH = addAnchorMarkToPdf(doc, M, M - 6);
+    if (markH) { y = M - 6 + markH + 16; logoDrawn = true; }
   }
   if (logoDrawn) {
     doc.setFont("helvetica", "bold");
