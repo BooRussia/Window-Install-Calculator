@@ -39,7 +39,7 @@ Also confirm **Authentication → URL Configuration**:
 - **Site URL** = your live Netlify domain (e.g. `https://anchorquoting.netlify.app`)
 - That same origin is listed under **Redirect URLs**
 
-The logo in these templates loads from `{{ .SiteURL }}/anchor-wordmark.png`.
+The logo in these templates loads from `{{ .SiteURL }}/brand/anchor-mark.png`.
 
 ---
 
