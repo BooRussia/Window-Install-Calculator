@@ -26,10 +26,8 @@
   })();
 </script>
 
-<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-<link rel="icon" href="/favicon.ico" sizes="48x48" />
+<link rel="apple-touch-icon" href="/brand/anchor-mark.png" />
+<link rel="icon" type="image/png" href="/brand/anchor-mark.png" />
 <link rel="manifest" href="/manifest.webmanifest" />
 
 <!-- ============================================================
@@ -8516,6 +8514,8 @@
   #demoBannerDismiss { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 }
 </style>
+
+<link rel="stylesheet" href="receipt-printer.css">
 </head>
 <body class="bg-grid text-slate-100 min-h-screen rail-pinned rail-tidy">
 
@@ -12940,9 +12940,62 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">Saved</div>
 
+<div id="receiptPrinterOverlay" class="rp-overlay" hidden aria-hidden="true">
+  <div class="rp-backdrop" data-rp-dismiss></div>
+  <section id="rpRoot" class="rp-root" data-stage="processing" aria-label="Receipt printer">
+    <div class="rp-machine">
+      <div class="rp-header">
+        <div class="rp-header-brand">
+          <img class="rp-header-mark" src="brand/anchor-mark.png" alt="" width="24" height="24" />
+          <span class="rp-header-name">Anchor</span>
+        </div>
+        <button type="button" id="rpHome" class="rp-home">Home</button>
+      </div>
+      <div class="rp-screen">
+        <div class="rp-screen-body">
+          <div class="rp-screen-top">
+            <div class="rp-screen-plan">
+              <div id="rpScreenPlan" class="rp-screen-name"></div>
+              <div id="rpScreenPeriod" class="rp-screen-period"></div>
+            </div>
+            <div class="rp-screen-sum">
+              <div class="rp-screen-sum-label">Total</div>
+              <div id="rpScreenTotal" class="rp-screen-sum-amt"></div>
+            </div>
+          </div>
+          <div class="rp-status">
+            <span class="rp-indicator" aria-hidden="true">
+              <svg class="rp-spin" viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="38 18"/>
+              </svg>
+              <svg class="rp-check" viewBox="0 0 24 24" width="18" height="18">
+                <circle cx="12" cy="12" r="10" fill="currentColor"/>
+                <path d="M7.4 12.4l3.1 3.1 6.1-6.4" fill="none" stroke="#0b1220" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <div id="rpStatusText" class="rp-status-text" role="status" aria-live="polite">Processing your order</div>
+          </div>
+        </div>
+      </div>
+      <div class="rp-slot" aria-hidden="true"></div>
+    </div>
+    <div class="rp-output">
+      <div class="rp-slot-shadow" aria-hidden="true"></div>
+      <div class="rp-feed">
+        <article id="rpPaper" class="rp-paper" aria-hidden="true">
+          <div id="rpSlip"></div>
+        </article>
+      </div>
+    </div>
+    <button type="button" id="rpDone" class="rp-done" hidden>Done</button>
+  </section>
+</div>
+
+
 <!-- Job-specs FAB retired — on the calculator the center tab opens the rail. -->
 <button id="jobSpecsFab" type="button" class="hidden" aria-hidden="true" tabindex="-1" hidden></button>
 
+<script src="receipt-printer.js"></script>
 <script>
 /* ============================================================
    ANALYTICS SHIM — defined first so any code below can call it.
@@ -41017,14 +41070,32 @@ async function handleStripeReturn() {
   const checkout = url.searchParams.get("checkout");
   if (!checkout) return;
 
+  // Capture preview / order fields BEFORE stripping so a URL like
+  // /?checkout=success&plan=pro&billing=annual can drive the slip.
+  const sessionId = url.searchParams.get("session_id") || "";
+  const previewPlan = url.searchParams.get("plan") || "";
+  const previewBilling = url.searchParams.get("billing") || "";
+
   // Strip the params from the URL so a manual refresh doesn't re-fire the
   // toast / re-sync needlessly. We keep the pathname + hash intact.
   url.searchParams.delete("checkout");
   url.searchParams.delete("session_id");
+  url.searchParams.delete("plan");
+  url.searchParams.delete("billing");
   window.history.replaceState({}, "", url.pathname + url.search + url.hash);
 
   if (checkout === "success") {
-    toast("Subscription activated — welcome!");
+    // Receipt-printer overlay (processing → printing → complete). Toast is a
+    // quiet fallback only if the overlay cannot mount.
+    let _rpMounted = false;
+    const rpOpts = {};
+    if (previewPlan) rpOpts.plan = previewPlan;
+    if (previewBilling) rpOpts.billing = previewBilling;
+    if (sessionId) rpOpts.sessionId = sessionId;
+    try {
+      _rpMounted = typeof window.showReceiptPrinter === "function" && !!window.showReceiptPrinter("processing", rpOpts);
+    } catch (_) { _rpMounted = false; }
+    if (!_rpMounted) toast("Subscription activated — welcome!");
     if (typeof window.track === "function") window.track("checkout_success");
     // The webhook updates Supabase asynchronously. Pull a fresh profile so
     // entitlements (plan, cycleResetAt) reflect the new subscription. We
@@ -41040,6 +41111,9 @@ async function handleStripeReturn() {
       const plan = (DATA?.config?.entitlements?.plan) || "trial";
       if (plan !== "trial") break;       // webhook landed
       await new Promise(r => setTimeout(r, 1200 + i * 800));
+    }
+    if (_rpMounted) {
+      try { window.completeReceiptPrinter(); } catch (_) {}
     }
   } else if (checkout === "canceled") {
     toast("Checkout canceled — your plan is unchanged");
