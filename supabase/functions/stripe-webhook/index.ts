@@ -62,6 +62,37 @@ function subCurrentPeriodEnd(sub: any): number | undefined {
 }
 
 // deno-lint-ignore no-explicit-any
+function subCurrentPeriodStart(sub: any): number | undefined {
+  return sub?.items?.data?.[0]?.current_period_start ?? sub?.current_period_start;
+}
+
+// Usage quotas are MONTHLY on every plan ("25 quotes per month"), but an annual
+// subscription's billing period is a year — resetting only on invoice.paid gave
+// annual customers one month's quota for the whole year. The quota window ends
+// at the next monthly anniversary of the period start (never after the period
+// end); the database's roll_quota_cycle() rolls it forward month by month.
+// deno-lint-ignore no-explicit-any
+function quotaWindowEndMs(sub: any): number | undefined {
+  const endSec = subCurrentPeriodEnd(sub);
+  if (!endSec) return undefined;
+  const endMs = endSec * 1000;
+  const startSec = subCurrentPeriodStart(sub);
+  if (!startSec) return endMs;
+  const start = new Date(startSec * 1000);
+  const day = start.getUTCDate();
+  const now = Date.now();
+  for (let i = 1; i <= 24; i++) {
+    const y = start.getUTCFullYear();
+    const m = start.getUTCMonth() + i;
+    const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const t = Date.UTC(y, m, Math.min(day, lastDay),
+      start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds());
+    if (t > now) return Math.min(t, endMs);
+  }
+  return endMs;
+}
+
+// deno-lint-ignore no-explicit-any
 function invoiceSubscriptionId(invoice: any): string | undefined {
   const sub = invoice?.parent?.subscription_details?.subscription
     ?? invoice?.subscription;
@@ -201,7 +232,12 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   const sub = await stripe.subscriptions.retrieve(subId);
   const userId = await userIdFromSubscription(sub);
   if (!userId) return;
+  // Stripe retries and can replay events: never reset the counters twice for
+  // the same invoice (a replayed invoice.paid would hand out a free fresh quota).
+  const current = await getEntitlements(userId);
+  if (current && current.lastInvoicePaidId === invoice.id) return;
   const periodEnd = subCurrentPeriodEnd(sub);
+  const windowEnd = quotaWindowEndMs(sub);
   await patchEntitlements(userId, {
     // Reset ALL per-cycle usage counters on renewal — not just quotes. The AI
     // plan-read and thumbnail counters live in the same entitlements JSON and
@@ -211,8 +247,10 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     quotesUsedThisCycle: 0,
     aiExtractionsUsedThisCycle: 0,
     aiThumbnailsUsedThisCycle: 0,
-    ...(periodEnd ? { cycleResetAt: periodEnd * 1000 } : {}),
+    ...(windowEnd ? { cycleResetAt: windowEnd } : {}),
+    ...(periodEnd ? { billingPeriodEnd: periodEnd * 1000 } : {}),
     subscriptionStatus: sub.status,
+    lastInvoicePaidId: invoice.id,
   });
 }
 
@@ -294,6 +332,15 @@ async function applySubscriptionToEntitlements(userId: string, sub: Stripe.Subsc
     return;
   }
   const periodEnd = subCurrentPeriodEnd(sub);
+  const windowEnd = quotaWindowEndMs(sub);
+  // A new plan (first purchase, trial conversion, upgrade) starts a fresh quota
+  // window. Otherwise leave the window to invoice.paid and the monthly DB roll, so
+  // an unrelated subscription update (card change, cancel toggle) can't stretch
+  // or skip it.
+  const current = (await getEntitlements(userId)) ?? {};
+  const currentReset = Number(current.cycleResetAt) || 0;
+  const newWindow = current.plan !== plan || !currentReset ||
+    (periodEnd ? currentReset > periodEnd * 1000 : false);
   await patchEntitlements(userId, {
     plan,
     subscriptionStatus: sub.status,
@@ -301,7 +348,8 @@ async function applySubscriptionToEntitlements(userId: string, sub: Stripe.Subsc
     // The sub stays "active" until period end; we surface this so the app can
     // show "Canceling on <date>" while access continues. Resuming flips it back.
     cancelAtPeriodEnd: !!sub.cancel_at_period_end,
-    ...(periodEnd ? { cycleResetAt: periodEnd * 1000 } : {}),
+    ...(newWindow && windowEnd ? { cycleResetAt: windowEnd } : {}),
+    ...(periodEnd ? { billingPeriodEnd: periodEnd * 1000 } : {}),
     planSetAt: Date.now(),
     // Don't zero quotesUsedThisCycle here — invoice.paid handles renewals. For a
     // brand-new subscription (first checkout) the user hasn't used anything yet,
@@ -309,19 +357,21 @@ async function applySubscriptionToEntitlements(userId: string, sub: Stripe.Subsc
   });
 }
 
-async function patchEntitlements(userId: string, patch: Record<string, unknown>) {
-  const { data: profile, error: pErr } = await supabaseAdmin
+// deno-lint-ignore no-explicit-any
+async function getEntitlements(userId: string): Promise<Record<string, any> | null> {
+  const { data: profile, error } = await supabaseAdmin
     .from("profiles")
     .select("data")
     .eq("id", userId)
     .maybeSingle();
-  if (pErr) throw pErr;
-  const data = profile?.data ?? {};
-  data.config = data.config ?? {};
-  data.config.entitlements = { ...(data.config.entitlements ?? {}), ...patch };
-  const { error: upErr } = await supabaseAdmin
-    .from("profiles")
-    .update({ data })
-    .eq("id", userId);
-  if (upErr) throw upErr;
+  if (error) throw error;
+  return profile?.data?.config?.entitlements ?? null;
+}
+
+// Atomic merge into profiles.data.config.entitlements (patch_entitlements RPC):
+// one UPDATE, so it can't revert a settings edit that lands in between, and two
+// closely-spaced events can't overwrite each other's fields.
+async function patchEntitlements(userId: string, patch: Record<string, unknown>) {
+  const { error } = await supabaseAdmin.rpc("patch_entitlements", { p_user: userId, p_patch: patch });
+  if (error) throw error;
 }

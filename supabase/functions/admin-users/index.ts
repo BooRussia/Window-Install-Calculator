@@ -53,25 +53,19 @@ const ASSIGNABLE = ["none", "trial", "starter", "pro", "unlimited", "crew"];
 
 const DAY = 86400000;
 
-/** Read a profile's settings blob (the app stores everything under `data`). */
-async function getProfileData(userId: string): Promise<Record<string, unknown>> {
-  const { data, error } = await admin.from("profiles")
-    .select("data").eq("id", userId).maybeSingle();
-  if (error) throw error;
-  return (data?.data as Record<string, unknown>) ?? {};
-}
-
-/** Write entitlements back, preserving everything else in the blob. */
+/** Merge a patch into the account's entitlements in one atomic UPDATE
+ *  (patch_entitlements RPC), leaving every other setting untouched. Creates the
+ *  profile row first if the account has never synced. */
 async function patchEntitlements(userId: string, patch: Record<string, unknown>) {
-  const data = await getProfileData(userId);
-  const config = (data.config as Record<string, unknown>) ?? {};
-  const ents = (config.entitlements as Record<string, unknown>) ?? {};
-  config.entitlements = { ...ents, ...patch };
-  data.config = config;
-  const { error } = await admin.from("profiles")
-    .upsert({ id: userId, data, updated_at: new Date().toISOString() });
-  if (error) throw error;
-  return config.entitlements;
+  const first = await admin.rpc("patch_entitlements", { p_user: userId, p_patch: patch });
+  if (first.error) throw first.error;
+  if (first.data) return first.data;
+  const { error: insErr } = await admin.from("profiles")
+    .upsert({ id: userId, data: {} }, { onConflict: "id", ignoreDuplicates: true });
+  if (insErr) throw insErr;
+  const again = await admin.rpc("patch_entitlements", { p_user: userId, p_patch: patch });
+  if (again.error) throw again.error;
+  return again.data;
 }
 
 Deno.serve(async (req: Request) => {
@@ -153,14 +147,24 @@ Deno.serve(async (req: Request) => {
         return json({ error: `plan must be one of ${ASSIGNABLE.join(", ")}` }, 400);
       }
       const now = Date.now();
+      // Use the SAME field names the app, the webhook and the edge functions read
+      // (subscriptionStatus / cycleResetAt in ms / aiExtractionsUsedThisCycle).
+      // This used to write status/cycleEnd/aiReadsUsedThisCycle, which nothing
+      // reads — a manual grant never actually took effect.
+      const noCycle = plan === "none" || plan === "crew";
+      const status = plan === "none" ? "unchosen"
+        : plan === "crew" ? "crew"
+        : plan === "trial" ? "trialing" : "active";
       // Fresh cycle so caps (quotes, AI reads) start clean on the new plan.
       const ents = await patchEntitlements(userId, {
         plan,
-        status: plan === "none" ? "none" : "active",
-        cycleStart: new Date(now).toISOString(),
-        cycleEnd: new Date(now + 30 * DAY).toISOString(),
+        subscriptionStatus: status,
+        cycleResetAt: noCycle ? null : now + (plan === "trial" ? 14 : 30) * DAY,
+        ...(plan === "trial" ? { trialStartedAt: now } : {}),
+        planSetAt: now,
+        cancelAtPeriodEnd: false,
         quotesUsedThisCycle: 0,
-        aiReadsUsedThisCycle: 0,
+        aiExtractionsUsedThisCycle: 0,
         aiThumbnailsUsedThisCycle: 0,
         manualOverrideAt: new Date(now).toISOString(),
         manualOverrideBy: caller.email ?? caller.id,
@@ -174,7 +178,7 @@ Deno.serve(async (req: Request) => {
       if (!userId) return json({ error: "userId required" }, 400);
       const ents = await patchEntitlements(userId, {
         quotesUsedThisCycle: 0,
-        aiReadsUsedThisCycle: 0,
+        aiExtractionsUsedThisCycle: 0,
         aiThumbnailsUsedThisCycle: 0,
       });
       return json({ ok: true, entitlements: ents });
