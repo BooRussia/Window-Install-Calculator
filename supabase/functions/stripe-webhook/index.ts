@@ -216,8 +216,18 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   });
 }
 
-function chargeInvoiceId(charge: Stripe.Charge): string | undefined {
-  const invoice = charge.invoice;
+// The event payload arrives in the ACCOUNT's API version, and newer versions
+// (2025-03-31.basil+) dropped `charge.invoice`. The SDK here is pinned to
+// 2024-06-20, where Charge still carries `invoice` — so when the payload lacks
+// it, re-read the charge through the SDK to get the legacy shape.
+async function chargeInvoiceId(charge: Stripe.Charge): Promise<string | undefined> {
+  // deno-lint-ignore no-explicit-any
+  let invoice: any = (charge as any).invoice;
+  if (!invoice) {
+    const full = await stripe.charges.retrieve(charge.id);
+    // deno-lint-ignore no-explicit-any
+    invoice = (full as any).invoice;
+  }
   if (!invoice) return undefined;
   return typeof invoice === "string" ? invoice : invoice.id;
 }
@@ -231,7 +241,7 @@ function chargeInvoiceId(charge: Stripe.Charge): string | undefined {
 async function handleChargeRefunded(charge: Stripe.Charge) {
   if (!charge.refunded) return;   // only a FULL refund ends service early
 
-  const invoiceId = chargeInvoiceId(charge);
+  const invoiceId = await chargeInvoiceId(charge);
   if (!invoiceId) {
     console.warn("[webhook] refund charge has no invoice; not canceling subscription", charge.id);
     return;
