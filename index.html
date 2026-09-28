@@ -26684,7 +26684,12 @@ function saveJobDetailsEdits(id, silent) {
   }
 
   // Draft → Final (Jobs sheet Save), or Final → Draft when the toggle says so.
-  if (j.isDraft && wantFinal) {
+  // Only ever on an EXPLICIT save. Silent commits (commitOpenJobDetailsEdits before
+  // a photo/gallery/thumbnail save or a calc/version jump) must NOT change the job's
+  // kind: promoting here would mint a new id, spend a quote credit, and delete the
+  // draft cloud row out from under the caller — which then can't find the old id and
+  // silently drops the photo it was about to save.
+  if (!silent && j.isDraft && wantFinal) {
     const promoted = promoteDraftFromJobDetails(id);
     if (promoted) {
       renderDashboard();
@@ -26697,7 +26702,7 @@ function saveJobDetailsEdits(id, silent) {
     if (!silent) toast("Details saved — still a draft");
     return;
   }
-  if (!j.isDraft && !wantFinal) {
+  if (!silent && !j.isDraft && !wantFinal) {
     const demoted = demoteJobToWorkingDraft(id);
     if (demoted) {
       renderDashboard();
@@ -28524,7 +28529,12 @@ async function maybeShowInviteLanding() {
     try { toast("That invite link has expired — ask for a new one."); } catch (_) {}
     return false;
   }
-  try { document.getElementById("landingScreen").classList.add("hidden"); } catch (_) {}
+  // Leave the marketing landing MOUNTED underneath the invite overlay (which is
+  // opaque and sits at a higher z-index, so it fully covers it). Every way out of
+  // the invite screen — "Just looking around", or opening then cancelling the
+  // auth modal — then reveals the normal landing, exactly like a stranger who
+  // clicked "Log In" and backed out. Hiding it here dropped a logged-out invitee
+  // onto the bare, unauthenticated app shell instead.
   try { document.getElementById("bootSplash").classList.add("hidden"); } catch (_) {}
   renderInviteLanding(info);
   return true;
@@ -33156,16 +33166,25 @@ async function reportMissingFL(query, source) {
 // Debounced — after typing stops, if an FL-looking query still has zero
 // matches, push it to the missing-FL# queue.
 let _flMissTimer = null;
+let _flMissSeq = 0;
 function scheduleFLMissingCheck(query, source) {
   clearTimeout(_flMissTimer);
   const q = (query || "").trim();
+  const seq = ++_flMissSeq;
   if (!/^fl\s?\d{4,}/i.test(q)) return;
-  _flMissTimer = setTimeout(() => {
+  _flMissTimer = setTimeout(async () => {
     const src = (source === "landing" ? DEFAULT_DATA.flApprovals : DATA.flApprovals) || {};
     const lc = q.toLowerCase();
     let found = false;
     Object.keys(src).forEach(mfr =>
       (src[mfr] || []).forEach(e => { if (flEntryMatches(mfr, e, lc)) found = true; }));
+    if (!found) {
+      try {
+        await loadFbcIndex();
+        found = searchFbc(q, 1).length > 0;
+      } catch (_) { /* If the official index is unavailable, keep catalog-only behavior. */ }
+    }
+    if (seq !== _flMissSeq) return;
     if (!found) reportMissingFL(q, source);
   }, 1200);
 }
@@ -35031,9 +35050,19 @@ let _fbcCache = null;        // { scrapedAt, approvals: [...] }
 let _fbcLoadPromise = null;  // dedupes concurrent loads
 let _fbcLoadError = null;
 
+function setFbcCache(data) {
+  if (!data || !Array.isArray(data.approvals)) {
+    throw new Error("FBC index is missing approvals array");
+  }
+  _fbcCache = data;
+  _fbcLoadError = null;
+  return _fbcCache;
+}
+
 async function loadFbcIndex() {
   if (_fbcCache) return _fbcCache;
   if (_fbcLoadPromise) return _fbcLoadPromise;
+  _fbcLoadError = null;
   _fbcLoadPromise = (async () => {
     try {
       const t0 = performance.now();
@@ -35045,7 +35074,7 @@ async function loadFbcIndex() {
             const ds = new DecompressionStream("gzip");
             const stream = res.body.pipeThrough(ds);
             const text = await new Response(stream).text();
-            _fbcCache = JSON.parse(text);
+            setFbcCache(JSON.parse(text));
             window.track?.("fbc_index_loaded", {
               source: "gz", ms: Math.round(performance.now() - t0), records: _fbcCache.approvals.length
             });
@@ -35056,7 +35085,7 @@ async function loadFbcIndex() {
       // Fallback: raw JSON
       const res = await fetch(FBC_INDEX_URL_RAW, { cache: "force-cache" });
       if (!res.ok) throw new Error("FBC index HTTP " + res.status);
-      _fbcCache = await res.json();
+      setFbcCache(await res.json());
       window.track?.("fbc_index_loaded", {
         source: "raw", ms: Math.round(performance.now() - t0), records: _fbcCache.approvals.length
       });
@@ -35064,6 +35093,7 @@ async function loadFbcIndex() {
     } catch (err) {
       _fbcLoadError = err;
       console.warn("[fbc] failed to load index", err);
+      _fbcCache = null;
       throw err;
     } finally {
       _fbcLoadPromise = null;
@@ -35236,11 +35266,16 @@ async function renderFbcInto(containerId, query, opts = {}) {
     </div>`;
     try { await loadFbcIndex(); } catch (_) {}
   }
-  if (_fbcLoadError) {
+  if (_fbcLoadError && !_fbcCache) {
     wrap.innerHTML = `<div class="text-center text-rose-400 text-xs py-6">
       Couldn't load the FBC database.
-      <button onclick="loadFbcIndex().then(()=>renderFbcInto('${containerId}','${escHtml(q).replace(/'/g,"\\'")}'))" class="underline ml-1">Retry</button>
+      <button type="button" data-fbc-retry class="underline ml-1">Retry</button>
     </div>`;
+    wrap.querySelector("[data-fbc-retry]")?.addEventListener("click", () => {
+      loadFbcIndex()
+        .catch(() => {})
+        .then(() => renderFbcInto(containerId, q, opts));
+    });
     return;
   }
   const results = searchFbc(q, opts.limit ?? 100);
@@ -41222,6 +41257,15 @@ function closeLanding() {
   document.getElementById("landingScreen").classList.add("hidden");
   scheduleSaveNav();
 }
+// Entering the app from ANY marketing surface must also drop the standalone
+// pricing page — the plan cards are wired into both the landing and #pricingScreen,
+// so a CTA on the pricing page used to hide only the landing and leave pricing
+// covering the calculator.
+function closeMarketingScreens() {
+  const ps = document.getElementById("pricingScreen");
+  if (ps && !ps.classList.contains("hidden")) closePricing();
+  closeLanding();
+}
 // PFP menu → Dashboard: the signed-in home base.
 function goHome() {
   closePfpMenu();
@@ -42280,7 +42324,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "trial", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) closeMarketingScreens(); else openAuth("signup");
     });
   }
   const finalCta = document.getElementById("lpPricingFinalCta");
@@ -42289,7 +42333,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "final", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) closeMarketingScreens(); else openAuth("signup");
     });
   }
 
@@ -42536,6 +42580,9 @@ async function enterApp() {
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
   document.getElementById("landingScreen").classList.add("hidden");
+  // Signing in from the standalone pricing page must not leave it covering the
+  // app. (Boot-time #/pricing bookmarks still work: the hash route runs after this.)
+  { const _ps = document.getElementById("pricingScreen"); if (_ps && !_ps.classList.contains("hidden")) closePricing(); }
   document.getElementById("bootSplash").classList.add("hidden");
   // Warm-prefetch jsPDF on idle, off the boot critical path, so the first PDF export is
   // instant (it no longer blocks load). Non-blocking; a failure is retried on demand by

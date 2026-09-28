@@ -28,6 +28,7 @@ import {
   jsonResponse,
   safeReturnUrl,
 } from "../_shared/cors.ts";
+import { isMissingStripeCustomer } from "../_shared/stripe-errors.ts";
 
 const VALID_PLANS: Plan[] = ["starter", "pro", "unlimited"];
 const VALID_CYCLES: Cycle[] = ["monthly", "annual"];
@@ -136,14 +137,6 @@ Deno.serve(async (req) => {
       },
     });
 
-  // A stored customer id can go bad: deleted in Stripe, restored data, or a
-  // sandbox id after switching to live. Stripe answers "No such customer".
-  // deno-lint-ignore no-explicit-any
-  const isMissingCustomer = (err: any) =>
-    err?.code === "resource_missing" ||
-    /no such customer/i.test(err?.message || "") ||
-    /no such customer/i.test(err?.raw?.message || "");
-
   try {
     let session;
     try {
@@ -151,7 +144,7 @@ Deno.serve(async (req) => {
     } catch (err) {
       // Self-heal: drop the bad customer id, make a fresh one, and retry once
       // so the user is never permanently stuck at checkout over a stale id.
-      if (!isMissingCustomer(err)) throw err;
+      if (!isMissingStripeCustomer(err)) throw err;
       console.warn("[checkout] stale customer, recreating", stripeCustomerId);
       stripeCustomerId = await createAndStoreCustomer();
       session = await makeSession(stripeCustomerId);
