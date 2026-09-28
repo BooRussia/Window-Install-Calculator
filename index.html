@@ -41247,6 +41247,15 @@ function closeLanding() {
   document.getElementById("landingScreen").classList.add("hidden");
   scheduleSaveNav();
 }
+// Entering the app from ANY marketing surface must also drop the standalone
+// pricing page — the plan cards are wired into both the landing and #pricingScreen,
+// so a CTA on the pricing page used to hide only the landing and leave pricing
+// covering the calculator.
+function closeMarketingScreens() {
+  const ps = document.getElementById("pricingScreen");
+  if (ps && !ps.classList.contains("hidden")) closePricing();
+  closeLanding();
+}
 // PFP menu → Dashboard: the signed-in home base.
 function goHome() {
   closePfpMenu();
@@ -42305,7 +42314,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "trial", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) closeMarketingScreens(); else openAuth("signup");
     });
   }
   const finalCta = document.getElementById("lpPricingFinalCta");
@@ -42314,7 +42323,7 @@ function wirePricing(ls) {
       if (typeof window.track === "function") {
         window.track("pricing_cta_click", { plan: "final", billing: billingPeriod });
       }
-      if (currentUser) closeLanding(); else openAuth("signup");
+      if (currentUser) closeMarketingScreens(); else openAuth("signup");
     });
   }
 
@@ -42561,6 +42570,9 @@ async function enterApp() {
   // init() already calls renderSetupNudge() — no extra call needed here.
   closeAuth();
   document.getElementById("landingScreen").classList.add("hidden");
+  // Signing in from the standalone pricing page must not leave it covering the
+  // app. (Boot-time #/pricing bookmarks still work: the hash route runs after this.)
+  { const _ps = document.getElementById("pricingScreen"); if (_ps && !_ps.classList.contains("hidden")) closePricing(); }
   document.getElementById("bootSplash").classList.add("hidden");
   // Warm-prefetch jsPDF on idle, off the boot critical path, so the first PDF export is
   // instant (it no longer blocks load). Non-blocking; a failure is retried on demand by
