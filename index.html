@@ -2421,6 +2421,31 @@
     opacity: 1; transform: translateX(-50%) translateY(0);
   }
   [data-theme="light"] .ai-pop { background: #ffffff; color: #334155; border-color: rgba(181,143,74,0.5); }
+  /* Voice quote (beta) panel */
+  .voice-beta { font-size: 8.5px; letter-spacing: .1em; padding: 1px 6px; border-radius: 999px; border: 1px solid rgba(181,143,74,0.45); color: #dfc07a; }
+  .voice-panel { border: 1px solid rgba(181,143,74,0.35); background: rgba(181,143,74,0.07); border-radius: 12px; padding: 12px; font-size: 12.5px; line-height: 1.45; color: #e2e8f0; display: grid; gap: 10px; }
+  .voice-panel .v-head { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #dfc07a; }
+  .voice-panel .v-dot { width: 9px; height: 9px; border-radius: 50%; background: #f87171; flex: none; animation: vPulse 1.1s ease-in-out infinite; }
+  @keyframes vPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
+  @media (prefers-reduced-motion: reduce) { .voice-panel .v-dot { animation: none; } }
+  .voice-panel .v-q { font-size: 13.5px; color: #f8fafc; font-weight: 600; }
+  .voice-panel .v-heard { color: #94a3b8; font-style: italic; }
+  .voice-panel .v-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .voice-panel .v-list li { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid rgba(148,163,184,0.15); padding-top: 4px; }
+  .voice-panel .v-list b { color: #f8fafc; font-weight: 700; text-align: right; }
+  .voice-panel .v-was { color: #64748b; font-weight: 500; margin-left: 4px; }
+  .voice-panel .v-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .voice-panel .v-btn { min-height: 36px; padding: 6px 12px; border-radius: 9px; font-size: 12px; font-weight: 700; border: 1px solid rgba(181,143,74,0.45); color: #dfc07a; background: transparent; }
+  .voice-panel .v-btn.primary { background: #c9a558; color: #0b1220; border-color: #c9a558; }
+  .voice-panel .v-btn:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
+  [data-theme="light"] .voice-beta { color: var(--gold-ink); border-color: #d9c79a; }
+  [data-theme="light"] .voice-panel { background: #faf3e2; border-color: #e4cd95; color: #334155; }
+  [data-theme="light"] .voice-panel .v-head { color: var(--gold-ink); }
+  [data-theme="light"] .voice-panel .v-q, [data-theme="light"] .voice-panel .v-list b { color: #0f172a; }
+  [data-theme="light"] .voice-panel .v-heard { color: #64748b; }
+  [data-theme="light"] .voice-panel .v-list li { border-top-color: #e9dcbc; }
+  [data-theme="light"] .voice-panel .v-btn { color: var(--gold-ink); border-color: #d9c79a; }
+  [data-theme="light"] .voice-panel .v-btn.primary { background: #7d5f22; color: #ffffff; border-color: #7d5f22; }
   /* Saved-job deal-status chip (Lead / Quoted / Won / Lost) */
   .job-status-sel {
     font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
@@ -10772,6 +10797,11 @@
             Upload Window Schedule
           </label>
           <div class="ai-reads-meter"></div>
+          <button id="voiceQuoteBtn" type="button" class="hidden btn w-full rounded-lg px-3 py-2.5 text-[11px] font-bold bg-transparent text-[#c9a558] border border-[#b58f4a]/45 hover:bg-[#b58f4a]/10 hover:border-[#c9a558] tracking-[0.12em] uppercase inline-flex items-center justify-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0" aria-hidden="true"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4 9.5a6 6 0 0 0 12 0M10 15.5v2.5"/></svg>
+            Quote by voice <span class="voice-beta">Beta</span>
+          </button>
+          <div id="voicePanel" class="voice-panel hidden" aria-live="polite"></div>
         </div>
       </div>
 
@@ -27654,6 +27684,7 @@ function maybeTrackSwingDoorsAdded() {
 }
 
 function bindControls() {
+  try { renderVoiceButton(); } catch (_) {}
   // Job name (working draft) — top of the rail
   const jobNameInput = document.getElementById("jobNameInput");
   if (jobNameInput) {
@@ -37937,7 +37968,7 @@ async function handlePlanUpload(files, source) {
 // ── AI auto-fill markers ────────────────────────────────────────────────────
 // Tag a rail field as "filled by the plan" with a gold AI pill; clear the tag
 // the moment the user edits that field (so it reflects only un-reviewed values).
-function markFieldAi(elId) {
+function markFieldAi(elId, source) {
   const el = document.getElementById(elId);
   const field = el && el.closest && el.closest(".rail-field");
   if (!field) return;
@@ -37952,7 +37983,9 @@ function markFieldAi(elId) {
     b.textContent = "AI";
     const pop = document.createElement("span");
     pop.className = "ai-pop";
-    pop.innerHTML = "<b>✨ Auto-filled by AI</b><br>We read this from your plan. Double-check it before you bid.";
+    pop.innerHTML = source === "voice"
+      ? "<b>🎙 Filled from your voice note</b><br>Double-check it before you bid."
+      : "<b>✨ Auto-filled by AI</b><br>We read this from your plan. Double-check it before you bid.";
     b.appendChild(pop);
     label.appendChild(b);
   }
@@ -37992,6 +38025,258 @@ function clearFieldAiById(elId) {
     if (field) clearFieldAi(field);
   }, true)
 );
+
+/* ============================================================
+   VOICE QUOTE (beta) — talk the job in.
+   Tap the mic and say "12 windows, 340 linear feet, block, remodel". The
+   voice-quote-turn edge function transcribes the clip (xAI speech-to-text)
+   and maps it onto rail fields (Grok). Nothing changes until the contractor
+   taps Apply; then it asks the next open question (new construction or
+   remodel? block or stick?) until the core specs are in.
+   Beta: owner account only (server-enforced too). Flip VOICE_BETA_FOR_ALL
+   after the edge function gets per-plan metering (see its header).
+   ============================================================ */
+const VOICE_BETA_FOR_ALL = false;
+const VOICE_MAX_MS = 20000;
+const VOICE_STEPS = [
+  { key: "totalLF", q: "About how many linear feet of windows?" },
+  { key: "windowCount", q: "How many windows?" },
+  { key: "constructionType", q: "Is this new construction or a remodel?" },
+  { key: "houseType", q: "Is it block or stick framed?" },
+  { key: "stories", q: "How many stories?" },
+  { key: "impact", q: "Impact glass or non-impact?" },
+];
+const VOICE_LABELS = {
+  totalLF: "Window footage", windowCount: "Windows", constructionType: "Construction",
+  houseType: "Framing", stories: "Stories", impact: "Glass", application: "Install type",
+  manufacturer: "Manufacturer", jobName: "Job name",
+};
+const VOICE_FIELD_EL = {
+  totalLF: "totalLF", windowCount: "windowCountInput", constructionType: "segConstructionType",
+  houseType: "segHouseType", stories: "segStories", impact: "segImpact", application: "segApplication",
+  manufacturer: "ddManufacturer", jobName: "jobNameInput",
+};
+const _voice = { rec: null, stream: null, chunks: [], timer: 0, tick: 0, startedAt: 0, busy: false,
+  answered: new Set(), asked: null, pending: null, undo: null, lastHeard: "" };
+
+function voiceEnabled() {
+  return !!(typeof currentUser !== "undefined" && currentUser) && (VOICE_BETA_FOR_ALL || isAdmin())
+    && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+function renderVoiceButton() {
+  const btn = document.getElementById("voiceQuoteBtn");
+  if (!btn) return;
+  btn.classList.toggle("hidden", !voiceEnabled());
+  if (!btn._wired) {
+    btn.addEventListener("click", () => {
+      if (_voice.rec && _voice.rec.state === "recording") { voiceStop(); return; }
+      _voice.answered = new Set(); _voice.asked = null; _voice.undo = null;
+      voiceListen();
+    });
+    const panel = document.getElementById("voicePanel");
+    if (panel) panel.addEventListener("click", voicePanelClick);
+    btn._wired = true;
+  }
+}
+function voiceValue(key) {
+  if (key === "totalLF") return STATE.totalLF ? `${STATE.totalLF} LF` : "—";
+  if (key === "stories") return String(storyNum(STATE.stories));
+  const v = STATE[key];
+  return v == null || v === "" ? "—" : String(v);
+}
+function voiceShow(v, key) {
+  if (key === "totalLF") return `${v} LF`;
+  return String(v);
+}
+function voiceNextStep() {
+  return VOICE_STEPS.find(s => !_voice.answered.has(s.key)) || null;
+}
+function voiceSpeak(text) {
+  try {
+    if (!text || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    window.speechSynthesis.speak(u);
+  } catch (_) {}
+}
+function voicePanel(html) {
+  const p = document.getElementById("voicePanel");
+  if (!p) return;
+  p.innerHTML = html;
+  p.classList.toggle("hidden", !html);
+}
+function voiceIntro(msg) {
+  const step = _voice.asked ? VOICE_STEPS.find(s => s.key === _voice.asked) : null;
+  return step ? step.q : (msg || "Tell me about the job — for example: “12 windows, 340 linear feet, block, remodel.”");
+}
+function voiceUiListening() {
+  const secs = Math.floor((Date.now() - _voice.startedAt) / 1000);
+  voicePanel(`<div class="v-head"><span class="v-dot" aria-hidden="true"></span>Listening… 0:${String(secs).padStart(2, "0")}</div>
+    <div class="v-q">${escHtml(voiceIntro())}</div>
+    <div class="v-actions"><button type="button" class="v-btn primary" data-voice="stop">Done talking</button>
+    <button type="button" class="v-btn" data-voice="cancel">Cancel</button></div>`);
+}
+async function voiceListen() {
+  if (_voice.busy) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (_) {
+    voicePanel(`<div class="v-head">Microphone blocked</div><div>Allow microphone access for anchorquoting.com in your browser settings, then tap “Quote by voice” again.</div>
+      <div class="v-actions"><button type="button" class="v-btn" data-voice="close">Close</button></div>`);
+    return;
+  }
+  const prefer = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac"];
+  const type = prefer.find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (_) { return false; } }) || "";
+  let rec;
+  try { rec = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream); }
+  catch (_) { stream.getTracks().forEach(t => t.stop()); toast("Recording isn't supported in this browser"); return; }
+  _voice.stream = stream; _voice.rec = rec; _voice.chunks = []; _voice.startedAt = Date.now();
+  rec.ondataavailable = e => { if (e.data && e.data.size) _voice.chunks.push(e.data); };
+  rec.onstop = () => {
+    if (_voice.stream) _voice.stream.getTracks().forEach(t => t.stop());
+    _voice.stream = null;
+    if (_voice._cancel) { _voice._cancel = false; voicePanel(""); return; }
+    voiceSend(rec.mimeType || type || "audio/webm");
+  };
+  rec.start();
+  clearTimeout(_voice.timer); clearInterval(_voice.tick);
+  _voice.timer = setTimeout(voiceStop, VOICE_MAX_MS);
+  _voice.tick = setInterval(() => { if (rec.state === "recording") voiceUiListening(); }, 1000);
+  voiceUiListening();
+  try { if (typeof window.track === "function") window.track("voice_listen", { asked: _voice.asked || "open" }); } catch (_) {}
+}
+function voiceStop() {
+  clearTimeout(_voice.timer); clearInterval(_voice.tick);
+  if (_voice.rec && _voice.rec.state !== "inactive") _voice.rec.stop();
+}
+async function voiceSend(mime) {
+  const blob = new Blob(_voice.chunks, { type: mime });
+  if (blob.size < 1200) {
+    voicePanel(`<div class="v-head">I didn't hear anything</div><div class="v-q">${escHtml(voiceIntro())}</div>
+      <div class="v-actions"><button type="button" class="v-btn primary" data-voice="again">Try again</button>
+      <button type="button" class="v-btn" data-voice="close">Close</button></div>`);
+    return;
+  }
+  _voice.busy = true;
+  voicePanel(`<div class="v-head">Working it out…</div><div class="v-heard">Turning your words into the quote.</div>`);
+  let data = null, errMsg = "";
+  try {
+    const audio = await fileToBase64(blob);
+    const known = {};
+    Object.keys(VOICE_LABELS).forEach(k => { known[k] = k === "stories" ? storyNum(STATE.stories) : (STATE[k] ?? ""); });
+    const res = await sb.functions.invoke("voice-quote-turn", {
+      body: { audio, mimeType: mime, known, asked: _voice.asked, manufacturers: enabledManufacturers() },
+    });
+    if (res.error) {
+      try { const j = await res.error.context.json(); errMsg = (j && j.error) || ""; } catch (_) {}
+      throw res.error;
+    }
+    data = res.data;
+  } catch (e) {
+    errMsg = errMsg || "Couldn't reach the voice assistant — check your connection and try again.";
+  } finally {
+    _voice.busy = false;
+  }
+  if (!data || !data.ok) {
+    voicePanel(`<div class="v-head">Voice hit a snag</div><div>${escHtml((data && data.error) || errMsg)}</div>
+      <div class="v-actions"><button type="button" class="v-btn primary" data-voice="again">Try again</button>
+      <button type="button" class="v-btn" data-voice="close">Close</button></div>`);
+    return;
+  }
+  _voice.lastHeard = data.transcript || "";
+  const patch = data.patch || {};
+  const keys = Object.keys(patch).filter(k => VOICE_LABELS[k]);
+  const skip = !keys.length && /\b(skip|next|not sure|don'?t know|no idea|pass)\b/i.test(_voice.lastHeard);
+  if (skip && _voice.asked) { _voice.answered.add(_voice.asked); voiceAskNext("Skipped."); return; }
+  if (!keys.length) {
+    voicePanel(`<div class="v-head">${escHtml(data.reply || "Sorry, I didn't catch that.")}</div>
+      ${_voice.lastHeard ? `<div class="v-heard">Heard: “${escHtml(_voice.lastHeard)}”</div>` : ""}
+      <div class="v-q">${escHtml(voiceIntro())}</div>
+      <div class="v-actions"><button type="button" class="v-btn primary" data-voice="again">Try again</button>
+      ${_voice.asked ? `<button type="button" class="v-btn" data-voice="skip">Skip</button>` : ""}
+      <button type="button" class="v-btn" data-voice="close">Close</button></div>`);
+    voiceSpeak(data.reply || "Sorry, I didn't catch that.");
+    return;
+  }
+  _voice.pending = patch;
+  const rows = keys.map(k => {
+    const now = voiceShow(patch[k], k), was = voiceValue(k);
+    return `<li><span>${escHtml(VOICE_LABELS[k])}</span><b>${escHtml(now)}${was !== "—" && was !== now ? `<span class="v-was">was ${escHtml(was)}</span>` : ""}</b></li>`;
+  }).join("");
+  voicePanel(`<div class="v-head">${escHtml(data.reply || "Here's what I heard")}</div>
+    <div class="v-heard">Heard: “${escHtml(_voice.lastHeard)}”</div>
+    <ul class="v-list">${rows}</ul>
+    <div class="v-actions"><button type="button" class="v-btn primary" data-voice="apply">Apply</button>
+    <button type="button" class="v-btn" data-voice="again">Say it again</button>
+    <button type="button" class="v-btn" data-voice="close">Cancel</button></div>`);
+  voiceSpeak(data.reply);
+  try { if (typeof window.track === "function") window.track("voice_heard", { fields: keys.length }); } catch (_) {}
+}
+function voiceApply() {
+  const patch = _voice.pending || {};
+  const keys = Object.keys(patch).filter(k => VOICE_LABELS[k]);
+  if (!keys.length) return;
+  _voice.undo = {};
+  keys.forEach(k => { _voice.undo[k] = STATE[k]; });
+  keys.forEach(k => {
+    const v = patch[k];
+    if (k === "totalLF") STATE.totalLF = String(cleanLF(v));
+    else if (k === "windowCount") STATE.windowCount = String(parseInt(v, 10) || "");
+    else if (k === "stories") STATE.stories = Math.max(1, parseInt(v, 10) || 1);
+    else STATE[k] = v;
+    _voice.answered.add(k);
+  });
+  _voice.pending = null;
+  try { markCalculatorFirstInteraction(); } catch (_) {}
+  bindControls();
+  try { updateLiftVisibility(); updateSwingStageVisibility(); } catch (_) {}
+  render();
+  keys.forEach(k => markFieldAi(VOICE_FIELD_EL[k], "voice"));
+  try { if (typeof window.track === "function") window.track("voice_applied", { fields: keys.length }); } catch (_) {}
+  voiceAskNext("Updated.");
+}
+function voiceUndo() {
+  if (!_voice.undo) return;
+  Object.keys(_voice.undo).forEach(k => { STATE[k] = _voice.undo[k]; _voice.answered.delete(k); });
+  _voice.undo = null;
+  bindControls();
+  render();
+  toast("Voice changes undone");
+  voiceAskNext("Undone.");
+}
+function voiceAskNext(lead) {
+  const step = voiceNextStep();
+  _voice.asked = step ? step.key : null;
+  if (!step) {
+    voicePanel(`<div class="v-head">${escHtml(lead)} That's the core of the quote.</div>
+      <div>Check the numbers on the right, then save the job when it looks right.</div>
+      <div class="v-actions">${_voice.undo ? `<button type="button" class="v-btn" data-voice="undo">Undo last</button>` : ""}
+      <button type="button" class="v-btn" data-voice="again">Add more</button>
+      <button type="button" class="v-btn primary" data-voice="close">Done</button></div>`);
+    voiceSpeak("That's the core of the quote.");
+    return;
+  }
+  voicePanel(`<div class="v-head">${escHtml(lead)}</div><div class="v-q">${escHtml(step.q)}</div>
+    <div class="v-actions"><button type="button" class="v-btn primary" data-voice="again">Answer</button>
+    <button type="button" class="v-btn" data-voice="skip">Skip</button>
+    ${_voice.undo ? `<button type="button" class="v-btn" data-voice="undo">Undo last</button>` : ""}
+    <button type="button" class="v-btn" data-voice="close">Done</button></div>`);
+  voiceSpeak(step.q);
+}
+function voicePanelClick(e) {
+  const b = e.target.closest("[data-voice]");
+  if (!b) return;
+  const act = b.dataset.voice;
+  if (act === "stop") voiceStop();
+  else if (act === "cancel") { _voice._cancel = true; voiceStop(); }
+  else if (act === "again") voiceListen();
+  else if (act === "apply") voiceApply();
+  else if (act === "undo") voiceUndo();
+  else if (act === "skip") { if (_voice.asked) _voice.answered.add(_voice.asked); voiceAskNext("Skipped."); }
+  else if (act === "close") { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (_) {} voicePanel(""); _voice.asked = null; }
+}
 
 function applyFullExtraction(text, source) {
   clearAllAiFilled();   // fresh upload → recompute which fields are AI-filled
