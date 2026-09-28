@@ -16430,6 +16430,18 @@ function getFloorGroups() {
   return [primary, ...extras];
 }
 
+// Window LF + window count contributed by the one-off floors alone (each × its
+// count) — the part of a saved building total that is NOT the rail takeoff.
+function extraFloorsTakeoff(extras) {
+  let lf = 0, wc = 0;
+  (Array.isArray(extras) ? extras : []).forEach(f => {
+    const c = Math.max(1, parseInt(f && f.count, 10) || 1);
+    lf += (parseFloat(f && f.totalLF) || 0) * c;
+    wc += (parseInt(f && f.windowCount, 10) || 0) * c;
+  });
+  return { lf, wc };
+}
+
 // Sum every floor group's openings (× its count) into one "building takeoff":
 // window LF + window count add up; sliding/bifold entries carry through with
 // qty × count; swing doors (a per-door list) are replicated count times. The
@@ -22720,6 +22732,11 @@ async function renderDashEsign() {
     wrap.addEventListener("change", (e) => {
       if (!e.target.closest("#dashEsignJobPick")) return;
       _dashEsignExclude.clear();
+      // The "Link created" banner belongs to the PREVIOUS job. Drop it, or its
+      // Copy button hands this job's customer another job's link and price.
+      _dashEsignLastUrl = "";
+      const res = document.getElementById("dashEsignResult");
+      if (res) res.remove();
       if (_dashEsignCzOpen) dashEsignLoadCustomize();
     });
     _esignWired = true;
@@ -30945,6 +30962,22 @@ function applyJobToState(j) {
   if (STATE.likeFloors) {
     if (j.perFloorLF != null) STATE.totalLF = String(cleanLF(j.perFloorLF));
     if (j.perFloorWindowCount != null) STATE.windowCount = String(j.perFloorWindowCount);
+  } else if (STATE.highRise && STATE.extraFloors.length) {
+    // Like Floors OFF but one-off floors (lobby/penthouse) present: the saved
+    // totalLF/windowCount are BUILDING totals that already include those floors,
+    // and calculate() adds them again on top of the rail takeoff — so every
+    // save + reopen grew the price (~33% a round on a 100 LF + 50 LF penthouse).
+    // Take them back out. Subtracting (rather than restoring perFloorLF) keeps
+    // legacy jobs whose saved total was a multiplied building figure at their
+    // saved price too.
+    const ex = extraFloorsTakeoff(STATE.extraFloors);
+    if (ex.lf > 0 && STATE.totalLF !== "") {
+      STATE.totalLF = String(cleanLF(Math.max(0, (parseFloat(STATE.totalLF) || 0) - ex.lf)));
+    }
+    if (ex.wc > 0 && STATE.windowCount !== "") {
+      const wc = Math.max(0, (parseInt(STATE.windowCount, 10) || 0) - ex.wc);
+      STATE.windowCount = wc ? String(wc) : "";
+    }
   }
   STATE.liftEnabled = j.liftEnabled || false;
   STATE.liftDays = j.liftDays || "1";
