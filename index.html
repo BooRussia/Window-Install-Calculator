@@ -14,6 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="description" content="Anchor — quote window installs in seconds. Linear-footage costing, Florida product-approval lookup, and instant customer quotes for window & door installers." />
 <title>Anchor — Window Install Pricing</title>
+<link rel="canonical" href="https://anchorquoting.com/" />
 <meta property="og:title" content="Anchor — Window Install Pricing" />
 <meta property="og:description" content="Anchor — quote window installs in seconds. Linear-footage costing, Florida product-approval lookup, and instant customer quotes for window & door installers." />
 <meta property="og:url" content="https://anchorquoting.com/" />
@@ -49,6 +50,16 @@
   // Public customer e-signature route (#/sign/<token>). Like the quote viewer,
   // it renders a standalone page and skips the calculator chrome + heavy libs.
   window.__PUBLIC_SIGN_ROUTE = /^#\/sign\//.test(window.location.hash || "");
+  // These two public routes are read/signed by homeowners on their own phones,
+  // not installers on the job — let them pinch-zoom. Drop user-scalable=no
+  // from the viewport meta on these routes only; the app keeps it disabled
+  // everywhere else.
+  if (window.__PUBLIC_QUOTE_ROUTE || window.__PUBLIC_SIGN_ROUTE) {
+    try {
+      var _vp = document.querySelector('meta[name="viewport"]');
+      if (_vp) _vp.setAttribute("content", _vp.getAttribute("content").replace(/,?\s*user-scalable=no/i, ""));
+    } catch (e) {}
+  }
   // Apply saved theme before first paint (no flash). Dark is the default.
   try { if (localStorage.getItem("anchor_theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) {}
   // Liquid Glass slider: 0 frosted → 100 nearly transparent.
@@ -9738,6 +9749,11 @@
   <footer>
     <div class="foot-links">
       <button data-learn-link="">Learn</button><button class="lp-pricing-cta" type="button">Pricing</button><button data-legal-link="terms">Terms</button><button data-legal-link="privacy">Privacy</button><button data-legal-link="disclaimer">Disclaimers</button><button data-legal-link="cookies">Cookies</button><span>© 2026 Anchor</span>
+    </div>
+    <!-- Real, crawlable links to the static SEO pages (tools/build-static-pages.mjs)
+         alongside the in-app buttons above, so search engines have URLs to follow. -->
+    <div class="foot-links" style="margin-top:8px;">
+      <a href="/learn/">Learn guide</a><a href="/pricing/">Pricing</a><a href="/legal/terms/">Terms</a><a href="/legal/privacy/">Privacy</a><a href="/legal/disclaimers/">Disclaimers</a><a href="/legal/cookies/">Cookies</a>
     </div>
     <p class="foot-note">Sample job shown at representative rates ($76.75/LF all-in) — your own rates make it exact. FL approval patterns are reference only; always verify the exact FL# on the unit's NFRC label and the latest installation PDF from floridabuilding.org before use.</p>
   </footer>
