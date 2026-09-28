@@ -154,6 +154,11 @@ const SITE_CSS = `
   header.site-header nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
   header.site-header nav a { color: var(--ink-3); text-decoration: none; font-size: 14px; font-weight: 600; }
   header.site-header nav a:hover { color: var(--gold-hi); }
+  @media (max-width: 560px) {
+    header.site-header .bar { flex-wrap: wrap; gap: 10px 14px; padding: 12px 16px; }
+    header.site-header nav { order: 3; width: 100%; gap: 18px; }
+    header.site-header nav a:first-child { display: none; }
+  }
   .btn-gold { display: inline-block; background: var(--gold-hi); color: #1a1305; font-weight: 800; font-size: 14px;
     padding: 10px 18px; border-radius: 10px; text-decoration: none; white-space: nowrap; }
   .btn-gold:hover { background: #ecd28e; }
@@ -401,6 +406,12 @@ for (const { section, topic } of allTopics) {
 // /legal/terms/, /legal/privacy/, /legal/disclaimers/, /legal/cookies/
 // (URL segment "disclaimers" maps to the legalDocs() key "disclaimer".)
 // ============================================================================
+// In-app cross-references (href="#/cookies") have no router on a static page —
+// point them at the matching static legal page instead.
+const LEGAL_HASH_TO_SLUG = { terms: "terms", privacy: "privacy", disclaimer: "disclaimers", cookies: "cookies" };
+function legalLinksToStatic(html) {
+  return html.replace(/href="#\/(terms|privacy|disclaimer|cookies)"/g, (_, k) => `href="/legal/${LEGAL_HASH_TO_SLUG[k]}/"`);
+}
 const LEGAL_PAGES = [
   { slug: "terms", key: "terms" },
   { slug: "privacy", key: "privacy" },
@@ -413,7 +424,7 @@ for (const { slug, key } of LEGAL_PAGES) {
   const body = `<div class="wrap" style="max-width:760px;">
     ${breadcrumbs([{ name: "Home", path: "/" }, { name: doc.title }])}
     <h1>${esc(doc.title)}</h1>
-    <div>${doc.html}</div>
+    <div>${legalLinksToStatic(doc.html)}</div>
   </div>`;
   write(`legal/${slug}/index.html`, page({
     path: `/legal/${slug}/`,
