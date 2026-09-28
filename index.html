@@ -39759,7 +39759,17 @@ function reconcileDrafts(cloudJobs, pushKept) {
 // Returns true if localData.config.entitlements actually changed.
 function adoptCloudEntitlements(localData, cloudData) {
   const ce = cloudData && cloudData.config && cloudData.config.entitlements;
-  if (!ce) return false;
+  if (!ce) {
+    // No plan on the server means no plan here, whatever the local copy claims —
+    // the server ignores browser-written entitlements, so a local-only plan is
+    // either a stale cache or a devtools edit.
+    const le0 = localData && localData.config && localData.config.entitlements;
+    if (le0 && le0.plan && le0.plan !== "none") {
+      localData.config.entitlements = defaultEntitlements();
+      return true;
+    }
+    return false;
+  }
   localData.config = localData.config || {};
   const le = localData.config.entitlements || {};
   const before = JSON.stringify(le);
@@ -39859,6 +39869,8 @@ async function syncFromCloud() {
     markCloudOk();
     // Drain any offline-saved jobs now that we've confirmed a working connection.
     flushPendingPush();
+    // ...and count any quotes saved while offline.
+    flushPendingQuoteConsumes();
   } catch (e) {
     // Auth failures aren't connectivity issues — don't flag offline for those
     if (e && e.message !== "Not signed in") markCloudError(e);
@@ -40209,10 +40221,10 @@ const PLANS = [
 //   Lives at DATA.config.entitlements and persists through saveData()
 //   (which already pushes to localStorage + the Supabase profile JSON).
 //
-//   Critical Phase-2 rule: WE DO NOT LOCK ANYONE OUT YET. The badge
-//   and upsell modal are friendly upsells — the underlying action
-//   (save quote, etc.) still goes through. Phase 4 will flip the
-//   `attemptGenerateQuote()` return to actually block.
+//   SERVER-AUTHORITATIVE (2026-09): the DB ignores any entitlements a
+//   browser writes (profiles_protect_entitlements trigger). Trials start via
+//   the start_trial RPC and each new quote is counted by consume_quote;
+//   DATA.config.entitlements is a local MIRROR for display + instant UX.
 // ====================================================================
 const DAY_MS = 86400 * 1000;
 const CYCLE_MS = 30 * DAY_MS;
@@ -40233,19 +40245,6 @@ function defaultEntitlements() {
     lastQuoteAt: null
   };
 }
-/** A fresh 14-day trial, stamped from the moment it is actually chosen. */
-function freshTrialEntitlements() {
-  const now = Date.now();
-  return {
-    plan: "trial",
-    subscriptionStatus: "trialing",
-    trialStartedAt: now,
-    quotesUsedThisCycle: 0,
-    cycleResetAt: now + (TRIAL.days * DAY_MS),
-    planSetAt: now,
-    lastQuoteAt: null
-  };
-}
 /** True when this account still has to pick a plan (or start the trial). */
 function needsPlanChoice() {
   if (!currentUser) return false;
@@ -40253,15 +40252,32 @@ function needsPlanChoice() {
   return (getEntitlements() || {}).plan === "none";
 }
 
-/** Start the trial — the ONLY place the clock is stamped. */
-function startFreeTrial() {
-  if (!DATA.config) DATA.config = {};
-  DATA.config.entitlements = freshTrialEntitlements();
-  saveData(DATA);
-  try { if (typeof window.track === "function") window.track("trial_started", { plan: "trial" }); } catch (_) {}
+/** Start the trial — the ONLY place the clock is stamped. The server stamps it
+ *  (start_trial RPC): entitlements are server-authoritative, so a browser can
+ *  neither write its own trial nor restart one it already used. */
+let _trialStarting = false;
+async function startFreeTrial() {
+  if (_trialStarting) return;
+  if (!sb || !currentUser) { toast("Sign in to start your free trial"); return; }
+  _trialStarting = true;
+  let ent = null;
+  try {
+    const { data, error } = await sb.rpc("start_trial");
+    if (error) throw error;
+    ent = data;
+  } catch (e) {
+    console.warn("start_trial failed", e);
+    toast("Couldn't start your trial — check your connection and try again.");
+    return;
+  } finally {
+    _trialStarting = false;
+  }
+  adoptServerEntitlements(ent);
   hidePlanChoice();
-  try { updateUsageBadge(); } catch (_) {}
-  try { toast(`Your ${TRIAL.days}-day free trial has started — ${TRIAL.quotes} quotes included`); } catch (_) {}
+  if (ent && ent.plan === "trial") {
+    try { if (typeof window.track === "function") window.track("trial_started", { plan: "trial" }); } catch (_) {}
+    try { toast(`Your ${TRIAL.days}-day free trial has started — ${TRIAL.quotes} quotes included`); } catch (_) {}
+  }
 }
 function hidePlanChoice() {
   const s = document.getElementById("planScreen");
@@ -40500,7 +40516,9 @@ function cycleNeedsReset() {
 const DATA_RETENTION_DAYS = 60;
 function retentionInfo() {
   const e = getEntitlements();
-  const lapseAt = Number(e.cycleResetAt) || Date.now();
+  // Annual plans roll their quota window monthly, so cycleResetAt is not when the
+  // paid period ended — prefer billingPeriodEnd (set by the Stripe webhook).
+  const lapseAt = Number(e.billingPeriodEnd) || Number(e.cycleResetAt) || Date.now();
   const deleteAt = lapseAt + DATA_RETENTION_DAYS * DAY_MS;
   const daysLeft = Math.max(0, Math.ceil((deleteAt - Date.now()) / DAY_MS));
   let dateLabel;
@@ -40555,6 +40573,8 @@ function canGenerate() {
 
 function consumeQuote() {
   const e = getEntitlements();
+  // Instant local bump for the badge; the server's count (consume_quote) replaces
+  // it a moment later — the server is the real counter.
   e.quotesUsedThisCycle = (e.quotesUsedThisCycle || 0) + 1;
   e.lastQuoteAt = Date.now();
   saveData(DATA);
@@ -40566,6 +40586,52 @@ function consumeQuote() {
     });
   } catch (_) {}
   updateUsageBadge();
+  if (sb && currentUser && !isAdmin()) {
+    setPendingQuoteConsumes(pendingQuoteConsumes() + 1);
+    flushPendingQuoteConsumes();
+  }
+}
+
+// ── Server-side quote counting ───────────────────────────────────────────────
+// Entitlements are server-authoritative: a DB trigger ignores any entitlements a
+// browser writes, and each new quote is counted by the consume_quote RPC. A quote
+// saved offline is remembered here and counted on the next successful sync.
+const PENDING_QUOTES_KEY = "anchor.pendingQuoteConsumes";
+function pendingQuoteConsumes() {
+  try { return Math.max(0, parseInt(localStorage.getItem(PENDING_QUOTES_KEY) || "0", 10) || 0); } catch (_) { return 0; }
+}
+function setPendingQuoteConsumes(n) {
+  try {
+    if (n > 0) localStorage.setItem(PENDING_QUOTES_KEY, String(n));
+    else localStorage.removeItem(PENDING_QUOTES_KEY);
+  } catch (_) {}
+}
+let _quoteFlushing = false;
+async function flushPendingQuoteConsumes() {
+  if (_quoteFlushing || !sb || !currentUser) return;
+  if (isAdmin()) { setPendingQuoteConsumes(0); return; }
+  _quoteFlushing = true;
+  try {
+    while (pendingQuoteConsumes() > 0) {
+      const { data, error } = await sb.rpc("consume_quote");
+      if (error) break;                          // offline / transient — retry on the next sync
+      setPendingQuoteConsumes(pendingQuoteConsumes() - 1);
+      adoptServerEntitlements(data ? data.entitlements : null);
+      if (data && !data.allowed) { setPendingQuoteConsumes(0); break; }   // at the cap: nothing more to count
+    }
+  } catch (_) {
+  } finally {
+    _quoteFlushing = false;
+  }
+}
+/** Replace the local mirror with the server's entitlements (null = no plan yet). */
+function adoptServerEntitlements(ent) {
+  if (!DATA.config) DATA.config = {};
+  DATA.config.entitlements = ent ? clone(ent) : defaultEntitlements();
+  try { localStorage.setItem(LS_KEYS.data, JSON.stringify(DATA)); } catch (_) {}
+  try { updateUsageBadge(); } catch (_) {}
+  try { updateCalcPaywall(); } catch (_) {}
+  if (!ent) { try { renderPlanChoice(); } catch (_) {} }
 }
 
 // Wrapper used by every "new quote" entry point. LIVE ENFORCEMENT (Phase 4):
