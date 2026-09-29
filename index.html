@@ -38177,11 +38177,20 @@ function voiceNextStep() {
 }
 // Replies are spoken in Grok's own voice (voice-tts edge fn → xAI text-to-speech),
 // not the browser's built-in voice (owner: "absolutely terrible … robotic"). If
-// Grok's voice can't be reached we stay quiet — the reply is on screen anyway.
-// Playback goes through a Web Audio context unlocked on the user's tap, because
-// iOS won't start audio from an async callback otherwise.
+// Grok's voice can't be reached we stay quiet — the reply is on screen anyway —
+// but we say so once, so a silent failure never looks like "it just doesn't talk".
+//
+// Two things here are easy to get wrong (both bit us on the first release):
+//  • sb.functions.invoke() reads an audio/mpeg response as TEXT, which mangles the
+//    MP3 — so the audio is fetched directly and read as raw bytes.
+//  • iPhones mute Web Audio when the ring/silent switch is on, but not a normal
+//    <audio> element. So an <audio> element does the talking; it is "unlocked" by
+//    a silent clip on the user's first tap (iOS only lets a tapped element play
+//    later from async code). Web Audio is the fallback if that element refuses.
 const VOICE_MUTE_KEY = "anchor.voiceMuted";
+const VOICE_SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 let _voiceAudioCtx = null, _voiceSource = null, _voiceSpeakSeq = 0;
+let _voiceEl = null, _voiceElReady = false, _voiceUrl = null, _voiceWarned = false;
 function voiceMuted() { try { return localStorage.getItem(VOICE_MUTE_KEY) === "1"; } catch (_) { return false; } }
 function voiceSetMuted(on) {
   try { on ? localStorage.setItem(VOICE_MUTE_KEY, "1") : localStorage.removeItem(VOICE_MUTE_KEY); } catch (_) {}
@@ -38190,31 +38199,79 @@ function voiceSetMuted(on) {
 function voiceUnlockAudio() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    if (!_voiceAudioCtx) _voiceAudioCtx = new AC();
-    if (_voiceAudioCtx.state === "suspended") _voiceAudioCtx.resume();
+    if (AC) {
+      if (!_voiceAudioCtx) _voiceAudioCtx = new AC();
+      if (_voiceAudioCtx.state === "suspended") _voiceAudioCtx.resume();
+    }
   } catch (_) {}
+  try {
+    if (!_voiceEl) {
+      _voiceEl = new Audio();
+      _voiceEl.setAttribute("playsinline", "");
+      _voiceEl.addEventListener("ended", voiceReleaseUrl);
+    }
+    if (!_voiceElReady) {
+      _voiceElReady = true;                       // one silent clip inside the tap is all iOS needs
+      _voiceEl.src = VOICE_SILENT_WAV;
+      const pr = _voiceEl.play();
+      if (pr && pr.catch) pr.catch(() => { _voiceElReady = false; });
+    }
+  } catch (_) {}
+}
+function voiceReleaseUrl() {
+  if (_voiceUrl) { try { URL.revokeObjectURL(_voiceUrl); } catch (_) {} _voiceUrl = null; }
 }
 function voiceStopSpeaking() {
   _voiceSpeakSeq++;
   try { if (_voiceSource) _voiceSource.stop(); } catch (_) {}
   _voiceSource = null;
+  try { if (_voiceEl) _voiceEl.pause(); } catch (_) {}
+  voiceReleaseUrl();
+}
+// The MP3 bytes for `text` in Grok's voice, or null when it can't be had.
+async function voiceFetchSpeech(text) {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return null;
+  const res = await fetch(SUPABASE_URL + "/functions/v1/voice-tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ text: String(text).slice(0, 800) }),
+  });
+  if (!res.ok) throw new Error("voice-tts " + res.status);
+  const bytes = await res.arrayBuffer();
+  return bytes && bytes.byteLength > 200 ? bytes : null;
+}
+function voiceSpeakFailed(err) {
+  try { console.warn("[voice] couldn't speak:", err && err.message || err); } catch (_) {}
+  if (_voiceWarned) return;
+  _voiceWarned = true;
+  try { toast("Couldn't play Grok's voice — the reply is on screen."); } catch (_) {}
 }
 async function voiceSpeak(text) {
   voiceStopSpeaking();
-  if (!text || voiceMuted() || !sb || !_voiceAudioCtx) return;
+  if (!text || voiceMuted() || !sb) return;
   const seq = _voiceSpeakSeq;
   try {
-    const { data, error } = await sb.functions.invoke("voice-tts", { body: { text: String(text).slice(0, 800) } });
-    if (error || !data || typeof data.arrayBuffer !== "function") return;
-    const buf = await _voiceAudioCtx.decodeAudioData(await data.arrayBuffer());
+    const bytes = await voiceFetchSpeech(text);
+    if (!bytes) throw new Error("no audio");
     if (seq !== _voiceSpeakSeq) return;          // something newer started (or the panel closed)
+    if (_voiceEl) {
+      try {
+        _voiceUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+        _voiceEl.src = _voiceUrl;
+        await _voiceEl.play();
+        return;
+      } catch (_) { voiceReleaseUrl(); }
+    }
+    if (!_voiceAudioCtx) throw new Error("audio blocked");
+    const buf = await _voiceAudioCtx.decodeAudioData(bytes.slice(0));
+    if (seq !== _voiceSpeakSeq) return;
     const src = _voiceAudioCtx.createBufferSource();
     src.buffer = buf;
     src.connect(_voiceAudioCtx.destination);
     src.start();
     _voiceSource = src;
-  } catch (_) {}
+  } catch (e) { voiceSpeakFailed(e); }
 }
 function voicePanel(html) {
   const p = document.getElementById(_voice.panelId || "voicePanel");
@@ -38437,6 +38494,32 @@ function askDashOpen() {
   const d = document.getElementById("dashboardScreen");
   return !!d && !d.classList.contains("hidden");
 }
+// Money for one saved job — the figures saved WITH the job (the same source the
+// Revenue page and the CSV export read), so "profit" here matches the dashboard.
+function askJobMoney(j) {
+  const price = Number(j.sellingPrice) || 0;
+  const cost = Number(j.totalCost) || 0;
+  const profit = (j.profit != null && j.profit !== "" && Number.isFinite(Number(j.profit))) ? Number(j.profit) : price - cost;
+  return { price: Math.round(price), cost: Math.round(cost), profit: Math.round(profit),
+    profitPct: price > 0 ? Math.round(profit / price * 100) : null };   // profit as a share of the selling price
+}
+// Ready-made answers to "biggest / best job" style questions, over ALL saved jobs —
+// the model reads these instead of doing arithmetic on a long list.
+function askProfitRollups(jobs) {
+  const rows = jobs.map(j => ({ j, m: askJobMoney(j) }));
+  const brief = r => ({ jobId: r.j.id, name: r.j.name || r.j.customerName || "Untitled job", customer: r.j.customerName || "",
+    status: jobStatus(r.j), price: r.m.price, cost: r.m.cost, profit: r.m.profit, profitPct: r.m.profitPct });
+  const top = arr => arr.filter(r => r.m.price > 0).sort((a, b) => b.m.profit - a.m.profit).slice(0, 5);
+  const totals = arr => {
+    const revenue = arr.reduce((t, r) => t + r.m.price, 0), cost = arr.reduce((t, r) => t + r.m.cost, 0);
+    const profit = arr.reduce((t, r) => t + r.m.profit, 0);
+    return { jobs: arr.length, revenue, cost, profit, profitPct: revenue > 0 ? Math.round(profit / revenue * 100) : null };
+  };
+  const won = rows.filter(r => jobIsWon(r.j));
+  const topAll = top(rows), topWon = top(won);
+  return { topByProfit: topAll.map(brief), topWonByProfit: topWon.map(brief),
+    wonTotals: totals(won), allTotals: totals(rows), topJobs: topAll.concat(topWon).map(r => r.j) };
+}
 // A compact snapshot of the account for the assistant — computed with the SAME
 // helpers the dashboard uses, so its answers match what the cards show.
 async function askContext() {
@@ -38444,14 +38527,27 @@ async function askContext() {
   const recent = jobs.slice().sort((a, b) =>
     (Date.parse(b.updatedAt || b.createdAt || "") || 0) - (Date.parse(a.updatedAt || a.createdAt || "") || 0));
   const fu = computeFollowups(jobs);
+  const rollups = askProfitRollups(jobs);
+  // The 60 most recent jobs, plus any top-profit job outside them (so the model can open it).
+  const listed = recent.slice(0, 60);
+  const listedIds = new Set(listed.map(j => j.id));
+  rollups.topJobs.forEach(j => { if (!listedIds.has(j.id)) { listedIds.add(j.id); listed.push(j); } });
   const money = arr => Math.round(arr.reduce((s, j) => s + (Number(j.sellingPrice) || 0), 0));
   const pipeline = JOB_STATUSES.map(st => {
     const arr = jobs.filter(j => jobStatus(j) === st);
-    return { stage: st, jobs: arr.length, total: money(arr) };
+    return { stage: st, jobs: arr.length, total: money(arr), profit: Math.round(arr.reduce((t, j) => t + askJobMoney(j).profit, 0)) };
   });
-  const bookingsByMonth = dashMonthBuckets(jobs, 12).map(m => {
+  const monthBuckets = dashMonthBuckets(jobs, 12);
+  const monthByKey = {}; monthBuckets.forEach(m => { m.profit = 0; monthByKey[m.key] = m; });
+  jobs.forEach(j => {                       // same month rule + same profit source as the Revenue page
+    const t = Date.parse(j.updatedAt || j.createdAt || "");
+    if (isNaN(t)) return;
+    const d = new Date(t), b = monthByKey[`${d.getFullYear()}-${d.getMonth()}`];
+    if (b) b.profit += askJobMoney(j).profit;
+  });
+  const bookingsByMonth = monthBuckets.map(m => {
     const [y, mo] = m.key.split("-").map(Number);
-    return { month: new Date(y, mo, 1).toLocaleString("en-US", { month: "long", year: "numeric" }), total: Math.round(m.total), jobs: m.n };
+    return { month: new Date(y, mo, 1).toLocaleString("en-US", { month: "long", year: "numeric" }), total: Math.round(m.total), jobs: m.n, profit: Math.round(m.profit || 0) };
   });
   let esign = [];
   try {
@@ -38476,11 +38572,17 @@ async function askContext() {
     today: new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
     screen: askDashOpen() ? `dashboard (${_dashView})` : "calculator",
     jobCount: jobs.length,
-    jobs: recent.slice(0, 60).map(j => ({
-      id: j.id, name: j.name || "", customer: j.customerName || "", status: jobStatus(j),
-      price: Math.round(Number(j.sellingPrice) || 0), lf: j.totalLF ?? "", windows: j.windowCount ?? "",
-      updated: askIsoDay(j.updatedAt || j.createdAt), address: String(j.customerAddress || "").slice(0, 60),
-    })),
+    jobs: listed.map(j => {
+      const m = askJobMoney(j);
+      return {
+        id: j.id, name: j.name || "", customer: j.customerName || "", status: jobStatus(j),
+        price: m.price, cost: m.cost, profit: m.profit, profitPct: m.profitPct,
+        lf: j.totalLF ?? "", windows: j.windowCount ?? "",
+        updated: askIsoDay(j.updatedAt || j.createdAt), address: String(j.customerAddress || "").slice(0, 60),
+      };
+    }),
+    profit: { topByProfit: rollups.topByProfit, topWonByProfit: rollups.topWonByProfit,
+      wonTotals: rollups.wonTotals, allTotals: rollups.allTotals },
     followups: {
       quietAfterDays: FOLLOWUP_STALE_DAYS,
       quiet: fu.stale.map(n => ({ jobId: n.job.id, name: n.job.name || n.job.customerName || "Untitled job", daysQuiet: n.days })),
