@@ -9,7 +9,15 @@
 //     ready-made top-by-profit lists (falling back to price − cost when a job has
 //     no saved profit).
 //
-// Runs the REAL askJobMoney / askProfitRollups / voiceFetchSpeech from index.html.
+//  3. "How long will the install take?" / "what's in the labor detail panel?" →
+//     "I don't have access" — the assistant needs job hours, install days, line
+//     items, customer info and roll-ups. Install days = job hours in 8-hour days.
+//  4. Hands-free voice: what she says back after each answer, and the server's
+//     yes/no shortcut for confirm cards (short answers only).
+//
+// Runs the REAL askJobMoney / askProfitRollups / voiceFetchSpeech / askRowsBrief /
+// askLaborFromRows / askGroupRollup / voiceSpokenSummary from index.html and the
+// yes/no patterns from the ask-anchor edge function.
 //
 // Run:  node tools/ask-anchor.test.mjs
 import { readFileSync } from "node:fs";
@@ -58,6 +66,12 @@ vm.runInContext([
   extractFn("askJobMoney"),
   extractFn("askProfitRollups"),
   extractFn("voiceFetchSpeech"),
+  extractLine(/^const askRound1 = .*$/m),
+  extractFn("askRowsBrief"),
+  extractFn("askLaborFromRows"),
+  extractFn("askGroupRollup"),
+  extractLine(/^const VOICE_LABELS = \{[\s\S]*?\n\};/m),
+  extractFn("voiceSpokenSummary"),
 ].join("\n"), sandbox);
 
 // ── 1. voice bytes survive ────────────────────────────────────────────────────
@@ -111,6 +125,49 @@ const jobs = [
   assert.equal(r.allTotals.jobs, 6);
   assert.ok(r.topJobs.every(j => jobs.includes(j)), "topJobs are real saved jobs (so 'open it' works)");
   console.log("ok  top-by-profit lists and totals");
+}
+
+// ── 3. install time, line items, roll-ups ─────────────────────────────────────
+{
+  const rows = [
+    { id: "caulk", name: "Sealant", rateLabel: "1 tube / 20 LF", quantity: 17, unit: "tube", totalCost: 240.4 },
+    { id: "labor", name: "Labor (install + cleanup)", isLabor: true, rateLabel: "22.1 job hrs × $85.00/hr", quantity: 22.1, unit: "hr", totalCost: 1878.5 },
+  ];
+  const lab = vm.runInContext("askLaborFromRows", sandbox)(rows);
+  assert.equal(lab.jobHours, 22.1);
+  assert.equal(lab.installDays, 3, "22.1 job hours = 3 eight-hour days (rounded up)");
+  assert.equal(lab.laborCost, 1879);
+  assert.equal(vm.runInContext("askLaborFromRows", sandbox)([rows[0]]), null, "no labor row → no invented install time");
+  assert.equal(vm.runInContext("askLaborFromRows", sandbox)([{ isLabor: true, quantity: 0.4, totalCost: 10 }]).installDays, 1, "a short job is still 1 day");
+  const lines = vm.runInContext("askRowsBrief", sandbox)(rows);
+  assert.equal(lines[1], "Labor (install + cleanup) — 22.1 hr (22.1 job hrs × $85.00/hr): $1,879");
+  assert.equal(lines[0], "Sealant — 17 tube (1 tube / 20 LF): $240");
+  console.log("ok  install days, labor line and line items read correctly");
+}
+{
+  const g = vm.runInContext("askGroupRollup", sandbox)(jobs, j => j.customerName.toLowerCase(), j => j.customerName, "customer");
+  const smith = g.find(x => x.customer === "Smith");
+  assert.equal(smith.wonJobs, 1); assert.equal(smith.wonRevenue, 14000); assert.equal(smith.wonProfit, 4200);
+  const garcia = g.find(x => x.customer === "Garcia");
+  assert.equal(garcia.openQuotes, 1); assert.equal(garcia.openQuoteValue, 9830); assert.equal(garcia.wonRevenue, 0);
+  assert.equal(g[0].customer, "Lee", "sorted by won revenue");
+  console.log("ok  customer roll-up (won vs open)");
+}
+
+// ── 4. hands-free wording + the server's yes/no shortcut ───────────────────────
+{
+  const say = vm.runInContext("voiceSpokenSummary", sandbox);
+  assert.equal(say({ totalLF: 340, windowCount: 12 }), "Got it: 340 linear feet, 12 windows.");
+  assert.equal(say({ stories: 1, constructionType: "Remodel" }), "Got it: 1 story, Remodel.");
+  assert.equal(say({}), "Got it.");
+  const ts = readFileSync(join(here, "..", "supabase", "functions", "ask-anchor", "index.ts"), "utf8");
+  const YES = eval(/const YES_RE = (\/.*\/i);/.exec(ts)[1]);
+  const NO = eval(/const NO_RE = (\/.*\/i);/.exec(ts)[1]);
+  assert.match(ts, /expectConfirm === true && said\.split\(\/\\s\+\/\)\.filter\(Boolean\)\.length <= 4/, "shortcut is limited to short answers");
+  for (const t of ["Yes.", "yeah do it", "Okay", "go ahead please", "Confirm"]) assert.ok(YES.test(t), t + " → yes");
+  for (const t of ["No", "nope", "No, cancel that", "never mind", "cancel"]) assert.ok(NO.test(t), t + " → no");
+  for (const t of ["Know the Smith job", "Notice the price", "Not sure about that", "What about labor"]) assert.ok(!YES.test(t) && !NO.test(t), t + " → neither");
+  console.log("ok  hands-free summary wording + yes/no matching");
 }
 
 console.log("all ask-anchor tests passed");
