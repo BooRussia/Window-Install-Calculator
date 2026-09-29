@@ -2437,7 +2437,7 @@
   .ask-hdr-btn:hover { background: rgba(181,143,74,0.1); border-color: #c9a558; }
   .ask-hdr-btn:focus-visible, .ask-icon:focus-visible, .ask-mic:focus-visible, .ask-send:focus-visible, .ask-chip:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
   .ask-hdr-btn.hidden, .ask-float.hidden { display: none; }
-  .ask-float { position: fixed; z-index: 77; top: calc(env(safe-area-inset-top, 0px) + 64px); right: max(12px, env(safe-area-inset-right, 0px)); width: min(400px, calc(100vw - 24px)); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 64px - var(--chrome-b, 0px) - 16px); display: flex; flex-direction: column; border-radius: 16px; background: rgba(8,13,24,0.95); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); border: 1px solid rgba(181,143,74,0.35); box-shadow: 0 24px 60px -20px rgba(0,0,0,0.8); overflow: hidden; }
+  .ask-float { position: fixed; z-index: 79; top: calc(env(safe-area-inset-top, 0px) + 64px); right: max(12px, env(safe-area-inset-right, 0px)); width: min(400px, calc(100vw - 24px)); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 64px - var(--chrome-b, 0px) - 16px); display: flex; flex-direction: column; border-radius: 16px; background: rgba(8,13,24,0.95); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); border: 1px solid rgba(181,143,74,0.35); box-shadow: 0 24px 60px -20px rgba(0,0,0,0.8); overflow: hidden; }
   .ask-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 6px 16px; }
   .ask-title { font-weight: 800; color: #f8fafc; font-size: 14px; }
   .ask-head .voice-beta { margin-right: auto; }
@@ -38164,7 +38164,7 @@ const _voice = { rec: null, stream: null, chunks: [], timer: 0, tick: 0, started
   mode: "quote",            // "quote" = guided quote interview · "ask" = Ask Anchor
   panelId: "voicePanel",    // where the conversation renders (rail panel or #askBody)
   askHistory: [], askPending: null,
-  vad: null, autoMisses: 0, _noSpeech: false };
+  vad: null, autoMisses: 0, _noSpeech: false, autoFollowup: false, lastHtml: "" };
 
 function voiceEnabled() {
   return !!(typeof currentUser !== "undefined" && currentUser) && (VOICE_BETA_FOR_ALL || isAdmin())
@@ -38336,17 +38336,21 @@ function voiceCanAutoListen() {
   return !!el && !el.classList.contains("hidden");
 }
 // Say `text`; when hands-free is on and it's a question, open the mic once she's done.
-function voiceSpeakThenListen(text, wantsAnswer) {
+// `followup` = she just answered a plain question (not asked one): keep the conversation
+// going with ONE listen, and if nobody speaks quietly close the mic and leave the answer up.
+function voiceSpeakThenListen(text, wantsAnswer, followup) {
   const mode = _voice.mode, panel = _voice.panelId;
   return voiceSpeak(text).then(done => {
-    if (done && wantsAnswer && _voice.mode === mode && _voice.panelId === panel && voiceCanAutoListen()) voiceListen({ auto: true });
+    if (done && wantsAnswer && _voice.mode === mode && _voice.panelId === panel && voiceCanAutoListen()) voiceListen({ auto: true, followup: !!followup });
     return done;
   });
 }
 // A recording ended without anyone speaking: try once more, then wait for a tap.
 function voiceNoSpeech() {
   _voice.autoMisses++;
-  if (_voice.autoMisses < 2 && voiceCanAutoListen()) { voiceListen({ auto: true }); return; }
+  const followup = _voice.autoFollowup;
+  if (_voice.autoMisses < (followup ? 1 : 2) && voiceCanAutoListen()) { voiceListen({ auto: true, followup }); return; }
+  if (followup && _voice.lastHtml) { voicePanel(_voice.lastHtml); return; }   // mic closes quietly; the answer stays on screen
   if (_voice.mode === "ask" && _voice.askPending) { askRenderPending(); return; }   // keep the card; tap Confirm or Cancel
   const hint = `<div class="v-heard">I didn't hear anything — hands-free is paused. Tap the mic when you're ready.</div>`;
   const q = _voice.mode === "quote" && _voice.asked ? `<div class="v-q">${escHtml(voiceIntro())}</div>` : "";
@@ -38384,9 +38388,10 @@ function voiceStartVad(stream, rec) {
   }, VOICE_VAD_TICK_MS);
   return () => { clearInterval(timer); try { src.disconnect(); } catch (_) {} };
 }
-function voicePanel(html) {
+function voicePanel(html, opts) {
   const p = document.getElementById(_voice.panelId || "voicePanel");
   if (!p) return;
+  if (!(opts && opts.transient)) _voice.lastHtml = html;   // what to put back when a listen ends quietly
   // The rail panel carries its own Hands-free checkbox (the Ask panel has it in its header).
   const hf = (html && p.id === "voicePanel")
     ? `<label class="v-hf"><input type="checkbox" data-voice="hf" data-voice-hf ${voiceHandsFree() ? "checked" : ""}> Hands-free <span>— mic opens after each question</span></label>` : "";
@@ -38399,15 +38404,22 @@ function voiceIntro(msg) {
 }
 function voiceUiListening() {
   const secs = Math.floor((Date.now() - _voice.startedAt) / 1000);
-  voicePanel(`<div class="v-head"><span class="v-dot" aria-hidden="true"></span>Listening… 0:${String(secs).padStart(2, "0")}</div>
+  const head = `<div class="v-head"><span class="v-dot" aria-hidden="true"></span>Listening… 0:${String(secs).padStart(2, "0")}</div>`;
+  const acts = `<div class="v-actions"><button type="button" class="v-btn primary" data-voice="stop">Done talking</button>
+    <button type="button" class="v-btn" data-voice="cancel">Cancel</button></div>`;
+  if (_voice.autoFollowup && _voice.lastHtml) {   // hands-free follow-up: the answer stays readable while the mic is open
+    voicePanel(`${_voice.lastHtml}<div class="v-listen">${head}<div class="v-heard">Ask another question, or say “that's all.”</div>${acts}</div>`, { transient: true });
+    return;
+  }
+  voicePanel(`${head}
     <div class="v-q">${escHtml(_voice.mode === "ask" ? "Ask me anything about your jobs, or tell me what to do." : voiceIntro())}</div>
     ${voiceHandsFree() ? `<div class="v-heard">Hands-free — I'll send it when you pause.</div>` : ""}
-    <div class="v-actions"><button type="button" class="v-btn primary" data-voice="stop">Done talking</button>
-    <button type="button" class="v-btn" data-voice="cancel">Cancel</button></div>`);
+    ${acts}`, { transient: true });
 }
 async function voiceListen(opts) {
   if (_voice.busy) return;
   const auto = !!(opts && opts.auto);
+  _voice.autoFollowup = auto && !!(opts && opts.followup);   // a follow-up listen (after a plain answer) waits once, not twice
   voiceStopSpeaking();                            // never record Anchor's own voice
   let stream;
   try {
@@ -38437,6 +38449,7 @@ async function voiceListen(opts) {
     if (_voice._noSpeech) { _voice._noSpeech = false; _voice._cancel = false; voiceNoSpeech(); return; }
     if (_voice._cancel) {
       _voice._cancel = false;
+      if (_voice.busy) return;                    // a chip / typed question is already being answered
       if (_voice.panelId === "askBody") { if (_voice.askPending) askRenderPending(); else askIdle(); } else voicePanel("");
       return;
     }
@@ -38575,6 +38588,16 @@ function voiceUndo() {
 function voiceAskNext(lead, speakLead) {
   const step = voiceNextStep();
   _voice.asked = step ? step.key : null;
+  if (!step && voiceHandsFree()) {
+    // Hands-free: the interview is done, so carry on as a conversation about the quote
+    // ("what's the material breakdown?", "how long will it take?") in the Ask panel.
+    const said = `${speakLead ? lead + " " : ""}That's the core of the quote. Ask me anything about it, or say that's all.`;
+    if (_voice.panelId !== "askBody") { voicePanel(""); askOpen(); }
+    _voice.mode = "ask"; _voice.asked = null;
+    askIdle(`${lead} That's the core of the quote.`);
+    voiceSpeakThenListen(said, true, true);
+    return;
+  }
   if (!step) {
     voicePanel(`<div class="v-head">${escHtml(lead)} That's the core of the quote.</div>
       <div>Check the numbers on the right, then save the job when it looks right.</div>
@@ -38904,6 +38927,7 @@ async function askSend(input) {
   try {
     const body = { context: await askContext(), history: _voice.askHistory.slice(-4), manufacturers: enabledManufacturers() };
     if (expectConfirm) body.expectConfirm = true;
+    if (voiceHandsFree() && !typed) body.handsFree = true;     // lets the server hear "that's all" without a Grok call
     if (typed) body.text = typed;
     else { body.audio = await fileToBase64(input.blob); body.mimeType = input.mime; }
     const res = await sb.functions.invoke("ask-anchor", { body });
@@ -38928,10 +38952,17 @@ async function askSend(input) {
     if (data.confirm === "yes") { askConfirm(); return; }
     _voice.askPending = null;
     const msg = "Okay, cancelled.";
-    askIdle(msg); voiceSpeak(msg);
+    askIdle(msg); voiceSpeakThenListen(msg, true, true);
     return;
   }
   _voice.askPending = null;                       // any other answer replaces the old card
+  data._typed = !!typed;                          // typed questions never wake the mic on their own
+  if (data.end) {                                 // "that's all" / "thanks" — wind down, no more listening
+    const heard = data.transcript ? `<div class="v-heard">You: “${escHtml(data.transcript)}”</div>` : "";
+    voicePanel(`${heard}<div class="v-q">${escHtml(data.reply || "Okay.")}</div>`);
+    voiceSpeak(data.reply || "Okay.");
+    return;
+  }
   _voice.askHistory.push({ q: data.transcript || typed, a: data.reply });
   if (_voice.askHistory.length > 6) _voice.askHistory.shift();
   try { if (typeof window.track === "function") window.track("ask_answered", { action: (data.action && data.action.type) || "none", typed: !!typed }); } catch (_) {}
@@ -38950,16 +38981,19 @@ function askHandle(data) {
   const reply = `<div class="v-q">${escHtml(data.reply || "")}</div>`;
   if (a.type === "none" || a.type === "open" || a.type === "open_job") {
     voicePanel(heard + reply);
-    // A reply that ends in a question is waiting for an answer — hands-free opens the mic for it.
-    voiceSpeakThenListen(data.reply, /\?\s*$/.test(String(data.reply || "")));
+    // Hands-free keeps the conversation going after EVERY spoken answer. If she asked something
+    // back it gets the usual two tries; after a plain answer it's one quiet listen for the next question.
+    const asksBack = /\?\s*$/.test(String(data.reply || ""));
+    voiceSpeakThenListen(data.reply, !data._typed, !asksBack);
     if (a.type !== "none") askRunNav(a);
     return;
   }
   // Anything that changes a job or reaches a customer waits for a tap.
   _voice.askPending = a;
   _voice.askPendingHeard = heard; _voice.askPendingReply = reply;
+  const hf = voiceHandsFree() && !data._typed;
+  _voice.askPendingAuto = hf;
   askRenderPending();
-  const hf = voiceHandsFree();
   voiceSpeakThenListen(hf ? `${data.reply} Say yes to confirm, or no to cancel.` : data.reply, true);
 }
 // The confirm card for the pending action (also re-shown if a listen ends with no answer).
@@ -38978,7 +39012,7 @@ function askRenderPending() {
     : a.type === "sign_link" ? `<div class="v-heard">For ${escHtml(askJobLabel(a.jobId))}. Nothing is sent to the customer — you'll get a link to share.</div>`
     : a.type === "set_status" ? `<div class="v-heard">${escHtml(askJobLabel(a.jobId))}</div>` : "";
   voicePanel(`${_voice.askPendingHeard || ""}${_voice.askPendingReply || ""}${rows ? `<ul class="v-list">${rows}</ul>` : ""}${note}
-    ${voiceHandsFree() ? `<div class="v-heard">Say “yes” to confirm or “no” to cancel.</div>` : ""}
+    ${_voice.askPendingAuto ? `<div class="v-heard">Say “yes” to confirm or “no” to cancel.</div>` : ""}
     <div class="v-actions"><button type="button" class="v-btn primary" data-ask-act="confirm">${escHtml(label)}</button>
     <button type="button" class="v-btn" data-ask-act="cancel">Cancel</button></div>`);
 }
@@ -39004,7 +39038,7 @@ async function askConfirm() {
     setJobStatus(a.jobId, a.status);
     try { if (askDashOpen()) renderDashboard(); } catch (_) {}
     const msg = `Done — ${askJobLabel(a.jobId)} is now ${a.status}.`;
-    askIdle(msg); voiceSpeak(msg);
+    askIdle(msg); voiceSpeakThenListen(msg, true, true);
     return;
   }
   if (a.type === "sign_link") {
@@ -39022,7 +39056,7 @@ async function askConfirm() {
     askToCalculator();
     voiceApplyPatch(a.patch);
     const msg = "Updated the quote.";
-    askIdle(msg); voiceSpeak(msg);
+    askIdle(msg); voiceSpeakThenListen(msg, true, true);
     return;
   }
   if (a.type === "new_quote") {
@@ -39069,7 +39103,12 @@ function wireAskAnchor() {
     }
     if (t.closest("#askMic")) { askMicClick(); return; }
     const chip = t.closest("[data-ask-say]");
-    if (chip) { voiceUnlockAudio(); _voice.mode = "ask"; askSend({ text: chip.dataset.askSay }); return; }
+    if (chip) {
+      voiceUnlockAudio(); _voice.mode = "ask";
+      if (_voice.rec && _voice.rec.state === "recording") { _voice._cancel = true; voiceStop(); }
+      askSend({ text: chip.dataset.askSay });
+      return;
+    }
     const act = t.closest("[data-ask-act]");
     if (act) {
       voiceUnlockAudio();

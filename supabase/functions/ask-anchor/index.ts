@@ -13,9 +13,11 @@
 // job or creates a signing link.
 //
 // Request:  POST { audio?: base64, mimeType?, text?, context: {...},
-//                  history?: [{q,a}], manufacturers?: string[], expectConfirm?: boolean }
-// Response: 200 { ok:true, transcript, reply, action, confirm?: "yes"|"no" }
-//   (confirm is only set when expectConfirm was true and the answer was a plain yes/no)
+//                  history?: [{q,a}], manufacturers?: string[], expectConfirm?: boolean,
+//                  handsFree?: boolean }
+// Response: 200 { ok:true, transcript, reply, action, confirm?: "yes"|"no", end?: true }
+//   confirm is only set when expectConfirm was true and the answer was a plain yes/no;
+//   end is only set when handsFree was true and they said "that's all" / "thanks".
 //
 // Beta gate + cost: same as voice-quote-turn (~1¢/turn; owner-only until
 // VOICE_BETA_OPEN=true, which needs per-plan metering first).
@@ -50,6 +52,8 @@ const MAX_CONTEXT_CHARS = 100_000;
 // A plain "yes" / "no" to a confirm card already on screen needs no thinking.
 const YES_RE = /^\W*(yes|yeah|yep|yup|sure|ok|okay|confirm|confirmed|do it|go ahead|go for it|please do|that'?s right|correct|affirmative)\b/i;
 const NO_RE = /^\W*(no|nope|nah|cancel|never ?mind|stop|don'?t|do not|forget it|negative)\b/i;
+// Hands-free: "that's all" / "thanks" ends the back-and-forth (no Grok call, the mic stays closed).
+const END_RE = /^\W*(?:(?:ok|okay|alright|all right|yeah|yes|cool|great|perfect)\W+)?(?:that(?:'?s| is) (?:all|it|everything|enough)|that will be all|i'?m (?:good|done|all set)|we'?re (?:good|done)|all done|all set|nothing else|no,? thanks|no,? thank you|thanks|thank you|goodbye|good ?bye|bye|stop listening)(?:\W+(?:for now|so much|very much|a lot|anymore|please|today|then|anchor|thanks|thank you|bye|goodbye))*\W*$/i;
 
 const KEYTERMS = [
   "linear feet", "LF", "windows", "remodel", "new construction", "block framed",
@@ -219,7 +223,7 @@ JOB DETAIL — you can see everything the app shows about a job. Never say you c
 - LABOR DETAIL: read out labor.hoursByTask (mobilization, per-opening setup, window install, doors), the crew and crewCostPerHour, and laborCost.
 - If a number really isn't in the data, say which one and where in the app it lives; don't refuse the whole question.
 
-Only end a reply with a question when you truly need an answer to continue (the app opens the microphone after a question). Never end with filler like "anything else?".
+In hands-free mode the app listens again after every reply, so keep replies short and never end with filler like "anything else?". Only end with a question when you truly need an answer to continue.
 
 When you propose an action, the reply should say what you're about to do ("Opening your follow-ups." / "I'll mark the Garcia job approved — tap confirm.").
 
@@ -303,6 +307,11 @@ Deno.serve(async (req) => {
   if (body?.expectConfirm === true && said.split(/\s+/).filter(Boolean).length <= 4) {
     if (YES_RE.test(said)) return json({ ok: true, transcript: said, reply: "", action: { type: "none" }, confirm: "yes" });
     if (NO_RE.test(said)) return json({ ok: true, transcript: said, reply: "", action: { type: "none" }, confirm: "no" });
+  }
+
+  // Hands-free and they said "that's all" / "thanks" — wind the conversation down, no Grok call.
+  if (body?.handsFree === true && said.split(/\s+/).filter(Boolean).length <= 6 && END_RE.test(said)) {
+    return json({ ok: true, transcript: said, reply: "Okay — I'm here when you need me.", action: { type: "none" }, end: true });
   }
 
   // ── 2. Answer + maybe one action

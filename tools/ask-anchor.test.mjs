@@ -12,8 +12,9 @@
 //  3. "How long will the install take?" / "what's in the labor detail panel?" →
 //     "I don't have access" — the assistant needs job hours, install days, line
 //     items, customer info and roll-ups. Install days = job hours in 8-hour days.
-//  4. Hands-free voice: what she says back after each answer, and the server's
-//     yes/no shortcut for confirm cards (short answers only).
+//  4. Hands-free voice: what she says back after each answer, the server's
+//     yes/no shortcut for confirm cards (short answers only), and the "that's all"
+//     sign-off (whole utterance only).
 //
 // Runs the REAL askJobMoney / askProfitRollups / voiceFetchSpeech / askRowsBrief /
 // askLaborFromRows / askGroupRollup / voiceSpokenSummary from index.html and the
@@ -168,6 +169,14 @@ const jobs = [
   for (const t of ["No", "nope", "No, cancel that", "never mind", "cancel"]) assert.ok(NO.test(t), t + " → no");
   for (const t of ["Know the Smith job", "Notice the price", "Not sure about that", "What about labor"]) assert.ok(!YES.test(t) && !NO.test(t), t + " → neither");
   console.log("ok  hands-free summary wording + yes/no matching");
+
+  // "that's all" / "thanks" ends the hands-free conversation — but only when it's the WHOLE
+  // utterance. "Thanks, and what about labor" is still a question and must go to Grok.
+  const END = eval(/const END_RE = (\/.*\/i);/.exec(ts)[1]);
+  assert.match(ts, /handsFree === true && said\.split\(\/\\s\+\/\)\.filter\(Boolean\)\.length <= 6 && END_RE\.test\(said\)/, "end phrase only in hands-free, short utterances");
+  for (const t of ["That's all.", "That is all", "Thanks!", "thank you so much", "No thanks", "I'm good", "Bye", "Okay, that's all", "That's all, thanks", "Nothing else", "Stop listening"]) assert.ok(END.test(t), t + " → end");
+  for (const t of ["Thanks, and what about labor", "what is the total", "Byron job", "That's all wrong, change the price", "Okay so how long will it take", "I'm good with that price but add trim", "Thanks for the quote total"]) assert.ok(!END.test(t), t + " → not an end");
+  console.log("ok  sign-off phrases end the conversation, real questions never do");
 }
 
 console.log("all ask-anchor tests passed");
