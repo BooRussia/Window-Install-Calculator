@@ -15377,6 +15377,20 @@ function materialsNeededEntries(liveResult) {
   }
 }
 
+// What one Materials-card line costs to BUY: full packs × pack price (the AI cut list is
+// priced by board footage, split trim by its sticks). The card's total, and anything that
+// reads the card aloud (Ask Anchor), must come from these so they can never disagree.
+function materialsEntryCost(e) {
+  const { item, proc, buckList, trimPart } = e;
+  if (buckList) return buckListTotalLF(buckList) * getUnitPrice(item);
+  if (trimPart) return trimPart.cost;
+  const basis = computeCostBasis(item);
+  return basis ? proc.packs * basis.perPack : 0;
+}
+function materialsNeededTotal(entries) {
+  return (entries || []).reduce((t, e) => t + (e.excluded ? 0 : materialsEntryCost(e)), 0);
+}
+
 const MAT_RESTORE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/></svg>`;
 
 function wireMaterialsSwipe(wrap) {
@@ -18509,17 +18523,7 @@ function render() {
     matCountEl.textContent = removedCount
       ? `${activeCount} item${activeCount === 1 ? "" : "s"} · ${removedCount} removed`
       : `${matItems.length} item${matItems.length === 1 ? "" : "s"}`;
-    let materialsTotalCost = 0;
-    matItems.forEach(({ item, proc, buckList, trimPart, excluded }) => {
-      if (excluded) return;
-      if (buckList) {
-        materialsTotalCost += buckListTotalLF(buckList) * getUnitPrice(item);
-        return;
-      }
-      if (trimPart) { materialsTotalCost += trimPart.cost; return; }
-      const basis = computeCostBasis(item);
-      if (basis) materialsTotalCost += proc.packs * basis.perPack;
-    });
+    const materialsTotalCost = materialsNeededTotal(matItems);
     if (matFooter) matFooter.classList.remove("hidden");
     if (matTotalEl) matTotalEl.textContent = formatMoney(materialsTotalCost);
     { const _ms = document.getElementById("materialsSummary"); if (_ms) _ms.textContent = formatMoney(materialsTotalCost); }
@@ -38735,6 +38739,37 @@ function askJobDetail(j) {
     actualsLogged: actuals,
   };
 }
+// The Materials card ("Round up to full packs / Cost of full packs to buy") as text — the
+// shopping list with what each line costs to buy and the card's total. This is NOT the same
+// number as the quote's line items, which price the exact quantity used.
+function askMaterialsBrief(r) {
+  const entries = materialsNeededEntries(r);
+  if (!entries.length) return null;
+  const cents = n => Math.round(n * 100) / 100;
+  const dollars = n => "$" + cents(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const toBuy = [], removed = [];
+  entries.forEach(e => {
+    const { row, item, proc, buckList, trimPart } = e;
+    let name, qty, detail;
+    if (trimPart) {
+      name = `Interior trim — ${trimPart.label}`;
+      qty = `${trimPart.sticks} ${trimPart.sticks === 1 ? "stick" : "sticks"}`;
+      detail = `${askRound1(trimPart.lf)} LF, ${trimPart.stickLen} ft sticks`;
+    } else if (buckList) {
+      const n = buckListBoardCount(buckList);
+      name = row.name; qty = `${n} ${n === 1 ? "board" : "boards"}`; detail = "AI cut list";
+    } else {
+      name = row.name; qty = `${proc.packs} ${String(proc.packLabel || proc.packName || "").toLowerCase()}`.trim();
+      if (proc.intCount != null) detail = `${askRound1(row.quantity)} ${item.unit}, ${proc.intCount} ${proc.intLabel}, ${proc.intPerPack} per ${proc.packName}`;
+      else if (item.unit === proc.packName) detail = row.isFixed ? "fixed job allowance" : `${askRound1(row.quantity)} ${proc.packLabel}`;
+      else if (item.unit === "each") detail = `${askRound1(row.quantity)}, ${proc.caseSize} per ${proc.packName}`;
+      else detail = `${askRound1(row.quantity)} ${item.unit}, ${proc.caseSize} ${item.unit} per ${proc.packName}`;
+    }
+    if (e.excluded) { removed.push(name); return; }
+    toBuy.push(`${name}: buy ${qty} (${detail}) — ${dollars(materialsEntryCost(e))}`);
+  });
+  return { toBuy, toBuyTotal: cents(materialsNeededTotal(entries)), removedFromQuote: removed };
+}
 // The quote on screen right now, in full: the Full Breakdown rows, the Labor Detail
 // card (hours by task, crew, install days) and the lift / storage / permit choices.
 function askQuoteDetail(r) {
@@ -38754,7 +38789,10 @@ function askQuoteDetail(r) {
       lift = { daysEntered: STATE.liftDays, upperFloorWindows: est ? est.upperWindows : null, estimatedDays: est ? est.days : null };
     }
   } catch (_) {}
+  let materials = null;
+  try { materials = askMaterialsBrief(r); } catch (_) {}
   const m = askJobMoney({ sellingPrice: r.sellingPrice, totalCost: r.totalCost, profit: r.profit });
+  const laborRow = (r.rows || []).find(x => x && x.isLabor);
   const monthly = parseFloat(STATE.storageMonthlyCost) || 0;
   return {
     jobName: STATE.jobName || "", totalLF: STATE.totalLF || "", windowCount: STATE.windowCount || "",
@@ -38765,8 +38803,10 @@ function askQuoteDetail(r) {
     doors: { swing: r.swingDoors ? r.swingDoors.total || 0 : 0, sliding: r.slidingDoors ? r.slidingDoors.count || 0 : 0, bifold: r.bifoldDoors ? r.bifoldDoors.count || 0 : 0 },
     sellingPrice: m.price,
     money: { price: m.price, cost: m.cost, profit: m.profit, profitPct: m.profitPct, markupPct: Math.round(r.margin || 0),
-      costPerLF: Math.round((r.perLfCost || 0) * 100) / 100 },
+      costPerLF: Math.round((r.perLfCost || 0) * 100) / 100,
+      costExcludingLabor: Math.round((r.totalCost || 0) - (laborRow ? Number(laborRow.totalCost) || 0 : 0)) },
     labor, lineItems: askRowsBrief(r.rows),
+    materials,
     access: { lift, swingStageDays: STATE.swingStageEnabled ? STATE.swingStageDays : null,
       storageMonths: monthly > 0 ? (parseInt(STATE.projectedMonths, 10) || 1) : null },
     permit: !!STATE.permitEnabled, bucking: !!STATE.includeBucking,
