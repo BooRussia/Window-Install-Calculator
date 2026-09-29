@@ -2441,6 +2441,15 @@
   .ask-head { display: flex; align-items: center; gap: 8px; padding: 10px 8px 6px 16px; }
   .ask-title { font-weight: 800; color: #f8fafc; font-size: 14px; }
   .ask-head .voice-beta { margin-right: auto; }
+  .ask-hf { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.3); background: transparent; color: #94a3b8; font-size: 11.5px; font-weight: 700; white-space: nowrap; flex: none; transition: color .15s ease, border-color .15s ease, background .15s ease; }
+  .ask-hf:hover { color: #dfc07a; border-color: rgba(181,143,74,0.5); }
+  .ask-hf-dot { width: 8px; height: 8px; border-radius: 50%; background: #475569; flex: none; transition: background .15s ease, box-shadow .15s ease; }
+  .ask-hf.is-on { color: #dfc07a; border-color: rgba(181,143,74,0.6); background: rgba(181,143,74,0.1); }
+  .ask-hf.is-on .ask-hf-dot { background: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.22); }
+  .ask-hf:focus-visible { outline: 2px solid #c9a558; outline-offset: 2px; }
+  .voice-panel .v-hf { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; color: #cbd5e1; padding-top: 8px; border-top: 1px solid rgba(148,163,184,0.14); cursor: pointer; }
+  .voice-panel .v-hf span { font-weight: 500; color: #94a3b8; }
+  .voice-panel .v-hf input { width: 18px; height: 18px; accent-color: #c9a558; flex: none; }
   .ask-icon { width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; color: #94a3b8; display: inline-flex; align-items: center; justify-content: center; }
   .ask-icon:hover { color: #dfc07a; background: rgba(148,163,184,0.08); }
   .ask-icon .ask-ico-off, .ask-icon.is-muted .ask-ico-on { display: none; }
@@ -2460,6 +2469,13 @@
   [data-theme="light"] .ask-float { background: rgba(255,255,255,0.97); border-color: #e4cd95; box-shadow: 0 24px 60px -24px rgba(15,23,42,0.35); }
   [data-theme="light"] .ask-title { color: #0f172a; }
   [data-theme="light"] .ask-icon { color: #64748b; }
+  [data-theme="light"] .ask-hf { color: #475569; border-color: #cbd5e1; }
+  [data-theme="light"] .ask-hf-dot { background: #94a3b8; }
+  [data-theme="light"] .ask-hf.is-on { color: var(--gold-ink); border-color: #d9c79a; background: #fbf6e8; }
+  [data-theme="light"] .ask-hf.is-on .ask-hf-dot { background: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,0.2); }
+  [data-theme="light"] .voice-panel .v-hf { color: #334155; border-top-color: #e2e8f0; }
+  [data-theme="light"] .voice-panel .v-hf span { color: #475569; }
+  [data-theme="light"] .voice-panel .v-hf input { accent-color: #7d5f22; }
   [data-theme="light"] .voice-panel.ask-body { background: transparent; }
   [data-theme="light"] .ask-chip { color: #334155; border-color: #cbd5e1; background: #f8fafc; }
   [data-theme="light"] .ask-link, [data-theme="light"] .ask-form input { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
@@ -2475,6 +2491,9 @@
     #dashOpenCalc { padding-left: 10px; padding-right: 10px; }
     #dashOpenCalc .dash-calc-arrow { display: none; }
     #dashNavWell .ask-hdr-btn { margin-left: 2px; }
+    .ask-head { gap: 4px; padding-left: 12px; }
+    .ask-head .voice-beta { display: none; }
+    .ask-head .ask-title { margin-right: auto; }
   }
   /* Voice quote (beta) panel */
   .voice-beta { font-size: 8.5px; letter-spacing: .1em; padding: 1px 6px; border-radius: 999px; border: 1px solid rgba(181,143,74,0.45); color: #dfc07a; }
@@ -13094,6 +13113,7 @@
 <div id="askPanel" class="ask-float hidden" role="dialog" aria-label="Ask Anchor">
   <div class="ask-head">
     <span class="ask-title">Ask Anchor</span><span class="voice-beta">Beta</span>
+    <button type="button" id="askHandsFree" class="ask-hf" aria-pressed="false" title="Hands-free: the mic opens after each question and sends when you stop talking"><span class="ask-hf-dot" aria-hidden="true"></span>Hands-free</button>
     <button type="button" id="askMute" class="ask-icon" aria-label="Mute voice replies" aria-pressed="false">
       <svg class="ask-ico-on" width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8v4h3l4 3.5v-11L6 8H3z"/><path d="M13.5 7.5a3.5 3.5 0 0 1 0 5M15.5 5.5a6.5 6.5 0 0 1 0 9"/></svg>
       <svg class="ask-ico-off" width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8v4h3l4 3.5v-11L6 8H3z"/><path d="M13.5 8l4 4M17.5 8l-4 4"/></svg>
@@ -38115,6 +38135,12 @@ function clearFieldAiById(elId) {
    ============================================================ */
 const VOICE_BETA_FOR_ALL = false;
 const VOICE_MAX_MS = 20000;
+// Hands-free (opt-in): after Anchor asks a question the mic opens by itself, and a
+// recording ends when you stop talking (or you tap the mic). Times in ms.
+const VOICE_HF_KEY = "anchor.voiceHandsFree";
+const VOICE_SILENCE_MS = 1500;     // this long quiet after speaking = "done, send it"
+const VOICE_NO_SPEECH_MS = 8000;   // nothing said in this long = stop listening
+const VOICE_VAD_TICK_MS = 80;
 const VOICE_STEPS = [
   { key: "totalLF", q: "About how many linear feet of windows?" },
   { key: "windowCount", q: "How many windows?" },
@@ -38137,7 +38163,8 @@ const _voice = { rec: null, stream: null, chunks: [], timer: 0, tick: 0, started
   answered: new Set(), asked: null, pending: null, undo: null, lastHeard: "",
   mode: "quote",            // "quote" = guided quote interview · "ask" = Ask Anchor
   panelId: "voicePanel",    // where the conversation renders (rail panel or #askBody)
-  askHistory: [], askPending: null };
+  askHistory: [], askPending: null,
+  vad: null, autoMisses: 0, _noSpeech: false };
 
 function voiceEnabled() {
   return !!(typeof currentUser !== "undefined" && currentUser) && (VOICE_BETA_FOR_ALL || isAdmin())
@@ -38190,7 +38217,7 @@ function voiceNextStep() {
 const VOICE_MUTE_KEY = "anchor.voiceMuted";
 const VOICE_SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 let _voiceAudioCtx = null, _voiceSource = null, _voiceSpeakSeq = 0;
-let _voiceEl = null, _voiceElReady = false, _voiceUrl = null, _voiceWarned = false;
+let _voiceEl = null, _voiceElReady = false, _voiceUrl = null, _voiceWarned = false, _voiceEndResolve = null;
 function voiceMuted() { try { return localStorage.getItem(VOICE_MUTE_KEY) === "1"; } catch (_) { return false; } }
 function voiceSetMuted(on) {
   try { on ? localStorage.setItem(VOICE_MUTE_KEY, "1") : localStorage.removeItem(VOICE_MUTE_KEY); } catch (_) {}
@@ -38208,7 +38235,7 @@ function voiceUnlockAudio() {
     if (!_voiceEl) {
       _voiceEl = new Audio();
       _voiceEl.setAttribute("playsinline", "");
-      _voiceEl.addEventListener("ended", voiceReleaseUrl);
+      _voiceEl.addEventListener("ended", () => { voiceReleaseUrl(); voiceResolveSpeech(true); });
     }
     if (!_voiceElReady) {
       _voiceElReady = true;                       // one silent clip inside the tap is all iOS needs
@@ -38221,12 +38248,20 @@ function voiceUnlockAudio() {
 function voiceReleaseUrl() {
   if (_voiceUrl) { try { URL.revokeObjectURL(_voiceUrl); } catch (_) {} _voiceUrl = null; }
 }
+// voiceSpeak() returns a promise: true once the reply finished playing (or there was
+// nothing to play — muted, or Grok's voice failed and the text is on screen), false
+// if something newer cut it off. Hands-free waits on it before opening the mic.
+function voiceResolveSpeech(done) {
+  const r = _voiceEndResolve; _voiceEndResolve = null;
+  if (r) r(done);
+}
 function voiceStopSpeaking() {
   _voiceSpeakSeq++;
-  try { if (_voiceSource) _voiceSource.stop(); } catch (_) {}
+  try { if (_voiceSource) { _voiceSource.onended = null; _voiceSource.stop(); } } catch (_) {}
   _voiceSource = null;
   try { if (_voiceEl) _voiceEl.pause(); } catch (_) {}
   voiceReleaseUrl();
+  voiceResolveSpeech(false);
 }
 // The MP3 bytes for `text` in Grok's voice, or null when it can't be had.
 async function voiceFetchSpeech(text) {
@@ -38249,34 +38284,113 @@ function voiceSpeakFailed(err) {
 }
 async function voiceSpeak(text) {
   voiceStopSpeaking();
-  if (!text || voiceMuted() || !sb) return;
+  if (!text || !sb) return false;
+  if (voiceMuted()) return true;                 // nothing to play — the reply is on screen
   const seq = _voiceSpeakSeq;
   try {
     const bytes = await voiceFetchSpeech(text);
     if (!bytes) throw new Error("no audio");
-    if (seq !== _voiceSpeakSeq) return;          // something newer started (or the panel closed)
+    if (seq !== _voiceSpeakSeq) return false;    // something newer started (or the panel closed)
     if (_voiceEl) {
       try {
         _voiceUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
         _voiceEl.src = _voiceUrl;
+        const finished = new Promise(res => { _voiceEndResolve = res; });
         await _voiceEl.play();
-        return;
-      } catch (_) { voiceReleaseUrl(); }
+        return await finished;
+      } catch (_) { voiceReleaseUrl(); _voiceEndResolve = null; }
     }
     if (!_voiceAudioCtx) throw new Error("audio blocked");
     const buf = await _voiceAudioCtx.decodeAudioData(bytes.slice(0));
-    if (seq !== _voiceSpeakSeq) return;
+    if (seq !== _voiceSpeakSeq) return false;
     const src = _voiceAudioCtx.createBufferSource();
     src.buffer = buf;
     src.connect(_voiceAudioCtx.destination);
+    const finished = new Promise(res => { _voiceEndResolve = res; });
+    src.onended = () => { if (_voiceSource === src) { _voiceSource = null; voiceResolveSpeech(true); } };
     src.start();
     _voiceSource = src;
-  } catch (e) { voiceSpeakFailed(e); }
+    return await finished;
+  } catch (e) { voiceSpeakFailed(e); return true; }
+}
+// ── Hands-free ────────────────────────────────────────────────────────────────
+function voiceHandsFree() { try { return localStorage.getItem(VOICE_HF_KEY) === "1"; } catch (_) { return false; } }
+function voiceSetHandsFree(on) {
+  try { on ? localStorage.setItem(VOICE_HF_KEY, "1") : localStorage.removeItem(VOICE_HF_KEY); } catch (_) {}
+  _voice.autoMisses = 0;
+  if (!on && _voice.rec && _voice.rec.state === "recording") { _voice._cancel = true; voiceStop(); }
+  voiceSyncHandsFreeUi();
+}
+function voiceSyncHandsFreeUi() {
+  const on = voiceHandsFree();
+  const ask = document.getElementById("askHandsFree");
+  if (ask) { ask.setAttribute("aria-pressed", String(on)); ask.classList.toggle("is-on", on); }
+  document.querySelectorAll("[data-voice-hf]").forEach(c => { c.checked = on; });
+}
+// Can the mic open by itself right now? (Only while the conversation is on screen.)
+function voiceCanAutoListen() {
+  if (!voiceHandsFree() || _voice.busy || document.hidden) return false;
+  if (_voice.rec && _voice.rec.state === "recording") return false;
+  if (_voice.autoMisses >= 2) return false;
+  const el = document.getElementById(_voice.panelId === "askBody" ? "askPanel" : "voicePanel");
+  return !!el && !el.classList.contains("hidden");
+}
+// Say `text`; when hands-free is on and it's a question, open the mic once she's done.
+function voiceSpeakThenListen(text, wantsAnswer) {
+  const mode = _voice.mode, panel = _voice.panelId;
+  return voiceSpeak(text).then(done => {
+    if (done && wantsAnswer && _voice.mode === mode && _voice.panelId === panel && voiceCanAutoListen()) voiceListen({ auto: true });
+    return done;
+  });
+}
+// A recording ended without anyone speaking: try once more, then wait for a tap.
+function voiceNoSpeech() {
+  _voice.autoMisses++;
+  if (_voice.autoMisses < 2 && voiceCanAutoListen()) { voiceListen({ auto: true }); return; }
+  if (_voice.mode === "ask" && _voice.askPending) { askRenderPending(); return; }   // keep the card; tap Confirm or Cancel
+  const hint = `<div class="v-heard">I didn't hear anything — hands-free is paused. Tap the mic when you're ready.</div>`;
+  const q = _voice.mode === "quote" && _voice.asked ? `<div class="v-q">${escHtml(voiceIntro())}</div>` : "";
+  voicePanel(`<div class="v-head">Still there?</div>${q}${hint}`);
+}
+// Watches the mic and stops the recording once you've spoken and gone quiet. The
+// room's background level is learned in the first 0.4s so a noisy truck doesn't
+// count as talking. Returns a stop function.
+function voiceStartVad(stream, rec) {
+  let ctx, src, an;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!_voiceAudioCtx && AC) _voiceAudioCtx = new AC();
+    ctx = _voiceAudioCtx;
+    if (!ctx) return null;
+    if (ctx.state === "suspended") ctx.resume();
+    src = ctx.createMediaStreamSource(stream);
+    an = ctx.createAnalyser(); an.fftSize = 1024;
+    src.connect(an);
+  } catch (_) { return null; }
+  const buf = new Float32Array(an.fftSize);
+  const t0 = Date.now();
+  let floor = 0, floorN = 0, voicedMs = 0, spoke = false, lastVoice = 0;
+  const timer = setInterval(() => {
+    if (rec.state !== "recording") return;
+    an.getFloatTimeDomainData(buf);
+    let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length), now = Date.now(), elapsed = now - t0;
+    if (elapsed < 400) { floor += rms; floorN++; return; }
+    const base = floorN ? floor / floorN : 0;
+    const threshold = Math.max(0.02, Math.min(base * 3, 0.036));
+    if (rms > threshold) { voicedMs += VOICE_VAD_TICK_MS; lastVoice = now; if (voicedMs >= 250) spoke = true; }
+    if (spoke && now - lastVoice > VOICE_SILENCE_MS) voiceStop();
+    else if (!spoke && elapsed > VOICE_NO_SPEECH_MS) { _voice._noSpeech = true; voiceStop(); }
+  }, VOICE_VAD_TICK_MS);
+  return () => { clearInterval(timer); try { src.disconnect(); } catch (_) {} };
 }
 function voicePanel(html) {
   const p = document.getElementById(_voice.panelId || "voicePanel");
   if (!p) return;
-  p.innerHTML = html;
+  // The rail panel carries its own Hands-free checkbox (the Ask panel has it in its header).
+  const hf = (html && p.id === "voicePanel")
+    ? `<label class="v-hf"><input type="checkbox" data-voice="hf" data-voice-hf ${voiceHandsFree() ? "checked" : ""}> Hands-free <span>— mic opens after each question</span></label>` : "";
+  p.innerHTML = html + hf;
   if (p.id === "voicePanel") p.classList.toggle("hidden", !html);
 }
 function voiceIntro(msg) {
@@ -38287,15 +38401,23 @@ function voiceUiListening() {
   const secs = Math.floor((Date.now() - _voice.startedAt) / 1000);
   voicePanel(`<div class="v-head"><span class="v-dot" aria-hidden="true"></span>Listening… 0:${String(secs).padStart(2, "0")}</div>
     <div class="v-q">${escHtml(_voice.mode === "ask" ? "Ask me anything about your jobs, or tell me what to do." : voiceIntro())}</div>
+    ${voiceHandsFree() ? `<div class="v-heard">Hands-free — I'll send it when you pause.</div>` : ""}
     <div class="v-actions"><button type="button" class="v-btn primary" data-voice="stop">Done talking</button>
     <button type="button" class="v-btn" data-voice="cancel">Cancel</button></div>`);
 }
-async function voiceListen() {
+async function voiceListen(opts) {
   if (_voice.busy) return;
+  const auto = !!(opts && opts.auto);
+  voiceStopSpeaking();                            // never record Anchor's own voice
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (_) {
+    if (auto) {                                   // the browser wouldn't open the mic without a tap
+      _voice.autoMisses = 2;
+      voicePanel(`<div class="v-head">Tap the mic to answer</div><div class="v-heard">Your browser needs a tap before it opens the microphone.</div>`);
+      return;
+    }
     voicePanel(`<div class="v-head">Microphone blocked</div><div>Allow microphone access for anchorquoting.com in your browser settings, then tap “Quote by voice” again.</div>
       <div class="v-actions"><button type="button" class="v-btn" data-voice="close">Close</button></div>`);
     return;
@@ -38309,12 +38431,19 @@ async function voiceListen() {
   rec.ondataavailable = e => { if (e.data && e.data.size) _voice.chunks.push(e.data); };
   rec.onstop = () => {
     askMicState(false);
+    if (_voice.vad) { _voice.vad(); _voice.vad = null; }
     if (_voice.stream) _voice.stream.getTracks().forEach(t => t.stop());
     _voice.stream = null;
-    if (_voice._cancel) { _voice._cancel = false; if (_voice.panelId === "askBody") askIdle(); else voicePanel(""); return; }
+    if (_voice._noSpeech) { _voice._noSpeech = false; _voice._cancel = false; voiceNoSpeech(); return; }
+    if (_voice._cancel) {
+      _voice._cancel = false;
+      if (_voice.panelId === "askBody") { if (_voice.askPending) askRenderPending(); else askIdle(); } else voicePanel("");
+      return;
+    }
     voiceSend(rec.mimeType || type || "audio/webm");
   };
   rec.start();
+  if (voiceHandsFree()) _voice.vad = voiceStartVad(stream, rec);
   askMicState(true);
   clearTimeout(_voice.timer); clearInterval(_voice.tick);
   _voice.timer = setTimeout(voiceStop, VOICE_MAX_MS);
@@ -38364,6 +38493,7 @@ async function voiceSend(mime) {
   _voice.lastHeard = data.transcript || "";
   const patch = data.patch || {};
   const keys = Object.keys(patch).filter(k => VOICE_LABELS[k]);
+  if (_voice.undo && !keys.length && /^\W*(undo|go back|scratch that|take that back|that'?s wrong)\b/i.test(_voice.lastHeard)) { voiceUndo(); return; }
   const skip = !keys.length && /\b(skip|next|not sure|don'?t know|no idea|pass)\b/i.test(_voice.lastHeard);
   if (skip && _voice.asked) { _voice.answered.add(_voice.asked); voiceAskNext("Skipped."); return; }
   if (!keys.length) {
@@ -38373,10 +38503,16 @@ async function voiceSend(mime) {
       <div class="v-actions"><button type="button" class="v-btn primary" data-voice="again">Try again</button>
       ${_voice.asked ? `<button type="button" class="v-btn" data-voice="skip">Skip</button>` : ""}
       <button type="button" class="v-btn" data-voice="close">Close</button></div>`);
-    voiceSpeak(data.reply || "Sorry, I didn't catch that.");
+    _voice.autoMisses++;                          // heard words but nothing usable: ask once more, then wait for a tap
+    voiceSpeakThenListen(data.reply || "Sorry, I didn't catch that.", true);
     return;
   }
+  _voice.autoMisses = 0;                          // understood — clear the "nothing usable" streak
   _voice.pending = patch;
+  if (voiceHandsFree()) {                         // hands-free: apply now (Undo / "undo" still works), move to the next question
+    voiceApply(true);
+    return;
+  }
   const rows = keys.map(k => {
     const now = voiceShow(patch[k], k), was = voiceValue(k);
     return `<li><span>${escHtml(VOICE_LABELS[k])}</span><b>${escHtml(now)}${was !== "—" && was !== now ? `<span class="v-was">was ${escHtml(was)}</span>` : ""}</b></li>`;
@@ -38390,12 +38526,20 @@ async function voiceSend(mime) {
   voiceSpeak(data.reply);
   try { if (typeof window.track === "function") window.track("voice_heard", { fields: keys.length }); } catch (_) {}
 }
-function voiceApply() {
+// "Got it: 12 windows, remodel." — what hands-free says back before the next question.
+function voiceSpokenSummary(patch) {
+  const say = (k, v) => k === "totalLF" ? `${v} linear feet` : k === "windowCount" ? `${v} windows`
+    : k === "stories" ? `${v} ${Number(v) === 1 ? "story" : "stories"}` : String(v);
+  const bits = Object.keys(patch).filter(k => VOICE_LABELS[k]).map(k => say(k, patch[k]));
+  return bits.length ? "Got it: " + bits.join(", ") + "." : "Got it.";
+}
+function voiceApply(speakSummary) {
   const patch = _voice.pending || {};
+  const summary = speakSummary ? voiceSpokenSummary(patch) : "";
   if (!voiceApplyPatch(patch)) return;
   _voice.pending = null;
-  try { if (typeof window.track === "function") window.track("voice_applied", { fields: Object.keys(patch).length }); } catch (_) {}
-  voiceAskNext("Updated.");
+  try { if (typeof window.track === "function") window.track("voice_applied", { fields: Object.keys(patch).length, hands_free: !!speakSummary }); } catch (_) {}
+  voiceAskNext(summary || "Updated.", !!summary);
 }
 // Write validated quote fields into the rail (same path loadJob uses: STATE →
 // bindControls → render), badge them 🎙, and remember them for Undo.
@@ -38428,7 +38572,7 @@ function voiceUndo() {
   toast("Voice changes undone");
   voiceAskNext("Undone.");
 }
-function voiceAskNext(lead) {
+function voiceAskNext(lead, speakLead) {
   const step = voiceNextStep();
   _voice.asked = step ? step.key : null;
   if (!step) {
@@ -38445,7 +38589,7 @@ function voiceAskNext(lead) {
     <button type="button" class="v-btn" data-voice="skip">Skip</button>
     ${_voice.undo ? `<button type="button" class="v-btn" data-voice="undo">Undo last</button>` : ""}
     <button type="button" class="v-btn" data-voice="close">Done</button></div>`);
-  voiceSpeak(step.q);
+  voiceSpeakThenListen(speakLead ? `${lead} ${step.q}` : step.q, true);
 }
 function voicePanelClick(e) {
   const b = e.target.closest("[data-voice]");
@@ -38453,6 +38597,7 @@ function voicePanelClick(e) {
   const act = b.dataset.voice;
   if (act === "stop") voiceStop();
   else if (act === "cancel") { _voice._cancel = true; voiceStop(); }
+  else if (act === "hf") voiceSetHandsFree(!!b.checked);
   else if (act === "again") voiceListen();
   else if (act === "apply") voiceApply();
   else if (act === "undo") voiceUndo();
@@ -38520,6 +38665,103 @@ function askProfitRollups(jobs) {
   return { topByProfit: topAll.map(brief), topWonByProfit: topWon.map(brief),
     wonTotals: totals(won), allTotals: totals(rows), topJobs: topAll.concat(topWon).map(r => r.j) };
 }
+const askRound1 = n => Math.round((Number(n) || 0) * 10) / 10;
+// One line item as a sentence the assistant can read out: what it is, how it was
+// figured, and what it costs — the same rows as the Full Breakdown table.
+function askRowsBrief(rows) {
+  return (Array.isArray(rows) ? rows : []).slice(0, 40).map(r => {
+    const qty = r.quantity != null && r.quantity !== "" ? `${askRound1(r.quantity)}${r.unit ? " " + r.unit : ""}` : "";
+    return `${r.name || r.id}${qty ? " — " + qty : ""}${r.rateLabel ? " (" + r.rateLabel + ")" : ""}: $${Math.round(Number(r.totalCost) || 0).toLocaleString("en-US")}`;
+  });
+}
+// Install time for a SAVED job, read off its labor line (job hours are wall-clock on
+// site for the whole crew together; a workday is 8 hours — same rule as the schedule chips).
+function askLaborFromRows(rows) {
+  const r = (Array.isArray(rows) ? rows : []).find(x => x && x.isLabor);
+  const hrs = r ? Number(r.quantity) || 0 : 0;
+  return hrs > 0 ? { jobHours: askRound1(hrs), installDays: Math.max(1, Math.ceil(hrs / 8)),
+    laborCost: Math.round(Number(r.totalCost) || 0), how: r.rateLabel || "" } : null;
+}
+// Everything the app knows about one saved job — what its Job Details drawer shows.
+function askJobDetail(j) {
+  const m = askJobMoney(j), rows = Array.isArray(j.rows) ? j.rows : [];
+  const count = arr => Array.isArray(arr) ? arr.reduce((t, d) => t + (parseInt(d.qty, 10) || 1), 0) : 0;
+  let actuals = [];
+  try {
+    const a = (j.actuals && typeof j.actuals === "object") ? j.actuals : {};
+    actuals = jobReconcilableRows(j).filter(r => a[r.id] && Number(a[r.id].used) > 0)
+      .map(r => `${r.name}: estimated ${askRound1(r.quantity)} ${r.unit || ""}, actually used ${askRound1(a[r.id].used)}`.replace(/\s+,/g, ","));
+  } catch (_) {}
+  return {
+    id: j.id, name: j.name || "", status: jobStatus(j),
+    customer: { name: j.customerName || "", company: j.customerCompany || "", phone: j.customerPhone || "", email: j.customerEmail || "",
+      address: j.customerAddress || "", notes: String(j.customerNotes || "").slice(0, 300), tag: j.customerTag || "" },
+    created: askIsoDay(j.createdAt), updated: askIsoDay(j.updatedAt || j.createdAt),
+    signed: j.signedAt ? { on: askIsoDay(j.signedAt), by: j.signerName || "" } : null,
+    scope: { manufacturer: j.manufacturer || "", construction: j.constructionType || "", framing: j.houseType || "",
+      stories: j.stories ? storyLabel(j.stories) : "", glass: j.impact || "", install: j.application || "",
+      totalLF: j.totalLF ?? "", windows: j.windowCount || "", swingDoors: normalizeSwingDoors(j.swingDoors).length,
+      slidingDoors: count(j.slidingDoors), bifoldDoors: count(j.bifoldDoors),
+      lift: j.liftEnabled ? { days: j.liftDays } : null, permit: !!j.permitEnabled, bucking: !!j.includeBucking,
+      floridaApprovals: (Array.isArray(j.planApprovals) ? j.planApprovals : []).map(a => a.number).filter(Boolean) },
+    money: { price: m.price, cost: m.cost, profit: m.profit, profitPct: m.profitPct,
+      markupPct: j.margin != null && !isNaN(j.margin) ? Math.round(j.margin) : null, costPerLF: Math.round((Number(j.perLfCost) || 0) * 100) / 100 },
+    labor: askLaborFromRows(rows),
+    crew: j.assignedCrewId ? (crewLabel(j.assignedCrewId) || null) : null,
+    lineItems: askRowsBrief(rows),
+    actualsLogged: actuals,
+  };
+}
+// The quote on screen right now, in full: the Full Breakdown rows, the Labor Detail
+// card (hours by task, crew, install days) and the lift / storage / permit choices.
+function askQuoteDetail(r) {
+  let labor = null, lift = null;
+  try {
+    const lb = buildingLaborBreakdown();
+    labor = {
+      jobHours: askRound1(lb.totalHrs), installDays: estimateJobCalendarDays(lb), crewSize: lb.crewSize,
+      crewCostPerHour: Math.round(lb.crewCostPerHr), laborCost: Math.round(lb.laborCost),
+      hoursByTask: lb.breakdown.map(b => `${b.label}: ${askRound1(b.hrs)} hr`),
+      crew: (lb.crewMembers || []).map(mm => `${mm.name || mm.role || "Installer"}: $${Math.round(mm.loadedRate)}/hr loaded`),
+      editedForThisJob: laborHasOverrides(),
+      note: "jobHours are wall-clock hours on site with the whole crew working together; installDays = jobHours divided into 8-hour workdays.",
+    };
+    if (STATE.liftEnabled) {
+      const est = estimateLiftDaysFromUpperOpenings(resolveLiftUpperWindows());
+      lift = { daysEntered: STATE.liftDays, upperFloorWindows: est ? est.upperWindows : null, estimatedDays: est ? est.days : null };
+    }
+  } catch (_) {}
+  const m = askJobMoney({ sellingPrice: r.sellingPrice, totalCost: r.totalCost, profit: r.profit });
+  const monthly = parseFloat(STATE.storageMonthlyCost) || 0;
+  return {
+    jobName: STATE.jobName || "", totalLF: STATE.totalLF || "", windowCount: STATE.windowCount || "",
+    constructionType: STATE.constructionType, houseType: STATE.houseType, stories: storyNum(STATE.stories),
+    impact: STATE.impact, manufacturer: STATE.manufacturer || "", savedJobId: STATE.currentJobId || null,
+    customer: { name: STATE.customerName || "", phone: STATE.customerPhone || "", email: STATE.customerEmail || "",
+      address: STATE.customerAddress || "", notes: String(STATE.customerNotes || "").slice(0, 300) },
+    doors: { swing: r.swingDoors ? r.swingDoors.total || 0 : 0, sliding: r.slidingDoors ? r.slidingDoors.count || 0 : 0, bifold: r.bifoldDoors ? r.bifoldDoors.count || 0 : 0 },
+    sellingPrice: m.price,
+    money: { price: m.price, cost: m.cost, profit: m.profit, profitPct: m.profitPct, markupPct: Math.round(r.margin || 0),
+      costPerLF: Math.round((r.perLfCost || 0) * 100) / 100 },
+    labor, lineItems: askRowsBrief(r.rows),
+    access: { lift, swingStageDays: STATE.swingStageEnabled ? STATE.swingStageDays : null,
+      storageMonths: monthly > 0 ? (parseInt(STATE.projectedMonths, 10) || 1) : null },
+    permit: !!STATE.permitEnabled, bucking: !!STATE.includeBucking,
+  };
+}
+// Dashboard-style roll-ups by customer and by crew (won = Approved or Finished).
+function askGroupRollup(jobs, keyOf, labelOf, noun) {
+  const by = new Map();
+  jobs.forEach(j => {
+    const key = keyOf(j); if (!key) return;
+    const g = by.get(key) || { [noun]: labelOf(j), jobs: 0, wonJobs: 0, wonRevenue: 0, wonProfit: 0, openQuotes: 0, openQuoteValue: 0 };
+    const m = askJobMoney(j); g.jobs++;
+    if (jobIsWon(j)) { g.wonJobs++; g.wonRevenue += m.price; g.wonProfit += m.profit; }
+    else if (jobStatus(j) === "Quoted") { g.openQuotes++; g.openQuoteValue += m.price; }
+    by.set(key, g);
+  });
+  return [...by.values()].sort((a, b) => b.wonRevenue - a.wonRevenue || b.jobs - a.jobs).slice(0, 12);
+}
 // A compact snapshot of the account for the assistant — computed with the SAME
 // helpers the dashboard uses, so its answers match what the cards show.
 async function askContext() {
@@ -38562,25 +38804,38 @@ async function askContext() {
   let quoteOpenNow = null;
   try {
     const r = calculate();
-    if (hasQuoteInput(r)) quoteOpenNow = {
-      jobName: STATE.jobName || "", totalLF: STATE.totalLF || "", windowCount: STATE.windowCount || "",
-      constructionType: STATE.constructionType, houseType: STATE.houseType, stories: storyNum(STATE.stories),
-      impact: STATE.impact, sellingPrice: Math.round(r.sellingPrice || 0), savedJobId: STATE.currentJobId || null,
-    };
+    if (hasQuoteInput(r)) quoteOpenNow = askQuoteDetail(r);
   } catch (_) {}
-  return {
+  // The saved job whose Job Details drawer is open, and the few jobs to give in full.
+  const jdModal = document.getElementById("jobDetailsModal");
+  const openJobId = (jdModal && !jdModal.classList.contains("hidden") && _jdJobId) ? _jdJobId : null;
+  const detailIds = [];
+  [openJobId, STATE.currentJobId].concat(recent.map(j => j.id)).forEach(id => { if (id && !detailIds.includes(id)) detailIds.push(id); });
+  const jobDetails = detailIds.map(id => jobs.find(j => j.id === id)).filter(Boolean).slice(0, 8).map(askJobDetail);
+  let defaults = null;
+  try { const c = resolveCrewCost(); defaults = { markupPct: DATA.config.defaultMargin ?? 35, crewSize: c.crewSize, crewCostPerHour: Math.round(c.crewCostPerHr) }; } catch (_) {}
+  const openJob = openJobId ? jobs.find(j => j.id === openJobId) : null;
+  const ctx = {
     today: new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
-    screen: askDashOpen() ? `dashboard (${_dashView})` : "calculator",
+    screen: openJob ? `job details (${openJob.name || openJob.customerName || "untitled"})` : askDashOpen() ? `dashboard (${_dashView})` : "calculator",
+    openJobId,
     jobCount: jobs.length,
     jobs: listed.map(j => {
-      const m = askJobMoney(j);
+      const m = askJobMoney(j), lab = askLaborFromRows(j.rows);
       return {
         id: j.id, name: j.name || "", customer: j.customerName || "", status: jobStatus(j),
         price: m.price, cost: m.cost, profit: m.profit, profitPct: m.profitPct,
+        markupPct: j.margin != null && !isNaN(j.margin) ? Math.round(j.margin) : null,
         lf: j.totalLF ?? "", windows: j.windowCount ?? "",
+        laborHours: lab ? lab.jobHours : null, installDays: lab ? lab.installDays : null,
+        crew: j.assignedCrewId ? (crewLabel(j.assignedCrewId) || null) : null,
         updated: askIsoDay(j.updatedAt || j.createdAt), address: String(j.customerAddress || "").slice(0, 60),
       };
     }),
+    jobDetails,
+    customers: askGroupRollup(jobs, j => String(j.customerName || "").trim().toLowerCase(), j => String(j.customerName).trim(), "customer"),
+    crews: askGroupRollup(jobs, j => j.assignedCrewId || "", j => crewLabel(j.assignedCrewId) || "Unnamed crew", "crew"),
+    defaults,
     profit: { topByProfit: rollups.topByProfit, topWonByProfit: rollups.topWonByProfit,
       wonTotals: rollups.wonTotals, allTotals: rollups.allTotals },
     followups: {
@@ -38590,6 +38845,12 @@ async function askContext() {
     },
     pipeline, bookingsByMonth, esign, quoteOpenNow,
   };
+  // Empty strings / nulls carry nothing — drop them, and keep the whole thing a sane size.
+  const clean = c => JSON.parse(JSON.stringify(c, (k, v) => (v === "" || v === null) ? undefined : v));
+  let out = clean(ctx);
+  while (JSON.stringify(out).length > 85000 && out.jobDetails && out.jobDetails.length > 3) out.jobDetails.pop();
+  while (JSON.stringify(out).length > 85000 && out.jobs.length > 20) out.jobs.pop();
+  return out;
 }
 function askOpen() {
   voiceUnlockAudio();
@@ -38601,6 +38862,8 @@ function askOpen() {
   if (!p) return;
   p.classList.remove("hidden");
   askUpdateMute();
+  voiceSyncHandsFreeUi();
+  _voice.autoMisses = 0;
   askIdle();
   try { if (window.matchMedia("(pointer: fine)").matches) document.getElementById("askInput").focus(); } catch (_) {}
   try { if (typeof window.track === "function") window.track("ask_opened", { screen: askDashOpen() ? "dashboard" : "calculator" }); } catch (_) {}
@@ -38635,10 +38898,12 @@ async function askSend(input) {
     return;
   }
   _voice.busy = true;
+  const expectConfirm = !!_voice.askPending;      // a confirm card is up: a plain "yes"/"no" answers it
   voicePanel(`${typed ? `<div class="v-heard">You: “${escHtml(typed)}”</div>` : ""}<div class="v-head">Thinking…</div>`);
   let data = null, errMsg = "";
   try {
     const body = { context: await askContext(), history: _voice.askHistory.slice(-4), manufacturers: enabledManufacturers() };
+    if (expectConfirm) body.expectConfirm = true;
     if (typed) body.text = typed;
     else { body.audio = await fileToBase64(input.blob); body.mimeType = input.mime; }
     const res = await sb.functions.invoke("ask-anchor", { body });
@@ -38657,6 +38922,16 @@ async function askSend(input) {
       <div class="v-actions"><button type="button" class="v-btn primary" data-voice="again">Try again</button></div>`);
     return;
   }
+  _voice.autoMisses = 0;
+  if (data.confirm && _voice.askPending) {        // "yes" / "no" to the card on screen
+    try { if (typeof window.track === "function") window.track("ask_voice_confirm", { answer: data.confirm }); } catch (_) {}
+    if (data.confirm === "yes") { askConfirm(); return; }
+    _voice.askPending = null;
+    const msg = "Okay, cancelled.";
+    askIdle(msg); voiceSpeak(msg);
+    return;
+  }
+  _voice.askPending = null;                       // any other answer replaces the old card
   _voice.askHistory.push({ q: data.transcript || typed, a: data.reply });
   if (_voice.askHistory.length > 6) _voice.askHistory.shift();
   try { if (typeof window.track === "function") window.track("ask_answered", { action: (data.action && data.action.type) || "none", typed: !!typed }); } catch (_) {}
@@ -38675,12 +38950,22 @@ function askHandle(data) {
   const reply = `<div class="v-q">${escHtml(data.reply || "")}</div>`;
   if (a.type === "none" || a.type === "open" || a.type === "open_job") {
     voicePanel(heard + reply);
-    voiceSpeak(data.reply);
+    // A reply that ends in a question is waiting for an answer — hands-free opens the mic for it.
+    voiceSpeakThenListen(data.reply, /\?\s*$/.test(String(data.reply || "")));
     if (a.type !== "none") askRunNav(a);
     return;
   }
   // Anything that changes a job or reaches a customer waits for a tap.
   _voice.askPending = a;
+  _voice.askPendingHeard = heard; _voice.askPendingReply = reply;
+  askRenderPending();
+  const hf = voiceHandsFree();
+  voiceSpeakThenListen(hf ? `${data.reply} Say yes to confirm, or no to cancel.` : data.reply, true);
+}
+// The confirm card for the pending action (also re-shown if a listen ends with no answer).
+function askRenderPending() {
+  const a = _voice.askPending;
+  if (!a) return;
   const rows = (a.type === "new_quote" || a.type === "update_quote")
     ? Object.keys(a.patch || {}).filter(k => VOICE_LABELS[k])
       .map(k => `<li><span>${escHtml(VOICE_LABELS[k])}</span><b>${escHtml(voiceShow(a.patch[k], k))}</b></li>`).join("")
@@ -38692,10 +38977,10 @@ function askHandle(data) {
   const note = a.type === "new_quote" && askHasWork() ? `<div class="v-heard">This clears the quote you're working on.</div>`
     : a.type === "sign_link" ? `<div class="v-heard">For ${escHtml(askJobLabel(a.jobId))}. Nothing is sent to the customer — you'll get a link to share.</div>`
     : a.type === "set_status" ? `<div class="v-heard">${escHtml(askJobLabel(a.jobId))}</div>` : "";
-  voicePanel(`${heard}${reply}${rows ? `<ul class="v-list">${rows}</ul>` : ""}${note}
+  voicePanel(`${_voice.askPendingHeard || ""}${_voice.askPendingReply || ""}${rows ? `<ul class="v-list">${rows}</ul>` : ""}${note}
+    ${voiceHandsFree() ? `<div class="v-heard">Say “yes” to confirm or “no” to cancel.</div>` : ""}
     <div class="v-actions"><button type="button" class="v-btn primary" data-ask-act="confirm">${escHtml(label)}</button>
     <button type="button" class="v-btn" data-ask-act="cancel">Cancel</button></div>`);
-  voiceSpeak(data.reply);
 }
 function askToCalculator() {
   try { if (askDashOpen()) closeDashboard(); } catch (_) {}
@@ -38776,6 +39061,12 @@ function wireAskAnchor() {
     const t = e.target;
     if (t.closest("#askClose")) { askClose(); return; }
     if (t.closest("#askMute")) { voiceSetMuted(!voiceMuted()); askUpdateMute(); return; }
+    if (t.closest("#askHandsFree")) {
+      voiceUnlockAudio();                          // the tap that turns it on is the tap that lets the browser open the mic later
+      voiceSetHandsFree(!voiceHandsFree());
+      if (voiceHandsFree()) toast("Hands-free on — I'll listen after each question."); else toast("Hands-free off");
+      return;
+    }
     if (t.closest("#askMic")) { askMicClick(); return; }
     const chip = t.closest("[data-ask-say]");
     if (chip) { voiceUnlockAudio(); _voice.mode = "ask"; askSend({ text: chip.dataset.askSay }); return; }
@@ -38806,6 +39097,10 @@ function wireAskAnchor() {
   });
 }
 try { wireAskAnchor(); } catch (_) {}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && _voice.rec && _voice.rec.state === "recording") { _voice._cancel = true; voiceStop(); }
+  if (document.hidden) voiceStopSpeaking();
+});
 
 function applyFullExtraction(text, source) {
   clearAllAiFilled();   // fresh upload → recompute which fields are AI-filled

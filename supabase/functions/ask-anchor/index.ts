@@ -13,8 +13,9 @@
 // job or creates a signing link.
 //
 // Request:  POST { audio?: base64, mimeType?, text?, context: {...},
-//                  history?: [{q,a}], manufacturers?: string[] }
-// Response: 200 { ok:true, transcript, reply, action }
+//                  history?: [{q,a}], manufacturers?: string[], expectConfirm?: boolean }
+// Response: 200 { ok:true, transcript, reply, action, confirm?: "yes"|"no" }
+//   (confirm is only set when expectConfirm was true and the answer was a plain yes/no)
 //
 // Beta gate + cost: same as voice-quote-turn (~1¢/turn; owner-only until
 // VOICE_BETA_OPEN=true, which needs per-plan metering first).
@@ -45,7 +46,10 @@ const ADMIN_EMAILS = (Deno.env.get("ADMIN_EMAILS") ?? "")
   .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
 const MAX_AUDIO_B64 = 4 * 1024 * 1024;
-const MAX_CONTEXT_CHARS = 60_000;
+const MAX_CONTEXT_CHARS = 100_000;
+// A plain "yes" / "no" to a confirm card already on screen needs no thinking.
+const YES_RE = /^\W*(yes|yeah|yep|yup|sure|ok|okay|confirm|confirmed|do it|go ahead|go for it|please do|that'?s right|correct|affirmative)\b/i;
+const NO_RE = /^\W*(no|nope|nah|cancel|never ?mind|stop|don'?t|do not|forget it|negative)\b/i;
 
 const KEYTERMS = [
   "linear feet", "LF", "windows", "remodel", "new construction", "block framed",
@@ -206,9 +210,20 @@ Quote fields for "patch": "totalLF" (number, window linear feet), "windowCount" 
 
 MONEY: every job in data.jobs has "price" (what the customer pays), "cost" (what it costs the contractor), "profit" (price minus cost) and "profitPct" (profit as a percent of the price). data.profit holds ready-made answers so you never have to add up a long list: "topByProfit" (the 5 most profitable jobs of all saved jobs), "topWonByProfit" (the 5 most profitable among approved or finished jobs), "wonTotals" and "allTotals" (jobs, revenue, cost, profit, profitPct). Pipeline stages and bookingsByMonth also carry profit. For "our most profitable job" use topWonByProfit's first entry and mention that it's a won job; if topWonByProfit is empty, use topByProfit and say it's still only quoted. Answer like: "Your most profitable job is the Smith remodel: $4,200 profit on a $14,000 job, about 30 percent." Never say you don't have profit numbers when these fields are present.
 
+JOB DETAIL — you can see everything the app shows about a job. Never say you can't see the labor detail, the breakdown, install time or a customer's info; look for it in the data:
+- data.quoteOpenNow is the quote on screen right now: money (price, cost, profit, markupPct, costPerLF), labor (jobHours, installDays, crewSize, crewCostPerHour, laborCost, hoursByTask = the Labor Detail card, crew, editedForThisJob), lineItems (the Full Breakdown table), access (lift, swing stage, storage), permit, bucking, doors, customer.
+- data.jobDetails has the same in full for a few saved jobs (the job open on screen is data.openJobId, then the most recently touched). Each has customer contact info (name, phone, email, address, notes), scope, money, labor, crew, lineItems, signed, actualsLogged.
+- Every job in data.jobs also has laborHours, installDays and laborCost when known, so install time works for any job. If someone asks for a job's line items or customer phone and it isn't in data.jobDetails, give what data.jobs shows and offer to open that job ("say open the Smith job, then ask me again").
+- data.customers and data.crews roll up by customer and by crew (jobs, wonRevenue, wonProfit, open quotes). data.defaults has the account's default markup and crew cost.
+- INSTALL TIME: "how long will it take" = labor.installDays (8-hour workdays) and labor.jobHours, with crewSize. Say it plainly: "About 3 days with a 2-person crew, roughly 22 job hours." If there's also a lift, mention its days. "markupPct" is the markup on cost (this app calls it markup, not margin).
+- LABOR DETAIL: read out labor.hoursByTask (mobilization, per-opening setup, window install, doors), the crew and crewCostPerHour, and laborCost.
+- If a number really isn't in the data, say which one and where in the app it lives; don't refuse the whole question.
+
+Only end a reply with a question when you truly need an answer to continue (the app opens the microphone after a question). Never end with filler like "anything else?".
+
 When you propose an action, the reply should say what you're about to do ("Opening your follow-ups." / "I'll mark the Garcia job approved — tap confirm.").
 
-DATA (JSON — today's date, where they are, their saved jobs, follow-ups, pipeline, bookings by month, e-signatures, the quote open now):
+DATA (JSON — today's date, where they are, their saved jobs with details, follow-ups, pipeline, bookings by month, e-signatures, customers, crews, defaults, the quote open now):
 ${JSON.stringify(context ?? {}).slice(0, MAX_CONTEXT_CHARS)}
 
 ${hist ? `Recent conversation:\n${hist}\n` : ""}
@@ -280,6 +295,14 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: "Couldn't hear that — try again." }, 502);
     }
     if (!said) return json({ ok: true, transcript: "", reply: "I didn't hear anything — tap the mic and try again.", action: { type: "none" } });
+  }
+
+  // A confirm card is on screen and they just said yes / no — settle it without Grok.
+  // Only for SHORT answers ("yes", "yeah do it", "no cancel"): a longer sentence that
+  // merely starts with "okay" is a new question and goes to Grok like any other.
+  if (body?.expectConfirm === true && said.split(/\s+/).filter(Boolean).length <= 4) {
+    if (YES_RE.test(said)) return json({ ok: true, transcript: said, reply: "", action: { type: "none" }, confirm: "yes" });
+    if (NO_RE.test(said)) return json({ ok: true, transcript: said, reply: "", action: { type: "none" }, confirm: "no" });
   }
 
   // ── 2. Answer + maybe one action
