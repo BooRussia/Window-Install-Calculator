@@ -204,6 +204,8 @@ ID must be an "id" from data.jobs. When they name a job by customer or job name,
 
 Quote fields for "patch": "totalLF" (number, window linear feet), "windowCount" (integer), "constructionType" ("New Construction" | "Remodel"), "houseType" ("Block Framed" | "Stick Framed"), "stories" (integer), "impact" ("Impact" | "Non-Impact"), "application" ("Nail-fin" | "Unequal Leg" | "Equal Leg"), "manufacturer" (one of ${JSON.stringify(manufacturers)}), "jobName" (string). Only fields they actually said.
 
+MONEY: every job in data.jobs has "price" (what the customer pays), "cost" (what it costs the contractor), "profit" (price minus cost) and "profitPct" (profit as a percent of the price). data.profit holds ready-made answers so you never have to add up a long list: "topByProfit" (the 5 most profitable jobs of all saved jobs), "topWonByProfit" (the 5 most profitable among approved or finished jobs), "wonTotals" and "allTotals" (jobs, revenue, cost, profit, profitPct). Pipeline stages and bookingsByMonth also carry profit. For "our most profitable job" use topWonByProfit's first entry and mention that it's a won job; if topWonByProfit is empty, use topByProfit and say it's still only quoted. Answer like: "Your most profitable job is the Smith remodel: $4,200 profit on a $14,000 job, about 30 percent." Never say you don't have profit numbers when these fields are present.
+
 When you propose an action, the reply should say what you're about to do ("Opening your follow-ups." / "I'll mark the Garcia job approved — tap confirm.").
 
 DATA (JSON — today's date, where they are, their saved jobs, follow-ups, pipeline, bookings by month, e-signatures, the quote open now):
